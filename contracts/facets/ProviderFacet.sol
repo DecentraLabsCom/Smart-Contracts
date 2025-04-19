@@ -1,24 +1,27 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 pragma solidity ^0.8.23;
 
-// @title ProviderFacet
-// @author
-// - Juan Luis Ramos Villalón
-// - Luis de la Torre Cubillo
-// @dev This contract is a facet of a diamond that handles admin and provider roles.
-//      It inherits from AccessControlUpgradeable to manage role-based access control.
-//      Ensure to initialize the AccessControlUpgradeable properly when deploying or upgrading.
-
-uint32 constant INITIAL_LAB_TOKENS = 1000;
-
 import "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
 import {LibAppStorage, AppStorage, PROVIDER_ROLE, Provider, ProviderBase} from "../libraries/LibAppStorage.sol";
 import "../libraries/LibDiamond.sol";
 import {LibAccessControlEnumerable} from "../libraries/LibAccessControlEnumerable.sol";
 import "../external/LabERC20.sol"; // Import the LabERC20 contract, no yet implemented
 
+/// @title ProviderFacet Contract
+/// @author Juan Luis Ramos Villalón
+/// @author Luis de la Torre Cubillo
+/// @dev This contract manages the providers in the system, allowing for the addition, removal, and updating of provider information.
+///      It also includes role-based access control to restrict certain actions to administrators or providers.
+///      The contract integrates with the LabERC20 token to mint initial tokens for new providers.
+/// @notice The contract uses the Diamond Standard (EIP-2535) for modularity and extensibility, enabling seamless upgrades and modular design.
+/// @custom:security Only accounts with the appropriate roles can perform restricted actions.
 contract ProviderFacet is AccessControlUpgradeable {
     using LibAccessControlEnumerable for AppStorage;
+
+    /// @dev Represents the initial amount of LAB tokens assigned.
+    /// This constant is set to 1000 and is used as the starting value
+    /// for LAB tokens in the system.
+    uint32 constant INITIAL_LAB_TOKENS = 1000;
 
     /// @dev Emitted when a new provider is added to the system.
     /// @param _account The address of the provider being added.

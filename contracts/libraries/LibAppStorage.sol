@@ -3,18 +3,6 @@ pragma solidity ^0.8.23;
 
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 
-/// @title LibAppStorage
-/// @author Juan Luis Ramos Villalón
-/// @author Luis de la Torre Cubillo
-/// @dev This library defines the main storage structure (AppStorage) used in the Diamond pattern,
-/// following the EIP-2535 specification. It enables centralized and secure storage that can be accessed
-/// by multiple facets of the contract without memory slot collisions.
-///
-/// AppStorage is used to declare shared variables across the modular architecture of the contract,
-/// facilitating state management, access control, configuration, and other cross-facet functionalities.
-///
-/// This library is essential for maintaining consistency and efficiency in Diamond contracts.
-
 /// @dev Constant representing the hash of the string "APP_STORAGE_POSITION".
 ///      This is used as a unique identifier for the application storage position.
 bytes32 constant APP_STORAGE_POSITION = keccak256(
@@ -43,7 +31,7 @@ struct Provider {
     ProviderBase base;
 }
 
-/// @title AppStorage
+/// @dev AppStorage
 /// @dev This struct is used to define the storage layout for the application.
 /// It contains the following fields:
 ///
@@ -60,17 +48,20 @@ struct AppStorage {
 }
 
 /// @title LibAppStorage
-/// @dev A library that provides a function to access the application storage for a diamond standard contract.
+/// @author Juan Luis Ramos Villalón
+/// @author Luis de la Torre Cubillo
+/// @dev This library defines the main storage structure (AppStorage) used in the Diamond pattern,
+/// following the EIP-2535 specification. It enables centralized and secure storage that can be accessed
+/// by multiple facets of the contract without memory slot collisions.
 ///
-/// @notice This library is used to retrieve the storage slot for the application state.
+/// AppStorage is used to declare shared variables across the modular architecture of the contract,
+/// facilitating state management, access control, configuration, and other cross-facet functionalities.
 ///
-/// @function diamondStorage
-/// @dev Retrieves the application storage by returning a reference to the `AppStorage` struct.
-///      The storage slot is determined by the constant `APP_STORAGE_POSITION`.
-/// @return ds A storage pointer to the `AppStorage` struct.
-///
-/// @notice This function uses inline assembly to set the storage slot for the application state.
+/// This library is essential for maintaining consistency and efficiency in Diamond contracts.
 library LibAppStorage {
+    /// @dev Provides access to the `AppStorage` struct stored at a specific slot in contract storage.
+    /// This function uses inline assembly to set the storage pointer to the predefined `APP_STORAGE_POSITION`.
+    /// @return ds A storage pointer to the `AppStorage` struct.
     function diamondStorage() internal pure returns (AppStorage storage ds) {
         bytes32 position = APP_STORAGE_POSITION;
         assembly {

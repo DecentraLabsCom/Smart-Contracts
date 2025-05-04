@@ -71,11 +71,16 @@ contract LabFacet is ERC721EnumerableUpgradeable {
     /// @param _labId The ID of the lab whose ownership is being verified.
     /// @notice Ensures that only the LabProvider (owner of the lab) can perform the action.
     /// @custom:reverts "Only the LabProvider can perform this action" if the caller is not the provider of the lab.
-    modifier onlyLabProvider(uint _labId) {
+    modifier onlyLabProvider(uint256 _labId) {
         require(
             ownerOf(_labId) == msg.sender,
             "Only the LabProvider can perform this action"
         );
+        _;
+    }
+
+    modifier labExists(uint256 _labId) {
+        require(ownerOf(_labId) != address(0), "Lab does not exist");
         _;
     }
 
@@ -96,7 +101,7 @@ contract LabFacet is ERC721EnumerableUpgradeable {
 
     /// @dev Initializes the contract with a given name and symbol.
     /// This function is intended to be called only once, during the contract deployment.
-    /// It sets up the ERC721 token with the provided name and symbol, and initializes the labId to 0.
+    /// It sets up the ERC721 token with the provided name and symbol.
     /// @param _name The name of the ERC721 token.
     /// @param _symbol The symbol of the ERC721 token.
     function initialize(
@@ -104,7 +109,6 @@ contract LabFacet is ERC721EnumerableUpgradeable {
         string memory _symbol
     ) public initializer {
         __ERC721_init(_name, _symbol);
-        _s().labId = 0;
     }
 
     /// @notice Adds a new Lab (Cyber Physical System) with the specified details.
@@ -153,11 +157,10 @@ contract LabFacet is ERC721EnumerableUpgradeable {
     function setTokenURI(
         uint256 _labId,
         string memory _tokenURI
-    ) external onlyLabProvider(_labId) {
+    ) external labExists(_labId) onlyLabProvider(_labId) {
         require(bytes(_tokenURI).length > 0, "Token URI cannot be empty");
 
         LabBase memory lab = _s().labs[_labId];
-        require(bytes(lab.uri).length != 0, "Lab does not exist");
 
         lab.uri = _tokenURI;
         _s().labs[_labId] = lab;
@@ -170,12 +173,11 @@ contract LabFacet is ERC721EnumerableUpgradeable {
     /// @param _labId The ID of the token for which to retrieve the URI.
     /// @return A string representing the URI of the specified token.
     /// @dev The Lab must exist for the given token ID (i.e., the URI must not be empty).
+    /// @dev Used for compliance with ERC721 standards.
     function tokenURI(
         uint256 _labId
-    ) public view override returns (string memory) {
-        LabBase memory lab = _s().labs[_labId];
-        require(bytes(lab.uri).length != 0, "Lab does not exist");
-        return lab.uri;
+    ) public view override labExists(_labId) returns (string memory) {
+        return _s().labs[_labId].uri;
     }
 
     /// @notice Updates the Lab (Cyber Physical System) with the given ID.
@@ -195,7 +197,6 @@ contract LabFacet is ERC721EnumerableUpgradeable {
         string memory _accessURI,
         string memory _accessKey
     ) external onlyLabProvider(_labId) {
-        require(bytes(_s().labs[_labId].uri).length != 0, "Lab does not exist");
         _s().labs[_labId] = LabBase(
             _uri,
             _price,
@@ -212,7 +213,6 @@ contract LabFacet is ERC721EnumerableUpgradeable {
     /// additional handling may be required (currently marked as a TODO).
     /// @param _labId The ID of the Lab to be deleted.
     function deleteLab(uint _labId) external onlyLabProvider(_labId) {
-        require(bytes(_s().labs[_labId].uri).length != 0, "Lab does not exist");
         _burn(_labId);
         delete _s().labs[_labId];
         emit LabDeleted(_labId);
@@ -223,7 +223,9 @@ contract LabFacet is ERC721EnumerableUpgradeable {
     /// @dev This function returns the Lab details, including its ID, URI, and price.
     /// @param _labId The ID of the Lab to retrieve.
     /// @return A Lab structure containing the details of the specified Lab.
-    function getLab(uint _labId) external view returns (Lab memory) {
+    function getLab(
+        uint _labId
+    ) external view labExists(_labId) returns (Lab memory) {
         return Lab(_labId, _s().labs[_labId]);
     }
 
@@ -305,7 +307,12 @@ contract LabFacet is ERC721EnumerableUpgradeable {
         uint256 _tokenId,
         address _auth
     ) internal virtual override returns (address) {
-        require(_s()._isLabProvider(_to), "Only one Lab owner can receive Lab");
+        if (_to != address(0))
+            //It's a burn operation
+            require(
+                _s()._isLabProvider(_to),
+                "Only one Lab owner can receive Lab"
+            );
         // Proceed with the standard update process
         return super._update(_to, _tokenId, _auth);
     }

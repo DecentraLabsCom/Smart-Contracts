@@ -21,7 +21,7 @@ contract ProviderFacet is AccessControlUpgradeable {
     /// @dev Represents the initial amount of LAB tokens assigned.
     /// This constant is set to 1000 and is used as the starting value
     /// for LAB tokens in the system.
-    uint32 constant INITIAL_LAB_TOKENS = 1000;
+    uint32 constant INITIAL_LAB_TOKENS = 1000000000;
 
     /// @dev Emitted when a new provider is added to the system.
     /// @param _account The address of the provider being added.
@@ -85,6 +85,7 @@ contract ProviderFacet is AccessControlUpgradeable {
 
         _s().DEFAULT_ADMIN_ROLE = DEFAULT_ADMIN_ROLE;
         _s().labTokenAddress = _labERC20;
+        _s().labId=0;
     }
 
     /// @notice Adds a new provider to the system.

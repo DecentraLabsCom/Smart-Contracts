@@ -80,6 +80,9 @@ contract LabFacet is ERC721EnumerableUpgradeable {
         _;
     }
 
+    /// @dev Reverts if the Lab does not exist (i.e., has no owner).
+    /// @param _labId The unique identifier of the Lab to validate.
+    /// @notice Ensures that a Lab with the given ID exists.    
     modifier labExists(uint256 _labId) {
         require(ownerOf(_labId) != address(0) , "Lab does not exist");
         _;

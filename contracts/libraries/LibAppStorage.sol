@@ -57,24 +57,83 @@ struct Lab {
     LabBase base;
 }
 
-/// @dev AppStorage
+/// @notice Struct representing a lab reservation
+/// @dev Stores reservation details including lab ID, renter address, pricing and timestamps
+/// @param labId Unique identifier of the lab being reserved
+/// @param renter Address of the user making the reservation
+/// @param price Cost of the reservation in wei
+/// @param start Starting timestamp of the reservation (as uint32)
+/// @param end Ending timestamp of the reservation (as uint32)
+/// @param status Current state of the reservation:
+///        0 = PENDING
+///        1 = BOOKED
+///        2 = USED
+///        3 = COLLECTED
+///        4 = CANCELLED
+struct Reservation {
+        uint256 labId;
+        address renter;
+        uint96 price;
+        uint32 start;
+        uint32 end; 
+        uint status; 
+}
+
+/// @notice Represents a node in a red-black tree data structure, necessary for the library RivalIntervalTree Node data structure
+/// @dev Used for interval tree implementation where each node represents a time interval
+/// @param parent Index of the parent node in the tree
+/// @param left Index of the left child node
+/// @param right Index of the right child node
+/// @param end The ending value of the interval (the beginning value is stored as the key)
+/// @param red Boolean flag indicating if the node is red (true) or black (false)
+struct Node {
+        uint parent;
+        uint left;
+        uint right;
+        uint end; // begin is implicit as the key
+        bool red;
+}
+
+/// @notice Represents a tres a red-black tree data structure, necessary for the library RivalIntervalTree Tree data structure
+/// @dev Tree structure containing a root value and mapping of nodes
+/// @param root The root hash/value of the Merkle Tree
+/// @param nodes Mapping from uint keys to Node values representing the tree structure
+struct Tree {
+        uint root;
+        mapping(uint => Node) nodes;
+}
+
 /// @dev This struct is used to define the storage layout for the application.
-///      It contains the following fields:
-///
-/// @param DEFAULT_ADMIN_ROLE A bytes32 value representing the default admin role.
-/// @param labTokenAddress The address of the lab token contract.
-/// @param roleMembers A mapping that associates a role (bytes32) with a set of addresses (EnumerableSet.AddressSet)
-///                    representing the members of that role.
-/// @param providers A mapping that associates an address with a ProviderBase structure, representing the providers.
-/// @param labId A uint256 value representing the current lab ID, which is used to uniquely identify labs as NFTs.
-/// @param labs A mapping that associates a uint with a LabBase structure, representing the labs.
+///       Contains all state variables used across the diamond contract. It contains the following fields:
+/// @notice 
+/// @custom:storage-layout This struct defines the storage layout for the diamond contract
+/// @custom:member DEFAULT_ADMIN_ROLE Stores the keccak256 hash for admin role
+/// @custom:member labTokenAddress Address of the LAB token contract
+/// @custom:member roleMembers Mapping of roles to set of addresses that have that role
+/// @custom:member providers Mapping of provider addresses to their base information
+/// @custom:member labId Counter for lab tokens
+/// @custom:member labs Mapping of lab IDs to their base information
+/// @custom:member calendars Mapping of labs IDs to their availability trees
+/// @custom:member reservations Mapping of reservation hashes to reservation details
+/// @custom:member renters Mapping of renter addresses to their reservation hashes
+/// @custom:member reservationKeys Set of all reservation hashes in the system
+/// @custom:member reservationsProvider Mapping of provider addresses to their pending reservation hashes
+/// @custom:member tokenStatus Mapping of token IDs to their listing status (true = listed, false = unlisted)
 struct AppStorage {
     bytes32 DEFAULT_ADMIN_ROLE;
     address labTokenAddress;
+
     mapping(bytes32 role => EnumerableSet.AddressSet) roleMembers;
     mapping(address => ProviderBase) providers;
     uint256 labId;
     mapping(uint => LabBase) labs;
+
+    mapping(uint256 => Tree) calendars;
+    mapping(bytes32 => Reservation) reservations; 
+    mapping(address => EnumerableSet.Bytes32Set) renters; 
+    EnumerableSet.Bytes32Set reservationKeys; 
+    mapping (address => EnumerableSet.Bytes32Set) reservationsProvider; 
+    mapping (uint256 => bool) tokenStatus; 
 }
 
 /// @title LibAppStorage

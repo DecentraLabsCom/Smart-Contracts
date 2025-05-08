@@ -10,6 +10,7 @@ import "../external/LabERC20.sol"; // Import the LabERC20 contract, no yet imple
 /// @title ProviderFacet Contract
 /// @author Juan Luis Ramos Villalón
 /// @author Luis de la Torre Cubillo
+/// @notice This contract is part of a diamond architecture.
 /// @dev This contract manages the providers in the system, allowing for the addition, removal, and updating of provider information.
 ///      It also includes role-based access control to restrict certain actions to administrators or providers.
 ///      The contract integrates with the LabERC20 token to mint initial tokens for new providers.

@@ -186,7 +186,7 @@ abstract contract ReservableTokenEnumerable is ReservableToken {
     /// @param _tokenId The ID of the token to check
     /// @param _user The address of the user to check
     /// @return bool True if the user has an active booking for the token, false otherwise
-    function hasActiveBooking(uint256 _tokenId, address _user) external view virtual exists(_tokenId) returns (bool) {
+    function hasActiveBookingByToken(uint256 _tokenId, address _user) external view virtual exists(_tokenId) returns (bool) {
         AppStorage storage s = _s();
         uint32 time = uint32(block.timestamp);
         uint cursor = s.calendars[_tokenId].findParent(time);

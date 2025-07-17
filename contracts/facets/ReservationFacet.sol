@@ -30,22 +30,13 @@ contract ReservationFacet is ReservableTokenEnumerable {
     /// @param price Required price for the purchase
     error InsuficientsFunds(address user, uint256 funds, uint256 price);
 
-    /// @dev Constructor for the ReservationFacet contract.
-    /// Currently, this constructor does not perform any specific initialization.
-    constructor() {}
-
     /// @dev Modifier to restrict access to functions that can only be executed by accounts
     ///      with the `DEFAULT_ADMIN_ROLE`. Ensures that the caller of the function has the
     ///      required role before proceeding with the execution of the function.
     /// @notice Reverts if the caller does not have the `DEFAULT_ADMIN_ROLE`.
     modifier defaultAdminRole() {
-        require(
-            ProviderFacet(address(this)).hasRole(
-                _s().DEFAULT_ADMIN_ROLE,
-                msg.sender
-            ),
-            "Only default admin"
-        );
+        if (!ProviderFacet(address(this)).hasRole(_s().DEFAULT_ADMIN_ROLE, msg.sender)) 
+            revert("Only default admin");
         _;
     }
 
@@ -53,7 +44,7 @@ contract ReservationFacet is ReservableTokenEnumerable {
     /// @dev Checks if the message sender is registered as a lab provider in the system
     /// @custom:throws "Only LabProvider" if the sender is not a registered lab provider
     modifier isLabProvider() {
-        require(_s()._isLabProvider(msg.sender), "Only LabProvider");
+        if (!_s()._isLabProvider(msg.sender)) revert("Only LabProvider");
         _;
     }
 
@@ -72,25 +63,22 @@ contract ReservationFacet is ReservableTokenEnumerable {
     /// - User must have sufficient token balance
     /// - Time slot must be available
     function reservationRequest(uint256 _labId, uint32 _start, uint32 _end) external exists(_labId) override { 
-
-        require(_start < _end && _start > block.timestamp, "Invalid time range");   
+        if (_start >= _end || _start <= block.timestamp + RESERVATION_MARGIN) 
+            revert("Invalid time range");
       
         AppStorage storage s = _s();
-
+        uint96 price = s.labs[_labId].price;
         address tokenAddr = s.labTokenAddress;
 
-        uint96 price = s.labs[_labId].price;
-
         uint256 balance = IERC20(tokenAddr).balanceOf(msg.sender);
-        if(balance < price) {
-            revert InsuficientsFunds(msg.sender, balance, price);
-        }
+        if (balance < price) revert InsuficientsFunds(msg.sender, balance, price);
+        
         bytes32 reservationKey = _getReservationKey(_labId, _start);
         
         // Check availability in one condition
-        require(!s.reservationKeys.contains(reservationKey) || 
-                Status(s.reservations[reservationKey].status) == Status.CANCELLED, 
-                "Not available");
+        if (s.reservationKeys.contains(reservationKey) && 
+            s.reservations[reservationKey].status != CANCELLED)
+            revert("Not available");
 
         // Insert and create reservation
         s.calendars[_labId].insert(_start, _end);
@@ -99,10 +87,10 @@ contract ReservationFacet is ReservableTokenEnumerable {
         s.reservations[reservationKey] = Reservation({
             labId: _labId,
             renter: msg.sender,
-            price: 0,
+            price: price,
             start: _start,
             end: _end,
-            status: uint8(Status.PENDING)
+            status: PENDING
         });
         
         // Add to tracking sets
@@ -111,8 +99,7 @@ contract ReservationFacet is ReservableTokenEnumerable {
 
         IERC20(tokenAddr).transferFrom(msg.sender, address(this), price);        
         emit ReservationRequested(msg.sender, _labId, _start, _end, reservationKey);
-  
-     }
+    }
 
     /// @notice Confirms a pending reservation request for a lab
     /// @dev Can only be called by an admin when the reservation is in PENDING status
@@ -122,18 +109,14 @@ contract ReservationFacet is ReservableTokenEnumerable {
     /// @custom:emits ReservationConfirmed when reservation is successfully confirmed
     /// @custom:modifies Updates reservation status to BOOKED
     /// @custom:modifies Adds reservation to lab provider's reservation list
-    function confimReservationRequest(bytes32 _reservationKey) external defaultAdminRole reservationPending(_reservationKey) override {
+    function confirmReservationRequest(bytes32 _reservationKey) external defaultAdminRole reservationPending(_reservationKey) override {
         Reservation storage reservation = _s().reservations[_reservationKey];
-      
         address labProvider = IERC721(address(this)).ownerOf(reservation.labId);
 
-    // Book the reservation
-        _s().reservations[_reservationKey].status = uint8(Status.BOOKED);   
+        reservation.status = BOOKED;   
         _s().reservationsProvider[labProvider].add(_reservationKey);
         
         emit ReservationConfirmed(_reservationKey);
-        
-          
     }
 
     /// @notice Denies a pending reservation request and refunds the payment
@@ -144,7 +127,6 @@ contract ReservationFacet is ReservableTokenEnumerable {
     /// @custom:emits ReservationRequestDenied when the reservation is denied
     /// @custom:transfers Refunds the reservation price back to the renter
     function denyReservationRequest(bytes32 _reservationKey) external defaultAdminRole reservationPending(_reservationKey) override {
-
         Reservation storage reservation = _s().reservations[_reservationKey];
        
         IERC20(_s().labTokenAddress).transferFrom(address(this), reservation.renter, reservation.price);
@@ -160,11 +142,10 @@ contract ReservationFacet is ReservableTokenEnumerable {
     /// @custom:throws "Not pending" if reservation status is not PENDING
     /// @custom:emits ReservationRequestCanceled when successfully cancelled
     function cancelReservationRequest(bytes32 _reservationKey) external override {
-        
         Reservation storage reservation = _s().reservations[_reservationKey];
-        require (reservation.renter != address(0), "Not found");
-        require(reservation.renter == msg.sender, "Only the renter");
-        require(Status(reservation.status) == Status.PENDING, "Not pending");
+        if (reservation.renter == address(0)) revert("Not found");
+        if (reservation.renter != msg.sender) revert("Only the renter");
+        if (reservation.status != PENDING) revert("Not pending");
 
         _cancelReservation(_reservationKey);
         IERC20(_s().labTokenAddress).transfer(reservation.renter, reservation.price);
@@ -179,26 +160,22 @@ contract ReservationFacet is ReservableTokenEnumerable {
     /// @custom:security Requires the reservation to be in BOOKED status
     /// @custom:refund Transfers the reservation price back to the renter
     function cancelBooking(bytes32 _reservationKey) external override {
-
-       Reservation storage reservation = _s().reservations[_reservationKey];
-        require (reservation.renter != address(0) && Status(reservation.status) == Status.BOOKED, "Invalid");
+        Reservation storage reservation = _s().reservations[_reservationKey];
+        if (reservation.renter == address(0) || reservation.status != BOOKED) 
+            revert("Invalid");
 
         address renter = reservation.renter;
         uint256 price = reservation.price;
-        
-
         address labProvider = IERC721(address(this)).ownerOf(reservation.labId);
         
-        require(renter == msg.sender || labProvider == msg.sender, "Unauthorized");
+        if (renter != msg.sender && labProvider != msg.sender) revert("Unauthorized");
 
         // Cancel the booking
         _s().reservationsProvider[labProvider].remove(_reservationKey);
         _cancelReservation(_reservationKey);
         
-       
-         IERC20(_s().labTokenAddress).transferFrom(address(this), renter, price);
+        IERC20(_s().labTokenAddress).transferFrom(address(this), renter, price);
         emit BookingCanceled(_reservationKey);
-
     }
 
     /// @notice Retrieves all reservations stored in the contract
@@ -206,10 +183,12 @@ contract ReservationFacet is ReservableTokenEnumerable {
     /// @return An array containing all Reservation structs in storage
     function getAllReservations() external view returns (Reservation[] memory) {
         AppStorage storage s = _s();
-
-        Reservation[] memory allReservations = new Reservation[](s.reservationKeys.length());
-        for (uint256 i = 0; i < s.reservationKeys.length(); i++) {
+        uint256 len = s.reservationKeys.length();
+        Reservation[] memory allReservations = new Reservation[](len);
+        
+        for (uint256 i; i < len;) {
             allReservations[i] = s.reservations[s.reservationKeys.at(i)];
+            unchecked { ++i; }
         }
         return allReservations;
     }
@@ -223,28 +202,27 @@ contract ReservationFacet is ReservableTokenEnumerable {
     /// @dev Transfers the total amount of tokens from all eligible reservations to the provider
     /// @custom:revert If there are no eligible reservations to collect funds from
     /// @custom:revert If the ERC20 transfer fails
-    function requestFunds() external isLabProvider  {
-
-        uint256 totalAmount = 0;
+    function requestFunds() external isLabProvider {
+        uint256 totalAmount;
         EnumerableSet.Bytes32Set storage reservationKeys = _s().reservationsProvider[msg.sender];
+        uint256 len = reservationKeys.length();
 
-        uint256 i = 0;
-        while (i < reservationKeys.length()) {
+        for (uint256 i; i < len;) {
             bytes32 key = reservationKeys.at(i);
             Reservation storage reservation = _s().reservations[key];
 
-            if (reservation.start > block.timestamp && reservation.status == uint8(Status.BOOKED)) {
+            if (reservation.end < block.timestamp && reservation.status == BOOKED) {
                 totalAmount += reservation.price;    
-                reservation.status = uint8(Status.COLLECTED);  
-                reservationKeys.remove(key); 
+                reservation.status = COLLECTED;  
+                reservationKeys.remove(key);
+                --len; // Adjust length after removal
             } else {
-                i++; 
+                unchecked { ++i; }
             }
         }
 
-        require(totalAmount > 0, "No funds");
-        IERC20(_s().labTokenAddress).transferFrom(address(this), msg.sender, totalAmount);  //Sender must wait the Transfer even from IERC20
-
+        if (totalAmount == 0) revert("No funds");
+        IERC20(_s().labTokenAddress).transferFrom(address(this), msg.sender, totalAmount);
     }
 
     /// @notice Returns the address of the $LAB ERC20 token contract
@@ -257,8 +235,7 @@ contract ReservationFacet is ReservableTokenEnumerable {
     /// @notice Returns the current balance of Lab tokens held by this contract
     /// @dev Uses IERC20 interface to check the balance of the contract's own address
     /// @return uint256 The amount of Lab tokens held by the contract
-    function getSafeBalance() public view returns (uint256) { 
-         return IERC20(_s().labTokenAddress).balanceOf(address(this));
+    function getSafeBalance() external view returns (uint256) { 
+        return IERC20(_s().labTokenAddress).balanceOf(address(this));
     }
-    
 }

@@ -84,6 +84,16 @@ abstract contract ReservableToken {
     /// @param reservationKey The unique identifier for the reservation that was canceled.
     event BookingCanceled(bytes32 indexed reservationKey);
 
+    /// @notice Emitted when a token is listed for reservations.
+    /// @param tokenId The ID of the token that was listed.
+    /// @param owner The address of the token owner who listed it.
+    event LabListed(uint256 indexed tokenId, address indexed owner);
+
+    /// @notice Emitted when a token is unlisted from reservations.
+    /// @param tokenId The ID of the token that was unlisted.
+    /// @param owner The address of the token owner who unlisted it.
+    event LabUnlisted(uint256 indexed tokenId, address indexed owner);
+
     /// @dev Custom errors to replace require strings for better gas efficiency and clarity.
     /// @dev These errors are used to revert transactions with specific error messages.     
     error TokenNotFound();
@@ -128,6 +138,7 @@ abstract contract ReservableToken {
     /// @param _tokenId The unique identifier of the token to be listed.
     function listToken(uint256 _tokenId) external onlyTokenOwner(_tokenId) {
         _s().tokenStatus[_tokenId] = true;
+        emit LabListed(_tokenId, msg.sender);
     }
 
     /// @notice Unlists a token, marking it as unavailable for reservation or other operations.
@@ -136,6 +147,7 @@ abstract contract ReservableToken {
     /// @dev Caller must be the owner of the token.
     function unlistToken(uint256 _tokenId) external onlyTokenOwner(_tokenId) {
         _s().tokenStatus[_tokenId] = false;
+        emit LabUnlisted(_tokenId, msg.sender);
     }
 
     /// @notice Checks if a token with the given ID is listed.

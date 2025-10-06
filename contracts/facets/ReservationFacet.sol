@@ -116,7 +116,7 @@ contract ReservationFacet is ReservableTokenEnumerable {
         reservation.status = BOOKED;   
         _s().reservationsProvider[labProvider].add(_reservationKey);
         
-        emit ReservationConfirmed(_reservationKey);
+        emit ReservationConfirmed(_reservationKey, reservation.labId);
     }
 
     /// @notice Denies a pending reservation request and refunds the payment
@@ -131,7 +131,7 @@ contract ReservationFacet is ReservableTokenEnumerable {
        
         IERC20(_s().labTokenAddress).transferFrom(address(this), reservation.renter, reservation.price);
         _cancelReservation(_reservationKey);
-        emit ReservationRequestDenied(_reservationKey);
+        emit ReservationRequestDenied(_reservationKey, reservation.labId);
     }
 
     /// @notice Allows a user to cancel their pending reservation request
@@ -149,7 +149,7 @@ contract ReservationFacet is ReservableTokenEnumerable {
 
         _cancelReservation(_reservationKey);
         IERC20(_s().labTokenAddress).transfer(reservation.renter, reservation.price);
-        emit ReservationRequestCanceled(_reservationKey);
+        emit ReservationRequestCanceled(_reservationKey, reservation.labId);
     }  
 
     /// @notice Cancels an existing booking reservation
@@ -175,7 +175,7 @@ contract ReservationFacet is ReservableTokenEnumerable {
         _cancelReservation(_reservationKey);
         
         IERC20(_s().labTokenAddress).transferFrom(address(this), renter, price);
-        emit BookingCanceled(_reservationKey);
+        emit BookingCanceled(_reservationKey, reservation.labId);
     }
 
     /// @notice Retrieves all reservations stored in the contract

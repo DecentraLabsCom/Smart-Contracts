@@ -70,19 +70,23 @@ abstract contract ReservableToken {
     
     /// @notice Emitted when a reservation is successfully confirmed.
     /// @param reservationKey The unique identifier for the confirmed reservation.
-    event ReservationConfirmed(bytes32 indexed reservationKey);
+    /// @param tokenId The ID of the token associated with the reservation.
+    event ReservationConfirmed(bytes32 indexed reservationKey, uint256 indexed tokenId);
 
     /// @notice Emitted when a reservation request is denied.
     /// @param reservationKey The unique key identifying the reservation that was denied.
-    event ReservationRequestDenied(bytes32 indexed reservationKey);
+    /// @param tokenId The ID of the token associated with the reservation.
+    event ReservationRequestDenied(bytes32 indexed reservationKey, uint256 indexed tokenId);
     
     /// @notice Emitted when a reservation request is canceled.
     /// @param reservationKey The unique identifier of the reservation that was canceled.
-    event ReservationRequestCanceled(bytes32 indexed reservationKey);
+    /// @param tokenId The ID of the token associated with the reservation.
+    event ReservationRequestCanceled(bytes32 indexed reservationKey, uint256 indexed tokenId);
     
     /// @notice Emitted when a booking associated with a specific reservation key is canceled.
     /// @param reservationKey The unique identifier for the reservation that was canceled.
-    event BookingCanceled(bytes32 indexed reservationKey);
+    /// @param tokenId The ID of the lab/token associated with the reservation.
+    event BookingCanceled(bytes32 indexed reservationKey, uint256 indexed tokenId);
 
     /// @notice Emitted when a token is listed for reservations.
     /// @param tokenId The ID of the token that was listed.

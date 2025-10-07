@@ -133,7 +133,9 @@ struct AppStorage {
     mapping(address => EnumerableSet.Bytes32Set) renters; 
     EnumerableSet.Bytes32Set reservationKeys; 
     mapping (address => EnumerableSet.Bytes32Set) reservationsProvider; 
-    mapping (uint256 => bool) tokenStatus; 
+    mapping (uint256 => bool) tokenStatus;
+    mapping (uint256 => uint256) reservationCountByToken;
+    mapping (uint256 => EnumerableSet.Bytes32Set) reservationKeysByToken;
 }
 
 /// @title LibAppStorage

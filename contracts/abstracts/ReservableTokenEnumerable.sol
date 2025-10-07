@@ -30,9 +30,6 @@ abstract contract ReservableTokenEnumerable is ReservableToken {
     using RivalIntervalTreeLibrary for Tree;
     using EnumerableSet for EnumerableSet.Bytes32Set;
 
-    ///@notice Node value representing an empty node in the tree
-    uint private constant EMPTY = 0;
-
     /// @dev Custom errors to replace require strings for better gas efficiency and clarity.
     /// @dev These errors are used to revert transactions with specific error messages.     
     error IndexOutOfBounds();
@@ -62,6 +59,10 @@ abstract contract ReservableTokenEnumerable is ReservableToken {
         }
 
         s.calendars[_tokenId].insert(_start, _end);
+        
+        // Gas optimizations: O(1) operations
+        s.reservationCountByToken[_tokenId]++;
+        s.reservationKeysByToken[_tokenId].add(reservationKey);
         
         // Direct assignment to existing storage slot
         Reservation storage newReservation = s.reservations[reservationKey];
@@ -163,7 +164,7 @@ abstract contract ReservableTokenEnumerable is ReservableToken {
     /// @param _tokenId The ID of the token to query reservations for
     /// @return The total number of reservations for the specified token
     function getReservationsOfToken(uint256 _tokenId) public view virtual exists(_tokenId) returns (uint) {
-        return _size(_s().calendars[_tokenId]);
+        return _s().reservationCountByToken[_tokenId];
     }
 
     /// @notice Retrieves a specific reservation key for a token by its index
@@ -173,12 +174,9 @@ abstract contract ReservableTokenEnumerable is ReservableToken {
     /// @return bytes32 The reservation key at the specified index
     /// @custom:throws If token doesn't exist or if index is out of bounds
     function getReservationOfTokenByIndex(uint256 _tokenId, uint256 _index) external view exists(_tokenId) returns (bytes32) {
-        uint tokenReservations = getReservationsOfToken(_tokenId);
-        if (_index >= tokenReservations) revert IndexOutOfBounds();
-        
         AppStorage storage s = _s();
-        uint[] memory keys = _getAllKeys(s.calendars[_tokenId]);
-        return _getReservationKey(_tokenId, uint32(keys[_index]));
+        if (_index >= s.reservationKeysByToken[_tokenId].length()) revert IndexOutOfBounds();
+        return s.reservationKeysByToken[_tokenId].at(_index);
     }
 
     /// @notice Checks if a user has an active booking for a specific token
@@ -209,45 +207,13 @@ abstract contract ReservableTokenEnumerable is ReservableToken {
     ///         the parent implementation
     function _cancelReservation(bytes32 _reservationKey) internal override {
         AppStorage storage s = _s();
-        s.renters[s.reservations[_reservationKey].renter].remove(_reservationKey);
+        Reservation storage reservation = s.reservations[_reservationKey];
+        
+        // Gas optimizations: O(1) operations
+        s.reservationCountByToken[reservation.labId]--;
+        s.reservationKeysByToken[reservation.labId].remove(_reservationKey);
+        
+        s.renters[reservation.renter].remove(_reservationKey);
         super._cancelReservation(_reservationKey);
-    }
-
-
-    /// @notice Gets the total number of elements in a tree data structure
-    /// @dev Iterates through the tree from the first element until reaching an empty node
-    /// @param _calendar The tree storage structure to count elements from
-    /// @return The total number of elements in the tree
-    function _size(Tree storage _calendar) internal view returns (uint256) {
-        uint count = 0;
-        uint cursor = _calendar.first();
-        
-        // Optimized loop without additional function calls
-        while (cursor != EMPTY) {
-            unchecked { ++count; }
-            cursor = _calendar.next(cursor);
-        }
-        
-        return count;
-    }
-
-    /// @notice Returns an array containing all keys in the tree in order
-    /// @dev Iterates through the tree using first() and next() to collect all keys
-    /// @param _calendar The tree storage to get keys from
-    /// @return Array containing all keys in the tree in sequential order
-    function _getAllKeys(Tree storage _calendar) internal view returns (uint[] memory) {
-        uint size = _size(_calendar);
-        uint[] memory keys = new uint[](size);
-        
-        if (size > 0) {
-            uint cursor = _calendar.first();
-            for (uint i = 0; i < size;) {
-                keys[i] = cursor;
-                cursor = _calendar.next(cursor);
-                unchecked { ++i; }
-            }
-        }
-        
-        return keys;
     }
 }

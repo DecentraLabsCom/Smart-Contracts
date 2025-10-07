@@ -83,6 +83,10 @@ contract ReservationFacet is ReservableTokenEnumerable {
         // Insert and create reservation
         s.calendars[_labId].insert(_start, _end);
         
+        // Gas optimizations: O(1) operations
+        s.reservationCountByToken[_labId]++;
+        s.reservationKeysByToken[_labId].add(reservationKey);
+        
         // Direct struct initialization
         s.reservations[reservationKey] = Reservation({
             labId: _labId,
@@ -176,21 +180,6 @@ contract ReservationFacet is ReservableTokenEnumerable {
         
         IERC20(_s().labTokenAddress).transferFrom(address(this), renter, price);
         emit BookingCanceled(_reservationKey, reservation.labId);
-    }
-
-    /// @notice Retrieves all reservations stored in the contract
-    /// @dev Iterates through all reservation keys and returns an array of Reservation structs
-    /// @return An array containing all Reservation structs in storage
-    function getAllReservations() external view returns (Reservation[] memory) {
-        AppStorage storage s = _s();
-        uint256 len = s.reservationKeys.length();
-        Reservation[] memory allReservations = new Reservation[](len);
-        
-        for (uint256 i; i < len;) {
-            allReservations[i] = s.reservations[s.reservationKeys.at(i)];
-            unchecked { ++i; }
-        }
-        return allReservations;
     }
 
     /// @notice Allows lab providers to claim funds from used or expired reservations

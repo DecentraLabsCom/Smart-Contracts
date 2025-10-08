@@ -137,7 +137,7 @@ abstract contract ReservableTokenEnumerable is ReservableToken {
         return s.reservationKeys.at(_index);
     }
 
-     /// @notice Get the number of reservations for a specific user
+    /// @notice Get the number of reservations for a specific user
     /// @dev Retrieves the length of the reservation array for the given user address
     /// @param _user The address of the user to check reservations for
     /// @return The number of active reservations for the user
@@ -199,6 +199,31 @@ abstract contract ReservableTokenEnumerable is ReservableToken {
         return reservation.status == BOOKED && reservation.end >= time;
     }
 
+    /// @notice Get the active reservation key for a user on a specific token
+    /// @dev Returns the reservation key if the user has an active booking, otherwise returns bytes32(0)
+    /// @param _tokenId The lab token ID
+    /// @param _user The user's address
+    /// @return reservationKey The active reservation key, or bytes32(0) if no active reservation exists
+    function getActiveReservationKeyForUser(uint256 _tokenId, address _user) external view virtual exists(_tokenId) returns (bytes32) {
+        if (_user == address(0)) revert InvalidAddress();
+        
+        AppStorage storage s = _s();
+        uint32 time = uint32(block.timestamp);
+        
+        uint cursor = s.calendars[_tokenId].findParent(time);
+        if (cursor == 0) return bytes32(0);
+        
+        bytes32 reservationKey = _getReservationKey(_tokenId, uint32(cursor));
+        
+        if (!s.renters[_user].contains(reservationKey)) return bytes32(0);
+        
+        Reservation memory reservation = s.reservations[reservationKey];
+        if (reservation.status != BOOKED || reservation.end < time) {
+            return bytes32(0);
+        }
+        
+        return reservationKey;
+    }
 
     /// @dev Cancels an existing reservation by removing it from the renter's list and then
     ///      calling the parent implementation to complete the cancellation process.

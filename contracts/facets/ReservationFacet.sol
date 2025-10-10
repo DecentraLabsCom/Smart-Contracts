@@ -58,15 +58,20 @@ contract ReservationFacet is ReservableTokenEnumerable {
     /// @custom:emits ReservationRequested when reservation is created
     /// @custom:requirements 
     /// - Lab must exist (checked by exists modifier)
+    /// - Lab must be listed for reservations
     /// - Start time must be in the future
     /// - End time must be after start time
     /// - User must have sufficient token balance
     /// - Time slot must be available
     function reservationRequest(uint256 _labId, uint32 _start, uint32 _end) external exists(_labId) override { 
+        AppStorage storage s = _s();
+        
+        // Check if lab is listed for reservations
+        if (!s.tokenStatus[_labId]) revert("Lab not listed for reservations");
+        
         if (_start >= _end || _start <= block.timestamp + RESERVATION_MARGIN) 
             revert("Invalid time range");
       
-        AppStorage storage s = _s();
         uint96 price = s.labs[_labId].price;
         address tokenAddr = s.labTokenAddress;
 

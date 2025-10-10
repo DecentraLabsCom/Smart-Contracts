@@ -41,15 +41,20 @@ abstract contract ReservableTokenEnumerable is ReservableToken {
     /// @param _tokenId The ID of the token to be reserved
     /// @param _start The start timestamp of the reservation period
     /// @param _end The end timestamp of the reservation period
+    /// @custom:throws If the lab is not listed for reservations
     /// @custom:throws If the time range is invalid (start >= end or start <= current time)
     /// @custom:throws If the token is already reserved for the given period
     /// @custom:throws If the token doesn't exist (via exists modifier)
     /// @custom:event ReservationRequested when a reservation is successfully requested
     function reservationRequest(uint256 _tokenId, uint32 _start, uint32 _end) external virtual override exists(_tokenId) {
-        // Combined validation with custom error
-        if (_start >= _end || _start <= block.timestamp) revert InvalidTimeRange();
-        
         AppStorage storage s = _s();
+        
+        // Check if lab is listed for reservations
+        if (!s.tokenStatus[_tokenId]) revert("Lab not listed for reservations");
+        
+        if (_start >= _end || _start <= block.timestamp) 
+            revert InvalidTimeRange();
+        
         bytes32 reservationKey = _getReservationKey(_tokenId, _start);
         
         // Optimized availability check

@@ -187,36 +187,50 @@ contract ReservationFacet is ReservableTokenEnumerable {
         emit BookingCanceled(_reservationKey, reservation.labId);
     }
 
-    /// @notice Allows lab providers to claim funds from used or expired reservations
+    /// @notice Allows lab providers to claim funds from used or expired reservations in batches
     /// @dev Only lab providers can call this function. It processes reservations that are:
-    ///      1. Not yet started (future reservations)
+    ///      1. Ended (end < block.timestamp)
     ///      2. In BOOKED status
     /// After processing, the reservation status changes to COLLECTED
+    /// @param maxBatch Maximum number of reservations to process in this call (max 100)
     /// @custom:modifier isLabProvider - Restricts access to registered lab providers
     /// @dev Transfers the total amount of tokens from all eligible reservations to the provider
-    /// @custom:revert If there are no eligible reservations to collect funds from
+    /// @custom:revert "Invalid batch size" if maxBatch is 0 or > 100
+    /// @custom:revert "No funds" if no eligible reservations were found
     /// @custom:revert If the ERC20 transfer fails
-    function requestFunds() external isLabProvider {
+    /// @custom:gas Optimized with batching to prevent gas limit issues
+    function requestFunds(uint256 maxBatch) external isLabProvider {
+        if (maxBatch == 0 || maxBatch > 100) revert("Invalid batch size");
+        
+        AppStorage storage s = _s();
         uint256 totalAmount;
-        EnumerableSet.Bytes32Set storage reservationKeys = _s().reservationsProvider[msg.sender];
+        uint256 processed;
+        EnumerableSet.Bytes32Set storage reservationKeys = s.reservationsProvider[msg.sender];
         uint256 len = reservationKeys.length();
 
-        for (uint256 i; i < len;) {
+        for (uint256 i; i < len && processed < maxBatch;) {
             bytes32 key = reservationKeys.at(i);
-            Reservation storage reservation = _s().reservations[key];
+            Reservation storage reservation = s.reservations[key];
 
             if (reservation.end < block.timestamp && reservation.status == BOOKED) {
                 totalAmount += reservation.price;    
                 reservation.status = COLLECTED;  
                 reservationKeys.remove(key);
+                
+                // Clean up active reservation index for consistency
+                if (s.activeReservationByTokenAndUser[reservation.labId][reservation.renter] == key) {
+                    delete s.activeReservationByTokenAndUser[reservation.labId][reservation.renter];
+                }
+                
                 --len; // Adjust length after removal
+                unchecked { ++processed; }
             } else {
                 unchecked { ++i; }
             }
         }
 
         if (totalAmount == 0) revert("No funds");
-        IERC20(_s().labTokenAddress).transferFrom(address(this), msg.sender, totalAmount);
+        IERC20(s.labTokenAddress).transferFrom(address(this), msg.sender, totalAmount);
     }
 
     /// @notice Returns the address of the $LAB ERC20 token contract

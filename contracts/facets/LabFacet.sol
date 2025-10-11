@@ -231,20 +231,30 @@ contract LabFacet is ERC721EnumerableUpgradeable {
         return Lab(_labId, _s().labs[_labId]);
     }
 
-    /// @notice Retrieves all token IDs of the labs(NFTs) currently managed by the contract.
-    /// @dev This function iterates through all tokens in the contract and collects their IDs.
-    ///      It assumes that the contract implements the ERC721Enumerable interface, which provides
-    ///      the `totalSupply` and `tokenByIndex` functions.
-    /// @return An array of uint256 representing the IDs of all tokens in the contract.
-    function getAllLabs() external view returns (uint256[] memory) {
-        uint256 total = totalSupply();
-        uint256[] memory ids = new uint256[](total);
-
-        for (uint256 i = 0; i < total; i++) {
-            ids[i] = tokenByIndex(i);
+    /// @notice Retrieves a paginated list of lab token IDs
+    /// @dev Returns a subset of lab IDs to avoid gas limit issues with large datasets
+    /// @param offset The starting index for pagination (0-based)
+    /// @param limit The maximum number of labs to return (max 100)
+    /// @return ids Array of lab token IDs for the requested page
+    /// @return total The total number of labs available
+    /// @custom:example To get first 50 labs: getLabsPaginated(0, 50)
+    /// @custom:example To get next 50 labs: getLabsPaginated(50, 50)
+    function getLabsPaginated(uint256 offset, uint256 limit) external view returns (uint256[] memory ids, uint256 total) {
+        require(limit > 0 && limit <= 100, "Limit must be between 1 and 100");
+        
+        total = totalSupply();
+        
+        // Calculate actual number of items to return
+        uint256 remaining = total > offset ? total - offset : 0;
+        uint256 count = remaining < limit ? remaining : limit;
+        
+        ids = new uint256[](count);
+        
+        for (uint256 i = 0; i < count; i++) {
+            ids[i] = tokenByIndex(offset + i);
         }
-
-        return ids;
+        
+        return (ids, total);
     }
 
     /// @notice Approves a specific address to manage the given token ID.

@@ -210,17 +210,19 @@ contract LabFacet is ERC721EnumerableUpgradeable {
         emit LabUpdated(_labId, _uri, _price, _auth, _accessURI, _accessKey);
     }
 
-    /// @notice Deletes a Lab (Cyber Physical System) identified by `_labId`.
+    /// @notice Deletes a Lab identified by `_labId`.
     /// @dev This function can only be called by the Lab provider and the contract owner.
-    /// It checks if the Lab exists before deleting it. If the Lab has been booked,
-    /// additional handling may be required (currently marked as a TODO).
+    /// It checks if the Lab exists before deleting it.
     /// @param _labId The ID of the Lab to be deleted.
     function deleteLab(uint _labId) external  onlyLabProvider(_labId) {
        
         _burn(_labId);
         delete _s().labs[_labId];
         emit LabDeleted(_labId);
-        // TODO: What happens if the Lab has been booked
+        // TODO: What happens if the Lab has been booked?!
+        // If we clean everything, gas may be a problem. If we don't and require multiple
+        // calls to clean, we may have inconsistencies. Solving this would require new lab
+        // states in LibAppStorage and more complex logic.
     }
 
     /// @notice Retrieves the details of a Lab (Cyber Physical System) by its ID.

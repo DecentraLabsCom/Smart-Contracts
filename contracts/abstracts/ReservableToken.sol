@@ -202,7 +202,6 @@ abstract contract ReservableToken {
     /// @dev Changes the status of the reservation from pending to booked
     /// @param _reservationKey The unique key identifying the reservation to be confirmed
     /// @dev The reservation must be in a pending state, enforced by the `reservationPending` modifier
-    /// @dev TODO: Implementation needed to verify caller is token owner or authorized user
     /// @dev Emits a `ReservationConfirmed` event upon successful confirmation
     function confirmReservationRequest(bytes32 _reservationKey) external virtual reservationPending(_reservationKey) {
         Reservation storage reservation = _s().reservations[_reservationKey];
@@ -213,7 +212,6 @@ abstract contract ReservableToken {
     /// @notice Denies a reservation request associated with the given reservation key.
     /// @dev Cancels the reservation and emits a `ReservationRequestDenied` event.
     /// @param _reservationKey The unique key identifying the reservation request to be denied.
-    /// @dev TODO: Implementation needed to verify caller is token owner or authorized user
     /// @dev The reservation must be in a pending state, enforced by the `reservationPending` modifier.
     function denyReservationRequest(bytes32 _reservationKey) external virtual reservationPending(_reservationKey) {
         uint256 tokenId = _s().reservations[_reservationKey].labId;

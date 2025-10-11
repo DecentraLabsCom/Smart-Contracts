@@ -30,17 +30,6 @@ contract LabERC20 is Initializable, ERC20Upgradeable {
         _mint(account, amount);
     }
 
-    /// @notice Transfer tokens from one address to another
-    /// @dev Override of ERC20 transferFrom function. Allowance check is handled in _transfer
-    /// @param sender The address to transfer tokens from
-    /// @param recipient The address to transfer tokens to
-    /// @param amount The amount of tokens to transfer
-    /// @return bool True if the transfer was successful
-    function transferFrom(address sender, address recipient, uint256 amount) public override returns (bool) {
-        _transfer(sender, recipient, amount);
-        return true;
-    }
-
     /// @notice Returns the number of decimal places used in token amounts
     /// @dev This implementation uses 6 decimal places for token precision
     /// @return uint8 The number of decimal places (6)
@@ -48,4 +37,3 @@ contract LabERC20 is Initializable, ERC20Upgradeable {
         return 6; // or any other number
     }
 }
-

@@ -5,6 +5,7 @@ import "@openzeppelin/contracts-upgradeable/token/ERC721/extensions/ERC721Enumer
 import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import {LibAppStorage, AppStorage, Lab, LabBase} from "../libraries/LibAppStorage.sol";
 import {LibAccessControlEnumerable} from "../libraries/LibAccessControlEnumerable.sol";
+import "../abstracts/ReservableToken.sol";
 
 
 /// @title LabFacet Contract
@@ -22,7 +23,7 @@ import {LibAccessControlEnumerable} from "../libraries/LibAccessControlEnumerabl
 ///         Each Lab has associated metadata, including a URI, price, authentication details, and access information.
 /// @custom:security Only authorized Lab Providers can perform certain actions, such as adding or updating Labs.
 /// @custom:security The contract uses OpenZeppelin's AccessControlEnumerable for role-based access control.
-contract LabFacet is ERC721EnumerableUpgradeable {
+contract LabFacet is ERC721EnumerableUpgradeable, ReservableToken {
     using LibAccessControlEnumerable for AppStorage;
 
     /// @dev Emitted when a new lab is added to the system.
@@ -77,11 +78,6 @@ contract LabFacet is ERC721EnumerableUpgradeable {
             ownerOf(_labId) == msg.sender,
             "Only the LabProvider can perform this action"
         );
-        _;
-    }
-
-    modifier labExists(uint256 _labId) {
-        require(ownerOf(_labId) != address(0) , "Lab does not exist");
         _;
     }
 
@@ -158,7 +154,7 @@ contract LabFacet is ERC721EnumerableUpgradeable {
     function setTokenURI(
         uint256 _labId,
         string memory _tokenURI
-    ) external labExists(_labId) onlyLabProvider(_labId) {
+    ) external exists(_labId) onlyLabProvider(_labId) {
         require(bytes(_tokenURI).length > 0, "Token URI cannot be empty");
 
         LabBase memory lab = _s().labs[_labId];
@@ -177,7 +173,7 @@ contract LabFacet is ERC721EnumerableUpgradeable {
     /// @dev Used for compliance with ERC721 standards.
     function tokenURI(
         uint256 _labId
-    ) public view override labExists(_labId) returns (string memory) {
+    ) public view override exists(_labId) returns (string memory) {
        
          return _s().labs[_labId].uri;
     }
@@ -229,7 +225,7 @@ contract LabFacet is ERC721EnumerableUpgradeable {
     /// @dev This function returns the Lab details, including its ID, URI, and price.
     /// @param _labId The ID of the Lab to retrieve.
     /// @return A Lab structure containing the details of the specified Lab.
-    function getLab(uint _labId) external view labExists(_labId) returns (Lab memory) {
+    function getLab(uint _labId) external view exists(_labId) returns (Lab memory) {
         return Lab(_labId, _s().labs[_labId]);
     }
 

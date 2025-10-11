@@ -100,7 +100,7 @@ abstract contract ReservableTokenEnumerable is ReservableToken {
         // Update active reservation index for O(1) lookup
         s.activeReservationByTokenAndUser[reservation.labId][reservation.renter] = _reservationKey;
         
-        emit ReservationConfirmed(_reservationKey);
+        emit ReservationConfirmed(_reservationKey, reservation.labId);
     }
 
     /// @notice Cancels an existing booking reservation
@@ -118,14 +118,15 @@ abstract contract ReservableTokenEnumerable is ReservableToken {
         }
 
         address renter = reservation.renter;
-        address labProvider = IERC721(address(this)).ownerOf(reservation.labId);
+        uint256 tokenId = reservation.labId;
+        address labProvider = IERC721(address(this)).ownerOf(tokenId);
         
         if (renter != msg.sender && labProvider != msg.sender) revert Unauthorized();
 
         s.reservationsProvider[labProvider].remove(_reservationKey);
         _cancelReservation(_reservationKey);
 
-        emit BookingCanceled(_reservationKey);
+        emit BookingCanceled(_reservationKey, tokenId);
     }
 
     /// @notice Returns the total number of existing reservations

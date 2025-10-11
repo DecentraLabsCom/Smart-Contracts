@@ -205,8 +205,9 @@ abstract contract ReservableToken {
     /// @dev TODO: Implementation needed to verify caller is token owner or authorized user
     /// @dev Emits a `ReservationConfirmed` event upon successful confirmation
     function confirmReservationRequest(bytes32 _reservationKey) external virtual reservationPending(_reservationKey) {
-        _s().reservations[_reservationKey].status = BOOKED;           
-        emit ReservationConfirmed(_reservationKey);          
+        Reservation storage reservation = _s().reservations[_reservationKey];
+        reservation.status = BOOKED;           
+        emit ReservationConfirmed(_reservationKey, reservation.labId);          
     }
 
     /// @notice Denies a reservation request associated with the given reservation key.
@@ -214,9 +215,10 @@ abstract contract ReservableToken {
     /// @param _reservationKey The unique key identifying the reservation request to be denied.
     /// @dev TODO: Implementation needed to verify caller is token owner or authorized user
     /// @dev The reservation must be in a pending state, enforced by the `reservationPending` modifier.
-    function denyReservationRequest(bytes32 _reservationKey) external virtual reservationPending(_reservationKey) {    
+    function denyReservationRequest(bytes32 _reservationKey) external virtual reservationPending(_reservationKey) {
+        uint256 tokenId = _s().reservations[_reservationKey].labId;
         _cancelReservation(_reservationKey);
-        emit ReservationRequestDenied(_reservationKey);
+        emit ReservationRequestDenied(_reservationKey, tokenId);
     }
 
 
@@ -236,8 +238,9 @@ abstract contract ReservableToken {
         if (reservation.renter != msg.sender) revert OnlyRenter();
         if (reservation.status != PENDING) revert ReservationNotPending();
 
+        uint256 tokenId = reservation.labId;
         _cancelReservation(_reservationKey);
-        emit ReservationRequestCanceled(_reservationKey);
+        emit ReservationRequestCanceled(_reservationKey, tokenId);
     }
 
     /// @notice Cancels a booking associated with the given reservation key.
@@ -254,12 +257,13 @@ abstract contract ReservableToken {
         if (reservation.renter == address(0) || reservation.status != BOOKED) revert InvalidBooking();
 
         address renter = reservation.renter;
-        address labProvider = IERC721(address(this)).ownerOf(reservation.labId);
+        uint256 tokenId = reservation.labId;
+        address labProvider = IERC721(address(this)).ownerOf(tokenId);
         
         if (renter != msg.sender && labProvider != msg.sender) revert Unauthorized();
 
         _cancelReservation(_reservationKey);
-        emit BookingCanceled(_reservationKey);
+        emit BookingCanceled(_reservationKey, tokenId);
     }
     
     /// @notice Retrieves the address of the renter associated with a specific reservation key.

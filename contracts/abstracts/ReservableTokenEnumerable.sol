@@ -97,6 +97,9 @@ abstract contract ReservableTokenEnumerable is ReservableToken {
         reservation.status = BOOKED;
         s.reservationsProvider[IERC721(address(this)).ownerOf(reservation.labId)].add(_reservationKey);
         
+        // Update active reservation index for O(1) lookup
+        s.activeReservationByTokenAndUser[reservation.labId][reservation.renter] = _reservationKey;
+        
         emit ReservationConfirmed(_reservationKey);
     }
 
@@ -191,17 +194,18 @@ abstract contract ReservableTokenEnumerable is ReservableToken {
     /// @return bool True if the user has an active booking for the token, false otherwise
     function hasActiveBookingByToken(uint256 _tokenId, address _user) external view virtual exists(_tokenId) returns (bool) {
         AppStorage storage s = _s();
-        uint32 time = uint32(block.timestamp);
-        uint cursor = s.calendars[_tokenId].findParent(time);
+        bytes32 reservationKey = s.activeReservationByTokenAndUser[_tokenId][_user];
         
-        // Early return optimization
-        if (cursor == 0) return false;
+        // If no index entry, no active booking
+        if (reservationKey == bytes32(0)) return false;
         
-        bytes32 reservationKey = _getReservationKey(_tokenId, uint32(cursor));
-        if (!s.renters[_user].contains(reservationKey)) return false;
-            
+        // Verify the reservation is still valid and active
         Reservation memory reservation = s.reservations[reservationKey];
-        return reservation.status == BOOKED && reservation.end >= time;
+        uint32 time = uint32(block.timestamp);
+        
+        return reservation.status == BOOKED && 
+               reservation.start <= time && 
+               reservation.end >= time;
     }
 
     /// @notice Get the active reservation key for a user on a specific token
@@ -213,21 +217,23 @@ abstract contract ReservableTokenEnumerable is ReservableToken {
         if (_user == address(0)) revert InvalidAddress();
         
         AppStorage storage s = _s();
+        bytes32 reservationKey = s.activeReservationByTokenAndUser[_tokenId][_user];
+        
+        // If no index entry, return bytes32(0)
+        if (reservationKey == bytes32(0)) return bytes32(0);
+        
+        // Verify the reservation is still valid and active
+        Reservation memory reservation = s.reservations[reservationKey];
         uint32 time = uint32(block.timestamp);
         
-        uint cursor = s.calendars[_tokenId].findParent(time);
-        if (cursor == 0) return bytes32(0);
-        
-        bytes32 reservationKey = _getReservationKey(_tokenId, uint32(cursor));
-        
-        if (!s.renters[_user].contains(reservationKey)) return bytes32(0);
-        
-        Reservation memory reservation = s.reservations[reservationKey];
-        if (reservation.status != BOOKED || reservation.end < time) {
-            return bytes32(0);
+        if (reservation.status == BOOKED && 
+            reservation.start <= time && 
+            reservation.end >= time) {
+            return reservationKey;
         }
         
-        return reservationKey;
+        // Index is stale (reservation ended), return bytes32(0)
+        return bytes32(0);
     }
 
     /// @dev Cancels an existing reservation by removing it from the renter's list and then
@@ -244,6 +250,12 @@ abstract contract ReservableTokenEnumerable is ReservableToken {
         s.reservationKeysByToken[reservation.labId].remove(_reservationKey);
         
         s.renters[reservation.renter].remove(_reservationKey);
+        
+        // Clear active reservation index if this was the active one
+        if (s.activeReservationByTokenAndUser[reservation.labId][reservation.renter] == _reservationKey) {
+            delete s.activeReservationByTokenAndUser[reservation.labId][reservation.renter];
+        }
+        
         super._cancelReservation(_reservationKey);
     }
 }

@@ -101,6 +101,7 @@ contract ProviderFacet is AccessControlUpgradeable {
     /// @dev Grants the `PROVIDER_ROLE` to the specified account and initializes the provider's details.
     ///      Attempts to mint `INITIAL_LAB_TOKENS` LabERC20 tokens to the provider's account.
     ///      If minting fails (e.g., supply cap reached), the provider is still added without tokens.
+    ///      Marks whether the provider received initial tokens for staking requirements.
     ///      Emits a `ProviderAdded` event upon successful addition with tokens.
     ///      Emits a `ProviderAddedWithoutTokens` event if tokens cannot be minted.
     ///      Reverts if the provider already exists.
@@ -119,10 +120,16 @@ contract ProviderFacet is AccessControlUpgradeable {
             
             // Try to mint initial tokens, but don't revert if it fails (e.g., cap reached)
             try LabERC20(_s().labTokenAddress).mint(_account, INITIAL_LAB_TOKENS) {
+                // Mark that this provider received initial tokens (required for staking)
+                _s().providerStakes[_account].receivedInitialTokens = true;
                 emit ProviderAdded(_account, _name, _email, _country);
             } catch Error(string memory reason) {
+                // Provider added without tokens (no staking requirement)
+                _s().providerStakes[_account].receivedInitialTokens = false;
                 emit ProviderAddedWithoutTokens(_account, reason);
             } catch {
+                // Provider added without tokens (no staking requirement)
+                _s().providerStakes[_account].receivedInitialTokens = false;
                 emit ProviderAddedWithoutTokens(_account, "Token minting failed: supply cap reached or other error");
             }
         } else {
@@ -132,6 +139,7 @@ contract ProviderFacet is AccessControlUpgradeable {
 
     /// @notice Removes a provider from the system by revoking their PROVIDER_ROLE.
     /// @dev This function can only be called by an account with the DEFAULT_ADMIN_ROLE.
+    ///      Burns all staked tokens before removal (penalty for removal).
     ///      If the provider does not have the PROVIDER_ROLE, the transaction reverts with an error.
     ///      Emits a `ProviderRemoved` event upon successful removal.
     /// @param _provider The address of the provider to be removed.
@@ -139,6 +147,16 @@ contract ProviderFacet is AccessControlUpgradeable {
         address _provider
     ) external onlyRole(DEFAULT_ADMIN_ROLE) {
         if (_revokeRole(PROVIDER_ROLE, _provider)) {
+            // Burn any staked tokens before removing
+            uint256 stakedAmount = _s().providerStakes[_provider].stakedAmount;
+            if (stakedAmount > 0) {
+                _s().providerStakes[_provider].stakedAmount = 0;
+                LabERC20(_s().labTokenAddress).burn(stakedAmount);
+            }
+            
+            // Clean up stake data
+            delete _s().providerStakes[_provider];
+            
             _s()._removeProviderRole(_provider);
             emit ProviderRemoved(_provider);
         } else {

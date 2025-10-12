@@ -94,13 +94,27 @@ struct Node {
         bool red;
 }
 
-/// @notice Represents a tres a red-black tree data structure, necessary for the library RivalIntervalTree Tree data structure
+/// @dev Represents a tres a red-black tree data structure, necessary for the library RivalIntervalTree Tree data structure
 /// @dev Tree structure containing a root value and mapping of nodes
 /// @param root The root hash/value of the Merkle Tree
 /// @param nodes Mapping from uint keys to Node values representing the tree structure
 struct Tree {
         uint root;
         mapping(uint => Node) nodes;
+}
+
+/// @notice Struct representing a provider's staking information
+/// @dev Tracks staked tokens, slashing history, and lock periods
+/// @param stakedAmount Current amount of tokens staked by the provider
+/// @param slashedAmount Total amount of tokens slashed historically (for tracking)
+/// @param lastReservationTimestamp Timestamp of the provider's last completed reservation
+/// @param receivedInitialTokens Whether the provider received the initial 1000 token mint
+///        (false if added after cap was reached)
+struct ProviderStake {
+    uint256 stakedAmount;
+    uint256 slashedAmount;
+    uint256 lastReservationTimestamp;
+    bool receivedInitialTokens;
 }
 
 /// @dev This struct is used to define the storage layout for the application.
@@ -119,6 +133,7 @@ struct Tree {
 /// @custom:member reservationKeys Set of all reservation hashes in the system
 /// @custom:member reservationsProvider Mapping of provider addresses to their pending reservation hashes
 /// @custom:member tokenStatus Mapping of token IDs to their listing status (true = listed, false = unlisted)
+/// @custom:member providerStakes Mapping of provider addresses to their staking information
 struct AppStorage {
     bytes32 DEFAULT_ADMIN_ROLE;
     address labTokenAddress;
@@ -137,6 +152,7 @@ struct AppStorage {
     mapping (uint256 => uint256) reservationCountByToken;
     mapping (uint256 => EnumerableSet.Bytes32Set) reservationKeysByToken;
     mapping (uint256 => mapping(address => bytes32)) activeReservationByTokenAndUser;
+    mapping (address => ProviderStake) providerStakes;
 }
 
 /// @title LibAppStorage

@@ -36,6 +36,14 @@ contract ProviderFacet is AccessControlUpgradeable {
         string _country
     );
 
+    /// @dev Emitted when a provider is added but initial tokens cannot be minted due to cap
+    /// @param _account The address of the provider being added.
+    /// @param reason The reason why tokens could not be minted.
+    event ProviderAddedWithoutTokens(
+        address indexed _account,
+        string reason
+    );
+
     /// @dev Emitted when a provider is removed.
     /// @param _account The address of the provider that was removed.
     event ProviderRemoved(address indexed _account);
@@ -91,8 +99,10 @@ contract ProviderFacet is AccessControlUpgradeable {
 
     /// @notice Adds a new provider to the system.
     /// @dev Grants the `PROVIDER_ROLE` to the specified account and initializes the provider's details.
-    ///      Mints `INITIAL_LAB_TOKENS` LabERC20 tokens to the provider's account upon successful addition.
-    ///      Emits a `ProviderAdded` event upon successful addition.
+    ///      Attempts to mint `INITIAL_LAB_TOKENS` LabERC20 tokens to the provider's account.
+    ///      If minting fails (e.g., supply cap reached), the provider is still added without tokens.
+    ///      Emits a `ProviderAdded` event upon successful addition with tokens.
+    ///      Emits a `ProviderAddedWithoutTokens` event if tokens cannot be minted.
     ///      Reverts if the provider already exists.
     /// @param _name The name of the provider.
     /// @param _account The address of the provider's account.
@@ -106,8 +116,15 @@ contract ProviderFacet is AccessControlUpgradeable {
     ) external defaultAdminRole {
         if (_grantRole(PROVIDER_ROLE, _account)) {
             _s()._addProviderRole(_account, _name, _email, _country);
-            LabERC20(_s().labTokenAddress).mint(_account, INITIAL_LAB_TOKENS);
-            emit ProviderAdded(_account, _name, _email, _country);
+            
+            // Try to mint initial tokens, but don't revert if it fails (e.g., cap reached)
+            try LabERC20(_s().labTokenAddress).mint(_account, INITIAL_LAB_TOKENS) {
+                emit ProviderAdded(_account, _name, _email, _country);
+            } catch Error(string memory reason) {
+                emit ProviderAddedWithoutTokens(_account, reason);
+            } catch {
+                emit ProviderAddedWithoutTokens(_account, "Token minting failed: supply cap reached or other error");
+            }
         } else {
             revert("Provider already exists");
         }

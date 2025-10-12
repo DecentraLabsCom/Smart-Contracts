@@ -17,8 +17,11 @@ contract StakingFacet is AccessControlUpgradeable {
     /// @notice Minimum stake required for providers who received initial tokens (90% of 1000 = 900 tokens)
     uint256 public constant REQUIRED_STAKE = 900_000_000; // 900 tokens with 6 decimals
     
-    /// @notice Lock period after last reservation (15 days)
-    uint256 public constant LOCK_PERIOD = 15 days;
+    /// @notice Lock period after last reservation (30 days)
+    uint256 public constant LOCK_PERIOD = 30 days;
+    
+    /// @notice Initial stake lock period (180 days from auto-stake)
+    uint256 public constant INITIAL_STAKE_LOCK_PERIOD = 180 days;
     
     /// @notice Emitted when a provider stakes tokens
     /// @param provider The address of the provider
@@ -94,13 +97,20 @@ contract StakingFacet is AccessControlUpgradeable {
         // Transfer tokens from provider to Diamond contract
         LabERC20(s.labTokenAddress).transferFrom(msg.sender, address(this), amount);
         
+        // If this is the first stake (no auto-stake), record timestamp
+        if (s.providerStakes[msg.sender].initialStakeTimestamp == 0 && s.providerStakes[msg.sender].stakedAmount == 0) {
+            s.providerStakes[msg.sender].initialStakeTimestamp = block.timestamp;
+        }
+        
         s.providerStakes[msg.sender].stakedAmount += amount;
         
         emit TokensStaked(msg.sender, amount, s.providerStakes[msg.sender].stakedAmount);
     }
 
     /// @notice Provider unstakes tokens after lock period
-    /// @dev Can only unstake if lock period has passed since last reservation
+    /// @dev Can only unstake if:
+    ///      1. Initial stake lock period (180 days) has passed since auto-stake, AND
+    ///      2. Lock period (30 days) has passed since last reservation
     /// @param amount The amount of tokens to unstake
     function unstakeTokens(uint256 amount) external onlyRole(PROVIDER_ROLE) {
         AppStorage storage s = _s();
@@ -111,12 +121,21 @@ contract StakingFacet is AccessControlUpgradeable {
             "StakingFacet: insufficient staked balance"
         );
         
-        // Check lock period
+        // Check initial stake lock period (180 days from auto-stake)
+        uint256 initialStakeTime = s.providerStakes[msg.sender].initialStakeTimestamp;
+        if (initialStakeTime > 0) {
+            require(
+                block.timestamp >= initialStakeTime + INITIAL_STAKE_LOCK_PERIOD,
+                "StakingFacet: initial stake locked for 180 days from provider creation"
+            );
+        }
+        
+        // Check lock period (30 days from last reservation)
         uint256 lastReservation = s.providerStakes[msg.sender].lastReservationTimestamp;
         if (lastReservation > 0) {
             require(
                 block.timestamp >= lastReservation + LOCK_PERIOD,
-                "StakingFacet: tokens locked, wait for lock period to end"
+                "StakingFacet: tokens locked for 30 days after last reservation"
             );
         }
         
@@ -235,7 +254,7 @@ contract StakingFacet is AccessControlUpgradeable {
     /// @return stakedAmount The amount of tokens currently staked
     /// @return slashedAmount The total amount of tokens slashed historically
     /// @return lastReservationTimestamp The timestamp of the last reservation
-    /// @return unlockTimestamp The timestamp when tokens can be unstaked
+    /// @return unlockTimestamp The timestamp when tokens can be unstaked (latest of both locks)
     /// @return canUnstake Whether the provider can currently unstake
     function getStakeInfo(address provider) external view returns (
         uint256 stakedAmount,
@@ -250,13 +269,26 @@ contract StakingFacet is AccessControlUpgradeable {
         slashedAmount = s.providerStakes[provider].slashedAmount;
         lastReservationTimestamp = s.providerStakes[provider].lastReservationTimestamp;
         
-        if (lastReservationTimestamp > 0) {
-            unlockTimestamp = lastReservationTimestamp + LOCK_PERIOD;
-            canUnstake = block.timestamp >= unlockTimestamp;
-        } else {
-            unlockTimestamp = 0;
-            canUnstake = true;
+        // Calculate unlock timestamp as the latest of:
+        // 1. Initial stake lock (180 days from auto-stake)
+        // 2. Reservation lock (30 days from last reservation)
+        uint256 initialUnlock = 0;
+        uint256 reservationUnlock = 0;
+        
+        if (s.providerStakes[provider].initialStakeTimestamp > 0) {
+            initialUnlock = s.providerStakes[provider].initialStakeTimestamp + INITIAL_STAKE_LOCK_PERIOD;
         }
+        
+        if (lastReservationTimestamp > 0) {
+            reservationUnlock = lastReservationTimestamp + LOCK_PERIOD;
+        }
+        
+        // Take the latest unlock time
+        unlockTimestamp = initialUnlock > reservationUnlock ? initialUnlock : reservationUnlock;
+        
+        // Can unstake if both locks have expired
+        canUnstake = block.timestamp >= initialUnlock && 
+                     (lastReservationTimestamp == 0 || block.timestamp >= reservationUnlock);
     }
 
     /// @dev Internal pure function to retrieve the application storage structure.

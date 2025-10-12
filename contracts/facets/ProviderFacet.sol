@@ -128,8 +128,9 @@ contract ProviderFacet is AccessControlUpgradeable {
                     // Mark that this provider received initial tokens (required for staking)
                     _s().providerStakes[_account].receivedInitialTokens = true;
                     
-                    // Register the auto-staked amount
+                    // Register the auto-staked amount and timestamp (for 180-day lock)
                     _s().providerStakes[_account].stakedAmount = stakeAmount;
+                    _s().providerStakes[_account].initialStakeTimestamp = block.timestamp;
                     
                     emit ProviderAdded(_account, _name, _email, _country);
                 } catch {

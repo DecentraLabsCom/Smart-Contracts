@@ -114,6 +114,7 @@ struct ProviderStake {
     uint256 stakedAmount;
     uint256 slashedAmount;
     uint256 lastReservationTimestamp;
+    uint256 initialStakeTimestamp;
     bool receivedInitialTokens;
 }
 

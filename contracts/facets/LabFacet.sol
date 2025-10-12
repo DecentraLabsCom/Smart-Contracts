@@ -118,6 +118,7 @@ contract LabFacet is ERC721EnumerableUpgradeable, ReservableToken {
     /// @param _accessKey TA public (non-sensitive) key or ID used for routing/access to the laboratory.
     /// @dev The caller of this function must have the role of a Lab provider.
     /// @dev Emits a {LabAdded} event upon successful execution.
+    /// @dev Note: The lab is created but not listed. Use listToken() or addAndListLab() to make it available.
     function addLab(
         string memory _uri,
         uint96 _price,
@@ -143,6 +144,58 @@ contract LabFacet is ERC721EnumerableUpgradeable, ReservableToken {
             _accessURI,
             _accessKey
         );
+    }
+
+    /// @notice Adds a new Lab and immediately lists it for reservations in a single transaction.
+    /// @dev This is a convenience function that combines addLab() and listToken() functionality.
+    ///      Requires the provider to have sufficient staked tokens before listing.
+    /// @param _uri The URI of the Lab, providing metadata or additional information.
+    /// @param _price The price of the Lab in the smallest unit of the currency.
+    /// @param _auth The URI to the authentication service that issues session tokens for lab access
+    /// @param _accessURI The URI used to access the laboratory's services.
+    /// @param _accessKey TA public (non-sensitive) key or ID used for routing/access to the laboratory.
+    /// @dev The caller of this function must have the role of a Lab provider.
+    /// @dev Emits both {LabAdded} and {LabListed} events upon successful execution.
+    /// @dev Reverts if the provider does not have sufficient staked tokens (900 tokens if received initial tokens).
+    function addAndListLab(
+        string memory _uri,
+        uint96 _price,
+        string memory _auth,
+        string memory _accessURI,
+        string memory _accessKey
+    ) external isLabProvider {
+        AppStorage storage s = _s();
+        
+        // Verify provider has sufficient stake before proceeding
+        uint256 requiredStake = s.providerStakes[msg.sender].receivedInitialTokens ? 900_000_000 : 0;
+        if (s.providerStakes[msg.sender].stakedAmount < requiredStake) {
+            revert("Insufficient stake to list lab");
+        }
+        
+        // Create the lab
+        s.labId++;
+        _safeMint(msg.sender, s.labId);
+        s.labs[s.labId] = LabBase(
+            _uri,
+            _price,
+            _auth,
+            _accessURI,
+            _accessKey
+        );
+        
+        // List the lab
+        s.tokenStatus[s.labId] = true;
+        
+        emit LabAdded(
+            s.labId,
+            msg.sender,
+            _uri,
+            _price,
+            _auth,
+            _accessURI,
+            _accessKey
+        );
+        emit LabListed(s.labId, msg.sender);
     }
 
     /// @notice Sets the token URI for a specific lab, used for compliance with ERC721 standards.

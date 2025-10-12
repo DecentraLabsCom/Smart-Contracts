@@ -19,9 +19,9 @@ import "../external/LabERC20.sol"; // Import the LabERC20 contract, no yet imple
 contract ProviderFacet is AccessControlUpgradeable {
     using LibAccessControlEnumerable for AppStorage;
 
-    /// @dev Represents the initial amount of LAB tokens assigned.
-    /// This constant is set to 1000 and is used as the starting value
-    /// for LAB tokens in the system.
+    /// @dev Represents the initial amount of LAB tokens minted to new providers.
+    /// Total: 1000 tokens (1,000,000,000 units with 6 decimals)
+    /// Distribution: 100 tokens sent to provider wallet + 900 tokens automatically staked
     uint32 constant INITIAL_LAB_TOKENS = 1000000000;
 
     /// @dev Emitted when a new provider is added to the system.
@@ -99,7 +99,7 @@ contract ProviderFacet is AccessControlUpgradeable {
 
     /// @notice Adds a new provider to the system.
     /// @dev Grants the `PROVIDER_ROLE` to the specified account and initializes the provider's details.
-    ///      Attempts to mint `INITIAL_LAB_TOKENS` LabERC20 tokens to the provider's account.
+    ///      Mints 1000 tokens: 100 to provider wallet + 900 to Diamond (automatically staked).
     ///      If minting fails (e.g., supply cap reached), the provider is still added without tokens.
     ///      Marks whether the provider received initial tokens for staking requirements.
     ///      Emits a `ProviderAdded` event upon successful addition with tokens.
@@ -118,11 +118,24 @@ contract ProviderFacet is AccessControlUpgradeable {
         if (_grantRole(PROVIDER_ROLE, _account)) {
             _s()._addProviderRole(_account, _name, _email, _country);
             
-            // Try to mint initial tokens, but don't revert if it fails (e.g., cap reached)
-            try LabERC20(_s().labTokenAddress).mint(_account, INITIAL_LAB_TOKENS) {
-                // Mark that this provider received initial tokens (required for staking)
-                _s().providerStakes[_account].receivedInitialTokens = true;
-                emit ProviderAdded(_account, _name, _email, _country);
+            // Try to mint initial tokens (1000 total), but don't revert if it fails (e.g., cap reached)
+            uint256 providerAmount = 100_000_000; // 100 tokens to provider wallet
+            uint256 stakeAmount = 900_000_000;    // 900 tokens to Diamond (staked)
+            
+            try LabERC20(_s().labTokenAddress).mint(_account, providerAmount) {
+                // Mint staked tokens directly to Diamond contract
+                try LabERC20(_s().labTokenAddress).mint(address(this), stakeAmount) {
+                    // Mark that this provider received initial tokens (required for staking)
+                    _s().providerStakes[_account].receivedInitialTokens = true;
+                    
+                    // Register the auto-staked amount
+                    _s().providerStakes[_account].stakedAmount = stakeAmount;
+                    
+                    emit ProviderAdded(_account, _name, _email, _country);
+                } catch {
+                    // If stake mint fails, revert the provider mint too
+                    revert("Failed to mint stake tokens");
+                }
             } catch Error(string memory reason) {
                 // Provider added without tokens (no staking requirement)
                 _s().providerStakes[_account].receivedInitialTokens = false;

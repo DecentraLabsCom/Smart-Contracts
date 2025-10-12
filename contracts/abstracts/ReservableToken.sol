@@ -139,27 +139,52 @@ abstract contract ReservableToken {
 
     /// @notice Marks a token as listed by updating its status so it's possible to reserve.
     /// @dev This function can only be called by the owner of the token.
-    /// @dev Requires the provider to have sufficient staked tokens (900 tokens if they received initial tokens).
+    /// @dev Requires the provider to have sufficient staked tokens based on listed labs count.
+    ///      Formula: 900 base + max(0, listedLabs - 10) * 100
     /// @param _tokenId The unique identifier of the token to be listed.
     function listToken(uint256 _tokenId) external onlyTokenOwner(_tokenId) {
         AppStorage storage s = _s();
         
-        // Verify provider has sufficient stake
-        uint256 requiredStake = s.providerStakes[msg.sender].receivedInitialTokens ? 900_000_000 : 0;
+        // Check if already listed to avoid double-counting
+        if (s.tokenStatus[_tokenId]) {
+            revert("Lab already listed");
+        }
+        
+        // Calculate required stake for new count (including this lab)
+        uint256 newListedCount = s.providerStakes[msg.sender].listedLabsCount + 1;
+        uint256 requiredStake = calculateRequiredStake(msg.sender, newListedCount);
+        
         if (s.providerStakes[msg.sender].stakedAmount < requiredStake) {
             revert("Insufficient stake to list lab");
         }
         
+        // Update listed count and status
+        s.providerStakes[msg.sender].listedLabsCount = newListedCount;
         s.tokenStatus[_tokenId] = true;
+        
         emit LabListed(_tokenId, msg.sender);
     }
 
     /// @notice Unlists a token, marking it as unavailable for reservation or other operations.
     /// @dev This function updates the token's status to `false` in the storage mapping.
+    /// @dev No stake verification is required - providers can always unlist their own labs.
+    /// @dev Decrements the listed labs count for the provider.
     /// @param _tokenId The unique identifier of the token to be unlisted.
     /// @dev Caller must be the owner of the token.
     function unlistToken(uint256 _tokenId) external onlyTokenOwner(_tokenId) {
-        _s().tokenStatus[_tokenId] = false;
+        AppStorage storage s = _s();
+        
+        // Check if actually listed to avoid under-counting
+        if (!s.tokenStatus[_tokenId]) {
+            revert("Lab not listed");
+        }
+        
+        // Decrement listed count
+        if (s.providerStakes[msg.sender].listedLabsCount > 0) {
+            s.providerStakes[msg.sender].listedLabsCount--;
+        }
+        
+        s.tokenStatus[_tokenId] = false;
         emit LabUnlisted(_tokenId, msg.sender);
     }
 
@@ -176,9 +201,10 @@ abstract contract ReservableToken {
             return false;
         }
         
-        // Verify provider still has sufficient stake
+        // Verify provider still has sufficient stake for current listed labs count
         address owner = IERC721(address(this)).ownerOf(_tokenId);
-        uint256 requiredStake = s.providerStakes[owner].receivedInitialTokens ? 900_000_000 : 0;
+        uint256 listedLabsCount = s.providerStakes[owner].listedLabsCount;
+        uint256 requiredStake = calculateRequiredStake(owner, listedLabsCount);
         
         return s.providerStakes[owner].stakedAmount >= requiredStake;
     }
@@ -348,6 +374,32 @@ abstract contract ReservableToken {
     /// @return bytes32 A unique hash representing the reservation
     function _getReservationKey(uint256 _tokenId, uint32 _time) internal pure returns (bytes32) {  
         return keccak256(abi.encodePacked(_tokenId, _time));
+    }
+
+    /// @notice Calculates required stake for a provider based on listed labs count
+    /// @dev Formula: BASE_STAKE + max(0, listedLabs - FREE_LABS_COUNT) * STAKE_PER_ADDITIONAL_LAB
+    ///      - First 10 labs: 900 tokens (included in base)
+    ///      - Each additional lab: +100 tokens
+    /// @dev This function is public to allow access from non-inheriting facets
+    /// @param provider The address of the provider
+    /// @param listedLabsCount The number of labs that will be listed
+    /// @return uint256 The required stake amount
+    function calculateRequiredStake(address provider, uint256 listedLabsCount) public view returns (uint256) {
+        AppStorage storage s = _s();
+        
+        // If provider never received initial tokens, no stake required
+        if (!s.providerStakes[provider].receivedInitialTokens) {
+            return 0;
+        }
+        
+        // Base stake covers first 10 labs
+        if (listedLabsCount <= LibAppStorage.FREE_LABS_COUNT) {
+            return LibAppStorage.BASE_STAKE;
+        }
+        
+        // Additional stake for labs beyond the free count
+        uint256 additionalLabs = listedLabsCount - LibAppStorage.FREE_LABS_COUNT;
+        return LibAppStorage.BASE_STAKE + (additionalLabs * LibAppStorage.STAKE_PER_ADDITIONAL_LAB);
     }
 
     /// @dev Internal pure function to retrieve the application storage structure.

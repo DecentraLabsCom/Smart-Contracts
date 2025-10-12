@@ -5,6 +5,7 @@ import "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol"
 import {LibAppStorage, AppStorage, PROVIDER_ROLE} from "../libraries/LibAppStorage.sol";
 import "../libraries/LibDiamond.sol";
 import "../external/LabERC20.sol";
+import "../abstracts/ReservableToken.sol";
 
 /// @title StakingFacet Contract
 /// @author Luis de la Torre Cubillo
@@ -13,9 +14,6 @@ import "../external/LabERC20.sol";
 /// @dev Implements staking, slashing, and unstaking mechanisms for providers
 /// @custom:security Providers must stake tokens to offer services, stakes can be slashed for misconduct
 contract StakingFacet is AccessControlUpgradeable {
-    
-    /// @notice Minimum stake required for providers who received initial tokens (90% of 1000 = 900 tokens)
-    uint256 public constant REQUIRED_STAKE = 900_000_000; // 900 tokens with 6 decimals
     
     /// @notice Lock period after last reservation (30 days)
     uint256 public constant LOCK_PERIOD = 30 days;
@@ -279,19 +277,19 @@ contract StakingFacet is AccessControlUpgradeable {
         return s.providerStakes[provider].stakedAmount >= requiredStake;
     }
 
-    /// @notice Gets the required stake for a provider
-    /// @dev Returns 900 tokens if provider received initial tokens, 0 otherwise
+    /// @notice Gets the required stake for a provider based on listed labs count
+    /// @dev Delegates to ReservableToken's calculation logic
+    ///      Formula: 900 base + max(0, listedLabs - 10) * 100
+    ///      - First 10 labs: 900 tokens (included in base)
+    ///      - Each additional lab: +100 tokens
     /// @param provider The address of the provider
     /// @return uint256 The required stake amount
     function getRequiredStake(address provider) public view returns (uint256) {
         AppStorage storage s = _s();
+        uint256 listedLabsCount = s.providerStakes[provider].listedLabsCount;
         
-        // If provider never received initial tokens (added after cap), no stake required
-        if (s.providerStakes[provider].receivedInitialTokens == false) {
-            return 0;
-        }
-        
-        return REQUIRED_STAKE; // 900 tokens
+        // Call ReservableToken's public function through Diamond proxy
+        return ReservableToken(address(this)).calculateRequiredStake(provider, listedLabsCount);
     }
 
     /// @notice Gets the current stake information for a provider

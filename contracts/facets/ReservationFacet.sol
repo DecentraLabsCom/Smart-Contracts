@@ -70,9 +70,10 @@ contract ReservationFacet is ReservableTokenEnumerable {
         // Check if lab is listed for reservations
         if (!s.tokenStatus[_labId]) revert("Lab not listed for reservations");
         
-        // Check if lab owner has sufficient stake
+        // Check if lab owner has sufficient stake using ReservableToken's calculation
         address labOwner = IERC721(address(this)).ownerOf(_labId);
-        uint256 requiredStake = s.providerStakes[labOwner].receivedInitialTokens ? 900_000_000 : 0;
+        uint256 listedLabsCount = s.providerStakes[labOwner].listedLabsCount;
+        uint256 requiredStake = ReservableToken(address(this)).calculateRequiredStake(labOwner, listedLabsCount);
         if (s.providerStakes[labOwner].stakedAmount < requiredStake) {
             revert("Lab provider does not have sufficient stake");
         }

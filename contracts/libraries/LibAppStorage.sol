@@ -94,7 +94,7 @@ struct Node {
         bool red;
 }
 
-/// @dev Represents a tres a red-black tree data structure, necessary for the library RivalIntervalTree Tree data structure
+/// @dev Represents a red-black tree data structure, necessary for the library RivalIntervalTree Tree data structure
 /// @dev Tree structure containing a root value and mapping of nodes
 /// @param root The root hash/value of the Merkle Tree
 /// @param nodes Mapping from uint keys to Node values representing the tree structure

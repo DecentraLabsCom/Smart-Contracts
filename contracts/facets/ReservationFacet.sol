@@ -138,7 +138,7 @@ contract ReservationFacet is ReservableTokenEnumerable {
     function denyReservationRequest(bytes32 _reservationKey) external defaultAdminRole reservationPending(_reservationKey) override {
         Reservation storage reservation = _s().reservations[_reservationKey];
        
-        IERC20(_s().labTokenAddress).transferFrom(address(this), reservation.renter, reservation.price);
+        IERC20(_s().labTokenAddress).transfer(reservation.renter, reservation.price);
         _cancelReservation(_reservationKey);
         emit ReservationRequestDenied(_reservationKey, reservation.labId);
     }
@@ -183,7 +183,7 @@ contract ReservationFacet is ReservableTokenEnumerable {
         _s().reservationsProvider[labProvider].remove(_reservationKey);
         _cancelReservation(_reservationKey);
         
-        IERC20(_s().labTokenAddress).transferFrom(address(this), renter, price);
+        IERC20(_s().labTokenAddress).transfer(renter, price);
         emit BookingCanceled(_reservationKey, reservation.labId);
     }
 
@@ -230,7 +230,7 @@ contract ReservationFacet is ReservableTokenEnumerable {
         }
 
         if (totalAmount == 0) revert("No funds");
-        IERC20(s.labTokenAddress).transferFrom(address(this), msg.sender, totalAmount);
+        IERC20(s.labTokenAddress).transfer(msg.sender, totalAmount);
     }
 
     /// @notice Returns the address of the $LAB ERC20 token contract

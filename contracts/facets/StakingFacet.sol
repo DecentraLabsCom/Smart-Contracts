@@ -72,6 +72,28 @@ contract StakingFacet is AccessControlUpgradeable {
         address indexed provider, 
         uint256 timestamp
     );
+    
+    /// @notice Emitted when a provider's stake falls below the required minimum
+    /// @dev This event signals that the provider's labs are automatically unlisted
+    /// @param provider The address of the provider with insufficient stake
+    /// @param remainingStake The current staked amount after the operation
+    /// @param requiredStake The minimum required stake (900 tokens)
+    event ProviderStakeInsufficient(
+        address indexed provider, 
+        uint256 remainingStake, 
+        uint256 requiredStake
+    );
+    
+    /// @notice Emitted when a provider's stake reaches or exceeds the required minimum
+    /// @dev This event signals that the provider can now list labs
+    /// @param provider The address of the provider with sufficient stake
+    /// @param newTotalStake The current staked amount after the operation
+    /// @param requiredStake The minimum required stake (900 tokens)
+    event ProviderStakeSufficient(
+        address indexed provider, 
+        uint256 newTotalStake, 
+        uint256 requiredStake
+    );
 
     /// @dev Modifier to restrict access to functions that can only be executed by accounts
     ///      with the `DEFAULT_ADMIN_ROLE`.
@@ -94,17 +116,27 @@ contract StakingFacet is AccessControlUpgradeable {
         
         AppStorage storage s = _s();
         
+        uint256 previousStake = s.providerStakes[msg.sender].stakedAmount;
+        uint256 requiredStake = getRequiredStake(msg.sender);
+        
         // Transfer tokens from provider to Diamond contract
         LabERC20(s.labTokenAddress).transferFrom(msg.sender, address(this), amount);
         
         // If this is the first stake (no auto-stake), record timestamp
-        if (s.providerStakes[msg.sender].initialStakeTimestamp == 0 && s.providerStakes[msg.sender].stakedAmount == 0) {
+        if (s.providerStakes[msg.sender].initialStakeTimestamp == 0 && previousStake == 0) {
             s.providerStakes[msg.sender].initialStakeTimestamp = block.timestamp;
         }
         
-        s.providerStakes[msg.sender].stakedAmount += amount;
+        uint256 newTotalStake = previousStake + amount;
+        s.providerStakes[msg.sender].stakedAmount = newTotalStake;
         
-        emit TokensStaked(msg.sender, amount, s.providerStakes[msg.sender].stakedAmount);
+        emit TokensStaked(msg.sender, amount, newTotalStake);
+        
+        // If stake was insufficient but now is sufficient, emit event
+        // This signals that provider can now list labs
+        if (previousStake < requiredStake && newTotalStake >= requiredStake) {
+            emit ProviderStakeSufficient(msg.sender, newTotalStake, requiredStake);
+        }
     }
 
     /// @notice Provider unstakes tokens after lock period
@@ -154,6 +186,12 @@ contract StakingFacet is AccessControlUpgradeable {
         LabERC20(s.labTokenAddress).transfer(msg.sender, amount);
         
         emit TokensUnstaked(msg.sender, amount, remainingStake);
+        
+        // If stake falls below required minimum, emit warning event
+        // This signals that provider's labs are automatically unlisted
+        if (remainingStake > 0 && remainingStake < requiredStake) {
+            emit ProviderStakeInsufficient(msg.sender, remainingStake, requiredStake);
+        }
     }
 
     /// @notice Admin slashes a provider's stake for misconduct
@@ -174,7 +212,8 @@ contract StakingFacet is AccessControlUpgradeable {
             "StakingFacet: insufficient stake to slash"
         );
         
-        s.providerStakes[provider].stakedAmount -= amount;
+        uint256 remainingStake = s.providerStakes[provider].stakedAmount - amount;
+        s.providerStakes[provider].stakedAmount = remainingStake;
         s.providerStakes[provider].slashedAmount += amount;
         
         // Burn the slashed tokens
@@ -184,8 +223,14 @@ contract StakingFacet is AccessControlUpgradeable {
             provider, 
             amount, 
             reason, 
-            s.providerStakes[provider].stakedAmount
+            remainingStake
         );
+        
+        // If stake falls below required minimum, emit warning event
+        uint256 requiredStake = getRequiredStake(provider);
+        if (remainingStake > 0 && remainingStake < requiredStake) {
+            emit ProviderStakeInsufficient(provider, remainingStake, requiredStake);
+        }
     }
 
     /// @notice Burns entire stake when a provider is removed from the system

@@ -139,9 +139,18 @@ abstract contract ReservableToken {
 
     /// @notice Marks a token as listed by updating its status so it's possible to reserve.
     /// @dev This function can only be called by the owner of the token.
+    /// @dev Requires the provider to have sufficient staked tokens (900 tokens if they received initial tokens).
     /// @param _tokenId The unique identifier of the token to be listed.
     function listToken(uint256 _tokenId) external onlyTokenOwner(_tokenId) {
-        _s().tokenStatus[_tokenId] = true;
+        AppStorage storage s = _s();
+        
+        // Verify provider has sufficient stake
+        uint256 requiredStake = s.providerStakes[msg.sender].receivedInitialTokens ? 900_000_000 : 0;
+        if (s.providerStakes[msg.sender].stakedAmount < requiredStake) {
+            revert("Insufficient stake to list lab");
+        }
+        
+        s.tokenStatus[_tokenId] = true;
         emit LabListed(_tokenId, msg.sender);
     }
 
@@ -158,8 +167,20 @@ abstract contract ReservableToken {
     /// @param _tokenId The ID of the token to check.
     /// @return A boolean value indicating whether the token is listed.
     /// @dev The function requires the token to exist, enforced by the `exists` modifier.
+    /// @dev Also verifies that the provider has sufficient staked tokens (defense in depth).
     function isTokenListed(uint256 _tokenId) external view exists(_tokenId) returns (bool) {
-        return _s().tokenStatus[_tokenId];
+        AppStorage storage s = _s();
+        
+        // Check if token is marked as listed
+        if (!s.tokenStatus[_tokenId]) {
+            return false;
+        }
+        
+        // Verify provider still has sufficient stake
+        address owner = IERC721(address(this)).ownerOf(_tokenId);
+        uint256 requiredStake = s.providerStakes[owner].receivedInitialTokens ? 900_000_000 : 0;
+        
+        return s.providerStakes[owner].stakedAmount >= requiredStake;
     }
 
     /// @notice Request a reservation for a specific token during a time period

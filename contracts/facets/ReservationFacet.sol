@@ -2,6 +2,7 @@
 pragma solidity ^0.8.23;
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import "../abstracts/ReservableTokenEnumerable.sol";
 import "./ProviderFacet.sol";
 
@@ -68,6 +69,13 @@ contract ReservationFacet is ReservableTokenEnumerable {
         
         // Check if lab is listed for reservations
         if (!s.tokenStatus[_labId]) revert("Lab not listed for reservations");
+        
+        // Check if lab owner has sufficient stake
+        address labOwner = IERC721(address(this)).ownerOf(_labId);
+        uint256 requiredStake = s.providerStakes[labOwner].receivedInitialTokens ? 900_000_000 : 0;
+        if (s.providerStakes[labOwner].stakedAmount < requiredStake) {
+            revert("Lab provider does not have sufficient stake");
+        }
         
         if (_start >= _end || _start <= block.timestamp + RESERVATION_MARGIN) 
             revert("Invalid time range");

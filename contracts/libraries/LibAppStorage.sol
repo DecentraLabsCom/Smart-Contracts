@@ -142,6 +142,7 @@ struct ProviderStake {
 /// @custom:member institutionalTreasury Mapping of provider addresses to their institutional treasury balances
 /// @custom:member institutionalUserLimit Mapping of provider addresses to their institutional user spending limits
 /// @custom:member institutionalUserSpent Mapping of provider addresses to their institutional user spent amounts
+/// @custom:member institutionalBackends Mapping of provider addresses to their authorized backend addresses
 struct AppStorage {
     bytes32 DEFAULT_ADMIN_ROLE;
     address labTokenAddress;
@@ -166,6 +167,7 @@ struct AppStorage {
     mapping(address provider => uint256 institutionalTreasury);
     mapping(address provider => uint256 institutionalUserLimit);
     mapping(address provider => mapping(string puc => uint256 spent)) institutionalUserSpent;
+    mapping(address provider => address authorizedBackend) institutionalBackends;
 }
 
 /// @title LibAppStorage

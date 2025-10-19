@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-2.0-or-later
+// SPDX-License-Identifier: GPL-3.0-or-later
 pragma solidity ^0.8.23;
 
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
@@ -133,9 +133,15 @@ struct ProviderStake {
 /// @custom:member reservations Mapping of reservation hashes to reservation details
 /// @custom:member renters Mapping of renter addresses to their reservation hashes
 /// @custom:member reservationKeys Set of all reservation hashes in the system
+/// @custom:member reservationCountByToken Mapping of token IDs to their reservation counts
+/// @custom:member reservationKeysByToken Mapping of token IDs to their reservation hashes
 /// @custom:member reservationsProvider Mapping of provider addresses to their pending reservation hashes
+/// @custom:member activeReservationByTokenAndUser Mapping of token IDs and user addresses to their active reservation hashes
 /// @custom:member tokenStatus Mapping of token IDs to their listing status (true = listed, false = unlisted)
 /// @custom:member providerStakes Mapping of provider addresses to their staking information
+/// @custom:member institutionalTreasury Mapping of provider addresses to their institutional treasury balances
+/// @custom:member institutionalUserLimit Mapping of provider addresses to their institutional user spending limits
+/// @custom:member institutionalUserSpent Mapping of provider addresses to their institutional user spent amounts
 struct AppStorage {
     bytes32 DEFAULT_ADMIN_ROLE;
     address labTokenAddress;
@@ -148,13 +154,18 @@ struct AppStorage {
     mapping(uint256 => Tree) calendars;
     mapping(bytes32 => Reservation) reservations; 
     mapping(address => EnumerableSet.Bytes32Set) renters; 
-    EnumerableSet.Bytes32Set reservationKeys; 
-    mapping (address => EnumerableSet.Bytes32Set) reservationsProvider; 
-    mapping (uint256 => bool) tokenStatus;
+    EnumerableSet.Bytes32Set reservationKeys;
     mapping (uint256 => uint256) reservationCountByToken;
     mapping (uint256 => EnumerableSet.Bytes32Set) reservationKeysByToken;
+    mapping (address => EnumerableSet.Bytes32Set) reservationsProvider; 
     mapping (uint256 => mapping(address => bytes32)) activeReservationByTokenAndUser;
+    mapping (uint256 => bool) tokenStatus;
+    
     mapping (address => ProviderStake) providerStakes;
+
+    mapping(address provider => uint256 institutionalTreasury);
+    mapping(address provider => uint256 institutionalUserLimit);
+    mapping(address provider => mapping(string puc => uint256 spent)) institutionalUserSpent;
 }
 
 /// @title LibAppStorage

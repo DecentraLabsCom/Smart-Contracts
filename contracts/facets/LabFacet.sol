@@ -149,7 +149,7 @@ contract LabFacet is ERC721EnumerableUpgradeable, ReservableToken {
     /// @notice Adds a new Lab and immediately lists it for reservations in a single transaction.
     /// @dev This is a convenience function that combines addLab() and listToken() functionality.
     ///      Requires the provider to have sufficient staked tokens based on listed labs count.
-    ///      Formula: 900 base + max(0, listedLabs - 10) * 100
+    ///      Formula: 800 base + max(0, listedLabs - 10) * 200
     /// @param _uri The URI of the Lab, providing metadata or additional information.
     /// @param _price The price of the Lab in the smallest unit of the currency.
     /// @param _auth The URI to the authentication service that issues session tokens for lab access

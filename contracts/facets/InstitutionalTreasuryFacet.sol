@@ -52,11 +52,15 @@ contract InstitutionalTreasuryFacet {
         emit BackendRevoked(msg.sender, previousBackend);
     }
     /// @notice Deposit tokens to the provider's institutional treasury (global)
+    /// @dev Provider must approve tokens before calling this function
     /// @param amount Amount of tokens to deposit
     function depositToInstitutionalTreasury(uint256 amount) external {
         AppStorage storage s = LibAppStorage.diamondStorage();
         require(amount > 0, "Amount must be > 0");
+        
+        // Transfer tokens from provider to Diamond contract
         LabERC20(s.labTokenAddress).transferFrom(msg.sender, address(this), amount);
+        
         s.institutionalTreasury[msg.sender] += amount;
         emit InstitutionalTreasuryDeposit(msg.sender, amount, s.institutionalTreasury[msg.sender]);
     }

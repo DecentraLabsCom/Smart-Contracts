@@ -140,7 +140,7 @@ abstract contract ReservableToken {
     /// @notice Marks a token as listed by updating its status so it's possible to reserve.
     /// @dev This function can only be called by the owner of the token.
     /// @dev Requires the provider to have sufficient staked tokens based on listed labs count.
-    ///      Formula: 900 base + max(0, listedLabs - 10) * 100
+    ///      Formula: 800 base + max(0, listedLabs - 10) * 200
     /// @param _tokenId The unique identifier of the token to be listed.
     function listToken(uint256 _tokenId) external onlyTokenOwner(_tokenId) {
         AppStorage storage s = _s();
@@ -378,8 +378,8 @@ abstract contract ReservableToken {
 
     /// @notice Calculates required stake for a provider based on listed labs count
     /// @dev Formula: BASE_STAKE + max(0, listedLabs - FREE_LABS_COUNT) * STAKE_PER_ADDITIONAL_LAB
-    ///      - First 10 labs: 900 tokens (included in base)
-    ///      - Each additional lab: +100 tokens
+    ///      - First 10 labs: 800 tokens (included in base)
+    ///      - Each additional lab: +200 tokens
     /// @dev This function is public to allow access from non-inheriting facets
     /// @param provider The address of the provider
     /// @param listedLabsCount The number of labs that will be listed

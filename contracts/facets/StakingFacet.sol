@@ -75,7 +75,7 @@ contract StakingFacet is AccessControlUpgradeable {
     /// @dev This event signals that the provider's labs are automatically unlisted
     /// @param provider The address of the provider with insufficient stake
     /// @param remainingStake The current staked amount after the operation
-    /// @param requiredStake The minimum required stake (900 tokens)
+    /// @param requiredStake The minimum required stake (800 tokens)
     event ProviderStakeInsufficient(
         address indexed provider, 
         uint256 remainingStake, 
@@ -86,7 +86,7 @@ contract StakingFacet is AccessControlUpgradeable {
     /// @dev This event signals that the provider can now list labs
     /// @param provider The address of the provider with sufficient stake
     /// @param newTotalStake The current staked amount after the operation
-    /// @param requiredStake The minimum required stake (900 tokens)
+    /// @param requiredStake The minimum required stake (800 tokens)
     event ProviderStakeSufficient(
         address indexed provider, 
         uint256 newTotalStake, 
@@ -279,8 +279,8 @@ contract StakingFacet is AccessControlUpgradeable {
 
     /// @notice Gets the required stake for a provider based on listed labs count
     /// @dev Delegates to ReservableToken's calculation logic
-    ///      Formula: 900 base + max(0, listedLabs - 10) * 100
-    ///      - First 10 labs: 900 tokens (included in base)
+    ///      Formula: 800 base + max(0, listedLabs - 10) * 200
+    ///      - First 10 labs: 800 tokens (included in base)
     ///      - Each additional lab: +100 tokens
     /// @param provider The address of the provider
     /// @return uint256 The required stake amount

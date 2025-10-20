@@ -183,13 +183,16 @@ struct AppStorage {
 ///     This library is essential for maintaining consistency and efficiency in Diamond contracts.
 library LibAppStorage {
     /// @notice Base stake required for providers who received initial tokens
-    uint256 internal constant BASE_STAKE = 900_000_000; // 900 tokens with 6 decimals
+    uint256 internal constant BASE_STAKE = 800_000_000; // 800 tokens with 6 decimals
     
     /// @notice Number of labs included in base stake (free labs)
     uint256 internal constant FREE_LABS_COUNT = 10;
     
     /// @notice Additional stake required per lab beyond the free count
-    uint256 internal constant STAKE_PER_ADDITIONAL_LAB = 100_000_000; // 100 tokens with 6 decimals
+    uint256 internal constant STAKE_PER_ADDITIONAL_LAB = 200_000_000; // 200 tokens with 6 decimals
+    
+    /// @notice Default spending limit for institutional users
+    uint256 internal constant DEFAULT_INSTITUTIONAL_USER_LIMIT = 10_000_000; // 10 tokens with 6 decimals
 
     /// @dev Provides access to the `AppStorage` struct stored at a specific slot in contract storage.
     /// This function uses inline assembly to set the storage pointer to the predefined `APP_STORAGE_POSITION`.

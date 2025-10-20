@@ -21,7 +21,7 @@ contract ProviderFacet is AccessControlUpgradeable {
 
     /// @dev Represents the initial amount of LAB tokens minted to new providers.
     /// Total: 1000 tokens (1,000,000,000 units with 6 decimals)
-    /// Distribution: 100 tokens sent to provider wallet + 900 tokens automatically staked
+    /// Distribution: 800 tokens automatically staked + 200 tokens to institutional treasury
     uint32 constant INITIAL_LAB_TOKENS = 1000000000;
 
     /// @dev Emitted when a new provider is added to the system.
@@ -42,6 +42,16 @@ contract ProviderFacet is AccessControlUpgradeable {
     event ProviderAddedWithoutTokens(
         address indexed _account,
         string reason
+    );
+    
+    /// @dev Emitted when initial institutional treasury is set for a provider
+    /// @param provider The address of the provider.
+    /// @param amount The amount deposited to institutional treasury.
+    /// @param limit The default spending limit per user.
+    event InstitutionalTreasuryInitialized(
+        address indexed provider,
+        uint256 amount,
+        uint256 limit
     );
 
     /// @dev Emitted when a provider is removed.
@@ -99,7 +109,8 @@ contract ProviderFacet is AccessControlUpgradeable {
 
     /// @notice Adds a new provider to the system.
     /// @dev Grants the `PROVIDER_ROLE` to the specified account and initializes the provider's details.
-    ///      Mints 1000 tokens: 100 to provider wallet + 900 to Diamond (automatically staked).
+    ///      Mints 1000 tokens: 800 to Diamond (automatically staked) + 200 to institutional treasury.
+    ///      Sets default institutional user spending limit (10 tokens).
     ///      If minting fails (e.g., supply cap reached), the provider is still added without tokens.
     ///      Marks whether the provider received initial tokens for staking requirements.
     ///      Emits a `ProviderAdded` event upon successful addition with tokens.
@@ -119,10 +130,10 @@ contract ProviderFacet is AccessControlUpgradeable {
             _s()._addProviderRole(_account, _name, _email, _country);
             
             // Try to mint initial tokens (1000 total), but don't revert if it fails (e.g., cap reached)
-            uint256 providerAmount = 100_000_000; // 100 tokens to provider wallet
-            uint256 stakeAmount = 900_000_000;    // 900 tokens to Diamond (staked)
+            uint256 treasuryAmount = 200_000_000; // 200 tokens to institutional treasury
+            uint256 stakeAmount = 800_000_000;    // 800 tokens to Diamond (staked)
             
-            try LabERC20(_s().labTokenAddress).mint(_account, providerAmount) {
+            try LabERC20(_s().labTokenAddress).mint(address(this), treasuryAmount) {
                 // Mint staked tokens directly to Diamond contract
                 try LabERC20(_s().labTokenAddress).mint(address(this), stakeAmount) {
                     // Mark that this provider received initial tokens (required for staking)
@@ -132,9 +143,21 @@ contract ProviderFacet is AccessControlUpgradeable {
                     _s().providerStakes[_account].stakedAmount = stakeAmount;
                     _s().providerStakes[_account].initialStakeTimestamp = block.timestamp;
                     
+                    // Deposit the 200 tokens to institutional treasury
+                    _s().institutionalTreasury[_account] = treasuryAmount;
+                    
+                    // Set default institutional user spending limit (10 tokens)
+                    _s().institutionalUserLimit[_account] = LibAppStorage.DEFAULT_INSTITUTIONAL_USER_LIMIT;
+                    
+                    emit InstitutionalTreasuryInitialized(
+                        _account, 
+                        treasuryAmount, 
+                        LibAppStorage.DEFAULT_INSTITUTIONAL_USER_LIMIT
+                    );
+                    
                     emit ProviderAdded(_account, _name, _email, _country);
                 } catch {
-                    // If stake mint fails, revert the provider mint too
+                    // If stake mint fails, revert the treasury mint too
                     revert("Failed to mint stake tokens");
                 }
             } catch Error(string memory reason) {
@@ -153,7 +176,7 @@ contract ProviderFacet is AccessControlUpgradeable {
 
     /// @notice Removes a provider from the system by revoking their PROVIDER_ROLE.
     /// @dev This function can only be called by an account with the DEFAULT_ADMIN_ROLE.
-    ///      Burns all staked tokens before removal (penalty for removal).
+    ///      Burns all staked tokens and institutional treasury balance before removal.
     ///      If the provider does not have the PROVIDER_ROLE, the transaction reverts with an error.
     ///      Emits a `ProviderRemoved` event upon successful removal.
     /// @param _provider The address of the provider to be removed.
@@ -161,17 +184,30 @@ contract ProviderFacet is AccessControlUpgradeable {
         address _provider
     ) external onlyRole(DEFAULT_ADMIN_ROLE) {
         if (_revokeRole(PROVIDER_ROLE, _provider)) {
-            // Burn any staked tokens before removing
-            uint256 stakedAmount = _s().providerStakes[_provider].stakedAmount;
+            AppStorage storage s = _s();
+            
+            // Burn staked tokens
+            uint256 stakedAmount = s.providerStakes[_provider].stakedAmount;
             if (stakedAmount > 0) {
-                _s().providerStakes[_provider].stakedAmount = 0;
-                LabERC20(_s().labTokenAddress).burn(stakedAmount);
+                s.providerStakes[_provider].stakedAmount = 0;
+                LabERC20(s.labTokenAddress).burn(stakedAmount);
+            }
+            
+            // Burn institutional treasury balance
+            uint256 treasuryBalance = s.institutionalTreasury[_provider];
+            if (treasuryBalance > 0) {
+                s.institutionalTreasury[_provider] = 0;
+                LabERC20(s.labTokenAddress).burn(treasuryBalance);
             }
             
             // Clean up stake data
-            delete _s().providerStakes[_provider];
+            delete s.providerStakes[_provider];
             
-            _s()._removeProviderRole(_provider);
+            // Clean up institutional data
+            delete s.institutionalUserLimit[_provider];
+            delete s.institutionalBackends[_provider];
+            
+            s._removeProviderRole(_provider);
             emit ProviderRemoved(_provider);
         } else {
             revert("Provider does not exist");

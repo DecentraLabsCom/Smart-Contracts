@@ -54,6 +54,11 @@ contract ProviderFacet is AccessControlUpgradeable {
         uint256 limit
     );
 
+    /// @dev Emitted when a provider authorizes a backend address
+    /// @param provider The provider address
+    /// @param backend The backend address being authorized
+    event BackendAuthorized(address indexed provider, address indexed backend);
+
     /// @dev Emitted when a provider is removed.
     /// @param _account The address of the provider that was removed.
     event ProviderRemoved(address indexed _account);
@@ -149,11 +154,16 @@ contract ProviderFacet is AccessControlUpgradeable {
                     // Set default institutional user spending limit (10 tokens)
                     _s().institutionalUserLimit[_account] = LibAppStorage.DEFAULT_INSTITUTIONAL_USER_LIMIT;
                     
+                    // Auto-authorize provider address as backend for institutional treasury
+                    _s().institutionalBackends[_account] = _account;
+                    
                     emit InstitutionalTreasuryInitialized(
                         _account, 
                         treasuryAmount, 
                         LibAppStorage.DEFAULT_INSTITUTIONAL_USER_LIMIT
                     );
+                    
+                    emit BackendAuthorized(_account, _account);
                     
                     emit ProviderAdded(_account, _name, _email, _country);
                 } catch {

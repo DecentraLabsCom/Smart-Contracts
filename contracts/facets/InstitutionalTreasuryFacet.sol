@@ -20,6 +20,9 @@ contract InstitutionalTreasuryFacet {
     /// @notice Emitted when tokens are deposited to institutional treasury
     event InstitutionalTreasuryDeposit(address indexed provider, uint256 amount, uint256 newBalance);
     
+    /// @notice Emitted when tokens are withdrawn from institutional treasury
+    event InstitutionalTreasuryWithdrawal(address indexed provider, uint256 amount, uint256 newBalance);
+    
     /// @notice Emitted when institutional user spending limit is updated
     event InstitutionalUserLimitUpdated(address indexed provider, uint256 newLimit);
     
@@ -65,6 +68,22 @@ contract InstitutionalTreasuryFacet {
         emit InstitutionalTreasuryDeposit(msg.sender, amount, s.institutionalTreasury[msg.sender]);
     }
 
+    /// @notice Withdraw tokens from the provider's institutional treasury
+    /// @dev Allows provider to retrieve unspent funds from their treasury
+    /// @param amount Amount of tokens to withdraw
+    function withdrawFromInstitutionalTreasury(uint256 amount) external {
+        AppStorage storage s = LibAppStorage.diamondStorage();
+        require(amount > 0, "Amount must be > 0");
+        require(s.institutionalTreasury[msg.sender] >= amount, "Insufficient treasury balance");
+        
+        s.institutionalTreasury[msg.sender] -= amount;
+        
+        // Transfer tokens back to provider
+        LabERC20(s.labTokenAddress).transfer(msg.sender, amount);
+        
+        emit InstitutionalTreasuryWithdrawal(msg.sender, amount, s.institutionalTreasury[msg.sender]);
+    }
+
     /// @notice Set the spending limit per institutional user (global for provider)
     /// @param limit The maximum amount a user can spend
     function setInstitutionalUserLimit(uint256 limit) external {
@@ -76,9 +95,12 @@ contract InstitutionalTreasuryFacet {
 
     /// @notice Spend tokens from the provider's institutional treasury as an institutional user
     /// @dev Only callable by the provider's authorized backend
+    ///      This function marks the spending for accounting purposes.
+    ///      The actual token transfer must be coordinated with ReservationFacet or other payment mechanisms.
+    ///      Tokens remain in Diamond contract until explicitly transferred by another facet.
     /// @param provider The provider who owns the treasury
     /// @param puc The schacPersonalUniqueCode of the user
-    /// @param amount Amount to spend
+    /// @param amount Amount to spend (mark as spent for this user)
     function spendFromInstitutionalTreasury(address provider, string calldata puc, uint256 amount) 
         external 
         onlyAuthorizedBackend(provider) 
@@ -94,8 +116,6 @@ contract InstitutionalTreasuryFacet {
         s.institutionalUserSpent[provider][puc] = newSpent;
         
         emit InstitutionalUserSpent(provider, puc, amount, newSpent);
-        
-        // Optionally: transfer tokens to destination, burn, or mark as spent
     }
 
     /// @notice Get provider's institutional treasury balance

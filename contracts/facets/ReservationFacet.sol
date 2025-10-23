@@ -6,6 +6,16 @@ import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import "../abstracts/ReservableTokenEnumerable.sol";
 import "./ProviderFacet.sol";
 
+/// @dev Interface for StakingFacet to update reservation timestamps
+interface IStakingFacet {
+    function updateLastReservation(address provider) external;
+}
+
+/// @dev Interface for InstitutionalTreasuryFacet to spend from treasury
+interface IInstitutionalTreasuryFacet {
+    function spendFromInstitutionalTreasury(address provider, string calldata puc, uint256 amount) external;
+}
+
 /// @title ReservationFacet - A contract for managing lab reservations and bookings
 /// @author
 /// - Juan Luis Ramos Villalón
@@ -115,8 +125,94 @@ contract ReservationFacet is ReservableTokenEnumerable {
         s.reservationKeys.add(reservationKey);
         s.renters[msg.sender].add(reservationKey);
 
-        IERC20(tokenAddr).transferFrom(msg.sender, address(this), price);        
+        IERC20(tokenAddr).transferFrom(msg.sender, address(this), price);
+        
+        // Update provider's last reservation timestamp (activates 30-day lock)
+        // Provider is committing to provide service, so lock starts from reservation creation
+        IStakingFacet(address(this)).updateLastReservation(labOwner);
+        
         emit ReservationRequested(msg.sender, _labId, _start, _end, reservationKey);
+    }
+
+    /// @notice Allows an institutional user (via authorized backend) to request a booking using institutional treasury
+    /// @dev Creates a new reservation request paid from the provider's institutional treasury
+    ///      The backend must be authorized by the institutional provider
+    /// @param institutionalProvider The provider who owns the institutional treasury
+    /// @param puc The schacPersonalUniqueCode of the institutional user
+    /// @param _labId The ID of the lab to reserve
+    /// @param _start The start timestamp of the reservation
+    /// @param _end The end timestamp of the reservation
+    /// @custom:throws Error if time range is invalid, slot not available, or treasury has insufficient funds
+    /// @custom:emits ReservationRequested when reservation is created
+    /// @custom:requirements 
+    /// - Caller must be the authorized backend for the institutional provider
+    /// - Lab must exist and be listed for reservations
+    /// - Institutional user must have sufficient remaining allowance
+    /// - Time slot must be available
+    function institutionalReservationRequest(
+        address institutionalProvider,
+        string calldata puc,
+        uint256 _labId,
+        uint32 _start,
+        uint32 _end
+    ) external exists(_labId) { 
+        AppStorage storage s = _s();
+        
+        // Check if lab is listed for reservations
+        if (!s.tokenStatus[_labId]) revert("Lab not listed for reservations");
+        
+        // Check if lab owner has sufficient stake
+        address labOwner = IERC721(address(this)).ownerOf(_labId);
+        uint256 listedLabsCount = s.providerStakes[labOwner].listedLabsCount;
+        uint256 requiredStake = ReservableToken(address(this)).calculateRequiredStake(labOwner, listedLabsCount);
+        if (s.providerStakes[labOwner].stakedAmount < requiredStake) {
+            revert("Lab provider does not have sufficient stake");
+        }
+        
+        if (_start >= _end || _start <= block.timestamp + RESERVATION_MARGIN) 
+            revert("Invalid time range");
+      
+        uint96 price = s.labs[_labId].price;
+        bytes32 reservationKey = _getReservationKey(_labId, _start);
+        
+        // Check availability
+        if (s.reservationKeys.contains(reservationKey) && 
+            s.reservations[reservationKey].status != CANCELLED)
+            revert("Not available");
+
+        // Spend from institutional treasury (this checks backend authorization and limits)
+        IInstitutionalTreasuryFacet(address(this)).spendFromInstitutionalTreasury(
+            institutionalProvider, 
+            puc, 
+            price
+        );
+
+        // Insert and create reservation
+        s.calendars[_labId].insert(_start, _end);
+        s.reservationCountByToken[_labId]++;
+        s.reservationKeysByToken[_labId].add(reservationKey);
+        
+        // Create reservation with renter as the institutional provider (for accounting)
+        // The actual user is tracked via the InstitutionalUserSpent event
+        s.reservations[reservationKey] = Reservation({
+            labId: _labId,
+            renter: institutionalProvider, // Provider pays on behalf of institutional user
+            price: price,
+            start: _start,
+            end: _end,
+            status: PENDING
+        });
+        
+        s.reservationKeys.add(reservationKey);
+        s.renters[institutionalProvider].add(reservationKey);
+        
+        // Tokens are already in Diamond (from institutional treasury)
+        // No transfer needed - just mark as allocated for this reservation
+        
+        // Update provider's last reservation timestamp
+        IStakingFacet(address(this)).updateLastReservation(labOwner);
+        
+        emit ReservationRequested(institutionalProvider, _labId, _start, _end, reservationKey);
     }
 
     /// @notice Confirms a pending reservation request for a lab
@@ -239,6 +335,13 @@ contract ReservationFacet is ReservableTokenEnumerable {
         }
 
         if (totalAmount == 0) revert("No funds");
+        
+        // Update provider's last reservation timestamp (activates 30-day lock)
+        // This is done after successfully completing/collecting reservations
+        if (processed > 0) {
+            IStakingFacet(address(this)).updateLastReservation(msg.sender);
+        }
+        
         IERC20(s.labTokenAddress).transfer(msg.sender, totalAmount);
     }
 

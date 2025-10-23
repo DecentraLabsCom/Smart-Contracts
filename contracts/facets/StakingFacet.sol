@@ -291,7 +291,7 @@ contract StakingFacet is AccessControlUpgradeable {
     /// @dev Delegates to ReservableToken's calculation logic
     ///      Formula: 800 base + max(0, listedLabs - 10) * 200
     ///      - First 10 labs: 800 tokens (included in base)
-    ///      - Each additional lab: +100 tokens
+    ///      - Each additional lab: +200 tokens
     /// @param provider The address of the provider
     /// @return uint256 The required stake amount
     function getRequiredStake(address provider) public view returns (uint256) {

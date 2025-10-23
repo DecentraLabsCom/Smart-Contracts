@@ -14,6 +14,7 @@ interface IStakingFacet {
 /// @dev Interface for InstitutionalTreasuryFacet to spend from treasury
 interface IInstitutionalTreasuryFacet {
     function spendFromInstitutionalTreasury(address provider, string calldata puc, uint256 amount) external;
+    function refundToInstitutionalTreasury(address provider, string calldata puc, uint256 amount) external;
 }
 
 /// @title ReservationFacet - A contract for managing lab reservations and bookings
@@ -248,6 +249,39 @@ contract ReservationFacet is ReservableTokenEnumerable {
         emit ReservationRequestDenied(_reservationKey, reservation.labId);
     }
 
+    /// @notice Allows admin to deny an institutional user's pending reservation request
+    /// @dev Refunds the tokens back to the institutional treasury (not to provider's wallet)
+    /// @param institutionalProvider The provider who owns the institutional treasury
+    /// @param puc The schacPersonalUniqueCode of the institutional user
+    /// @param _reservationKey The unique identifier of the reservation to deny
+    /// @custom:requires The caller must have admin role
+    /// @custom:requires The reservation must be in pending state
+    /// @custom:emits ReservationRequestDenied when the reservation is denied
+    /// @custom:transfers Refunds to institutional treasury and decrements user's spent amount
+    function denyInstitutionalReservationRequest(
+        address institutionalProvider,
+        string calldata puc,
+        bytes32 _reservationKey
+    ) external defaultAdminRole {
+        Reservation storage reservation = _s().reservations[_reservationKey];
+        if (reservation.status != PENDING) revert("Not pending");
+        if (reservation.renter != institutionalProvider) revert("Not institutional");
+
+        uint256 price = reservation.price;
+        
+        _cancelReservation(_reservationKey);
+        
+        // Refund to institutional treasury (not to provider's wallet)
+        // This also decrements the user's spent amount
+        IInstitutionalTreasuryFacet(address(this)).refundToInstitutionalTreasury(
+            institutionalProvider,
+            puc,
+            price
+        );
+        
+        emit ReservationRequestDenied(_reservationKey, reservation.labId);
+    }
+
     /// @notice Allows a user to cancel their pending reservation request
     /// @dev The function transfers back the reserved tokens to the renter
     /// @param _reservationKey The unique identifier of the reservation to cancel
@@ -289,6 +323,78 @@ contract ReservationFacet is ReservableTokenEnumerable {
         _cancelReservation(_reservationKey);
         
         IERC20(_s().labTokenAddress).transfer(renter, price);
+        emit BookingCanceled(_reservationKey, reservation.labId);
+    }
+
+    /// @notice Allows authorized backend to cancel an institutional user's pending reservation request
+    /// @dev Refunds the tokens back to the institutional treasury (not to provider's wallet)
+    /// @param institutionalProvider The provider who owns the institutional treasury
+    /// @param puc The schacPersonalUniqueCode of the institutional user
+    /// @param _reservationKey The unique identifier of the reservation to cancel
+    /// @custom:throws "Not found" if the reservation doesn't exist
+    /// @custom:throws "Not renter" if institutional provider is not the renter
+    /// @custom:throws "Not pending" if reservation status is not PENDING
+    /// @custom:emits ReservationRequestCanceled when successfully cancelled
+    function cancelInstitutionalReservationRequest(
+        address institutionalProvider,
+        string calldata puc,
+        bytes32 _reservationKey
+    ) external {
+        Reservation storage reservation = _s().reservations[_reservationKey];
+        if (reservation.renter == address(0)) revert("Not found");
+        if (reservation.renter != institutionalProvider) revert("Not renter");
+        if (reservation.status != PENDING) revert("Not pending");
+
+        uint256 price = reservation.price;
+        
+        _cancelReservation(_reservationKey);
+        
+        // Refund to institutional treasury (not to provider's wallet)
+        // This also decrements the user's spent amount
+        IInstitutionalTreasuryFacet(address(this)).refundToInstitutionalTreasury(
+            institutionalProvider,
+            puc,
+            price
+        );
+        
+        emit ReservationRequestCanceled(_reservationKey, reservation.labId);
+    }
+
+    /// @notice Allows authorized backend to cancel an institutional user's confirmed booking
+    /// @dev Refunds the tokens back to the institutional treasury (not to provider's wallet)
+    /// @param institutionalProvider The provider who owns the institutional treasury
+    /// @param puc The schacPersonalUniqueCode of the institutional user
+    /// @param _reservationKey The unique identifier of the reservation to cancel
+    /// @custom:throws If reservation is invalid or caller is not authorized
+    /// @custom:emits BookingCanceled event
+    /// @custom:security Requires the reservation to be in BOOKED status
+    function cancelInstitutionalBooking(
+        address institutionalProvider,
+        string calldata puc,
+        bytes32 _reservationKey
+    ) external {
+        Reservation storage reservation = _s().reservations[_reservationKey];
+        if (reservation.renter == address(0) || reservation.status != BOOKED) 
+            revert("Invalid");
+
+        address renter = reservation.renter;
+        uint256 price = reservation.price;
+        address labProvider = IERC721(address(this)).ownerOf(reservation.labId);
+        
+        if (renter != institutionalProvider) revert("Not renter");
+
+        // Cancel the booking
+        _s().reservationsProvider[labProvider].remove(_reservationKey);
+        _cancelReservation(_reservationKey);
+        
+        // Refund to institutional treasury (not to provider's wallet)
+        // This also decrements the user's spent amount
+        IInstitutionalTreasuryFacet(address(this)).refundToInstitutionalTreasury(
+            institutionalProvider,
+            puc,
+            price
+        );
+        
         emit BookingCanceled(_reservationKey, reservation.labId);
     }
 

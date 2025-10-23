@@ -118,6 +118,26 @@ contract InstitutionalTreasuryFacet {
         emit InstitutionalUserSpent(provider, puc, amount, newSpent);
     }
 
+    /// @notice Refund tokens back to the provider's institutional treasury (e.g., when canceling a reservation)
+    /// @dev Only callable by the provider's authorized backend or Diamond facets
+    ///      This reverses a previous spend, incrementing treasury and decrementing user's spent amount
+    /// @param provider The provider who owns the treasury
+    /// @param puc The schacPersonalUniqueCode of the user
+    /// @param amount Amount to refund
+    function refundToInstitutionalTreasury(address provider, string calldata puc, uint256 amount) 
+        external 
+        onlyAuthorizedBackend(provider) 
+    {
+        AppStorage storage s = LibAppStorage.diamondStorage();
+        require(amount > 0, "Amount must be > 0");
+        require(s.institutionalUserSpent[provider][puc] >= amount, "Refund exceeds spent amount");
+        
+        s.institutionalTreasury[provider] += amount;
+        s.institutionalUserSpent[provider][puc] -= amount;
+        
+        emit InstitutionalUserSpent(provider, puc, 0, s.institutionalUserSpent[provider][puc]); // Emit with 0 to indicate refund
+    }
+
     /// @notice Get provider's institutional treasury balance
     function getInstitutionalTreasuryBalance(address provider) external view returns (uint256) {
         AppStorage storage s = LibAppStorage.diamondStorage();

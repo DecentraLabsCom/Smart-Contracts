@@ -334,12 +334,19 @@ contract ReservationFacet is ReservableTokenEnumerable {
     /// @custom:throws "Not found" if the reservation doesn't exist
     /// @custom:throws "Not renter" if institutional provider is not the renter
     /// @custom:throws "Not pending" if reservation status is not PENDING
+    /// @custom:throws "Not authorized backend" if caller is not the authorized backend for the provider
     /// @custom:emits ReservationRequestCanceled when successfully cancelled
     function cancelInstitutionalReservationRequest(
         address institutionalProvider,
         string calldata puc,
         bytes32 _reservationKey
     ) external {
+        // Verify caller is authorized backend for this provider
+        // This check is redundant with refundToInstitutionalTreasury but provides better error messaging
+        AppStorage storage s = _s();
+        require(s.institutionalBackends[institutionalProvider] != address(0), "No authorized backend");
+        require(msg.sender == s.institutionalBackends[institutionalProvider], "Not authorized backend");
+        
         Reservation storage reservation = _s().reservations[_reservationKey];
         if (reservation.renter == address(0)) revert("Not found");
         if (reservation.renter != institutionalProvider) revert("Not renter");
@@ -366,6 +373,7 @@ contract ReservationFacet is ReservableTokenEnumerable {
     /// @param puc The schacPersonalUniqueCode of the institutional user
     /// @param _reservationKey The unique identifier of the reservation to cancel
     /// @custom:throws If reservation is invalid or caller is not authorized
+    /// @custom:throws "Not authorized backend" if caller is not the authorized backend for the provider
     /// @custom:emits BookingCanceled event
     /// @custom:security Requires the reservation to be in BOOKED status
     function cancelInstitutionalBooking(
@@ -373,6 +381,12 @@ contract ReservationFacet is ReservableTokenEnumerable {
         string calldata puc,
         bytes32 _reservationKey
     ) external {
+        // Verify caller is authorized backend for this provider
+        // This check is redundant with refundToInstitutionalTreasury but provides better error messaging
+        AppStorage storage s = _s();
+        require(s.institutionalBackends[institutionalProvider] != address(0), "No authorized backend");
+        require(msg.sender == s.institutionalBackends[institutionalProvider], "Not authorized backend");
+        
         Reservation storage reservation = _s().reservations[_reservationKey];
         if (reservation.renter == address(0) || reservation.status != BOOKED) 
             revert("Invalid");

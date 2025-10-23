@@ -172,11 +172,21 @@ contract StakingFacet is AccessControlUpgradeable {
         // Check minimum stake requirement (if provider received initial tokens)
         uint256 remainingStake = s.providerStakes[msg.sender].stakedAmount - amount;
         uint256 requiredStake = getRequiredStake(msg.sender);
+        uint256 listedLabs = s.providerStakes[msg.sender].listedLabsCount;
         
-        require(
-            remainingStake >= requiredStake || remainingStake == 0,
-            "StakingFacet: cannot unstake below required minimum"
-        );
+        // If provider has listed labs, they must maintain required stake
+        if (listedLabs > 0) {
+            require(
+                remainingStake >= requiredStake,
+                "StakingFacet: cannot unstake below required minimum while labs are listed"
+            );
+        } else {
+            // If no labs listed, can unstake everything or down to required minimum
+            require(
+                remainingStake >= requiredStake || remainingStake == 0,
+                "StakingFacet: cannot unstake below required minimum"
+            );
+        }
         
         s.providerStakes[msg.sender].stakedAmount = remainingStake;
         

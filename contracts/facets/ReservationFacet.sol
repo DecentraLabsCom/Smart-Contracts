@@ -225,12 +225,16 @@ contract ReservationFacet is ReservableTokenEnumerable {
     /// @custom:modifies Updates reservation status to BOOKED
     /// @custom:modifies Adds reservation to lab provider's reservation list
     function confirmReservationRequest(bytes32 _reservationKey) external defaultAdminRole reservationPending(_reservationKey) override {
-        Reservation storage reservation = _s().reservations[_reservationKey];
+        AppStorage storage s = _s();
+        Reservation storage reservation = s.reservations[_reservationKey];
         address labProvider = IERC721(address(this)).ownerOf(reservation.labId);
 
-        reservation.status = BOOKED;   
-        _s().reservationsProvider[labProvider].add(_reservationKey);
-        
+        reservation.status = BOOKED;
+        s.reservationsProvider[labProvider].add(_reservationKey);
+
+        // Track active reservation for quick lookup by user and token
+        s.activeReservationByTokenAndUser[reservation.labId][reservation.renter] = _reservationKey;
+
         emit ReservationConfirmed(_reservationKey, reservation.labId);
     }
 

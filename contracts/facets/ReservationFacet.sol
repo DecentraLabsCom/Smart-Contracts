@@ -117,10 +117,11 @@ contract ReservationFacet is ReservableTokenEnumerable {
         s.reservationCountByToken[_labId]++;
         s.reservationKeysByToken[_labId].add(reservationKey);
         
-        // Direct struct initialization
+        // Direct struct initialization - includes labProvider for safety
         s.reservations[reservationKey] = Reservation({
             labId: _labId,
             renter: msg.sender,
+            labProvider: labOwner,
             price: price,
             start: _start,
             end: _end,
@@ -202,9 +203,11 @@ contract ReservationFacet is ReservableTokenEnumerable {
         
         // Create reservation with renter as the institutional provider (for accounting)
         // The actual user is tracked via the InstitutionalUserSpent event
+        // labProvider is saved for safety (in case lab is deleted/transferred)
         s.reservations[reservationKey] = Reservation({
             labId: _labId,
             renter: institutionalProvider, // Provider pays on behalf of institutional user
+            labProvider: labOwner,
             price: price,
             start: _start,
             end: _end,
@@ -236,7 +239,7 @@ contract ReservationFacet is ReservableTokenEnumerable {
     /// @custom:modifies Adds reservation to lab provider's reservation list (on success)
     function confirmReservationRequest(bytes32 _reservationKey) external defaultAdminRole reservationPending(_reservationKey) override {
         Reservation storage reservation = _s().reservations[_reservationKey];
-        address labProvider = IERC721(address(this)).ownerOf(reservation.labId);
+        address labProvider = reservation.labProvider;
 
         // Attempt to collect payment from user
         try IERC20(_s().labTokenAddress).transferFrom(
@@ -280,7 +283,7 @@ contract ReservationFacet is ReservableTokenEnumerable {
         Reservation storage reservation = _s().reservations[_reservationKey];
         if (reservation.renter != institutionalProvider) revert("Not institutional");
         
-        address labProvider = IERC721(address(this)).ownerOf(reservation.labId);
+        address labProvider = reservation.labProvider;
 
         // Attempt to charge institutional treasury
         try IInstitutionalTreasuryFacet(address(this)).spendFromInstitutionalTreasury(
@@ -371,7 +374,7 @@ contract ReservationFacet is ReservableTokenEnumerable {
 
         address renter = reservation.renter;
         uint256 price = reservation.price;
-        address labProvider = IERC721(address(this)).ownerOf(reservation.labId);
+        address labProvider = reservation.labProvider;
         
         if (renter != msg.sender && labProvider != msg.sender) revert("Unauthorized");
 
@@ -450,7 +453,7 @@ contract ReservationFacet is ReservableTokenEnumerable {
 
         address renter = reservation.renter;
         uint256 price = reservation.price;
-        address labProvider = IERC721(address(this)).ownerOf(reservation.labId);
+        address labProvider = reservation.labProvider;
         
         if (renter != institutionalProvider) revert("Not renter");
 

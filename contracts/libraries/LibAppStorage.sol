@@ -61,6 +61,7 @@ struct Lab {
 /// @dev Stores reservation details including lab ID, renter address, pricing and timestamps
 /// @param labId Unique identifier of the lab being reserved
 /// @param renter Address of the user making the reservation
+/// @param labProvider Address of the lab provider (owner at reservation time)
 /// @param price Cost of the reservation in wei
 /// @param start Starting timestamp of the reservation (as uint32)
 /// @param end Ending timestamp of the reservation (as uint32)
@@ -73,6 +74,7 @@ struct Lab {
 struct Reservation {
         uint256 labId;
         address renter;
+        address labProvider;
         uint96 price;
         uint32 start;
         uint32 end; 

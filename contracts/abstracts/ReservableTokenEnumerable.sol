@@ -95,7 +95,7 @@ abstract contract ReservableTokenEnumerable is ReservableToken {
         Reservation storage reservation = s.reservations[_reservationKey];
         
         reservation.status = BOOKED;
-        s.reservationsProvider[IERC721(address(this)).ownerOf(reservation.labId)].add(_reservationKey);
+        s.reservationsProvider[reservation.labProvider].add(_reservationKey);
         
         // Update active reservation index for O(1) lookup
         s.activeReservationByTokenAndUser[reservation.labId][reservation.renter] = _reservationKey;

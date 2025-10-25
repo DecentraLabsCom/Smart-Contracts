@@ -3,9 +3,12 @@ pragma solidity ^0.8.23;
 
 import "@openzeppelin/contracts-upgradeable/token/ERC721/extensions/ERC721EnumerableUpgradeable.sol";
 import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
+import "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import {LibAppStorage, AppStorage, Lab, LabBase} from "../libraries/LibAppStorage.sol";
 import {LibAccessControlEnumerable} from "../libraries/LibAccessControlEnumerable.sol";
 import "../abstracts/ReservableToken.sol";
+
+using EnumerableSet for EnumerableSet.Bytes32Set;
 
 
 /// @title LabFacet Contract
@@ -266,16 +269,37 @@ contract LabFacet is ERC721EnumerableUpgradeable, ReservableToken {
     /// @notice Deletes a Lab identified by `_labId`.
     /// @dev This function can only be called by the Lab provider and the contract owner.
     /// It checks if the Lab exists before deleting it.
+    /// SECURITY: Prevents deletion if there are active (BOOKED) reservations to protect user funds
     /// @param _labId The ID of the Lab to be deleted.
+    /// @custom:security Cannot delete lab with active BOOKED reservations
     function deleteLab(uint _labId) external  onlyLabProvider(_labId) {
+        // Security check: Prevent deletion if there are active bookings
+        // This protects users' funds from being locked if lab is deleted
+        require(!_hasActiveBookings(_labId), "Cannot delete lab with active bookings");
        
         _burn(_labId);
         delete _s().labs[_labId];
         emit LabDeleted(_labId);
-        // TODO: What happens if the Lab has been booked?!
-        // If we clean everything, gas may be a problem. If we don't and require multiple
-        // calls to clean, we may have inconsistencies. Solving this would require new lab
-        // states in LibAppStorage and more complex logic.
+    }
+
+    /// @notice Checks if a lab has any active (BOOKED status) reservations
+    /// @dev Internal helper function to prevent lab deletion with active bookings
+    /// @param _labId The ID of the lab to check
+    /// @return true if there are any reservations with BOOKED status for this lab
+    function _hasActiveBookings(uint256 _labId) internal view returns (bool) {
+        AppStorage storage s = _s();
+        EnumerableSet.Bytes32Set storage reservationKeys = s.reservationKeysByToken[_labId];
+        uint256 length = reservationKeys.length();
+        
+        for (uint256 i = 0; i < length; i++) {
+            bytes32 key = reservationKeys.at(i);
+            // BOOKED = 1 (from ReservableToken.sol)
+            if (s.reservations[key].status == 1) {
+                return true;
+            }
+        }
+        
+        return false;
     }
 
     /// @notice Retrieves the details of a Lab (Cyber Physical System) by its ID.

@@ -151,8 +151,11 @@ contract ProviderFacet is AccessControlUpgradeable {
                     // Deposit the 200 tokens to institutional treasury
                     _s().institutionalTreasury[_account] = treasuryAmount;
                     
-                    // Set default institutional user spending limit (10 tokens)
+                    // Set default institutional user spending limit (tokens per period)
                     _s().institutionalUserLimit[_account] = LibAppStorage.DEFAULT_INSTITUTIONAL_USER_LIMIT;
+                    
+                    // Set default spending period
+                    _s().institutionalSpendingPeriod[_account] = LibAppStorage.DEFAULT_SPENDING_PERIOD;
                     
                     // Auto-authorize provider address as backend for institutional treasury
                     _s().institutionalBackends[_account] = _account;

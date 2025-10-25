@@ -26,8 +26,51 @@ contract InstitutionalTreasuryFacet {
     /// @notice Emitted when institutional user spending limit is updated
     event InstitutionalUserLimitUpdated(address indexed provider, uint256 newLimit);
     
+    /// @notice Emitted when institutional spending period is updated
+    event InstitutionalSpendingPeriodUpdated(address indexed provider, uint256 newPeriod);
+    
     /// @notice Emitted when an institutional user spends tokens
-    event InstitutionalUserSpent(address indexed provider, string puc, uint256 amount, uint256 totalSpent);
+    event InstitutionalUserSpent(address indexed provider, string puc, uint256 amount, uint256 totalSpent, uint256 periodStart);
+    
+    /// @dev Modifier to check if caller is the authorized backend for a provider
+    modifier onlyAuthorizedBackend(address provider) {
+        AppStorage storage s = LibAppStorage.diamondStorage();
+        require(s.institutionalBackends[provider] != address(0), "No authorized backend");
+        require(msg.sender == s.institutionalBackends[provider], "Not authorized backend");
+        _;
+    }
+    
+    /// @notice Get the current spending period for a provider (returns default if not set)
+    /// @param provider The provider address
+    /// @return The spending period duration in seconds
+    function _getSpendingPeriod(address provider) internal view returns (uint256) {
+        AppStorage storage s = LibAppStorage.diamondStorage();
+        uint256 period = s.institutionalSpendingPeriod[provider];
+        return period == 0 ? LibAppStorage.DEFAULT_SPENDING_PERIOD : period;
+    }
+    
+    /// @notice Check if we're in a new spending period and reset if needed
+    /// @param provider The provider address
+    /// @param puc The user's schacPersonalUniqueCode
+    /// @return currentPeriodStart The start timestamp of the current period
+    function _checkAndResetPeriod(address provider, string calldata puc) internal returns (uint256 currentPeriodStart) {
+        AppStorage storage s = LibAppStorage.diamondStorage();
+        uint256 periodDuration = _getSpendingPeriod(provider);
+        uint256 now_ = block.timestamp;
+        
+        InstitutionalUserSpending storage spending = s.institutionalUserSpending[provider][puc];
+        
+        // Calculate current period start based on period duration
+        currentPeriodStart = (now_ / periodDuration) * periodDuration;
+        
+        // If period has changed, reset spending
+        if (spending.periodStart != currentPeriodStart) {
+            spending.amount = 0;
+            spending.periodStart = currentPeriodStart;
+        }
+        
+        return currentPeriodStart;
+    }
     
     /// @dev Modifier to check if caller is the authorized backend for a provider
     modifier onlyAuthorizedBackend(address provider) {
@@ -85,22 +128,34 @@ contract InstitutionalTreasuryFacet {
     }
 
     /// @notice Set the spending limit per institutional user (global for provider)
-    /// @param limit The maximum amount a user can spend
+    /// @param limit The maximum amount a user can spend per period
     function setInstitutionalUserLimit(uint256 limit) external {
         AppStorage storage s = LibAppStorage.diamondStorage();
         require(limit > 0, "Limit must be > 0");
         s.institutionalUserLimit[msg.sender] = limit;
         emit InstitutionalUserLimitUpdated(msg.sender, limit);
     }
+    
+    /// @notice Set the spending period duration for institutional users
+    /// @param periodDuration The duration of the spending period in seconds (e.g., 30 days = 2592000)
+    /// @dev Common values: 1 day = 86400, 7 days = 604800, 30 days = 2592000, 1 year = 31536000
+    function setInstitutionalSpendingPeriod(uint256 periodDuration) external {
+        AppStorage storage s = LibAppStorage.diamondStorage();
+        require(periodDuration > 0, "Period must be > 0");
+        require(periodDuration <= 365 days, "Period too long");
+        s.institutionalSpendingPeriod[msg.sender] = periodDuration;
+        emit InstitutionalSpendingPeriodUpdated(msg.sender, periodDuration);
+    }
 
     /// @notice Spend tokens from the provider's institutional treasury as an institutional user
     /// @dev Only callable by the provider's authorized backend
-    ///      This function marks the spending for accounting purposes.
+    ///      This function marks the spending for accounting purposes with automatic period reset.
     ///      The actual token transfer must be coordinated with ReservationFacet or other payment mechanisms.
     ///      Tokens remain in Diamond contract until explicitly transferred by another facet.
+    ///      Spending resets automatically when a new period begins.
     /// @param provider The provider who owns the treasury
     /// @param puc The schacPersonalUniqueCode of the user
-    /// @param amount Amount to spend (mark as spent for this user)
+    /// @param amount Amount to spend (mark as spent for this user in current period)
     function spendFromInstitutionalTreasury(address provider, string calldata puc, uint256 amount) 
         external 
         onlyAuthorizedBackend(provider) 
@@ -109,18 +164,25 @@ contract InstitutionalTreasuryFacet {
         require(amount > 0, "Amount must be > 0");
         require(s.institutionalTreasury[provider] >= amount, "Insufficient treasury balance");
         
-        uint256 newSpent = s.institutionalUserSpent[provider][puc] + amount;
-        require(newSpent <= s.institutionalUserLimit[provider], "User spending limit exceeded");
+        // Check period and reset if needed
+        uint256 periodStart = _checkAndResetPeriod(provider, puc);
+        
+        // Get current spending in this period
+        InstitutionalUserSpending storage spending = s.institutionalUserSpending[provider][puc];
+        uint256 newSpent = spending.amount + amount;
+        
+        require(newSpent <= s.institutionalUserLimit[provider], "User spending limit exceeded for period");
         
         s.institutionalTreasury[provider] -= amount;
-        s.institutionalUserSpent[provider][puc] = newSpent;
+        spending.amount = newSpent;
         
-        emit InstitutionalUserSpent(provider, puc, amount, newSpent);
+        emit InstitutionalUserSpent(provider, puc, amount, newSpent, periodStart);
     }
 
     /// @notice Refund tokens back to the provider's institutional treasury (e.g., when canceling a reservation)
     /// @dev Only callable by the provider's authorized backend or Diamond facets
     ///      This reverses a previous spend, incrementing treasury and decrementing user's spent amount
+    ///      Period is checked to ensure we're refunding in the correct period
     /// @param provider The provider who owns the treasury
     /// @param puc The schacPersonalUniqueCode of the user
     /// @param amount Amount to refund
@@ -130,12 +192,17 @@ contract InstitutionalTreasuryFacet {
     {
         AppStorage storage s = LibAppStorage.diamondStorage();
         require(amount > 0, "Amount must be > 0");
-        require(s.institutionalUserSpent[provider][puc] >= amount, "Refund exceeds spent amount");
+        
+        // Check period and reset if needed
+        uint256 periodStart = _checkAndResetPeriod(provider, puc);
+        
+        InstitutionalUserSpending storage spending = s.institutionalUserSpending[provider][puc];
+        require(spending.amount >= amount, "Refund exceeds spent amount in current period");
         
         s.institutionalTreasury[provider] += amount;
-        s.institutionalUserSpent[provider][puc] -= amount;
+        spending.amount -= amount;
         
-        emit InstitutionalUserSpent(provider, puc, 0, s.institutionalUserSpent[provider][puc]); // Emit with 0 to indicate refund
+        emit InstitutionalUserSpent(provider, puc, 0, spending.amount, periodStart); // Emit with 0 to indicate refund
     }
 
     /// @notice Get provider's institutional treasury balance
@@ -144,16 +211,56 @@ contract InstitutionalTreasuryFacet {
         return s.institutionalTreasury[provider];
     }
 
-    /// @notice Get institutional user's spent amount
+    /// @notice Get institutional user's spent amount in current period
+    /// @param provider The provider who owns the treasury
+    /// @param puc The user's schacPersonalUniqueCode
+    /// @return The amount spent in the current period
     function getInstitutionalUserSpent(address provider, string calldata puc) external view returns (uint256) {
         AppStorage storage s = LibAppStorage.diamondStorage();
-        return s.institutionalUserSpent[provider][puc];
+        uint256 periodDuration = _getSpendingPeriod(provider);
+        uint256 currentPeriodStart = (block.timestamp / periodDuration) * periodDuration;
+        
+        InstitutionalUserSpending storage spending = s.institutionalUserSpending[provider][puc];
+        
+        // If stored period doesn't match current period, spending is 0 (would be reset on next write)
+        if (spending.periodStart != currentPeriodStart) {
+            return 0;
+        }
+        
+        return spending.amount;
+    }
+    
+    /// @notice Get institutional user's spending data (amount and period start)
+    /// @param provider The provider who owns the treasury
+    /// @param puc The user's schacPersonalUniqueCode
+    /// @return amount The amount spent in the current period
+    /// @return periodStart The start timestamp of the current period
+    function getInstitutionalUserSpendingData(address provider, string calldata puc) external view returns (uint256 amount, uint256 periodStart) {
+        AppStorage storage s = LibAppStorage.diamondStorage();
+        uint256 periodDuration = _getSpendingPeriod(provider);
+        uint256 currentPeriodStart = (block.timestamp / periodDuration) * periodDuration;
+        
+        InstitutionalUserSpending storage spending = s.institutionalUserSpending[provider][puc];
+        
+        // If stored period doesn't match current period, spending is 0 (would be reset on next write)
+        if (spending.periodStart != currentPeriodStart) {
+            return (0, currentPeriodStart);
+        }
+        
+        return (spending.amount, spending.periodStart);
     }
 
     /// @notice Get institutional user spending limit
     function getInstitutionalUserLimit(address provider) external view returns (uint256) {
         AppStorage storage s = LibAppStorage.diamondStorage();
         return s.institutionalUserLimit[provider];
+    }
+    
+    /// @notice Get the spending period duration for a provider
+    /// @param provider The provider address
+    /// @return The spending period duration in seconds (default: 30 days if not set)
+    function getInstitutionalSpendingPeriod(address provider) external view returns (uint256) {
+        return _getSpendingPeriod(provider);
     }
     
     /// @notice Get the authorized backend for a provider
@@ -164,14 +271,24 @@ contract InstitutionalTreasuryFacet {
         return s.institutionalBackends[provider];
     }
     
-    /// @notice Get remaining spending allowance for an institutional user
+    /// @notice Get remaining spending allowance for an institutional user in current period
     /// @param provider The provider who owns the treasury
     /// @param puc The schacPersonalUniqueCode of the user
-    /// @return The remaining amount the user can spend
+    /// @return The remaining amount the user can spend in the current period
     function getInstitutionalUserRemainingAllowance(address provider, string calldata puc) external view returns (uint256) {
         AppStorage storage s = LibAppStorage.diamondStorage();
         uint256 limit = s.institutionalUserLimit[provider];
-        uint256 spent = s.institutionalUserSpent[provider][puc];
+        uint256 periodDuration = _getSpendingPeriod(provider);
+        uint256 currentPeriodStart = (block.timestamp / periodDuration) * periodDuration;
+        
+        InstitutionalUserSpending storage spending = s.institutionalUserSpending[provider][puc];
+        
+        // If stored period doesn't match current period, full limit is available
+        if (spending.periodStart != currentPeriodStart) {
+            return limit;
+        }
+        
+        uint256 spent = spending.amount;
         return limit > spent ? limit - spent : 0;
     }
 }

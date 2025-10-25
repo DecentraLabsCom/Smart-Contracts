@@ -119,6 +119,15 @@ struct ProviderStake {
     bool receivedInitialTokens;
 }
 
+/// @notice Struct representing institutional user spending in a period
+/// @dev Tracks spending with automatic period reset
+/// @param amount Amount spent in the current period
+/// @param periodStart Timestamp when the current spending period started
+struct InstitutionalUserSpending {
+    uint256 amount;
+    uint256 periodStart;
+}
+
 /// @dev This struct is used to define the storage layout for the application.
 ///       Contains all state variables used across the diamond contract. It contains the following fields:
 /// @notice 
@@ -141,8 +150,9 @@ struct ProviderStake {
 /// @custom:member providerStakes Mapping of provider addresses to their staking information
 /// @custom:member institutionalTreasury Mapping of provider addresses to their institutional treasury balances
 /// @custom:member institutionalUserLimit Mapping of provider addresses to their institutional user spending limits
-/// @custom:member institutionalUserSpent Mapping of provider addresses to their institutional user spent amounts
+/// @custom:member institutionalUserSpending Mapping of provider addresses to their institutional user spending data with period tracking
 /// @custom:member institutionalBackends Mapping of provider addresses to their authorized backend addresses
+/// @custom:member institutionalSpendingPeriod Duration of the spending period in seconds (default: 30 days)
 struct AppStorage {
     bytes32 DEFAULT_ADMIN_ROLE;
     address labTokenAddress;
@@ -166,8 +176,9 @@ struct AppStorage {
 
     mapping(address provider => uint256 institutionalTreasury);
     mapping(address provider => uint256 institutionalUserLimit);
-    mapping(address provider => mapping(string puc => uint256 spent)) institutionalUserSpent;
+    mapping(address provider => mapping(string puc => InstitutionalUserSpending spending)) institutionalUserSpending;
     mapping(address provider => address authorizedBackend) institutionalBackends;
+    mapping(address provider => uint256 periodDuration) institutionalSpendingPeriod;
 }
 
 /// @title LibAppStorage
@@ -193,6 +204,9 @@ library LibAppStorage {
     
     /// @notice Default spending limit for institutional users
     uint256 internal constant DEFAULT_INSTITUTIONAL_USER_LIMIT = 10_000_000; // 10 tokens with 6 decimals
+    
+    /// @notice Default spending period duration (120 days in seconds)
+    uint256 internal constant DEFAULT_SPENDING_PERIOD = 120 days;
 
     /// @dev Provides access to the `AppStorage` struct stored at a specific slot in contract storage.
     /// This function uses inline assembly to set the storage pointer to the predefined `APP_STORAGE_POSITION`.

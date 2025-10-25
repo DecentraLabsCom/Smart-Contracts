@@ -241,19 +241,47 @@ contract ReservationFacet is ReservableTokenEnumerable {
     /// @custom:modifies Updates reservation status to BOOKED or cancels if payment fails
     /// @custom:modifies Adds reservation to lab provider's reservation list (on success)
     function confirmReservationRequest(bytes32 _reservationKey) external defaultAdminRole reservationPending(_reservationKey) override {
-        Reservation storage reservation = _s().reservations[_reservationKey];
+        AppStorage storage s = _s();
+        Reservation storage reservation = s.reservations[_reservationKey];
+        
+        // Check if user has reached maximum reservations for this lab
+        if (s.activeReservationCountByTokenAndUser[reservation.labId][reservation.renter] >= MAX_RESERVATIONS_PER_LAB_USER) {
+            revert MaxReservationsReached();
+        }
+        
         address labProvider = reservation.labProvider;
 
         // Attempt to collect payment from user using SafeERC20
         // safeTransferFrom will revert if transfer fails or returns false
-        try IERC20(_s().labTokenAddress).safeTransferFrom(
+        try IERC20(s.labTokenAddress).safeTransferFrom(
             reservation.renter,
             address(this),
             reservation.price
         ) {
             // Payment successful → confirm reservation
             reservation.status = BOOKED;   
-            _s().reservationsProvider[labProvider].add(_reservationKey);
+            s.reservationsProvider[labProvider].add(_reservationKey);
+            
+            // Increment active reservation count
+            s.activeReservationCountByTokenAndUser[reservation.labId][reservation.renter]++;
+            
+            // Add to per-token-user index for efficient queries
+            s.reservationKeysByTokenAndUser[reservation.labId][reservation.renter].add(_reservationKey);
+            
+            // Update index: only store the earliest reservation
+            bytes32 currentIndexKey = s.activeReservationByTokenAndUser[reservation.labId][reservation.renter];
+            
+            if (currentIndexKey == bytes32(0)) {
+                // First reservation for this (token, user)
+                s.activeReservationByTokenAndUser[reservation.labId][reservation.renter] = _reservationKey;
+            } else {
+                // Update index if new reservation starts earlier
+                Reservation memory currentReservation = s.reservations[currentIndexKey];
+                if (reservation.start < currentReservation.start) {
+                    s.activeReservationByTokenAndUser[reservation.labId][reservation.renter] = _reservationKey;
+                }
+            }
+            
             emit ReservationConfirmed(_reservationKey, reservation.labId);
         } catch {
             // transferFrom reverted (insufficient funds/allowance/failed transfer) → deny reservation
@@ -278,8 +306,14 @@ contract ReservationFacet is ReservableTokenEnumerable {
         string calldata puc,
         bytes32 _reservationKey
     ) external defaultAdminRole reservationPending(_reservationKey) {
-        Reservation storage reservation = _s().reservations[_reservationKey];
+        AppStorage storage s = _s();
+        Reservation storage reservation = s.reservations[_reservationKey];
         if (reservation.renter != institutionalProvider) revert("Not institutional");
+        
+        // Check if user has reached maximum reservations for this lab
+        if (s.activeReservationCountByTokenAndUser[reservation.labId][reservation.renter] >= MAX_RESERVATIONS_PER_LAB_USER) {
+            revert MaxReservationsReached();
+        }
         
         address labProvider = reservation.labProvider;
 
@@ -291,7 +325,28 @@ contract ReservationFacet is ReservableTokenEnumerable {
         ) {
             // Treasury charge successful → confirm reservation
             reservation.status = BOOKED;   
-            _s().reservationsProvider[labProvider].add(_reservationKey);
+            s.reservationsProvider[labProvider].add(_reservationKey);
+            
+            // Increment active reservation count
+            s.activeReservationCountByTokenAndUser[reservation.labId][reservation.renter]++;
+            
+            // Add to per-token-user index for efficient queries
+            s.reservationKeysByTokenAndUser[reservation.labId][reservation.renter].add(_reservationKey);
+            
+            // Update index: only store the earliest reservation
+            bytes32 currentIndexKey = s.activeReservationByTokenAndUser[reservation.labId][reservation.renter];
+            
+            if (currentIndexKey == bytes32(0)) {
+                // First reservation for this (token, user)
+                s.activeReservationByTokenAndUser[reservation.labId][reservation.renter] = _reservationKey;
+            } else {
+                // Update index if new reservation starts earlier
+                Reservation memory currentReservation = s.reservations[currentIndexKey];
+                if (reservation.start < currentReservation.start) {
+                    s.activeReservationByTokenAndUser[reservation.labId][reservation.renter] = _reservationKey;
+                }
+            }
+            
             emit ReservationConfirmed(_reservationKey, reservation.labId);
         } catch {
             // Treasury charge failed (insufficient funds or limit exceeded) → deny reservation
@@ -500,9 +555,14 @@ contract ReservationFacet is ReservableTokenEnumerable {
                 reservation.status = COLLECTED;  
                 reservationKeys.remove(key);
                 
-                // Clean up active reservation index for consistency
+                // Decrement counter and remove from per-token-user index
+                s.activeReservationCountByTokenAndUser[reservation.labId][reservation.renter]--;
+                s.reservationKeysByTokenAndUser[reservation.labId][reservation.renter].remove(key);
+                
+                // Update active reservation index if this was the indexed one
                 if (s.activeReservationByTokenAndUser[reservation.labId][reservation.renter] == key) {
-                    delete s.activeReservationByTokenAndUser[reservation.labId][reservation.renter];
+                    bytes32 nextKey = _findNextEarliestReservation(reservation.labId, reservation.renter);
+                    s.activeReservationByTokenAndUser[reservation.labId][reservation.renter] = nextKey;
                 }
                 
                 --len; // Adjust length after removal

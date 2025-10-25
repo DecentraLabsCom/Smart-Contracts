@@ -148,6 +148,8 @@ struct InstitutionalUserSpending {
 /// @custom:member reservationKeysByToken Mapping of token IDs to their reservation hashes
 /// @custom:member reservationsProvider Mapping of provider addresses to their pending reservation hashes
 /// @custom:member activeReservationByTokenAndUser Mapping of token IDs and user addresses to their active reservation hashes
+/// @custom:member activeReservationCountByTokenAndUser Mapping of token IDs and user addresses to their active reservation count
+/// @custom:member reservationKeysByTokenAndUser Mapping of token IDs and user addresses to their reservation keys (for efficient per-lab queries)
 /// @custom:member tokenStatus Mapping of token IDs to their listing status (true = listed, false = unlisted)
 /// @custom:member providerStakes Mapping of provider addresses to their staking information
 /// @custom:member institutionalTreasury Mapping of provider addresses to their institutional treasury balances
@@ -172,6 +174,8 @@ struct AppStorage {
     mapping (uint256 => EnumerableSet.Bytes32Set) reservationKeysByToken;
     mapping (address => EnumerableSet.Bytes32Set) reservationsProvider; 
     mapping (uint256 => mapping(address => bytes32)) activeReservationByTokenAndUser;
+    mapping (uint256 => mapping(address => uint8)) activeReservationCountByTokenAndUser;
+    mapping (uint256 => mapping(address => EnumerableSet.Bytes32Set)) reservationKeysByTokenAndUser;
     mapping (uint256 => bool) tokenStatus;
     
     mapping (address => ProviderStake) providerStakes;

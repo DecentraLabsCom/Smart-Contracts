@@ -36,6 +36,10 @@ abstract contract ReservableTokenEnumerable is ReservableToken {
     error IndexOutOfBounds();
     error InvalidAddress();
     error InvalidReservation();
+    error MaxReservationsReached();
+    
+    /// @dev Maximum number of active future reservations per user per lab
+    uint8 constant MAX_RESERVATIONS_PER_LAB_USER = 10;
 
     /// @notice Allows a user to request a reservation for a specific token during a time period
     /// @dev Creates a new reservation request and adds it to tracking sets
@@ -99,11 +103,33 @@ abstract contract ReservableTokenEnumerable is ReservableToken {
         AppStorage storage s = _s();
         Reservation storage reservation = s.reservations[_reservationKey];
         
+        // Check if user has reached maximum reservations for this lab
+        if (s.activeReservationCountByTokenAndUser[reservation.labId][reservation.renter] >= MAX_RESERVATIONS_PER_LAB_USER) {
+            revert MaxReservationsReached();
+        }
+        
         reservation.status = BOOKED;
         s.reservationsProvider[reservation.labProvider].add(_reservationKey);
         
-        // Update active reservation index for O(1) lookup
-        s.activeReservationByTokenAndUser[reservation.labId][reservation.renter] = _reservationKey;
+        // Increment active reservation count for this (token, user)
+        s.activeReservationCountByTokenAndUser[reservation.labId][reservation.renter]++;
+        
+        // Add to per-token-user index for efficient queries
+        s.reservationKeysByTokenAndUser[reservation.labId][reservation.renter].add(_reservationKey);
+        
+        // Update active reservation index: only store the earliest (closest in time) reservation
+        bytes32 currentIndexKey = s.activeReservationByTokenAndUser[reservation.labId][reservation.renter];
+        
+        if (currentIndexKey == bytes32(0)) {
+            // No existing index entry → this is the first reservation
+            s.activeReservationByTokenAndUser[reservation.labId][reservation.renter] = _reservationKey;
+        } else {
+            // Already have an indexed reservation → only update if new one starts earlier
+            Reservation memory currentReservation = s.reservations[currentIndexKey];
+            if (reservation.start < currentReservation.start) {
+                s.activeReservationByTokenAndUser[reservation.labId][reservation.renter] = _reservationKey;
+            }
+        }
         
         emit ReservationConfirmed(_reservationKey, reservation.labId);
     }
@@ -194,7 +220,9 @@ abstract contract ReservableTokenEnumerable is ReservableToken {
     }
 
     /// @notice Checks if a user has an active booking for a specific token
-    /// @dev A booking is considered active if it's in BOOKED status and hasn't expired
+    /// @dev A booking is considered active if it's in BOOKED status and current time is within [start, end]
+    ///      Uses lazy cleanup: if the indexed reservation has expired, searches for the next active one
+    ///      Optimized scan: only iterates through reservations for this specific (token, user) pair
     /// @param _tokenId The ID of the token to check
     /// @param _user The address of the user to check
     /// @return bool True if the user has an active booking for the token, false otherwise
@@ -209,13 +237,46 @@ abstract contract ReservableTokenEnumerable is ReservableToken {
         Reservation memory reservation = s.reservations[reservationKey];
         uint32 time = uint32(block.timestamp);
         
-        return reservation.status == BOOKED && 
-               reservation.start <= time && 
-               reservation.end >= time;
+        // Fast path: indexed reservation is currently active
+        if (reservation.status == BOOKED && 
+            reservation.start <= time && 
+            reservation.end >= time) {
+            return true;
+        }
+        
+        // Slow path: index is stale (reservation ended, cancelled, or not started yet)
+        // Scan only reservations for this specific (token, user) pair (max 10 iterations)
+        return _hasActiveBookingByScan(_tokenId, _user, time);
+    }
+    
+    /// @dev Internal helper to scan for active bookings when index is stale
+    ///      Uses the per-token-user index for efficient scanning (max 10 iterations)
+    /// @param _tokenId The ID of the token to check
+    /// @param _user The address of the user to check
+    /// @param time Current timestamp
+    /// @return bool True if an active booking exists
+    function _hasActiveBookingByScan(uint256 _tokenId, address _user, uint32 time) internal view returns (bool) {
+        AppStorage storage s = _s();
+        EnumerableSet.Bytes32Set storage tokenUserReservations = s.reservationKeysByTokenAndUser[_tokenId][_user];
+        
+        for (uint i = 0; i < tokenUserReservations.length(); i++) {
+            bytes32 key = tokenUserReservations.at(i);
+            Reservation memory res = s.reservations[key];
+            
+            if (res.status == BOOKED && 
+                res.start <= time && 
+                res.end >= time) {
+                return true;
+            }
+        }
+        
+        return false;
     }
 
     /// @notice Get the active reservation key for a user on a specific token
     /// @dev Returns the reservation key if the user has an active booking, otherwise returns bytes32(0)
+    ///      Uses lazy cleanup: if the indexed reservation has expired, searches for the next active one
+    ///      Optimized scan: only iterates through reservations for this specific (token, user) pair
     /// @param _tokenId The lab token ID
     /// @param _user The user's address
     /// @return reservationKey The active reservation key, or bytes32(0) if no active reservation exists
@@ -232,18 +293,44 @@ abstract contract ReservableTokenEnumerable is ReservableToken {
         Reservation memory reservation = s.reservations[reservationKey];
         uint32 time = uint32(block.timestamp);
         
+        // Fast path: indexed reservation is currently active
         if (reservation.status == BOOKED && 
             reservation.start <= time && 
             reservation.end >= time) {
             return reservationKey;
         }
         
-        // Index is stale (reservation ended), return bytes32(0)
+        // Slow path: index is stale, scan for active booking (max 10 iterations)
+        return _getActiveReservationKeyByScan(_tokenId, _user, time);
+    }
+    
+    /// @dev Internal helper to scan for active reservation key when index is stale
+    ///      Uses the per-token-user index for efficient scanning (max 10 iterations)
+    /// @param _tokenId The ID of the token to check
+    /// @param _user The address of the user to check
+    /// @param time Current timestamp
+    /// @return bytes32 The active reservation key, or bytes32(0) if none found
+    function _getActiveReservationKeyByScan(uint256 _tokenId, address _user, uint32 time) internal view returns (bytes32) {
+        AppStorage storage s = _s();
+        EnumerableSet.Bytes32Set storage tokenUserReservations = s.reservationKeysByTokenAndUser[_tokenId][_user];
+        
+        for (uint i = 0; i < tokenUserReservations.length(); i++) {
+            bytes32 key = tokenUserReservations.at(i);
+            Reservation memory res = s.reservations[key];
+            
+            if (res.status == BOOKED && 
+                res.start <= time && 
+                res.end >= time) {
+                return key;
+            }
+        }
+        
         return bytes32(0);
     }
 
     /// @dev Cancels an existing reservation by removing it from the renter's list and then
     ///      calling the parent implementation to complete the cancellation process.
+    ///      Also updates the active reservation index if the cancelled reservation was the indexed one.
     /// @param _reservationKey The unique identifier of the reservation to be canceled
     /// @notice This function removes the reservation from both the renter's list and through
     ///         the parent implementation
@@ -251,17 +338,52 @@ abstract contract ReservableTokenEnumerable is ReservableToken {
         AppStorage storage s = _s();
         Reservation storage reservation = s.reservations[_reservationKey];
         
+        // Only decrement counter and remove from indices if reservation was BOOKED
+        if (reservation.status == BOOKED) {
+            s.activeReservationCountByTokenAndUser[reservation.labId][reservation.renter]--;
+            s.reservationKeysByTokenAndUser[reservation.labId][reservation.renter].remove(_reservationKey);
+        }
+        
         // Gas optimizations: O(1) operations
         s.reservationCountByToken[reservation.labId]--;
         s.reservationKeysByToken[reservation.labId].remove(_reservationKey);
         
         s.renters[reservation.renter].remove(_reservationKey);
         
-        // Clear active reservation index if this was the active one
+        // If this was the indexed reservation, find the next earliest one
         if (s.activeReservationByTokenAndUser[reservation.labId][reservation.renter] == _reservationKey) {
-            delete s.activeReservationByTokenAndUser[reservation.labId][reservation.renter];
+            bytes32 nextKey = _findNextEarliestReservation(reservation.labId, reservation.renter);
+            s.activeReservationByTokenAndUser[reservation.labId][reservation.renter] = nextKey;
         }
         
         super._cancelReservation(_reservationKey);
+    }
+    
+    /// @dev Internal helper to find the next earliest active reservation for a (token, user) pair
+    ///      Uses the per-token-user index for efficient scanning (max 10 iterations)
+    /// @param _tokenId The ID of the token
+    /// @param _user The user's address
+    /// @return bytes32 The reservation key of the earliest active/future reservation, or bytes32(0) if none
+    function _findNextEarliestReservation(uint256 _tokenId, address _user) internal view returns (bytes32) {
+        AppStorage storage s = _s();
+        EnumerableSet.Bytes32Set storage tokenUserReservations = s.reservationKeysByTokenAndUser[_tokenId][_user];
+        
+        bytes32 earliestKey = bytes32(0);
+        uint32 earliestStart = type(uint32).max;
+        
+        for (uint i = 0; i < tokenUserReservations.length(); i++) {
+            bytes32 key = tokenUserReservations.at(i);
+            Reservation memory res = s.reservations[key];
+            
+            // Only consider BOOKED reservations that haven't ended yet
+            if (res.status == BOOKED && 
+                res.end >= block.timestamp &&
+                res.start < earliestStart) {
+                earliestKey = key;
+                earliestStart = res.start;
+            }
+        }
+        
+        return earliestKey;
     }
 }

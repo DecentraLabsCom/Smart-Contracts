@@ -32,11 +32,21 @@ contract InstitutionalTreasuryFacet {
     /// @notice Emitted when an institutional user spends tokens
     event InstitutionalUserSpent(address indexed provider, string puc, uint256 amount, uint256 totalSpent, uint256 periodStart);
     
-    /// @dev Modifier to check if caller is the authorized backend for a provider
-    modifier onlyAuthorizedBackend(address provider) {
+    /// @dev Modifier to check if caller is authorized (backend or internal Diamond call)
+    /// @param provider The provider address
+    /// @custom:security Allows two types of callers:
+    ///   1. The authorized backend (for external calls from backend)
+    ///   2. The Diamond contract itself (for internal calls from other facets like ReservationFacet)
+    modifier onlyAuthorizedBackendOrInternal(address provider) {
         AppStorage storage s = LibAppStorage.diamondStorage();
         require(s.institutionalBackends[provider] != address(0), "No authorized backend");
-        require(msg.sender == s.institutionalBackends[provider], "Not authorized backend");
+        
+        // Allow internal calls from Diamond (msg.sender == address(this))
+        // OR external calls from authorized backend
+        require(
+            msg.sender == address(this) || msg.sender == s.institutionalBackends[provider],
+            "Not authorized: must be backend or internal call"
+        );
         _;
     }
     
@@ -70,14 +80,6 @@ contract InstitutionalTreasuryFacet {
         }
         
         return currentPeriodStart;
-    }
-    
-    /// @dev Modifier to check if caller is the authorized backend for a provider
-    modifier onlyAuthorizedBackend(address provider) {
-        AppStorage storage s = LibAppStorage.diamondStorage();
-        require(s.institutionalBackends[provider] != address(0), "No authorized backend");
-        require(msg.sender == s.institutionalBackends[provider], "Not authorized backend");
-        _;
     }
     
     /// @notice Authorize a backend address to spend from institutional treasury
@@ -157,7 +159,7 @@ contract InstitutionalTreasuryFacet {
     function checkInstitutionalTreasuryAvailability(address provider, string calldata puc, uint256 amount) 
         external 
         view
-        onlyAuthorizedBackend(provider)
+        onlyAuthorizedBackendOrInternal(provider)
     {
         AppStorage storage s = LibAppStorage.diamondStorage();
         require(amount > 0, "Amount must be > 0");
@@ -193,7 +195,7 @@ contract InstitutionalTreasuryFacet {
     /// @param amount Amount to spend (mark as spent for this user in current period)
     function spendFromInstitutionalTreasury(address provider, string calldata puc, uint256 amount) 
         external 
-        onlyAuthorizedBackend(provider) 
+        onlyAuthorizedBackendOrInternal(provider) 
     {
         AppStorage storage s = LibAppStorage.diamondStorage();
         require(amount > 0, "Amount must be > 0");
@@ -223,7 +225,7 @@ contract InstitutionalTreasuryFacet {
     /// @param amount Amount to refund
     function refundToInstitutionalTreasury(address provider, string calldata puc, uint256 amount) 
         external 
-        onlyAuthorizedBackend(provider) 
+        onlyAuthorizedBackendOrInternal(provider) 
     {
         AppStorage storage s = LibAppStorage.diamondStorage();
         require(amount > 0, "Amount must be > 0");

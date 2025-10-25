@@ -2,9 +2,12 @@
 pragma solidity ^0.8.23;
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import "../abstracts/ReservableTokenEnumerable.sol";
 import "./ProviderFacet.sol";
+
+using SafeERC20 for IERC20;
 
 /// @dev Interface for StakingFacet to update reservation timestamps
 interface IStakingFacet {
@@ -241,24 +244,19 @@ contract ReservationFacet is ReservableTokenEnumerable {
         Reservation storage reservation = _s().reservations[_reservationKey];
         address labProvider = reservation.labProvider;
 
-        // Attempt to collect payment from user
-        try IERC20(_s().labTokenAddress).transferFrom(
+        // Attempt to collect payment from user using SafeERC20
+        // safeTransferFrom will revert if transfer fails or returns false
+        try IERC20(_s().labTokenAddress).safeTransferFrom(
             reservation.renter,
             address(this),
             reservation.price
-        ) returns (bool success) {
-            if (success) {
-                // Payment successful → confirm reservation
-                reservation.status = BOOKED;   
-                _s().reservationsProvider[labProvider].add(_reservationKey);
-                emit ReservationConfirmed(_reservationKey, reservation.labId);
-            } else {
-                // transferFrom returned false → deny reservation
-                _cancelReservation(_reservationKey);
-                emit ReservationRequestDenied(_reservationKey, reservation.labId);
-            }
+        ) {
+            // Payment successful → confirm reservation
+            reservation.status = BOOKED;   
+            _s().reservationsProvider[labProvider].add(_reservationKey);
+            emit ReservationConfirmed(_reservationKey, reservation.labId);
         } catch {
-            // transferFrom reverted (insufficient funds/allowance) → deny reservation
+            // transferFrom reverted (insufficient funds/allowance/failed transfer) → deny reservation
             _cancelReservation(_reservationKey);
             emit ReservationRequestDenied(_reservationKey, reservation.labId);
         }
@@ -382,7 +380,7 @@ contract ReservationFacet is ReservableTokenEnumerable {
         _s().reservationsProvider[labProvider].remove(_reservationKey);
         _cancelReservation(_reservationKey);
         
-        IERC20(_s().labTokenAddress).transfer(renter, price);
+        IERC20(_s().labTokenAddress).safeTransfer(renter, price);
         emit BookingCanceled(_reservationKey, reservation.labId);
     }
 
@@ -522,7 +520,7 @@ contract ReservationFacet is ReservableTokenEnumerable {
             IStakingFacet(address(this)).updateLastReservation(msg.sender);
         }
         
-        IERC20(s.labTokenAddress).transfer(msg.sender, totalAmount);
+        IERC20(s.labTokenAddress).safeTransfer(msg.sender, totalAmount);
     }
 
     /// @notice Returns the address of the $LAB ERC20 token contract

@@ -3,9 +3,13 @@ pragma solidity ^0.8.23;
 
 import "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
 import {LibAppStorage, AppStorage, PROVIDER_ROLE} from "../libraries/LibAppStorage.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "../libraries/LibDiamond.sol";
 import "../external/LabERC20.sol";
 import "../abstracts/ReservableToken.sol";
+
+using SafeERC20 for IERC20;
 
 /// @title StakingFacet Contract
 /// @author Luis de la Torre Cubillo
@@ -117,8 +121,8 @@ contract StakingFacet is AccessControlUpgradeable {
         uint256 previousStake = s.providerStakes[msg.sender].stakedAmount;
         uint256 requiredStake = getRequiredStake(msg.sender);
         
-        // Transfer tokens from provider to Diamond contract
-        LabERC20(s.labTokenAddress).transferFrom(msg.sender, address(this), amount);
+        // Transfer tokens from provider to Diamond contract using SafeERC20
+        IERC20(s.labTokenAddress).safeTransferFrom(msg.sender, address(this), amount);
         
         // If this is the first stake (no auto-stake), record timestamp
         if (s.providerStakes[msg.sender].initialStakeTimestamp == 0 && previousStake == 0) {
@@ -190,8 +194,8 @@ contract StakingFacet is AccessControlUpgradeable {
         
         s.providerStakes[msg.sender].stakedAmount = remainingStake;
         
-        // Transfer tokens back to provider
-        LabERC20(s.labTokenAddress).transfer(msg.sender, amount);
+        // Transfer tokens back to provider using SafeERC20
+        IERC20(s.labTokenAddress).safeTransfer(msg.sender, amount);
         
         emit TokensUnstaked(msg.sender, amount, remainingStake);
         

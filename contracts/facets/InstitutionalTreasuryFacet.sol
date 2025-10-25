@@ -2,7 +2,11 @@
 pragma solidity ^0.8.23;
 
 import {LibAppStorage, AppStorage} from "../libraries/LibAppStorage.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "../external/LabERC20.sol";
+
+using SafeERC20 for IERC20;
 
 /// @title InstitutionalTreasuryFacet Contract
 /// @author Luis de la Torre Cubillo
@@ -106,8 +110,8 @@ contract InstitutionalTreasuryFacet {
         AppStorage storage s = LibAppStorage.diamondStorage();
         require(amount > 0, "Amount must be > 0");
         
-        // Transfer tokens from provider to Diamond contract
-        LabERC20(s.labTokenAddress).transferFrom(msg.sender, address(this), amount);
+        // Transfer tokens from provider to Diamond contract using SafeERC20
+        IERC20(s.labTokenAddress).safeTransferFrom(msg.sender, address(this), amount);
         
         s.institutionalTreasury[msg.sender] += amount;
         emit InstitutionalTreasuryDeposit(msg.sender, amount, s.institutionalTreasury[msg.sender]);
@@ -123,8 +127,8 @@ contract InstitutionalTreasuryFacet {
         
         s.institutionalTreasury[msg.sender] -= amount;
         
-        // Transfer tokens back to provider
-        LabERC20(s.labTokenAddress).transfer(msg.sender, amount);
+        // Transfer tokens back to provider using SafeERC20
+        IERC20(s.labTokenAddress).safeTransfer(msg.sender, amount);
         
         emit InstitutionalTreasuryWithdrawal(msg.sender, amount, s.institutionalTreasury[msg.sender]);
     }

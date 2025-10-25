@@ -147,6 +147,41 @@ contract InstitutionalTreasuryFacet {
         emit InstitutionalSpendingPeriodUpdated(msg.sender, periodDuration);
     }
 
+    /// @notice Checks if the institutional treasury has sufficient balance and user hasn't exceeded spending limit
+    /// @dev View function that verifies availability without modifying state
+    ///      Used in lazy payment pattern to verify before creating reservation request
+    /// @param provider The provider who owns the treasury
+    /// @param puc The schacPersonalUniqueCode of the user
+    /// @param amount Amount to check
+    /// @custom:throws Reverts if backend not authorized, treasury insufficient, or user exceeds limit
+    function checkInstitutionalTreasuryAvailability(address provider, string calldata puc, uint256 amount) 
+        external 
+        view
+        onlyAuthorizedBackend(provider)
+    {
+        AppStorage storage s = LibAppStorage.diamondStorage();
+        require(amount > 0, "Amount must be > 0");
+        require(s.institutionalTreasury[provider] >= amount, "Insufficient treasury balance");
+        
+        // Calculate current period
+        uint256 periodDuration = s.institutionalSpendingPeriod[provider];
+        if (periodDuration == 0) {
+            periodDuration = LibAppStorage.DEFAULT_SPENDING_PERIOD;
+        }
+        
+        InstitutionalUserSpending storage spending = s.institutionalUserSpending[provider][puc];
+        uint256 currentPeriodStart = (block.timestamp / periodDuration) * periodDuration;
+        
+        // Check if we're in a new period (spending would be reset to 0)
+        uint256 currentSpending = 0;
+        if (spending.periodStart == currentPeriodStart && spending.periodStart != 0) {
+            currentSpending = spending.amount;
+        }
+        
+        uint256 newSpent = currentSpending + amount;
+        require(newSpent <= s.institutionalUserLimit[provider], "User spending limit exceeded for period");
+    }
+
     /// @notice Spend tokens from the provider's institutional treasury as an institutional user
     /// @dev Only callable by the provider's authorized backend
     ///      This function marks the spending for accounting purposes with automatic period reset.

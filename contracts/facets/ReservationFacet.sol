@@ -13,6 +13,7 @@ interface IStakingFacet {
 
 /// @dev Interface for InstitutionalTreasuryFacet to spend from treasury
 interface IInstitutionalTreasuryFacet {
+    function checkInstitutionalTreasuryAvailability(address provider, string calldata puc, uint256 amount) external view;
     function spendFromInstitutionalTreasury(address provider, string calldata puc, uint256 amount) external;
     function refundToInstitutionalTreasury(address provider, string calldata puc, uint256 amount) external;
 }
@@ -95,8 +96,12 @@ contract ReservationFacet is ReservableTokenEnumerable {
         uint96 price = s.labs[_labId].price;
         address tokenAddr = s.labTokenAddress;
 
+        // Verify user has sufficient balance and allowance (but don't transfer yet)
         uint256 balance = IERC20(tokenAddr).balanceOf(msg.sender);
         if (balance < price) revert InsuficientsFunds(msg.sender, balance, price);
+        
+        uint256 allowance = IERC20(tokenAddr).allowance(msg.sender, address(this));
+        if (allowance < price) revert("Insufficient allowance");
         
         bytes32 reservationKey = _getReservationKey(_labId, _start);
         
@@ -126,7 +131,8 @@ contract ReservationFacet is ReservableTokenEnumerable {
         s.reservationKeys.add(reservationKey);
         s.renters[msg.sender].add(reservationKey);
 
-        IERC20(tokenAddr).transferFrom(msg.sender, address(this), price);
+        // Note: Payment will be collected when reservation is confirmed (lazy payment pattern)
+        // This avoids unnecessary refunds if the request is denied
         
         // Update provider's last reservation timestamp (activates 30-day lock)
         // Provider is committing to provide service, so lock starts from reservation creation
@@ -181,8 +187,9 @@ contract ReservationFacet is ReservableTokenEnumerable {
             s.reservations[reservationKey].status != CANCELLED)
             revert("Not available");
 
-        // Spend from institutional treasury (this checks backend authorization and limits)
-        IInstitutionalTreasuryFacet(address(this)).spendFromInstitutionalTreasury(
+        // Verify institutional treasury has sufficient balance and user hasn't exceeded limit
+        // (but don't spend yet - payment will be collected when reservation is confirmed)
+        IInstitutionalTreasuryFacet(address(this)).checkInstitutionalTreasuryAvailability(
             institutionalProvider, 
             puc, 
             price
@@ -218,46 +225,103 @@ contract ReservationFacet is ReservableTokenEnumerable {
 
     /// @notice Confirms a pending reservation request for a lab
     /// @dev Can only be called by an admin when the reservation is in PENDING status
+    ///      Uses lazy payment pattern: attempts to collect payment at confirmation time
+    ///      If payment fails (insufficient funds/allowance), automatically denies the request
     /// @param _reservationKey The unique identifier of the reservation to confirm
     /// @custom:requires The reservation must exist and be in PENDING status
     /// @custom:requires Caller must have admin role
-    /// @custom:emits ReservationConfirmed when reservation is successfully confirmed
-    /// @custom:modifies Updates reservation status to BOOKED
-    /// @custom:modifies Adds reservation to lab provider's reservation list
+    /// @custom:emits ReservationConfirmed when reservation is successfully confirmed and paid
+    /// @custom:emits ReservationRequestDenied when payment fails (insufficient funds)
+    /// @custom:modifies Updates reservation status to BOOKED or cancels if payment fails
+    /// @custom:modifies Adds reservation to lab provider's reservation list (on success)
     function confirmReservationRequest(bytes32 _reservationKey) external defaultAdminRole reservationPending(_reservationKey) override {
         Reservation storage reservation = _s().reservations[_reservationKey];
         address labProvider = IERC721(address(this)).ownerOf(reservation.labId);
 
-        reservation.status = BOOKED;   
-        _s().reservationsProvider[labProvider].add(_reservationKey);
-        
-        emit ReservationConfirmed(_reservationKey, reservation.labId);
+        // Attempt to collect payment from user
+        try IERC20(_s().labTokenAddress).transferFrom(
+            reservation.renter,
+            address(this),
+            reservation.price
+        ) returns (bool success) {
+            if (success) {
+                // Payment successful → confirm reservation
+                reservation.status = BOOKED;   
+                _s().reservationsProvider[labProvider].add(_reservationKey);
+                emit ReservationConfirmed(_reservationKey, reservation.labId);
+            } else {
+                // transferFrom returned false → deny reservation
+                _cancelReservation(_reservationKey);
+                emit ReservationRequestDenied(_reservationKey, reservation.labId);
+            }
+        } catch {
+            // transferFrom reverted (insufficient funds/allowance) → deny reservation
+            _cancelReservation(_reservationKey);
+            emit ReservationRequestDenied(_reservationKey, reservation.labId);
+        }
     }
 
-    /// @notice Denies a pending reservation request and refunds the payment
+    /// @notice Confirms a pending institutional reservation request
+    /// @dev Can only be called by an admin when the reservation is in PENDING status
+    ///      Uses lazy payment pattern: attempts to charge the institutional treasury at confirmation time
+    ///      If treasury charge fails (insufficient balance or user limit exceeded), automatically denies
+    /// @param institutionalProvider The provider who owns the institutional treasury
+    /// @param puc The schacPersonalUniqueCode of the institutional user
+    /// @param _reservationKey The unique identifier of the reservation to confirm
+    /// @custom:requires The reservation must exist and be in PENDING status
+    /// @custom:requires Caller must have admin role
+    /// @custom:emits ReservationConfirmed when reservation is successfully confirmed and treasury charged
+    /// @custom:emits ReservationRequestDenied when treasury charge fails
+    function confirmInstitutionalReservationRequest(
+        address institutionalProvider,
+        string calldata puc,
+        bytes32 _reservationKey
+    ) external defaultAdminRole reservationPending(_reservationKey) {
+        Reservation storage reservation = _s().reservations[_reservationKey];
+        if (reservation.renter != institutionalProvider) revert("Not institutional");
+        
+        address labProvider = IERC721(address(this)).ownerOf(reservation.labId);
+
+        // Attempt to charge institutional treasury
+        try IInstitutionalTreasuryFacet(address(this)).spendFromInstitutionalTreasury(
+            institutionalProvider,
+            puc,
+            reservation.price
+        ) {
+            // Treasury charge successful → confirm reservation
+            reservation.status = BOOKED;   
+            _s().reservationsProvider[labProvider].add(_reservationKey);
+            emit ReservationConfirmed(_reservationKey, reservation.labId);
+        } catch {
+            // Treasury charge failed (insufficient funds or limit exceeded) → deny reservation
+            _cancelReservation(_reservationKey);
+            emit ReservationRequestDenied(_reservationKey, reservation.labId);
+        }
+    }
+
+    /// @notice Denies a pending reservation request
     /// @dev Only callable by admin when reservation is in pending state
+    ///      With lazy payment pattern, no refund needed since payment wasn't collected yet
     /// @param _reservationKey The unique identifier of the reservation to deny
     /// @custom:requires The caller must have admin role
     /// @custom:requires The reservation must be in pending state
     /// @custom:emits ReservationRequestDenied when the reservation is denied
-    /// @custom:transfers Refunds the reservation price back to the renter
     function denyReservationRequest(bytes32 _reservationKey) external defaultAdminRole reservationPending(_reservationKey) override {
         Reservation storage reservation = _s().reservations[_reservationKey];
        
-        IERC20(_s().labTokenAddress).transfer(reservation.renter, reservation.price);
+        // No refund needed - payment was never collected (lazy payment pattern)
         _cancelReservation(_reservationKey);
         emit ReservationRequestDenied(_reservationKey, reservation.labId);
     }
 
     /// @notice Allows admin to deny an institutional user's pending reservation request
-    /// @dev Refunds the tokens back to the institutional treasury (not to provider's wallet)
+    /// @dev With lazy payment pattern, no refund needed since treasury wasn't charged yet
     /// @param institutionalProvider The provider who owns the institutional treasury
     /// @param puc The schacPersonalUniqueCode of the institutional user
     /// @param _reservationKey The unique identifier of the reservation to deny
     /// @custom:requires The caller must have admin role
     /// @custom:requires The reservation must be in pending state
     /// @custom:emits ReservationRequestDenied when the reservation is denied
-    /// @custom:transfers Refunds to institutional treasury and decrements user's spent amount
     function denyInstitutionalReservationRequest(
         address institutionalProvider,
         string calldata puc,
@@ -266,24 +330,17 @@ contract ReservationFacet is ReservableTokenEnumerable {
         Reservation storage reservation = _s().reservations[_reservationKey];
         if (reservation.status != PENDING) revert("Not pending");
         if (reservation.renter != institutionalProvider) revert("Not institutional");
-
-        uint256 price = reservation.price;
         
         _cancelReservation(_reservationKey);
         
-        // Refund to institutional treasury (not to provider's wallet)
-        // This also decrements the user's spent amount
-        IInstitutionalTreasuryFacet(address(this)).refundToInstitutionalTreasury(
-            institutionalProvider,
-            puc,
-            price
-        );
+        // No refund needed - treasury was never charged (lazy payment pattern)
+        // The spending was only verified, not executed
         
         emit ReservationRequestDenied(_reservationKey, reservation.labId);
     }
 
     /// @notice Allows a user to cancel their pending reservation request
-    /// @dev The function transfers back the reserved tokens to the renter
+    /// @dev With lazy payment pattern, no refund needed since payment wasn't collected yet
     /// @param _reservationKey The unique identifier of the reservation to cancel
     /// @custom:throws "Not found" if the reservation doesn't exist
     /// @custom:throws "Only the renter" if caller is not the reservation owner
@@ -296,7 +353,7 @@ contract ReservationFacet is ReservableTokenEnumerable {
         if (reservation.status != PENDING) revert("Not pending");
 
         _cancelReservation(_reservationKey);
-        IERC20(_s().labTokenAddress).transfer(reservation.renter, reservation.price);
+        // No refund needed - payment was never collected (lazy payment pattern)
         emit ReservationRequestCanceled(_reservationKey, reservation.labId);
     }  
 

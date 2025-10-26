@@ -223,10 +223,11 @@ contract InstitutionalTreasuryFacet {
     /// @notice Refund tokens back to the provider's institutional treasury (e.g., when canceling a reservation)
     /// @dev Only callable by the provider's authorized backend or Diamond facets
     ///      This reverses a previous spend, incrementing treasury and decrementing user's spent amount
-    ///      Period is checked to ensure we're refunding in the correct period
+    ///      Allows refunds from past periods
     /// @param provider The provider who owns the treasury
     /// @param puc The schacPersonalUniqueCode of the user
     /// @param amount Amount to refund
+    /// @custom:security-fix Removed period reset to allow past-period refunds (e.g., after rollover)
     function refundToInstitutionalTreasury(address provider, string calldata puc, uint256 amount) 
         external 
         onlyAuthorizedBackendOrInternal(provider) 
@@ -234,16 +235,19 @@ contract InstitutionalTreasuryFacet {
         AppStorage storage s = LibAppStorage.diamondStorage();
         require(amount > 0, "Amount must be > 0");
         
-        // Check period and reset if needed
-        uint256 periodStart = _checkAndResetPeriod(provider, puc);
+        // Get current period for event logging only
+        uint256 periodDuration = _getSpendingPeriod(provider);
+        uint256 currentPeriodStart = (block.timestamp / periodDuration) * periodDuration;
         
         InstitutionalUserSpending storage spending = s.institutionalUserSpending[provider][puc];
-        require(spending.amount >= amount, "Refund exceeds spent amount in current period");
+        
+        // Allow refund even if period changed - spending.amount tracks historical spend from ANY period
+        require(spending.amount >= amount, "Refund exceeds total spent amount");
         
         s.institutionalTreasury[provider] += amount;
         spending.amount -= amount;
         
-        emit InstitutionalUserSpent(provider, puc, 0, spending.amount, periodStart); // Emit with 0 to indicate refund
+        emit InstitutionalUserSpent(provider, puc, 0, spending.amount, currentPeriodStart); // Emit with 0 to indicate refund
     }
 
     /// @notice Get provider's institutional treasury balance

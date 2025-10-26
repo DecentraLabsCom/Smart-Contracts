@@ -338,8 +338,9 @@ abstract contract ReservableTokenEnumerable is ReservableToken {
         AppStorage storage s = _s();
         Reservation storage reservation = s.reservations[_reservationKey];
         
-        // Only decrement counter and remove from indices if reservation was BOOKED
-        if (reservation.status == BOOKED) {
+        // Decrement counter and remove from indices for BOOKED OR PENDING reservations
+        // This handles both confirmed bookings and pending requests (prevents DoS)
+        if (reservation.status == BOOKED || reservation.status == PENDING) {
             // Handle institutional vs wallet reservations differently
             // Institutional reservations use hash(provider, puc) as tracking key
             address trackingKey;
@@ -354,8 +355,9 @@ abstract contract ReservableTokenEnumerable is ReservableToken {
             s.activeReservationCountByTokenAndUser[reservation.labId][trackingKey]--;
             s.reservationKeysByTokenAndUser[reservation.labId][trackingKey].remove(_reservationKey);
             
-            // Update earliest reservation index
-            if (s.activeReservationByTokenAndUser[reservation.labId][trackingKey] == _reservationKey) {
+            // Update earliest reservation index (only if BOOKED)
+            if (reservation.status == BOOKED && 
+                s.activeReservationByTokenAndUser[reservation.labId][trackingKey] == _reservationKey) {
                 bytes32 nextKey = _findNextEarliestReservation(reservation.labId, trackingKey);
                 s.activeReservationByTokenAndUser[reservation.labId][trackingKey] = nextKey;
             }

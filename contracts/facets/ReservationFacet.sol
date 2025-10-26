@@ -101,6 +101,11 @@ contract ReservationFacet is ReservableTokenEnumerable, ReentrancyGuard {
             revert("Lab provider does not have sufficient stake");
         }
         
+        // Check user hasn't exceeded reservation limit (including PENDING)
+        if (s.activeReservationCountByTokenAndUser[_labId][msg.sender] >= MAX_RESERVATIONS_PER_LAB_USER) {
+            revert MaxReservationsReached();
+        }
+        
         if (_start >= _end || _start <= block.timestamp + RESERVATION_MARGIN) 
             revert("Invalid time range");
       
@@ -143,6 +148,12 @@ contract ReservationFacet is ReservableTokenEnumerable, ReentrancyGuard {
         // Add to tracking sets
         s.reservationKeys.add(reservationKey);
         s.renters[msg.sender].add(reservationKey);
+        
+        // Increment active reservation count (includes PENDING to prevent DoS)
+        s.activeReservationCountByTokenAndUser[_labId][msg.sender]++;
+        
+        // Add to per-token-user index
+        s.reservationKeysByTokenAndUser[_labId][msg.sender].add(reservationKey);
 
         // Payment will be collected when reservation is confirmed (lazy payment)
         
@@ -198,6 +209,14 @@ contract ReservationFacet is ReservableTokenEnumerable, ReentrancyGuard {
         uint96 price = s.labs[_labId].price;
         bytes32 reservationKey = _getReservationKey(_labId, _start);
         
+        // Generate tracking key for institutional user (same as used in confirmation)
+        address userTrackingKey = address(uint160(uint256(keccak256(abi.encodePacked(institutionalProvider, puc)))));
+        
+        // Check user hasn't exceeded reservation limit (including PENDING)
+        if (s.activeReservationCountByTokenAndUser[_labId][userTrackingKey] >= MAX_RESERVATIONS_PER_LAB_USER) {
+            revert MaxReservationsReached();
+        }
+        
         // Check availability
         if (s.reservationKeys.contains(reservationKey) && 
             s.reservations[reservationKey].status != CANCELLED)
@@ -233,8 +252,11 @@ contract ReservationFacet is ReservableTokenEnumerable, ReentrancyGuard {
         s.reservationKeys.add(reservationKey);
         s.renters[institutionalProvider].add(reservationKey);
         
-        // Tokens are already in Diamond (from institutional treasury)
-        // No transfer needed - just mark as allocated for this reservation
+        // Increment active reservation count (includes PENDING to prevent DoS)
+        s.activeReservationCountByTokenAndUser[_labId][userTrackingKey]++;
+        
+        // Add to per-token-user index
+        s.reservationKeysByTokenAndUser[_labId][userTrackingKey].add(reservationKey);
         
         emit ReservationRequested(institutionalProvider, _labId, _start, _end, reservationKey);
     }
@@ -253,11 +275,8 @@ contract ReservationFacet is ReservableTokenEnumerable, ReentrancyGuard {
     function confirmReservationRequest(bytes32 _reservationKey) external defaultAdminRole reservationPending(_reservationKey) override {
         AppStorage storage s = _s();
         Reservation storage reservation = s.reservations[_reservationKey];
-        
-        // Check if user has reached maximum reservations for this lab
-        if (s.activeReservationCountByTokenAndUser[reservation.labId][reservation.renter] >= MAX_RESERVATIONS_PER_LAB_USER) {
-            revert MaxReservationsReached();
-        }
+        // NOTE: Max reservation check was already done in reservationRequest()
+        // Counter was incremented there, so no need to check or increment again
         
         // Get CURRENT owner at confirmation time, not the stale value from request
         // This ensures the correct provider's stake is locked if NFT was transferred after request
@@ -282,11 +301,7 @@ contract ReservationFacet is ReservableTokenEnumerable, ReentrancyGuard {
             // This prevents spam attacks where unpaid requests lock provider's stake
             IStakingFacet(address(this)).updateLastReservation(labProvider);
             
-            // Increment active reservation count
-            s.activeReservationCountByTokenAndUser[reservation.labId][reservation.renter]++;
-            
-            // Add to per-token-user index for efficient queries
-            s.reservationKeysByTokenAndUser[reservation.labId][reservation.renter].add(_reservationKey);            // Update index: only store the earliest reservation
+            // Update index: only store the earliest reservation
             bytes32 currentIndexKey = s.activeReservationByTokenAndUser[reservation.labId][reservation.renter];
             
             if (currentIndexKey == bytes32(0)) {
@@ -340,9 +355,6 @@ contract ReservationFacet is ReservableTokenEnumerable, ReentrancyGuard {
         // Use stored PUC to ensure consistency (already validated above)
         address userTrackingKey = address(uint160(uint256(keccak256(abi.encodePacked(institutionalProvider, reservation.puc)))));
         
-        if (s.activeReservationCountByTokenAndUser[reservation.labId][userTrackingKey] >= MAX_RESERVATIONS_PER_LAB_USER) {
-            revert MaxReservationsReached();
-        }
         
         // Get CURRENT owner at confirmation time, not the stale value from request
         // This ensures the correct provider's stake is locked if NFT was transferred after request
@@ -365,12 +377,6 @@ contract ReservationFacet is ReservableTokenEnumerable, ReentrancyGuard {
             // Update lastReservation timestamp ONLY on confirmation (after payment)
             // This prevents spam attacks where unpaid requests lock provider's stake
             IStakingFacet(address(this)).updateLastReservation(labProvider);
-            
-            // Increment per-USER counter
-            s.activeReservationCountByTokenAndUser[reservation.labId][userTrackingKey]++;
-            
-            // Add to per-token-user index for efficient queries
-            s.reservationKeysByTokenAndUser[reservation.labId][userTrackingKey].add(_reservationKey);
             
             // Update index: only store the earliest reservation (use userTrackingKey for institutional users)
             bytes32 currentIndexKey = s.activeReservationByTokenAndUser[reservation.labId][userTrackingKey];
@@ -605,7 +611,7 @@ contract ReservationFacet is ReservableTokenEnumerable, ReentrancyGuard {
             EnumerableSet.Bytes32Set storage reservationKeys = s.reservationsByLabId[labId];
             uint256 len = reservationKeys.length();
             
-            // Scan only this lab's reservations
+            // Scan only this lab's BOOKED reservations
             for (uint256 i = 0; i < len && processed < maxBatch; i++) {
                 bytes32 key = reservationKeys.at(i);
                 Reservation storage reservation = s.reservations[key];

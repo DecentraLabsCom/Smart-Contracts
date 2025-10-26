@@ -331,7 +331,13 @@ contract ReservationFacet is ReservableTokenEnumerable, ReentrancyGuard {
         // Validate this is an institutional reservation
         if (bytes(reservation.puc).length == 0) revert("Not institutional reservation");
         
+        // CRITICAL: Validate that caller-supplied puc matches stored puc to prevent desync
+        if (keccak256(bytes(puc)) != keccak256(bytes(reservation.puc))) {
+            revert("PUC mismatch");
+        }
+        
         // Generate unique address for (provider, puc) pair to track individual user limits
+        // Use stored PUC to ensure consistency (already validated above)
         address userTrackingKey = address(uint160(uint256(keccak256(abi.encodePacked(institutionalProvider, reservation.puc)))));
         
         if (s.activeReservationCountByTokenAndUser[reservation.labId][userTrackingKey] >= MAX_RESERVATIONS_PER_LAB_USER) {
@@ -345,10 +351,10 @@ contract ReservationFacet is ReservableTokenEnumerable, ReentrancyGuard {
         // Update stored labProvider in case of NFT transfer between request and confirmation
         reservation.labProvider = labProvider;
 
-        // Attempt to charge institutional treasury
+        // Attempt to charge institutional treasury (use stored puc for consistency)
         try IInstitutionalTreasuryFacet(address(this)).spendFromInstitutionalTreasury(
             institutionalProvider,
-            puc,
+            reservation.puc,
             reservation.price
         ) {
             // Treasury charge successful → confirm reservation
@@ -549,6 +555,7 @@ contract ReservationFacet is ReservableTokenEnumerable, ReentrancyGuard {
         address renter = reservation.renter;
         uint256 price = reservation.price;
         address labProvider = reservation.labProvider;
+        string memory storedPuc = reservation.puc; // Use stored PUC, not caller-supplied
         
         if (renter != institutionalProvider) revert("Not renter");
 
@@ -557,11 +564,11 @@ contract ReservationFacet is ReservableTokenEnumerable, ReentrancyGuard {
         s.reservationsByLabId[reservation.labId].remove(_reservationKey);
         _cancelReservation(_reservationKey);
         
-        // Refund to institutional treasury (not to provider's wallet)
+        // Refund to institutional treasury using STORED puc (prevents misattribution)
         // This also decrements the user's spent amount
         IInstitutionalTreasuryFacet(address(this)).refundToInstitutionalTreasury(
             institutionalProvider,
-            puc,
+            storedPuc,
             price
         );
         
@@ -633,13 +640,14 @@ contract ReservationFacet is ReservableTokenEnumerable, ReentrancyGuard {
                     }
                     
                     --len; // Adjust length after removal
-                    --i; // Re-check same index since we removed an element
+                    if (i > 0) --i; // Re-check same index (safe: no underflow at i=0)
                     unchecked { ++processed; }
                 }
             }
         }
 
-        if (totalAmount == 0) revert("No funds");
+        // Only revert if nothing was processed at all
+        if (processed == 0) revert("No completed reservations");
         
         // Update provider's last reservation timestamp (activates 30-day lock)
         // This is done after successfully completing/collecting reservations
@@ -647,7 +655,10 @@ contract ReservationFacet is ReservableTokenEnumerable, ReentrancyGuard {
             IStakingFacet(address(this)).updateLastReservation(msg.sender);
         }
         
-        IERC20(s.labTokenAddress).safeTransfer(msg.sender, totalAmount);
+        // Only transfer if there are actual funds to transfer
+        if (totalAmount > 0) {
+            IERC20(s.labTokenAddress).safeTransfer(msg.sender, totalAmount);
+        }
         
         // Emit event with collection details for observability
         emit FundsCollected(msg.sender, totalAmount, processed);
@@ -665,5 +676,54 @@ contract ReservationFacet is ReservableTokenEnumerable, ReentrancyGuard {
     /// @return uint256 The amount of Lab tokens held by the contract
     function getSafeBalance() external view returns (uint256) { 
         return IERC20(_s().labTokenAddress).balanceOf(address(this));
+    }
+
+    /// @notice Allows users to release their quota by marking expired reservations as COLLECTED
+    /// @dev This function lets renters free up their reservation slots when providers don't call requestFunds
+    /// @param _labId The lab ID to clean up expired reservations for
+    /// @param _user The user address (or tracking key for institutional users)
+    /// @param maxBatch Maximum number of reservations to process (max 50)
+    /// @return processed Number of reservations marked as COLLECTED
+    /// @custom:use-case User has 10 finished reservations but provider didn't collect → user can't make new bookings
+    ///                  User calls this function to free up their quota slots
+    function releaseExpiredReservations(uint256 _labId, address _user, uint256 maxBatch) 
+        external 
+        returns (uint256 processed) 
+    {
+        if (maxBatch == 0 || maxBatch > 50) revert("Invalid batch size");
+        
+        AppStorage storage s = _s();
+        EnumerableSet.Bytes32Set storage userReservations = s.reservationKeysByTokenAndUser[_labId][_user];
+        uint256 len = userReservations.length();
+        
+        for (uint256 i = 0; i < len && processed < maxBatch; i++) {
+            bytes32 key = userReservations.at(i);
+            Reservation storage reservation = s.reservations[key];
+            
+            // Only process completed reservations that are still marked as BOOKED
+            if (reservation.end < block.timestamp && reservation.status == BOOKED) {
+                reservation.status = COLLECTED;
+                
+                // Remove from all indices
+                userReservations.remove(key);
+                s.reservationsByLabId[_labId].remove(key);
+                s.reservationsProvider[reservation.labProvider].remove(key);
+                
+                // Decrement active reservation counter
+                s.activeReservationCountByTokenAndUser[_labId][_user]--;
+                
+                // Update active reservation index if this was the indexed one
+                if (s.activeReservationByTokenAndUser[_labId][_user] == key) {
+                    bytes32 nextKey = _findNextEarliestReservation(_labId, _user);
+                    s.activeReservationByTokenAndUser[_labId][_user] = nextKey;
+                }
+                
+                --len; // Adjust length after removal
+                if (i > 0) --i; // Re-check same index (safe: no underflow at i=0)
+                unchecked { ++processed; }
+            }
+        }
+        
+        return processed;
     }
 }

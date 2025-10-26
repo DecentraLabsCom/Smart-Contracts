@@ -90,6 +90,54 @@ library LibAccessControlEnumerable {
      * @param _self The application storage containing role members and provider data.
      * @return An array of `Provider` structs representing all lab providers.
      */
+    /// @notice Retrieves all lab providers (limited to maxResults)
+    /// @dev Internal function with configurable limit for gas safety
+    /// @param _self The AppStorage instance
+    /// @param maxResults Maximum number of providers to return
+    /// @return providers Array of Provider structs (limited to maxResults)
+    function _getLabProvidersLimited(AppStorage storage _self, uint256 maxResults) internal view returns (Provider[] memory providers) {
+        uint256 totalLabProviders = _self.roleMembers[PROVIDER_ROLE].length();
+        uint256 count = totalLabProviders > maxResults ? maxResults : totalLabProviders;
+        
+        providers = new Provider[](count);
+        for (uint256 i; i < count; i++) {
+            address account = _self.roleMembers[PROVIDER_ROLE].at(i);
+            providers[i] = Provider(account, _self.providers[account]);
+        }
+        return providers;
+    }
+
+    /// @notice Retrieves lab providers with pagination
+    /// @dev Allows querying providers in chunks to avoid gas limits
+    /// @param _self The AppStorage instance
+    /// @param offset Starting index (0-based)
+    /// @param limit Maximum number of providers to return (1-100)
+    /// @return providers Array of Provider structs for the requested page
+    /// @return total Total number of providers in the system
+    function _getLabProvidersPaginated(AppStorage storage _self, uint256 offset, uint256 limit) 
+        internal view returns (Provider[] memory providers, uint256 total) 
+    {
+        require(limit > 0 && limit <= 100, "Limit must be between 1 and 100");
+        
+        total = _self.roleMembers[PROVIDER_ROLE].length();
+        
+        // Calculate actual number of items to return
+        uint256 remaining = total > offset ? total - offset : 0;
+        uint256 count = remaining < limit ? remaining : limit;
+        
+        providers = new Provider[](count);
+        for (uint256 i = 0; i < count; i++) {
+            address account = _self.roleMembers[PROVIDER_ROLE].at(offset + i);
+            providers[i] = Provider(account, _self.providers[account]);
+        }
+        
+        return (providers, total);
+    }
+
+    /// @notice Retrieves all lab providers (DEPRECATED - use _getLabProvidersLimited or _getLabProvidersPaginated)
+    /// @dev Original implementation without limits - kept for backwards compatibility but not recommended
+    /// @param _self The AppStorage instance
+    /// @return providers Array of all Provider structs
     function _getLabProviders(AppStorage storage _self) internal view returns (Provider[] memory) {
        
         uint256 totalLabProviders = _self.roleMembers[PROVIDER_ROLE].length();

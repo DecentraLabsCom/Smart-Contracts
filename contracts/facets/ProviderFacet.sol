@@ -249,10 +249,24 @@ contract ProviderFacet is AccessControlUpgradeable {
         return _s()._isLabProvider(_account);
     }
 
-    /// @notice Retrieves the list of all Lab providers.
-    /// @return An array of LabProviderExt structs representing all Lab providers.
+    /// @notice Retrieves the list of all Lab providers (limited to first 100)
+    /// @return An array of Provider structs (max 100)
     function getLabProviders() external view returns (Provider[] memory) {
-        return _s()._getLabProviders();
+        return _s()._getLabProvidersLimited(100);
+    }
+
+    /// @notice Retrieves a paginated list of Lab providers
+    /// @dev Allows efficient querying of providers in chunks to avoid gas limits
+    /// @param offset Starting index (0-based)
+    /// @param limit Maximum number of providers to return (1-100)
+    /// @return providers Array of Provider structs for the requested page
+    /// @return total Total number of providers in the system
+    /// @custom:example getLabProvidersPaginated(0, 50) returns first 50 providers
+    ///                 getLabProvidersPaginated(50, 50) returns providers 50-99
+    function getLabProvidersPaginated(uint256 offset, uint256 limit) 
+        external view returns (Provider[] memory providers, uint256 total) 
+    {
+        return _s()._getLabProvidersPaginated(offset, limit);
     }
 
     /// @dev Internal pure function to retrieve the application storage structure.

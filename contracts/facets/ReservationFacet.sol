@@ -169,6 +169,9 @@ contract ReservationFacet is ReservableTokenEnumerable {
     ) external exists(_labId) { 
         AppStorage storage s = _s();
         
+        require(s.institutionalBackends[institutionalProvider] != address(0), "No authorized backend");
+        require(msg.sender == s.institutionalBackends[institutionalProvider], "Caller must be authorized backend");
+        
         // Check if lab is listed for reservations
         if (!s.tokenStatus[_labId]) revert("Lab not listed for reservations");
         

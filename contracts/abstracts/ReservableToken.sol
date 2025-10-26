@@ -414,13 +414,10 @@ abstract contract ReservableToken {
     /// @dev Performs an in-order traversal of the interval tree to collect all reservations.
     ///      Returns arrays of start and end times in chronological order.
     ///      Time complexity: O(n) where n is the number of reservations
-    ///      WARNING: For labs with many reservations, this may exceed RPC gas limits in view calls.
-    ///      Recommended: Use pagination or limit results in frontend.
     /// @param _tokenId The ID of the token (lab) to get booked slots for
-    /// @return starts Array of start timestamps for all reservations
-    /// @return ends Array of end timestamps for all reservations
+    /// @return starts Array of start timestamps (max 100 results)
+    /// @return ends Array of end timestamps (max 100 results)
     /// @custom:example If lab has reservations [1000-2000] and [3000-4000], returns ([1000, 3000], [2000, 4000])
-    /// @custom:gas-warning May exceed RPC limits if lab has >100 reservations. Use with pagination.
     function getBookedSlots(uint256 _tokenId) 
         external view virtual exists(_tokenId) returns (uint32[] memory starts, uint32[] memory ends) 
     {
@@ -431,14 +428,15 @@ abstract contract ReservableToken {
             return (new uint32[](0), new uint32[](0));
         }
         
-        // First, count total nodes to allocate arrays
+        // First, count total nodes to allocate arrays (capped at 100)
         uint256 count = _countNodes(calendar, calendar.root);
+        uint256 maxResults = count > 100 ? 100 : count;
         
-        starts = new uint32[](count);
-        ends = new uint32[](count);
+        starts = new uint32[](maxResults);
+        ends = new uint32[](maxResults);
         
-        // Perform in-order traversal to collect all slots
-        _collectSlots(calendar, calendar.root, starts, ends, 0);
+        // Perform in-order traversal to collect slots (stops at 100)
+        _collectSlotsLimited(calendar, calendar.root, starts, ends, 0, maxResults);
         
         return (starts, ends);
     }
@@ -455,31 +453,39 @@ abstract contract ReservableToken {
                _countNodes(calendar, calendar.nodes[cursor].right);
     }
 
-    /// @dev Helper function to collect slots via in-order traversal
+    /// @dev Helper function to collect slots via in-order traversal with limit
     /// @param calendar The interval tree storage
     /// @param cursor Current node being examined
     /// @param starts Array to store start times
     /// @param ends Array to store end times
     /// @param index Current index in output arrays
+    /// @param maxResults Maximum number of results to collect (stops when reached)
     /// @return nextIndex Updated index after processing this subtree
-    function _collectSlots(
+    function _collectSlotsLimited(
         Tree storage calendar, 
         uint cursor, 
         uint32[] memory starts, 
         uint32[] memory ends,
-        uint256 index
+        uint256 index,
+        uint256 maxResults
     ) private view returns (uint256 nextIndex) {
-        if (cursor == 0) return index;
+        if (cursor == 0 || index >= maxResults) return index;
         
         // In-order: left subtree -> current node -> right subtree
         // This naturally orders reservations chronologically
-        index = _collectSlots(calendar, calendar.nodes[cursor].left, starts, ends, index);
+        index = _collectSlotsLimited(calendar, calendar.nodes[cursor].left, starts, ends, index, maxResults);
         
-        starts[index] = uint32(cursor);
-        ends[index] = calendar.nodes[cursor].end;
-        index++;
+        // Check limit before adding current node
+        if (index < maxResults) {
+            starts[index] = uint32(cursor);
+            ends[index] = calendar.nodes[cursor].end;
+            index++;
+        }
         
-        index = _collectSlots(calendar, calendar.nodes[cursor].right, starts, ends, index);
+        // Only traverse right if we haven't hit the limit
+        if (index < maxResults) {
+            index = _collectSlotsLimited(calendar, calendar.nodes[cursor].right, starts, ends, index, maxResults);
+        }
         
         return index;
     }
@@ -587,12 +593,13 @@ abstract contract ReservableToken {
     /// @notice Find all available time slots within a specific range
     /// @dev Returns gaps between reservations. Only returns slots >= minDuration.
     ///      Time complexity: O(n) where n is the number of reservations in range
+    ///      SECURITY: Inherits 100-result limit from getBookedSlots() to prevent DoS
     /// @param _tokenId The ID of the token (lab) to search
     /// @param _rangeStart Start of the search range (Unix timestamp)
     /// @param _rangeEnd End of the search range (Unix timestamp)
     /// @param _minDuration Minimum duration in seconds for a slot to be included
-    /// @return slotStarts Array of available slot start times
-    /// @return slotEnds Array of available slot end times
+    /// @return slotStarts Array of available slot start times (max 100 gaps)
+    /// @return slotEnds Array of available slot end times (max 100 gaps)
     /// @custom:example Range [0-10000], minDuration=1000, reservations [2000-3000], [5000-6000]
     ///                  Returns: ([0, 3000, 6000], [2000, 5000, 10000]) - three available slots
     /// @custom:use-case Booking assistant: "Show all 2-hour slots available this week"

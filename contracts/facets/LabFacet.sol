@@ -16,7 +16,7 @@ using EnumerableSet for EnumerableSet.Bytes32Set;
 /// - Juan Luis Ramos Villalón
 /// - Luis de la Torre Cubillo
 /// @notice This contract is part of a diamond architecture and implements the ERC721 standard.
-/// @dev This contract is an ERC721 token implementation for managing Labs (Cyber Physical Systems).
+/// @dev This contract is an ERC721 token implementation for managing Labs.
 ///      It extends the functionality of ERC721EnumerableUpgradeable and integrates with custom libraries
 ///      for application-specific storage and access control.
 ///      Throughout the contract, `labId` and `tokenId` are used interchangeably and refer to the same identifier.
@@ -111,7 +111,7 @@ contract LabFacet is ERC721EnumerableUpgradeable, ReservableToken {
         __ERC721_init(_name, _symbol);
     }
 
-    /// @notice Adds a new Lab (Cyber Physical System) with the specified details.
+    /// @notice Adds a new Lab with the specified details.
     /// @dev This function increments the Lab ID, mints a new token for the Lab,
     ///      and stores the Lab's details in the contract's state.
     ///      labId is incremented AFTER successful mint to avoid ID gaps on mint failures.
@@ -258,7 +258,7 @@ contract LabFacet is ERC721EnumerableUpgradeable, ReservableToken {
          return _s().labs[_labId].uri;
     }
 
-    /// @notice Updates the Lab (Cyber Physical System) with the given ID.
+    /// @notice Updates the Lab with the given ID.
     /// @dev This function can only be called by the Lab provider and the contract owner.
     /// @param _labId The ID of the Lab to update.
     /// @param _uri The new URI for the Lab.
@@ -289,9 +289,9 @@ contract LabFacet is ERC721EnumerableUpgradeable, ReservableToken {
     /// @notice Deletes a Lab identified by `_labId`.
     /// @dev This function can only be called by the Lab provider and the contract owner.
     /// It checks if the Lab exists before deleting it.
-    /// SECURITY: Prevents deletion if there are active (BOOKED) reservations to protect user funds
+    /// SECURITY: Prevents deletion if there are active (CONFIRMED or IN_USE) reservations to protect user funds
     /// @param _labId The ID of the Lab to be deleted.
-    /// @custom:security Cannot delete lab with active BOOKED reservations
+    /// @custom:security Cannot delete lab with active CONFIRMED or IN_USE reservations
     /// @custom:optimization Uses O(1) tree root check before expensive O(n) iteration
     function deleteLab(uint _labId) external  onlyLabProvider(_labId) {
         AppStorage storage s = _s();
@@ -322,10 +322,10 @@ contract LabFacet is ERC721EnumerableUpgradeable, ReservableToken {
         emit LabDeleted(_labId);
     }
 
-    /// @notice Checks if a lab has any active (BOOKED status) reservations
+    /// @notice Checks if a lab has any active (CONFIRMED or IN_USE status) reservations
     /// @dev Internal helper function to prevent lab deletion with active bookings
     /// @param _labId The ID of the lab to check
-    /// @return true if there are any reservations with BOOKED status for this lab
+    /// @return true if there are any reservations with CONFIRMED or IN_USE status for this lab
     function _hasActiveBookings(uint256 _labId) internal view returns (bool) {
         AppStorage storage s = _s();
         EnumerableSet.Bytes32Set storage reservationKeys = s.reservationKeysByToken[_labId];
@@ -333,8 +333,9 @@ contract LabFacet is ERC721EnumerableUpgradeable, ReservableToken {
         
         for (uint256 i = 0; i < length; i++) {
             bytes32 key = reservationKeys.at(i);
-            // BOOKED = 1 (from ReservableToken.sol)
-            if (s.reservations[key].status == 1) {
+            // Check for both CONFIRMED and IN_USE (active paid reservations)
+            uint8 status = s.reservations[key].status;
+            if (status == CONFIRMED || status == IN_USE) {
                 return true;
             }
         }
@@ -342,7 +343,7 @@ contract LabFacet is ERC721EnumerableUpgradeable, ReservableToken {
         return false;
     }
 
-    /// @notice Retrieves the details of a Lab (Cyber Physical System) by its ID.
+    /// @notice Retrieves the details of a Lab by its ID.
     /// @dev This function returns the Lab details, including its ID, URI, and price.
     /// @param _labId The ID of the Lab to retrieve.
     /// @return A Lab structure containing the details of the specified Lab.
@@ -483,11 +484,11 @@ contract LabFacet is ERC721EnumerableUpgradeable, ReservableToken {
             }
             
             // Clean up reservation indices when NFT is transferred
-            // Transfer BOOKED reservations from old owner's index to new owner's index
+            // Transfer CONFIRMED/IN_USE reservations from old owner's index to new owner's index
             // This prevents memory leak in reservationsProvider[oldOwner]
             // 
             // GAS SAFETY: Limit to MAX_TRANSFER_CLEANUP (50) reservations per transfer
-            // If lab has more than 50 BOOKED reservations, remaining create minor memory leak 
+            // If lab has more than 50 active reservations, remaining create minor memory leak 
             // (trade-off for DoS prevention)
             EnumerableSet.Bytes32Set storage labReservations = s.reservationsByLabId[_tokenId];
             uint256 reservationCount = labReservations.length();
@@ -498,8 +499,9 @@ contract LabFacet is ERC721EnumerableUpgradeable, ReservableToken {
                 bytes32 key = labReservations.at(i);
                 Reservation storage res = s.reservations[key];
                 
-                // Only update BOOKED reservations (PENDING don't have provider index yet)
-                if (res.status == 1) { // BOOKED = 1
+                // Only update CONFIRMED or IN_USE reservations 
+                // (PENDING don't have provider index yet, others are finished)
+                if (res.status == CONFIRMED || res.status == IN_USE) {
                     // Update labProvider to new owner
                     res.labProvider = _to;
                     

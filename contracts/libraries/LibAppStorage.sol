@@ -66,11 +66,12 @@ struct Lab {
 /// @param start Starting timestamp of the reservation (as uint32)
 /// @param end Ending timestamp of the reservation (as uint32)
 /// @param status Current state of the reservation:
-///        0 = PENDING
-///        1 = BOOKED
-///        2 = USED
-///        3 = COLLECTED
-///        4 = CANCELLED
+///        0 = PENDING (requested, not paid, not blocking calendar)
+///        1 = CONFIRMED (paid, blocking calendar)
+///        2 = IN_USE (actively being used)
+///        3 = COMPLETED (expired, awaiting provider collection)
+///        4 = COLLECTED (provider collected funds)
+///        5 = CANCELLED (cancelled by user/provider/admin)
 struct Reservation {
         uint256 labId;
         address renter;

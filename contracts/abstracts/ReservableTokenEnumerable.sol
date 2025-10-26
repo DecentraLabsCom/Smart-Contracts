@@ -95,7 +95,7 @@ abstract contract ReservableTokenEnumerable is ReservableToken {
     }
 
     /// @notice Confirms a pending reservation request for a lab
-    /// @dev Changes the status of a reservation from PENDING to BOOKED and associates it with the lab provider
+    /// @dev Changes the status of a reservation from PENDING to CONFIRMED and associates it with the lab provider
     /// @param _reservationKey The unique identifier of the reservation to confirm
     /// @custom:event ReservationConfirmed Emitted when the reservation is successfully confirmed
     /// @custom:requirements Reservation must be in PENDING status (checked by reservationPending modifier)
@@ -108,7 +108,7 @@ abstract contract ReservableTokenEnumerable is ReservableToken {
             revert MaxReservationsReached();
         }
         
-        reservation.status = BOOKED;
+        reservation.status = CONFIRMED;
         s.reservationsProvider[reservation.labProvider].add(_reservationKey);
         
         // Increment active reservation count for this (token, user)
@@ -143,8 +143,9 @@ abstract contract ReservableTokenEnumerable is ReservableToken {
         AppStorage storage s = _s();
         Reservation storage reservation = s.reservations[_reservationKey];
         
-        // Combined validation
-        if (reservation.renter == address(0) || reservation.status != BOOKED) {
+        // Combined validation - check for CONFIRMED or IN_USE
+        if (reservation.renter == address(0) || 
+            (reservation.status != CONFIRMED && reservation.status != IN_USE)) {
             revert InvalidReservation();
         }
 
@@ -220,7 +221,7 @@ abstract contract ReservableTokenEnumerable is ReservableToken {
     }
 
     /// @notice Checks if a user has an active booking for a specific token
-    /// @dev A booking is considered active if it's in BOOKED status and current time is within [start, end]
+    /// @dev A booking is considered active if it's in CONFIRMED or IN_USE status and current time is within [start, end]
     ///      Uses lazy cleanup: if the indexed reservation has expired, searches for the next active one
     ///      Optimized scan: only iterates through reservations for this specific (token, user) pair
     /// @param _tokenId The ID of the token to check
@@ -238,7 +239,8 @@ abstract contract ReservableTokenEnumerable is ReservableToken {
         uint32 time = uint32(block.timestamp);
         
         // Fast path: indexed reservation is currently active
-        if (reservation.status == BOOKED && 
+        // Check for CONFIRMED or IN_USE (both are active paid reservations)
+        if ((reservation.status == CONFIRMED || reservation.status == IN_USE) && 
             reservation.start <= time && 
             reservation.end >= time) {
             return true;
@@ -263,7 +265,8 @@ abstract contract ReservableTokenEnumerable is ReservableToken {
             bytes32 key = tokenUserReservations.at(i);
             Reservation memory res = s.reservations[key];
             
-            if (res.status == BOOKED && 
+            // Check for CONFIRMED or IN_USE (both are active paid reservations)
+            if ((res.status == CONFIRMED || res.status == IN_USE) && 
                 res.start <= time && 
                 res.end >= time) {
                 return true;
@@ -294,7 +297,8 @@ abstract contract ReservableTokenEnumerable is ReservableToken {
         uint32 time = uint32(block.timestamp);
         
         // Fast path: indexed reservation is currently active
-        if (reservation.status == BOOKED && 
+        // Check for CONFIRMED or IN_USE (both are active paid reservations)
+        if ((reservation.status == CONFIRMED || reservation.status == IN_USE) && 
             reservation.start <= time && 
             reservation.end >= time) {
             return reservationKey;
@@ -318,7 +322,8 @@ abstract contract ReservableTokenEnumerable is ReservableToken {
             bytes32 key = tokenUserReservations.at(i);
             Reservation memory res = s.reservations[key];
             
-            if (res.status == BOOKED && 
+            // Check for CONFIRMED or IN_USE (both are active paid reservations)
+            if ((res.status == CONFIRMED || res.status == IN_USE) && 
                 res.start <= time && 
                 res.end >= time) {
                 return key;
@@ -338,9 +343,9 @@ abstract contract ReservableTokenEnumerable is ReservableToken {
         AppStorage storage s = _s();
         Reservation storage reservation = s.reservations[_reservationKey];
         
-        // Decrement counter and remove from indices for BOOKED OR PENDING reservations
-        // This handles both confirmed bookings and pending requests (prevents DoS)
-        if (reservation.status == BOOKED || reservation.status == PENDING) {
+        // Decrement counter and remove from indices for CONFIRMED, IN_USE, or PENDING reservations
+        // This handles confirmed bookings, active usage, and pending requests (prevents DoS)
+        if (reservation.status == CONFIRMED || reservation.status == IN_USE || reservation.status == PENDING) {
             // Handle institutional vs wallet reservations differently
             // Institutional reservations use hash(provider, puc) as tracking key
             address trackingKey;
@@ -356,8 +361,8 @@ abstract contract ReservableTokenEnumerable is ReservableToken {
             s.activeReservationCountByTokenAndUser[reservation.labId][trackingKey]--;
             s.reservationKeysByTokenAndUser[reservation.labId][trackingKey].remove(_reservationKey);
             
-            // Update earliest reservation index (only if BOOKED)
-            if (reservation.status == BOOKED && 
+            // Update earliest reservation index (only if CONFIRMED or IN_USE, not PENDING)
+            if ((reservation.status == CONFIRMED || reservation.status == IN_USE) && 
                 s.activeReservationByTokenAndUser[reservation.labId][trackingKey] == _reservationKey) {
                 bytes32 nextKey = _findNextEarliestReservation(reservation.labId, trackingKey);
                 s.activeReservationByTokenAndUser[reservation.labId][trackingKey] = nextKey;
@@ -389,8 +394,8 @@ abstract contract ReservableTokenEnumerable is ReservableToken {
             bytes32 key = tokenUserReservations.at(i);
             Reservation memory res = s.reservations[key];
             
-            // Only consider BOOKED reservations that haven't ended yet
-            if (res.status == BOOKED && 
+            // Only consider CONFIRMED or IN_USE reservations that haven't ended yet
+            if ((res.status == CONFIRMED || res.status == IN_USE) && 
                 res.end >= block.timestamp &&
                 res.start < earliestStart) {
                 earliestKey = key;

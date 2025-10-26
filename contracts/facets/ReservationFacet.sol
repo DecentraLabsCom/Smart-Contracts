@@ -35,7 +35,7 @@ interface IInstitutionalTreasuryFacet {
 /// @notice This contract provides functionality for:
 /// - Managing lab reservations with booking requests and confirmations
 /// - Handling payments and refunds with ERC20 tokens
-/// - Managing reservation statuses (pending, booked, cancelled, collected)
+/// - Managing reservation statuses (pending, confirmed, in_use, completed, collected, cancelled)
 /// - Access control for lab providers and administrators
 contract ReservationFacet is ReservableTokenEnumerable, ReentrancyGuard {
     using LibAccessControlEnumerable for AppStorage;
@@ -121,13 +121,15 @@ contract ReservationFacet is ReservableTokenEnumerable, ReentrancyGuard {
         
         bytes32 reservationKey = _getReservationKey(_labId, _start);
         
-        // Check availability in one condition
-        if (s.reservationKeys.contains(reservationKey) && 
-            s.reservations[reservationKey].status != CANCELLED)
-            revert("Not available");
-
-        // Insert and create reservation
-        s.calendars[_labId].insert(_start, _end);
+        // Check availability: Only check if key exists with non-cancelled/non-collected status
+        // PENDING requests don't block calendar, so we only check the reservation key existence
+        if (s.reservationKeys.contains(reservationKey)) {
+            uint8 existingStatus = s.reservations[reservationKey].status;
+            // Allow reuse only if previous reservation was cancelled or collected
+            if (existingStatus != CANCELLED && existingStatus != COLLECTED) {
+                revert("Not available");
+            }
+        }
         
         // Gas optimizations: O(1) operations
         s.reservationCountByToken[_labId]++;
@@ -213,10 +215,13 @@ contract ReservationFacet is ReservableTokenEnumerable, ReentrancyGuard {
             revert MaxReservationsReached();
         }
         
-        // Check availability
-        if (s.reservationKeys.contains(reservationKey) && 
-            s.reservations[reservationKey].status != CANCELLED)
-            revert("Not available");
+        // Check availability: Only check if key exists with non-cancelled/non-collected status
+        if (s.reservationKeys.contains(reservationKey)) {
+            uint8 existingStatus = s.reservations[reservationKey].status;
+            if (existingStatus != CANCELLED && existingStatus != COLLECTED) {
+                revert("Not available");
+            }
+        }
 
         // Verify institutional treasury has sufficient balance and user hasn't exceeded limit
         // (but don't spend yet - payment will be collected when reservation is confirmed)
@@ -226,8 +231,6 @@ contract ReservationFacet is ReservableTokenEnumerable, ReentrancyGuard {
             price
         );
 
-        // Insert and create reservation
-        s.calendars[_labId].insert(_start, _end);
         s.reservationCountByToken[_labId]++;
         s.reservationKeysByToken[_labId].add(reservationKey);
         
@@ -266,7 +269,7 @@ contract ReservationFacet is ReservableTokenEnumerable, ReentrancyGuard {
     /// @custom:requires Caller must have admin role
     /// @custom:emits ReservationConfirmed when reservation is successfully confirmed and paid
     /// @custom:emits ReservationRequestDenied when payment fails (insufficient funds)
-    /// @custom:modifies Updates reservation status to BOOKED or cancels if payment fails
+    /// @custom:modifies Updates reservation status to CONFIRMED or cancels if payment fails
     /// @custom:modifies Adds reservation to lab provider's reservation list (on success)
     function confirmReservationRequest(bytes32 _reservationKey) external defaultAdminRole reservationPending(_reservationKey) override {
         AppStorage storage s = _s();
@@ -288,8 +291,12 @@ contract ReservationFacet is ReservableTokenEnumerable, ReentrancyGuard {
             address(this),
             reservation.price
         ) {
-            // Payment successful → confirm reservation
-            reservation.status = BOOKED;
+            // Payment successful → insert into calendar (blocks the slot)
+            // This prevents phantom slots from denied PENDING requests
+            s.calendars[reservation.labId].insert(reservation.start, reservation.end);
+            
+            // Update status to CONFIRMED (payment received, slot blocked)
+            reservation.status = CONFIRMED;
             s.reservationsProvider[labProvider].add(_reservationKey);
             s.reservationsByLabId[reservation.labId].add(_reservationKey);
             
@@ -358,8 +365,11 @@ contract ReservationFacet is ReservableTokenEnumerable, ReentrancyGuard {
             reservation.puc,
             reservation.price
         ) {
-            // Treasury charge successful → confirm reservation
-            reservation.status = BOOKED;   
+            // Treasury charge successful → insert into calendar (blocks the slot)
+            s.calendars[reservation.labId].insert(reservation.start, reservation.end);
+            
+            // Update status to CONFIRMED (treasury charged, slot blocked)
+            reservation.status = CONFIRMED;   
             s.reservationsProvider[labProvider].add(_reservationKey);
             s.reservationsByLabId[reservation.labId].add(_reservationKey);
             
@@ -452,12 +462,14 @@ contract ReservationFacet is ReservableTokenEnumerable, ReentrancyGuard {
     /// @param _reservationKey The unique identifier of the reservation to cancel
     /// @custom:throws If reservation is invalid or caller is not authorized
     /// @custom:emits BookingCanceled event
-    /// @custom:security Requires the reservation to be in BOOKED status
+    /// @custom:security Requires the reservation to be in CONFIRMED or IN_USE status
     /// @custom:refund Transfers the reservation price back to the renter
     function cancelBooking(bytes32 _reservationKey) external override nonReentrant {
         AppStorage storage s = _s();
         Reservation storage reservation = s.reservations[_reservationKey];
-        if (reservation.renter == address(0) || reservation.status != BOOKED) 
+        // Accept CONFIRMED or IN_USE (both are active, paid reservations)
+        if (reservation.renter == address(0) || 
+            (reservation.status != CONFIRMED && reservation.status != IN_USE)) 
             revert("Invalid");
 
         address renter = reservation.renter;
@@ -530,7 +542,7 @@ contract ReservationFacet is ReservableTokenEnumerable, ReentrancyGuard {
     /// @custom:throws If reservation is invalid or caller is not authorized
     /// @custom:throws "Not authorized backend" if caller is not the authorized backend for the provider
     /// @custom:emits BookingCanceled event
-    /// @custom:security Requires the reservation to be in BOOKED status
+    /// @custom:security Requires the reservation to be in CONFIRMED or IN_USE status
     function cancelInstitutionalBooking(
         address institutionalProvider,
         bytes32 _reservationKey
@@ -542,7 +554,9 @@ contract ReservationFacet is ReservableTokenEnumerable, ReentrancyGuard {
         require(msg.sender == s.institutionalBackends[institutionalProvider], "Not authorized backend");
         
         Reservation storage reservation = _s().reservations[_reservationKey];
-        if (reservation.renter == address(0) || reservation.status != BOOKED) 
+        // Accept CONFIRMED or IN_USE (both are active, paid reservations)
+        if (reservation.renter == address(0) || 
+            (reservation.status != CONFIRMED && reservation.status != IN_USE)) 
             revert("Invalid");
 
         address renter = reservation.renter;
@@ -571,7 +585,7 @@ contract ReservationFacet is ReservableTokenEnumerable, ReentrancyGuard {
     /// @notice Allows lab providers to claim funds from used or expired reservations in batches
     /// @dev Only lab providers can call this function. It processes reservations that are:
     ///      1. Ended (end < block.timestamp)
-    ///      2. In BOOKED status
+    ///      2. In CONFIRMED or COMPLETED status
     ///      3. Lab still belongs to the caller (handles NFT transfers)
     /// After processing, the reservation status changes to COLLECTED
     /// @param maxBatch Maximum number of reservations to process in this call (max 100)
@@ -598,13 +612,16 @@ contract ReservationFacet is ReservableTokenEnumerable, ReentrancyGuard {
             EnumerableSet.Bytes32Set storage reservationKeys = s.reservationsByLabId[labId];
             uint256 len = reservationKeys.length();
             
-            // Scan only this lab's BOOKED reservations
+            // Scan only this lab's CONFIRMED or COMPLETED reservations
             for (uint256 i = 0; i < len && processed < maxBatch; i++) {
                 bytes32 key = reservationKeys.at(i);
                 Reservation storage reservation = s.reservations[key];
                 
-                // Only collect completed reservations
-                if (reservation.end < block.timestamp && reservation.status == BOOKED) {
+                // Only collect completed reservations (end time passed + status is CONFIRMED or COMPLETED)
+                // CONFIRMED: normal expiration path
+                // COMPLETED: already moved to COMPLETED by releaseExpiredReservations()
+                if (reservation.end < block.timestamp && 
+                    (reservation.status == CONFIRMED || reservation.status == COMPLETED)) {
                     totalAmount += reservation.price;    
                     reservation.status = COLLECTED;  
                     
@@ -675,20 +692,21 @@ contract ReservationFacet is ReservableTokenEnumerable, ReentrancyGuard {
         return IERC20(_s().labTokenAddress).balanceOf(address(this));
     }
 
-    /// @notice Allows users to release their quota by marking expired reservations as COLLECTED
+    /// @notice Allows users to release their quota by marking expired reservations as COMPLETED
     /// @dev This function lets renters free up their reservation slots when providers don't call requestFunds
+    ///      The reservation moves to COMPLETED state, preserving funds for the provider.
+    ///      The provider can still collect funds later via requestFunds().
     /// @param _labId The lab ID to clean up expired reservations for
     /// @param _user The user address (or tracking key for institutional users)
     /// @param maxBatch Maximum number of reservations to process (max 50)
-    /// @return processed Number of reservations marked as COLLECTED
+    /// @return processed Number of reservations marked as COMPLETED
     /// @custom:use-case User has 10 finished reservations but provider didn't collect → user can't make new bookings
     ///                  User calls this function to free up their quota slots
     function releaseExpiredReservations(uint256 _labId, address _user, uint256 maxBatch) 
         external 
         returns (uint256 processed) 
     {
-        // Prevent griefing attack where malicious actor marks reservations
-        // as COLLECTED before provider calls requestFunds(), causing permanent loss of funds
+        // Only user or provider can release to prevent unauthorized quota manipulation
         address labProvider = IERC721(address(this)).ownerOf(_labId);
         if (msg.sender != _user && msg.sender != labProvider) {
             revert("Only user or provider can release");
@@ -704,9 +722,9 @@ contract ReservationFacet is ReservableTokenEnumerable, ReentrancyGuard {
             bytes32 key = userReservations.at(i);
             Reservation storage reservation = s.reservations[key];
             
-            // Only process completed reservations that are still marked as BOOKED
-            if (reservation.end < block.timestamp && reservation.status == BOOKED) {
-                reservation.status = COLLECTED;
+            // Only process expired reservations that are still CONFIRMED
+            if (reservation.end < block.timestamp && reservation.status == CONFIRMED) {
+                reservation.status = COMPLETED;
                 
                 // Remove from all indices
                 userReservations.remove(key);
@@ -726,6 +744,11 @@ contract ReservationFacet is ReservableTokenEnumerable, ReentrancyGuard {
                 if (i > 0) --i; // Re-check same index (safe: no underflow at i=0)
                 unchecked { ++processed; }
             }
+        }
+        
+        // Emit event if any reservations were processed
+        if (processed > 0) {
+            emit ReservationsReleased(_user, _labId, processed);
         }
         
         return processed;

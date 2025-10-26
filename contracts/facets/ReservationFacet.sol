@@ -4,6 +4,7 @@ pragma solidity ^0.8.23;
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
+import {ReentrancyGuard} from "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import "../abstracts/ReservableTokenEnumerable.sol";
 import "./ProviderFacet.sol";
 
@@ -35,7 +36,7 @@ interface IInstitutionalTreasuryFacet {
 /// - Handling payments and refunds with ERC20 tokens
 /// - Managing reservation statuses (pending, booked, cancelled, collected)
 /// - Access control for lab providers and administrators
-contract ReservationFacet is ReservableTokenEnumerable {
+contract ReservationFacet is ReservableTokenEnumerable, ReentrancyGuard {
     using LibAccessControlEnumerable for AppStorage;
     using RivalIntervalTreeLibrary for Tree;
     using EnumerableSet for EnumerableSet.Bytes32Set;
@@ -555,7 +556,7 @@ contract ReservationFacet is ReservableTokenEnumerable {
     /// @custom:revert "No funds" if no eligible reservations were found
     /// @custom:revert If the ERC20 transfer fails
     /// @custom:gas Optimized with batching to prevent gas limit issues
-    function requestFunds(uint256 maxBatch) external isLabProvider {
+    function requestFunds(uint256 maxBatch) external isLabProvider nonReentrant {
         if (maxBatch == 0 || maxBatch > 100) revert("Invalid batch size");
         
         AppStorage storage s = _s();

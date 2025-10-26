@@ -240,17 +240,18 @@ contract InstitutionalTreasuryFacet is ReentrancyGuard {
     }
 
     /// @notice Refund tokens back to the provider's institutional treasury (e.g., when canceling a reservation)
-    /// @dev Only callable by the provider's authorized backend or Diamond facets
+    /// @dev Only ReservationFacet can call this via cancelBooking/cancelInstitutionalBooking
     ///      This reverses a previous spend, incrementing treasury and decrementing user's spent amount
     ///      Allows refunds from past periods
     /// @param provider The provider who owns the treasury
     /// @param puc The schacPersonalUniqueCode of the user
     /// @param amount Amount to refund
-    /// @custom:security Removed period reset to allow past-period refunds (e.g., after rollover)
     function refundToInstitutionalTreasury(address provider, string calldata puc, uint256 amount) 
         external 
-        onlyAuthorizedBackendOrInternal(provider) 
     {
+        // Prevent compromised backends from calling this function arbitrarily
+        require(msg.sender == address(this), "Only internal Diamond calls");
+        
         AppStorage storage s = LibAppStorage.diamondStorage();
         
         // Allow zero-price refunds (free labs) - nothing to refund

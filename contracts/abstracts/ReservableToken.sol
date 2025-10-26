@@ -754,17 +754,22 @@ abstract contract ReservableToken {
     /// @dev Cancels a reservation identified by the given reservation key.
     ///      Updates the reservation status to CANCELLED and removes the reservation
     ///      from the associated lab's calendar (only if it was inserted, i.e., CONFIRMED or IN_USE).
+    ///      Also removes the key from the global reservationKeys set to free storage.
     /// @param _reservationKey The unique key identifying the reservation to be cancelled.
     function _cancelReservation(bytes32 _reservationKey) internal virtual {
-        Reservation storage reservation = _s().reservations[_reservationKey];
+        AppStorage storage s = _s();
+        Reservation storage reservation = s.reservations[_reservationKey];
         
         // Only remove from calendar if reservation was actually inserted (CONFIRMED or IN_USE)
         // PENDING reservations are never inserted in calendar, so no need to remove
         if (reservation.status == CONFIRMED || reservation.status == IN_USE) {
-            _s().calendars[reservation.labId].remove(reservation.start);
+            s.calendars[reservation.labId].remove(reservation.start);
         }
         
         reservation.status = CANCELLED;
+        
+        // Remove from global set to free storage and allow slot reuse
+        s.reservationKeys.remove(_reservationKey);
     }
 
     /// @notice Generates a unique key for token reservation based on token ID and time

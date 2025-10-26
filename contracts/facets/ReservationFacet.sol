@@ -102,8 +102,15 @@ contract ReservationFacet is ReservableTokenEnumerable, ReentrancyGuard {
         }
         
         // Check user hasn't exceeded reservation limit (including PENDING)
+        // If at limit, try to auto-release expired reservations first
         if (s.activeReservationCountByTokenAndUser[_labId][msg.sender] >= MAX_RESERVATIONS_PER_LAB_USER) {
-            revert MaxReservationsReached();
+            // Attempt to free up slots by releasing expired reservations
+            _releaseExpiredReservationsInternal(_labId, msg.sender, MAX_RESERVATIONS_PER_LAB_USER);
+            
+            // Check again after auto-release attempt
+            if (s.activeReservationCountByTokenAndUser[_labId][msg.sender] >= MAX_RESERVATIONS_PER_LAB_USER) {
+                revert MaxReservationsReached();
+            }
         }
         
         if (_start >= _end || _start <= block.timestamp + RESERVATION_MARGIN) 
@@ -122,13 +129,13 @@ contract ReservationFacet is ReservableTokenEnumerable, ReentrancyGuard {
         bytes32 reservationKey = _getReservationKey(_labId, _start);
         
         // Check availability: Only check if key exists with non-cancelled/non-collected status
-        // PENDING requests don't block calendar, so we only check the reservation key existence
+        // Note: CANCELLED and COLLECTED keys are removed from reservationKeys set, so this check
+        // primarily catches active reservations (PENDING, CONFIRMED, IN_USE, COMPLETED)
         if (s.reservationKeys.contains(reservationKey)) {
             uint8 existingStatus = s.reservations[reservationKey].status;
-            // Allow reuse only if previous reservation was cancelled or collected
-            if (existingStatus != CANCELLED && existingStatus != COLLECTED) {
-                revert("Not available");
-            }
+            // This should only trigger for PENDING, CONFIRMED, IN_USE, or COMPLETED
+            // (CANCELLED and COLLECTED are already removed from the set)
+            revert("Not available");
         }
         
         // Gas optimizations: O(1) operations
@@ -211,16 +218,25 @@ contract ReservationFacet is ReservableTokenEnumerable, ReentrancyGuard {
         address userTrackingKey = address(uint160(uint256(keccak256(abi.encodePacked(institutionalProvider, puc)))));
         
         // Check user hasn't exceeded reservation limit (including PENDING)
+        // If at limit, try to auto-release expired reservations first
         if (s.activeReservationCountByTokenAndUser[_labId][userTrackingKey] >= MAX_RESERVATIONS_PER_LAB_USER) {
-            revert MaxReservationsReached();
+            // Attempt to free up slots by releasing expired reservations
+            _releaseExpiredReservationsInternal(_labId, userTrackingKey, MAX_RESERVATIONS_PER_LAB_USER);
+            
+            // Check again after auto-release attempt
+            if (s.activeReservationCountByTokenAndUser[_labId][userTrackingKey] >= MAX_RESERVATIONS_PER_LAB_USER) {
+                revert MaxReservationsReached();
+            }
         }
         
         // Check availability: Only check if key exists with non-cancelled/non-collected status
+        // Note: CANCELLED and COLLECTED keys are removed from reservationKeys set, so this check
+        // primarily catches active reservations (PENDING, CONFIRMED, IN_USE, COMPLETED)
         if (s.reservationKeys.contains(reservationKey)) {
             uint8 existingStatus = s.reservations[reservationKey].status;
-            if (existingStatus != CANCELLED && existingStatus != COLLECTED) {
-                revert("Not available");
-            }
+            // This should only trigger for PENDING, CONFIRMED, IN_USE, or COMPLETED
+            // (CANCELLED and COLLECTED are already removed from the set)
+            revert("Not available");
         }
 
         // Verify institutional treasury has sufficient balance and user hasn't exceeded limit
@@ -602,7 +618,7 @@ contract ReservationFacet is ReservableTokenEnumerable, ReentrancyGuard {
     /// @custom:modifier isLabProvider - Restricts access to registered lab providers
     /// @dev Transfers the total amount of tokens from all eligible reservations to the provider
     /// @custom:revert "Invalid batch size" if maxBatch is 0 or > 100
-    /// @custom:revert "No funds" if no eligible reservations were found
+    /// @custom:revert "No completed reservations" if no eligible reservations were found
     /// @custom:revert If the ERC20 transfer fails
     /// @custom:gas Optimized with batching to prevent gas limit issues
     /// @custom:security Uses dynamic ownership check to prevent old owners from claiming funds
@@ -635,9 +651,10 @@ contract ReservationFacet is ReservableTokenEnumerable, ReentrancyGuard {
                     totalAmount += reservation.price;    
                     reservation.status = COLLECTED;  
                     
-                    // Remove from BOTH indices
+                    // Remove from ALL indices (including global set)
                     reservationKeys.remove(key);
                     s.reservationsProvider[reservation.labProvider].remove(key);
+                    s.reservationKeys.remove(key); // Remove from global set to free storage
                     
                     // Use correct tracking key (institutional vs wallet)
                     address trackingKey;
@@ -660,11 +677,11 @@ contract ReservationFacet is ReservableTokenEnumerable, ReentrancyGuard {
                     }
                     
                     --len; // Adjust length after removal
-                    if (i > 0) --i; // Re-check same index (safe: no underflow at i=0)
-                    // Note: When i==0, no decrement needed. The removed element at index 0 causes
-                    // the element at index 1 to shift down to index 0. The loop's i++ makes i=1,
-                    // correctly skipping the now-processed element. On next requestFunds() call,
-                    // the loop restarts at i=0 and processes any remaining elements at that index.
+                    if (i > 0) --i; // Re-check same index (safe: guarded against underflow when i==0)
+                    // Removal shifts elements left, so we need to re-check the same index.
+                    // When i==0: Guard prevents underflow. Loop's i++ advances to i=1, which is correct
+                    //            because the old element at index 0 was removed and processed.
+                    // When i>0: --i counteracts the upcoming i++, keeping us at the same index.
                     unchecked { ++processed; }
                 }
             }
@@ -716,14 +733,26 @@ contract ReservationFacet is ReservableTokenEnumerable, ReentrancyGuard {
         external 
         returns (uint256 processed) 
     {
-        // Only user or provider can release to prevent unauthorized quota manipulation
-        address labProvider = IERC721(address(this)).ownerOf(_labId);
-        if (msg.sender != _user && msg.sender != labProvider) {
-            revert("Only user or provider can release");
+        // Only the user can release their own quota to prevent manipulation
+        if (msg.sender != _user) {
+            revert("Only user can release their quota");
         }
         
         if (maxBatch == 0 || maxBatch > 50) revert("Invalid batch size");
         
+        // Delegate to internal function
+        return _releaseExpiredReservationsInternal(_labId, _user, maxBatch);
+    }
+
+    /// @dev Internal helper to release expired reservations without access control checks
+    /// @param _labId The lab ID to clean up expired reservations for
+    /// @param _user The user address (or tracking key for institutional users)
+    /// @param maxBatch Maximum number of reservations to process
+    /// @return processed Number of reservations marked as COMPLETED
+    function _releaseExpiredReservationsInternal(uint256 _labId, address _user, uint256 maxBatch) 
+        internal 
+        returns (uint256 processed) 
+    {
         AppStorage storage s = _s();
         EnumerableSet.Bytes32Set storage userReservations = s.reservationKeysByTokenAndUser[_labId][_user];
         uint256 len = userReservations.length();
@@ -736,10 +765,11 @@ contract ReservationFacet is ReservableTokenEnumerable, ReentrancyGuard {
             if (reservation.end < block.timestamp && reservation.status == CONFIRMED) {
                 reservation.status = COMPLETED;
                 
-                // Remove from all indices
+                // Remove from all indices (including global set)
                 userReservations.remove(key);
                 s.reservationsByLabId[_labId].remove(key);
                 s.reservationsProvider[reservation.labProvider].remove(key);
+                s.reservationKeys.remove(key); // Remove from global set to free storage
                 
                 // Decrement active reservation counter
                 s.activeReservationCountByTokenAndUser[_labId][_user]--;

@@ -59,28 +59,32 @@ struct Lab {
 
 /// @notice Struct representing a lab reservation
 /// @dev Stores reservation details including lab ID, renter address, pricing and timestamps
+///      Optimized storage layout to minimize gas costs:
+///      - Slot 0: labId (uint256 - 32 bytes)
+///      - Slot 1: renter (address - 20 bytes) + price (uint96 - 12 bytes) = 32 bytes
+///      - Slot 2: labProvider (address - 20 bytes) + status (uint8 - 1 byte) + start (uint32 - 4 bytes) + end (uint32 - 4 bytes) = 29 bytes
+///      - Slot 3: puc (string - 32 bytes pointer)
+///      - Slot 4: requestPeriodStart (uint256 - 32 bytes)
+///      Total: 5 slots (vs 7 slots in unoptimized version)
 /// @param labId Unique identifier of the lab being reserved
 /// @param renter Address of the user making the reservation
-/// @param labProvider Address of the lab provider (owner at reservation time)
 /// @param price Cost of the reservation in wei
+/// @param labProvider Address of the lab provider (owner at reservation time)
+/// @param status Current state of the reservation (0=PENDING, 1=CONFIRMED, 2=IN_USE, 3=COMPLETED, 4=COLLECTED, 5=CANCELLED)
 /// @param start Starting timestamp of the reservation (as uint32)
 /// @param end Ending timestamp of the reservation (as uint32)
-/// @param status Current state of the reservation:
-///        0 = PENDING (requested, not paid, not blocking calendar)
-///        1 = CONFIRMED (paid, blocking calendar)
-///        2 = IN_USE (actively being used)
-///        3 = COMPLETED (expired, awaiting provider collection)
-///        4 = COLLECTED (provider collected funds)
-///        5 = CANCELLED (cancelled by user/provider/admin)
+/// @param puc schacPersonalUniqueCode for institutional reservations (empty for wallet reservations)
+/// @param requestPeriodStart Period start timestamp when institutional reservation was requested (0 for wallet, used for slippage protection)
 struct Reservation {
-        uint256 labId;
-        address renter;
-        address labProvider;
-        uint96 price;
-        uint32 start;
-        uint32 end; 
-        uint status;
-        string puc; // Empty for wallet reservations, filled for institutional reservations
+        uint256 labId;           // Slot 0: 32 bytes
+        address renter;          // Slot 1: 20 bytes
+        uint96 price;            // Slot 1: +12 bytes = 32 bytes total
+        address labProvider;     // Slot 2: 20 bytes
+        uint8 status;            // Slot 2: +1 byte
+        uint32 start;            // Slot 2: +4 bytes
+        uint32 end;              // Slot 2: +4 bytes = 29 bytes total
+        string puc;              // Slot 3: 32 bytes (pointer)
+        uint256 requestPeriodStart; // Slot 4: 32 bytes
 }
 
 /// @notice Represents a node in a red-black tree data structure, necessary for the library RivalIntervalTree Node data structure
@@ -148,8 +152,7 @@ struct InstitutionalUserSpending {
 /// @custom:member reservations Mapping of reservation hashes to reservation details
 /// @custom:member renters Mapping of renter addresses to their reservation hashes
 /// @custom:member reservationKeys Set of all reservation hashes in the system
-/// @custom:member reservationCountByToken Mapping of token IDs to their reservation counts
-/// @custom:member reservationKeysByToken Mapping of token IDs to their reservation hashes
+/// @custom:member reservationKeysByToken Mapping of token IDs to their reservation hashes (use .length() for count)
 /// @custom:member reservationsProvider Mapping of provider addresses to their pending reservation hashes
 /// @custom:member activeReservationByTokenAndUser Mapping of token IDs and user addresses to their active reservation hashes
 /// @custom:member activeReservationCountByTokenAndUser Mapping of token IDs and user addresses to their active reservation count
@@ -174,7 +177,6 @@ struct AppStorage {
     mapping(bytes32 => Reservation) reservations; 
     mapping(address => EnumerableSet.Bytes32Set) renters; 
     EnumerableSet.Bytes32Set reservationKeys;
-    mapping (uint256 => uint256) reservationCountByToken;
     mapping (uint256 => EnumerableSet.Bytes32Set) reservationKeysByToken;
     mapping (address => EnumerableSet.Bytes32Set) reservationsProvider; 
     mapping (uint256 => EnumerableSet.Bytes32Set) reservationsByLabId;

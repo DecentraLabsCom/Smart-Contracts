@@ -38,7 +38,7 @@ contract StakingFacet is AccessControlUpgradeable {
     /// @param newTotalStake The total amount staked by the provider after this operation
     event TokensStaked(
         address indexed provider, 
-        uint256 amount, 
+        uint256 indexed amount, 
         uint256 newTotalStake
     );
     
@@ -48,7 +48,7 @@ contract StakingFacet is AccessControlUpgradeable {
     /// @param remainingStake The remaining staked amount
     event TokensUnstaked(
         address indexed provider, 
-        uint256 amount, 
+        uint256 indexed amount, 
         uint256 remainingStake
     );
     
@@ -59,7 +59,7 @@ contract StakingFacet is AccessControlUpgradeable {
     /// @param remainingStake The remaining staked amount after slash
     event ProviderSlashed(
         address indexed provider, 
-        uint256 amount, 
+        uint256 indexed amount, 
         string reason,
         uint256 remainingStake
     );
@@ -70,7 +70,7 @@ contract StakingFacet is AccessControlUpgradeable {
     /// @param reason The reason for burning
     event StakeBurned(
         address indexed provider, 
-        uint256 amount, 
+        uint256 indexed amount, 
         string reason
     );
     
@@ -242,8 +242,10 @@ contract StakingFacet is AccessControlUpgradeable {
     function slashProvider(
         address provider, 
         uint256 amount, 
-        string memory reason
+        string calldata reason
     ) external defaultAdminRole {
+        require(provider != address(0), "StakingFacet: invalid provider address");
+        
         AppStorage storage s = _s();
         
         require(amount > 0, "StakingFacet: amount must be greater than 0");
@@ -277,6 +279,8 @@ contract StakingFacet is AccessControlUpgradeable {
     /// @dev Called by ProviderFacet when removeProvider is executed
     /// @param provider The address of the provider being removed
     function burnStakeOnRemoval(address provider) external defaultAdminRole {
+        require(provider != address(0), "StakingFacet: invalid provider address");
+        
         AppStorage storage s = _s();
         
         uint256 stakedAmount = s.providerStakes[provider].stakedAmount;

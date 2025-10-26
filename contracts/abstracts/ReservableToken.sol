@@ -78,7 +78,7 @@ abstract contract ReservableToken {
     /// @param start The start timestamp of the reservation period.
     /// @param end The end timestamp of the reservation period.
     /// @param reservationKey A unique key identifying the reservation.
-    event ReservationRequested(address indexed renter, uint256 indexed tokenId, uint256 start, uint256 end, bytes32 reservationKey);
+    event ReservationRequested(address indexed renter, uint256 indexed tokenId, uint256 start, uint256 end, bytes32 indexed reservationKey);
     
     /// @notice Emitted when a reservation is successfully confirmed.
     /// @param reservationKey The unique identifier for the confirmed reservation.
@@ -202,7 +202,7 @@ abstract contract ReservableToken {
         EnumerableSet.Bytes32Set storage labReservations = s.reservationsByLabId[_tokenId];
         uint256 reservationCount = labReservations.length();
         
-        for (uint256 i = 0; i < reservationCount; i++) {
+        for (uint256 i = 0; i < reservationCount;) {
             bytes32 key = labReservations.at(i);
             uint8 status = s.reservations[key].status;
             
@@ -213,6 +213,8 @@ abstract contract ReservableToken {
             if (status == CONFIRMED || status == IN_USE || status == COMPLETED) {
                 revert("Cannot unlist: active reservations exist");
             }
+            
+            unchecked { ++i; }
         }
         
         // Decrement listed count
@@ -384,11 +386,11 @@ abstract contract ReservableToken {
     /// @notice Checks if a specific time range is available for a given token ID.
     /// @dev The function verifies that the start time is less than the end time and that the start time is in the future.
     ///      It then checks if the specified time range overlaps with any existing reservations in the token's calendar.
+    ///      Logic flow: hasConflict() returns TRUE if overlap exists, so we negate it to return TRUE when available.
     /// @param _tokenId The ID of the token to check availability for.
     /// @param _start The start timestamp of the time range to check.
     /// @param _end The end timestamp of the time range to check.
     /// @return bool Returns true if the time range is available (no overlaps), false otherwise (has conflicts).
-    /// @custom:security-fix Inverted logic - overlaps() returns true on conflict, we return false on conflict
     function checkAvailable(uint256 _tokenId, uint256 _start, uint256 _end) public view virtual exists(_tokenId) returns (bool) {
         // Early return pattern - invalid ranges are not available
         if (_start >= _end || _start <= block.timestamp) return false;
@@ -536,7 +538,7 @@ abstract contract ReservableToken {
     /// @custom:use-case Dashboard analytics, revenue calculations, occupancy metrics
     function getReservationStats(uint256 _tokenId) 
         external view virtual exists(_tokenId) 
-        returns (uint32 count, uint32 firstStart, uint32 lastEnd, uint64 totalDuration) 
+        returns (uint32 count, uint32 firstStart, uint32 lastEnd, uint256 totalDuration) 
     {
         Tree storage calendar = _s().calendars[_tokenId];
         
@@ -561,13 +563,13 @@ abstract contract ReservableToken {
     /// @return nodeCount Number of nodes in subtree
     /// @return duration Total duration of all reservations in subtree
     function _calculateStats(Tree storage calendar, uint cursor) 
-        private view returns (uint32 nodeCount, uint64 duration) 
+        private view returns (uint32 nodeCount, uint256 duration) 
     {
         if (cursor == 0) return (0, 0);
         
         // Recursively process left and right subtrees
-        (uint32 leftCount, uint64 leftDuration) = _calculateStats(calendar, calendar.nodes[cursor].left);
-        (uint32 rightCount, uint64 rightDuration) = _calculateStats(calendar, calendar.nodes[cursor].right);
+        (uint32 leftCount, uint256 leftDuration) = _calculateStats(calendar, calendar.nodes[cursor].left);
+        (uint32 rightCount, uint256 rightDuration) = _calculateStats(calendar, calendar.nodes[cursor].right);
         
         // Current node duration
         uint32 nodeDuration = calendar.nodes[cursor].end - uint32(cursor);
@@ -670,9 +672,12 @@ abstract contract ReservableToken {
         
         uint32 searchStart = _rangeStart;
         
-        for (uint i = 0; i < bookStarts.length; i++) {
+        for (uint i = 0; i < bookStarts.length;) {
             // Skip bookings that end before our range
-            if (bookEnds[i] <= _rangeStart) continue;
+            if (bookEnds[i] <= _rangeStart) {
+                unchecked { ++i; }
+                continue;
+            }
             
             // Stop if booking starts after our range
             if (bookStarts[i] >= _rangeEnd) break;
@@ -690,6 +695,8 @@ abstract contract ReservableToken {
             
             // If we've covered the entire range, stop
             if (searchStart >= _rangeEnd) break;
+            
+            unchecked { ++i; }
         }
         
         // Check final gap after last booking
@@ -702,9 +709,11 @@ abstract contract ReservableToken {
         // Copy to correctly sized arrays
         slotStarts = new uint32[](gapCount);
         slotEnds = new uint32[](gapCount);
-        for (uint i = 0; i < gapCount; i++) {
+        
+        for (uint i = 0; i < gapCount;) {
             slotStarts[i] = tempStarts[i];
             slotEnds[i] = tempEnds[i];
+            unchecked { ++i; }
         }
         
         return (slotStarts, slotEnds);

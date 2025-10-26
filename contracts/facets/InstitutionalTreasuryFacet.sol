@@ -4,6 +4,7 @@ pragma solidity ^0.8.23;
 import {LibAppStorage, AppStorage} from "../libraries/LibAppStorage.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {ReentrancyGuard} from "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import "../external/LabERC20.sol";
 
 using SafeERC20 for IERC20;
@@ -13,7 +14,7 @@ using SafeERC20 for IERC20;
 /// @author Juan Luis Ramos Villalón
 /// @notice Allows providers to assign and manage token balances for institutional users (SAML2 schacPersonalUniqueCode)
 /// @dev Uses LabERC20 token for deposits and spending. Implements backend authorization pattern for institutional users.
-contract InstitutionalTreasuryFacet {
+contract InstitutionalTreasuryFacet is ReentrancyGuard {
     
     /// @notice Emitted when a provider authorizes a backend address
     event BackendAuthorized(address indexed provider, address indexed backend);
@@ -22,10 +23,10 @@ contract InstitutionalTreasuryFacet {
     event BackendRevoked(address indexed provider, address indexed backend);
     
     /// @notice Emitted when tokens are deposited to institutional treasury
-    event InstitutionalTreasuryDeposit(address indexed provider, uint256 amount, uint256 newBalance);
+    event InstitutionalTreasuryDeposit(address indexed provider, uint256 indexed amount, uint256 newBalance);
     
     /// @notice Emitted when tokens are withdrawn from institutional treasury
-    event InstitutionalTreasuryWithdrawal(address indexed provider, uint256 amount, uint256 newBalance);
+    event InstitutionalTreasuryWithdrawal(address indexed provider, uint256 indexed amount, uint256 newBalance);
     
     /// @notice Emitted when institutional user spending limit is updated
     event InstitutionalUserLimitUpdated(address indexed provider, uint256 newLimit);
@@ -34,7 +35,8 @@ contract InstitutionalTreasuryFacet {
     event InstitutionalSpendingPeriodUpdated(address indexed provider, uint256 newPeriod);
     
     /// @notice Emitted when an institutional user spends tokens
-    event InstitutionalUserSpent(address indexed provider, string puc, uint256 amount, uint256 totalSpent, uint256 periodStart);
+    /// @dev The puc parameter is indexed as keccak256 hash for efficient filtering
+    event InstitutionalUserSpent(address indexed provider, string indexed puc, uint256 amount, uint256 totalSpent, uint256 periodStart);
     
     /// @dev Modifier to check if caller is authorized (backend or internal Diamond call)
     /// @param provider The provider address
@@ -108,7 +110,8 @@ contract InstitutionalTreasuryFacet {
     /// @notice Deposit tokens to the provider's institutional treasury (global)
     /// @dev Provider must approve tokens before calling this function
     /// @param amount Amount of tokens to deposit
-    function depositToInstitutionalTreasury(uint256 amount) external {
+    /// @custom:security nonReentrant modifier protects against reentrancy attacks
+    function depositToInstitutionalTreasury(uint256 amount) external nonReentrant {
         AppStorage storage s = LibAppStorage.diamondStorage();
         require(amount > 0, "Amount must be > 0");
         
@@ -122,7 +125,8 @@ contract InstitutionalTreasuryFacet {
     /// @notice Withdraw tokens from the provider's institutional treasury
     /// @dev Allows provider to retrieve unspent funds from their treasury
     /// @param amount Amount of tokens to withdraw
-    function withdrawFromInstitutionalTreasury(uint256 amount) external {
+    /// @custom:security nonReentrant modifier protects against reentrancy attacks
+    function withdrawFromInstitutionalTreasury(uint256 amount) external nonReentrant {
         AppStorage storage s = LibAppStorage.diamondStorage();
         require(amount > 0, "Amount must be > 0");
         require(s.institutionalTreasury[msg.sender] >= amount, "Insufficient treasury balance");
@@ -242,7 +246,7 @@ contract InstitutionalTreasuryFacet {
     /// @param provider The provider who owns the treasury
     /// @param puc The schacPersonalUniqueCode of the user
     /// @param amount Amount to refund
-    /// @custom:security-fix Removed period reset to allow past-period refunds (e.g., after rollover)
+    /// @custom:security Removed period reset to allow past-period refunds (e.g., after rollover)
     function refundToInstitutionalTreasury(address provider, string calldata puc, uint256 amount) 
         external 
         onlyAuthorizedBackendOrInternal(provider) 

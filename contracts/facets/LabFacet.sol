@@ -29,6 +29,14 @@ using EnumerableSet for EnumerableSet.Bytes32Set;
 contract LabFacet is ERC721EnumerableUpgradeable, ReservableToken {
     using LibAccessControlEnumerable for AppStorage;
 
+    /// @dev Maximum number of reservation indices to clean up during NFT transfer
+    /// @notice Higher values reduce memory leaks but increase gas cost
+    uint256 private constant MAX_CLEANUP_PER_TRANSFER = 100;
+    
+    /// @dev Maximum number of reservations to check in _hasActiveBookings
+    /// @notice Conservative limit to prevent DoS attacks during lab deletion
+    uint256 private constant MAX_RESERVATIONS_CHECK = 100;
+
     /// @dev Emitted when a new lab is added to the system.
     /// @param _labId The unique identifier of the lab.
     /// @param _provider The address of the provider adding the lab.
@@ -66,6 +74,18 @@ contract LabFacet is ERC721EnumerableUpgradeable, ReservableToken {
     /// @dev Emitted when a lab is deleted.
     /// @param _labId The unique identifier of the lab.
     event LabDeleted(uint256 indexed _labId);
+
+    /// @dev Emitted when a lab is transferred and its provider changes
+    /// @param reservationKey The unique identifier of the affected reservation
+    /// @param labId The unique identifier of the lab
+    /// @param oldProvider The previous provider address
+    /// @param newProvider The new provider address
+    event ReservationProviderUpdated(
+        bytes32 indexed reservationKey,
+        uint256 indexed labId,
+        address indexed oldProvider,
+        address newProvider
+    );
 
     /// @dev Emitted when the URI of a lab is set.
     /// @param _labId The unique identifier of the lab.
@@ -124,12 +144,18 @@ contract LabFacet is ERC721EnumerableUpgradeable, ReservableToken {
     /// @dev Emits a {LabAdded} event upon successful execution.
     /// @dev Note: The lab is created but not listed. Use listToken() or addAndListLab() to make it available.
     function addLab(
-        string memory _uri,
+        string calldata _uri,
         uint96 _price,
-        string memory _auth,
-        string memory _accessURI,
-        string memory _accessKey
+        string calldata _auth,
+        string calldata _accessURI,
+        string calldata _accessKey
     ) external isLabProvider {
+        // Validate string lengths to prevent DoS attacks
+        require(bytes(_uri).length > 0 && bytes(_uri).length <= 500, "Invalid URI length");
+        require(bytes(_auth).length > 0 && bytes(_auth).length <= 500, "Invalid auth length");
+        require(bytes(_accessURI).length > 0 && bytes(_accessURI).length <= 500, "Invalid accessURI length");
+        require(bytes(_accessKey).length > 0 && bytes(_accessKey).length <= 200, "Invalid accessKey length");
+        
         AppStorage storage s = _s();
         
         // Calculate next lab ID (but don't increment storage yet)
@@ -175,12 +201,18 @@ contract LabFacet is ERC721EnumerableUpgradeable, ReservableToken {
     /// @dev Emits both {LabAdded} and {LabListed} events upon successful execution.
     /// @dev Reverts if the provider does not have sufficient staked tokens.
     function addAndListLab(
-        string memory _uri,
+        string calldata _uri,
         uint96 _price,
-        string memory _auth,
-        string memory _accessURI,
-        string memory _accessKey
+        string calldata _auth,
+        string calldata _accessURI,
+        string calldata _accessKey
     ) external isLabProvider {
+        // Validate string lengths to prevent DoS attacks
+        require(bytes(_uri).length > 0 && bytes(_uri).length <= 500, "Invalid URI length");
+        require(bytes(_auth).length > 0 && bytes(_auth).length <= 500, "Invalid auth length");
+        require(bytes(_accessURI).length > 0 && bytes(_accessURI).length <= 500, "Invalid accessURI length");
+        require(bytes(_accessKey).length > 0 && bytes(_accessKey).length <= 200, "Invalid accessKey length");
+        
         AppStorage storage s = _s();
         
         // Calculate required stake for new listed count
@@ -268,13 +300,18 @@ contract LabFacet is ERC721EnumerableUpgradeable, ReservableToken {
     /// @param _accessKey The new access key for the Lab.
     /// @dev Emits a {LabUpdated} event upon successful execution
     function updateLab(
-        uint _labId,
-        string memory _uri,
+        uint256 _labId,
+        string calldata _uri,
         uint96 _price,
-        string memory _auth,
-        string memory _accessURI,
-        string memory _accessKey
+        string calldata _auth,
+        string calldata _accessURI,
+        string calldata _accessKey
     ) external onlyLabProvider(_labId) {
+        // Validate string lengths to prevent DoS attacks
+        require(bytes(_uri).length > 0 && bytes(_uri).length <= 500, "Invalid URI length");
+        require(bytes(_auth).length > 0 && bytes(_auth).length <= 500, "Invalid auth length");
+        require(bytes(_accessURI).length > 0 && bytes(_accessURI).length <= 500, "Invalid accessURI length");
+        require(bytes(_accessKey).length > 0 && bytes(_accessKey).length <= 200, "Invalid accessKey length");
        
         _s().labs[_labId] = LabBase(
             _uri,
@@ -293,7 +330,7 @@ contract LabFacet is ERC721EnumerableUpgradeable, ReservableToken {
     /// @param _labId The ID of the Lab to be deleted.
     /// @custom:security Cannot delete lab with active CONFIRMED or IN_USE reservations
     /// @custom:optimization Uses O(1) tree root check before expensive O(n) iteration
-    function deleteLab(uint _labId) external  onlyLabProvider(_labId) {
+    function deleteLab(uint256 _labId) external onlyLabProvider(_labId) {
         AppStorage storage s = _s();
         
         // Fast O(1) check: if calendar tree is empty, skip expensive iteration
@@ -324,6 +361,7 @@ contract LabFacet is ERC721EnumerableUpgradeable, ReservableToken {
 
     /// @notice Checks if a lab has any active (CONFIRMED or IN_USE status) reservations
     /// @dev Internal helper function to prevent lab deletion with active bookings
+    ///      Limited to check max 100 reservations to prevent DoS attacks.
     /// @param _labId The ID of the lab to check
     /// @return true if there are any reservations with CONFIRMED or IN_USE status for this lab
     function _hasActiveBookings(uint256 _labId) internal view returns (bool) {
@@ -331,16 +369,21 @@ contract LabFacet is ERC721EnumerableUpgradeable, ReservableToken {
         EnumerableSet.Bytes32Set storage reservationKeys = s.reservationKeysByToken[_labId];
         uint256 length = reservationKeys.length();
         
-        for (uint256 i = 0; i < length; i++) {
+        // If we can't check all reservations, assume there are active bookings
+        uint256 maxCheck = length > MAX_RESERVATIONS_CHECK ? MAX_RESERVATIONS_CHECK : length;
+        
+        for (uint256 i = 0; i < maxCheck;) {
             bytes32 key = reservationKeys.at(i);
             // Check for both CONFIRMED and IN_USE (active paid reservations)
             uint8 status = s.reservations[key].status;
             if (status == CONFIRMED || status == IN_USE) {
                 return true;
             }
+            unchecked { ++i; }
         }
         
-        return false;
+        // Prevents deletion of labs with >MAX_RESERVATIONS_CHECK (conservative but safe)
+        return length > MAX_RESERVATIONS_CHECK;
     }
 
     /// @notice Retrieves the details of a Lab by its ID.
@@ -370,8 +413,9 @@ contract LabFacet is ERC721EnumerableUpgradeable, ReservableToken {
         
         ids = new uint256[](count);
         
-        for (uint256 i = 0; i < count; i++) {
+        for (uint256 i = 0; i < count;) {
             ids[i] = tokenByIndex(offset + i);
+            unchecked { ++i; }
         }
         
         return (ids, total);
@@ -487,28 +531,34 @@ contract LabFacet is ERC721EnumerableUpgradeable, ReservableToken {
             // Transfer CONFIRMED/IN_USE reservations from old owner's index to new owner's index
             // This prevents memory leak in reservationsProvider[oldOwner]
             // 
-            // GAS SAFETY: Limit to MAX_TRANSFER_CLEANUP (50) reservations per transfer
-            // If lab has more than 50 active reservations, remaining create minor memory leak 
-            // (trade-off for DoS prevention)
+            // GAS SAFETY: If lab has more than MAX_CLEANUP_PER_TRANSFER active reservations, 
+            // remaining indices will create minor memory leak (trade-off for DoS prevention)
+            // Worst case: ~20,000 gas per orphaned slot, max 20k gas leak for extreme cases
             EnumerableSet.Bytes32Set storage labReservations = s.reservationsByLabId[_tokenId];
             uint256 reservationCount = labReservations.length();
-            uint256 maxCleanup = 50; // Limit to prevent DoS
-            uint256 cleanupCount = reservationCount < maxCleanup ? reservationCount : maxCleanup;
+            uint256 cleanupCount = reservationCount < MAX_CLEANUP_PER_TRANSFER ? reservationCount : MAX_CLEANUP_PER_TRANSFER;
             
-            for (uint256 i = 0; i < cleanupCount; i++) {
+            for (uint256 i = 0; i < cleanupCount;) {
                 bytes32 key = labReservations.at(i);
-                Reservation storage res = s.reservations[key];
+                
+                // Cache status in memory to save SLOAD
+                uint8 status = s.reservations[key].status;
                 
                 // Only update CONFIRMED or IN_USE reservations 
                 // (PENDING don't have provider index yet, others are finished)
-                if (res.status == CONFIRMED || res.status == IN_USE) {
+                if (status == CONFIRMED || status == IN_USE) {
                     // Update labProvider to new owner
-                    res.labProvider = _to;
+                    s.reservations[key].labProvider = _to;
                     
                     // Move from old provider's index to new provider's index
                     s.reservationsProvider[from].remove(key);
                     s.reservationsProvider[_to].add(key);
+                    
+                    // Emit event for off-chain tracking
+                    emit ReservationProviderUpdated(key, _tokenId, from, _to);
                 }
+                
+                unchecked { ++i; }
             }
         }
         

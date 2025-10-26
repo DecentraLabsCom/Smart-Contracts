@@ -46,13 +46,13 @@ contract ReservationFacet is ReservableTokenEnumerable, ReentrancyGuard {
     /// @param user Address of the user attempting the purchase 
     /// @param funds Amount of funds the user has available
     /// @param price Required price for the purchase
-    error InsuficientsFunds(address user, uint256 funds, uint256 price);
+    error InsufficientFunds(address user, uint256 funds, uint256 price);
 
     /// @notice Emitted when a provider successfully collects funds from completed reservations
     /// @param provider The address of the lab provider
     /// @param amount Total amount of tokens collected
     /// @param reservationsProcessed Number of reservations that were processed
-    event FundsCollected(address indexed provider, uint256 amount, uint256 reservationsProcessed);
+    event FundsCollected(address indexed provider, uint256 indexed amount, uint256 reservationsProcessed);
 
     /// @dev Modifier to restrict access to functions that can only be executed by accounts
     ///      with the `DEFAULT_ADMIN_ROLE`. Ensures that the caller of the function has the
@@ -77,7 +77,7 @@ contract ReservationFacet is ReservableTokenEnumerable, ReentrancyGuard {
     /// @param _labId The ID of the lab to reserve
     /// @param _start The start timestamp of the reservation
     /// @param _end The end timestamp of the reservation
-    /// @custom:throws InsuficientsFunds if user has insufficient token balance
+    /// @custom:throws InsufficientFunds if user has insufficient token balance
     /// @custom:throws Error if time range is invalid or slot not available
     /// @custom:emits ReservationRequested when reservation is created
     /// @custom:requirements 
@@ -121,7 +121,7 @@ contract ReservationFacet is ReservableTokenEnumerable, ReentrancyGuard {
 
         // Verify user has sufficient balance and allowance (but don't transfer yet)
         uint256 balance = IERC20(tokenAddr).balanceOf(msg.sender);
-        if (balance < price) revert InsuficientsFunds(msg.sender, balance, price);
+        if (balance < price) revert InsufficientFunds(msg.sender, balance, price);
         
         uint256 allowance = IERC20(tokenAddr).allowance(msg.sender, address(this));
         if (allowance < price) revert("Insufficient allowance");
@@ -138,8 +138,7 @@ contract ReservationFacet is ReservableTokenEnumerable, ReentrancyGuard {
             revert("Not available");
         }
         
-        // Gas optimizations: O(1) operations
-        s.reservationCountByToken[_labId]++;
+        // Add to enumerable set (maintains count internally)
         s.reservationKeysByToken[_labId].add(reservationKey);
         
         // Direct struct initialization - includes labProvider for safety
@@ -151,7 +150,8 @@ contract ReservationFacet is ReservableTokenEnumerable, ReentrancyGuard {
             start: _start,
             end: _end,
             status: PENDING,
-            puc: "" // Empty for wallet reservations
+            puc: "", // Empty for wallet reservations
+            requestPeriodStart: 0 // 0 for wallet reservations (only used for institutional)
         });
         
         // Add to tracking sets
@@ -195,6 +195,10 @@ contract ReservationFacet is ReservableTokenEnumerable, ReentrancyGuard {
         
         require(s.institutionalBackends[institutionalProvider] != address(0), "No authorized backend");
         require(msg.sender == s.institutionalBackends[institutionalProvider], "Caller must be authorized backend");
+        
+        // Validate puc format and length
+        require(bytes(puc).length > 0, "PUC cannot be empty");
+        require(bytes(puc).length <= 256, "PUC too long");
         
         // Check if lab is listed for reservations
         if (!s.tokenStatus[_labId]) revert("Lab not listed for reservations");
@@ -246,8 +250,11 @@ contract ReservationFacet is ReservableTokenEnumerable, ReentrancyGuard {
             puc, 
             price
         );
+        
+        // Store current period start for slippage protection
+        uint256 periodDuration = s.institutionalProviders[institutionalProvider].spendingPeriodDuration;
+        uint256 currentPeriodStart = (block.timestamp / periodDuration) * periodDuration;
 
-        s.reservationCountByToken[_labId]++;
         s.reservationKeysByToken[_labId].add(reservationKey);
         
         // Create reservation with renter as the institutional provider (for accounting)
@@ -261,7 +268,8 @@ contract ReservationFacet is ReservableTokenEnumerable, ReentrancyGuard {
             start: _start,
             end: _end,
             status: PENDING,
-            puc: puc // Store PUC to identify institutional reservations
+            puc: puc, // Store PUC to identify institutional reservations
+            requestPeriodStart: currentPeriodStart
         });
         
         s.reservationKeys.add(reservationKey);
@@ -374,6 +382,19 @@ contract ReservationFacet is ReservableTokenEnumerable, ReentrancyGuard {
         
         // Update stored labProvider in case of NFT transfer between request and confirmation
         reservation.labProvider = labProvider;
+        
+        // Verify the spending period hasn't changed since request
+        // This prevents exploits where a user makes a request at the end of a period,
+        // and gets it confirmed in the next period after the spent amount has reset to zero
+        uint256 periodDuration = s.institutionalProviders[institutionalProvider].spendingPeriodDuration;
+        uint256 currentPeriodStart = (block.timestamp / periodDuration) * periodDuration;
+        
+        if (currentPeriodStart != reservation.requestPeriodStart) {
+            // Period has changed - deny the reservation and require a fresh request
+            _cancelReservation(_reservationKey);
+            emit ReservationRequestDenied(_reservationKey, reservation.labId);
+            return;
+        }
 
         // Attempt to charge institutional treasury (use stored puc for consistency)
         try IInstitutionalTreasuryFacet(address(this)).spendFromInstitutionalTreasury(

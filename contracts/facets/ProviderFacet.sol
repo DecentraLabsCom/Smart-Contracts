@@ -126,11 +126,18 @@ contract ProviderFacet is AccessControlUpgradeable {
     /// @param _email The email address of the provider.
     /// @param _country The country of the provider.
     function addProvider(
-        string memory _name,
+        string calldata _name,
         address _account,
-        string memory _email,
-        string memory _country
+        string calldata _email,
+        string calldata _country
     ) external defaultAdminRole {
+        require(_account != address(0), "Invalid provider address");
+        
+        // Validate string lengths to prevent DoS attacks
+        require(bytes(_name).length > 0 && bytes(_name).length <= 100, "Invalid name length");
+        require(bytes(_email).length > 0 && bytes(_email).length <= 100, "Invalid email length");
+        require(bytes(_country).length > 0 && bytes(_country).length <= 50, "Invalid country length");
+        
         // Check if provider already exists (prevents duplicate additions)
         require(!hasRole(PROVIDER_ROLE, _account), "Provider already exists");
         
@@ -275,9 +282,9 @@ contract ProviderFacet is AccessControlUpgradeable {
     /// @param _email The updated email address of the provider.
     /// @param _country The updated country of the provider.
     function updateProvider(
-        string memory _name,
-        string memory _email,
-        string memory _country
+        string calldata _name,
+        string calldata _email,
+        string calldata _country
     ) external onlyRole(PROVIDER_ROLE) {
         _s().providers[msg.sender] = ProviderBase(_name, _email, _country);
         emit ProviderUpdated(msg.sender, _name, _email, _country);

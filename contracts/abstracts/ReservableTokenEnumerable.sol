@@ -70,8 +70,7 @@ abstract contract ReservableTokenEnumerable is ReservableToken {
 
         s.calendars[_tokenId].insert(_start, _end);
         
-        // Gas optimizations: O(1) operations
-        s.reservationCountByToken[_tokenId]++;
+        // Use EnumerableSet which maintains count internally
         s.reservationKeysByToken[_tokenId].add(reservationKey);
         
         // Get lab owner at reservation time for security and consistency
@@ -205,7 +204,7 @@ abstract contract ReservableTokenEnumerable is ReservableToken {
     /// @param _tokenId The ID of the token to query reservations for
     /// @return The total number of reservations for the specified token
     function getReservationsOfToken(uint256 _tokenId) public view virtual exists(_tokenId) returns (uint) {
-        return _s().reservationCountByToken[_tokenId];
+        return _s().reservationKeysByToken[_tokenId].length();
     }
 
     /// @notice Retrieves a specific reservation key for a token by its index
@@ -369,8 +368,7 @@ abstract contract ReservableTokenEnumerable is ReservableToken {
             }
         }
         
-        // Gas optimizations: O(1) operations
-        s.reservationCountByToken[reservation.labId]--;
+        // Remove from enumerable set (maintains count internally)
         s.reservationKeysByToken[reservation.labId].remove(_reservationKey);
         
         s.renters[reservation.renter].remove(_reservationKey);

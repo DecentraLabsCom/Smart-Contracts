@@ -336,9 +336,9 @@ contract LabFacet is ERC721EnumerableUpgradeable, ReservableToken {
         // Fast O(1) check: if calendar tree is empty, skip expensive iteration
         // This optimizes common cases
         if (s.calendars[_labId].root != 0) {
-            // Security check: Prevent deletion if there are active bookings
-            // This protects users' funds from being locked if lab is deleted
-            require(!_hasActiveBookings(_labId), "Cannot delete lab with active bookings");
+            // Security check: Prevent deletion if there are uncollected reservations
+            // This protects provider's funds from being locked if lab is deleted before collection
+            require(!_hasActiveBookings(_labId), "Cannot delete lab with uncollected reservations");
         }
         
         // Clean up listing status if lab was listed
@@ -359,11 +359,16 @@ contract LabFacet is ERC721EnumerableUpgradeable, ReservableToken {
         emit LabDeleted(_labId);
     }
 
-    /// @notice Checks if a lab has any active (CONFIRMED or IN_USE status) reservations
-    /// @dev Internal helper function to prevent lab deletion with active bookings
+    /// @notice Checks if a lab has any uncollected reservations (CONFIRMED, IN_USE, or COMPLETED)
+    /// @dev Internal helper function to prevent lab deletion with uncollected funds
     ///      Limited to check max 100 reservations to prevent DoS attacks.
+    ///      CRITICAL: Must include COMPLETED status to prevent fund loss bug where:
+    ///      1. Lab has COMPLETED reservations (expired but not collected)
+    ///      2. Provider deletes lab → NFT burned
+    ///      3. requestFunds() fails on ownerOf() revert
+    ///      4. Provider funds are permanently locked
     /// @param _labId The ID of the lab to check
-    /// @return true if there are any reservations with CONFIRMED or IN_USE status for this lab
+    /// @return true if there are any reservations with CONFIRMED, IN_USE, or COMPLETED status
     function _hasActiveBookings(uint256 _labId) internal view returns (bool) {
         AppStorage storage s = _s();
         EnumerableSet.Bytes32Set storage reservationKeys = s.reservationKeysByToken[_labId];
@@ -374,9 +379,9 @@ contract LabFacet is ERC721EnumerableUpgradeable, ReservableToken {
         
         for (uint256 i = 0; i < maxCheck;) {
             bytes32 key = reservationKeys.at(i);
-            // Check for both CONFIRMED and IN_USE (active paid reservations)
+            // Check for CONFIRMED, IN_USE, and COMPLETED (all states with uncollected funds)
             uint8 status = s.reservations[key].status;
-            if (status == CONFIRMED || status == IN_USE) {
+            if (status == CONFIRMED || status == IN_USE || status == COMPLETED) {
                 return true;
             }
             unchecked { ++i; }

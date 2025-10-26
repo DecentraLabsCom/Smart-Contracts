@@ -217,6 +217,9 @@ contract InstitutionalTreasuryFacet {
         s.institutionalTreasury[provider] -= amount;
         spending.amount = newSpent;
         
+        // Track total historical spending (never reset, used for refunds)
+        spending.totalHistoricalSpent += amount;
+        
         emit InstitutionalUserSpent(provider, puc, amount, newSpent, periodStart);
     }
 
@@ -241,11 +244,20 @@ contract InstitutionalTreasuryFacet {
         
         InstitutionalUserSpending storage spending = s.institutionalUserSpending[provider][puc];
         
-        // Allow refund even if period changed - spending.amount tracks historical spend from ANY period
-        require(spending.amount >= amount, "Refund exceeds total spent amount");
+        // Use totalHistoricalSpent for validation (never reset across periods)
+        // This allows refunds for bookings made in previous periods
+        require(spending.totalHistoricalSpent >= amount, "Refund exceeds total spent amount");
         
         s.institutionalTreasury[provider] += amount;
-        spending.amount -= amount;
+        
+        // Decrement both counters
+        spending.totalHistoricalSpent -= amount;
+        
+        // Only decrement current period amount if it's non-zero
+        // (prevents underflow if refunding old-period bookings after rollover)
+        if (spending.amount >= amount) {
+            spending.amount -= amount;
+        }
         
         emit InstitutionalUserSpent(provider, puc, 0, spending.amount, currentPeriodStart); // Emit with 0 to indicate refund
     }

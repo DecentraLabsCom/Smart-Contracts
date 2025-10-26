@@ -124,11 +124,13 @@ struct ProviderStake {
 
 /// @notice Struct representing institutional user spending in a period
 /// @dev Tracks spending with automatic period reset
-/// @param amount Amount spent in the current period
+/// @param amount Amount spent in the current period (for limit enforcement)
 /// @param periodStart Timestamp when the current spending period started
+/// @param totalHistoricalSpent Total amount ever spent (never reset, used for refunds)
 struct InstitutionalUserSpending {
     uint256 amount;
     uint256 periodStart;
+    uint256 totalHistoricalSpent;
 }
 
 /// @dev This struct is used to define the storage layout for the application.

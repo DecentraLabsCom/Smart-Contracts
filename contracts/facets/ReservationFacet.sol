@@ -599,14 +599,24 @@ contract ReservationFacet is ReservableTokenEnumerable, ReentrancyGuard {
                 reservation.status = COLLECTED;  
                 reservationKeys.remove(key);
                 
+                // Use correct tracking key (institutional vs wallet)
+                address trackingKey;
+                if (bytes(reservation.puc).length > 0) {
+                    // Institutional reservation
+                    trackingKey = address(uint160(uint256(keccak256(abi.encodePacked(reservation.renter, reservation.puc)))));
+                } else {
+                    // Wallet reservation
+                    trackingKey = reservation.renter;
+                }
+                
                 // Decrement counter and remove from per-token-user index
-                s.activeReservationCountByTokenAndUser[reservation.labId][reservation.renter]--;
-                s.reservationKeysByTokenAndUser[reservation.labId][reservation.renter].remove(key);
+                s.activeReservationCountByTokenAndUser[reservation.labId][trackingKey]--;
+                s.reservationKeysByTokenAndUser[reservation.labId][trackingKey].remove(key);
                 
                 // Update active reservation index if this was the indexed one
-                if (s.activeReservationByTokenAndUser[reservation.labId][reservation.renter] == key) {
-                    bytes32 nextKey = _findNextEarliestReservation(reservation.labId, reservation.renter);
-                    s.activeReservationByTokenAndUser[reservation.labId][reservation.renter] = nextKey;
+                if (s.activeReservationByTokenAndUser[reservation.labId][trackingKey] == key) {
+                    bytes32 nextKey = _findNextEarliestReservation(reservation.labId, trackingKey);
+                    s.activeReservationByTokenAndUser[reservation.labId][trackingKey] = nextKey;
                 }
                 
                 --len; // Adjust length after removal

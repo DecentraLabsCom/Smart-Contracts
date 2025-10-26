@@ -766,8 +766,10 @@ abstract contract ReservableToken {
     function calculateRequiredStake(address provider, uint256 listedLabsCount) public view returns (uint256) {
         AppStorage storage s = _s();
         
-        // If provider never received initial tokens, no stake required
-        if (!s.providerStakes[provider].receivedInitialTokens) {
+        // Only bypass stake requirement if provider has NO listed labs
+        // This prevents the exploit where providers could list unlimited labs with zero stake
+        // by never receiving initial tokens
+        if (!s.providerStakes[provider].receivedInitialTokens && listedLabsCount == 0) {
             return 0;
         }
         

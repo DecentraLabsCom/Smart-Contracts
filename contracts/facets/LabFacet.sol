@@ -452,21 +452,34 @@ contract LabFacet is ERC721EnumerableUpgradeable, ReservableToken {
             require(s._isLabProvider(_to), "Only one Lab owner can receive Lab");
         }
         
-        // Handle listing status for TRANSFERS (not mints or burns)
+        // Handle listedLabsCount for TRANSFERS (not mints or burns)
         // from != address(0) means it's not a mint
         // _to != address(0) means it's not a burn
         if (from != address(0) && _to != address(0)) {
-            // This is a transfer between two providers
-            // If lab is listed, unlist it to maintain consistent listedLabsCount
-            if (s.tokenStatus[_tokenId]) {
+            bool isListed = s.tokenStatus[_tokenId];
+            
+            if (isListed) {
+                // Lab is currently listed - unlist it and decrement old owner's count
                 s.tokenStatus[_tokenId] = false;
                 
-                // Decrement sender's listed count
                 if (s.providerStakes[from].listedLabsCount > 0) {
                     s.providerStakes[from].listedLabsCount--;
                 }
                 
                 emit LabUnlisted(_tokenId, from);
+            }
+            
+            // Validate new owner has sufficient stake for their current listings
+            // This prevents transferring labs to providers who can't afford them
+            uint256 recipientListedCount = s.providerStakes[_to].listedLabsCount;
+            if (recipientListedCount > 0) {
+                uint256 requiredStake = s._calculateRequiredStake(_to);
+                uint256 currentStake = s.providerStakes[_to].stakedAmount;
+                
+                require(
+                    currentStake >= requiredStake,
+                    "Recipient lacks sufficient stake for their current listings"
+                );
             }
         }
         

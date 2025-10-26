@@ -78,7 +78,8 @@ struct Reservation {
         uint96 price;
         uint32 start;
         uint32 end; 
-        uint status; 
+        uint status;
+        string puc; // Empty for wallet reservations, filled for institutional reservations
 }
 
 /// @notice Represents a node in a red-black tree data structure, necessary for the library RivalIntervalTree Node data structure

@@ -135,7 +135,8 @@ contract ReservationFacet is ReservableTokenEnumerable, ReentrancyGuard {
             price: price,
             start: _start,
             end: _end,
-            status: PENDING
+            status: PENDING,
+            puc: "" // Empty for wallet reservations
         });
         
         // Add to tracking sets
@@ -220,7 +221,7 @@ contract ReservationFacet is ReservableTokenEnumerable, ReentrancyGuard {
         s.reservationKeysByToken[_labId].add(reservationKey);
         
         // Create reservation with renter as the institutional provider (for accounting)
-        // The actual user is tracked via the InstitutionalUserSpent event
+        // The actual user is tracked via puc field and InstitutionalUserSpent event
         // labProvider is saved for safety (in case lab is deleted/transferred)
         s.reservations[reservationKey] = Reservation({
             labId: _labId,
@@ -229,7 +230,8 @@ contract ReservationFacet is ReservableTokenEnumerable, ReentrancyGuard {
             price: price,
             start: _start,
             end: _end,
-            status: PENDING
+            status: PENDING,
+            puc: puc // Store PUC to identify institutional reservations
         });
         
         s.reservationKeys.add(reservationKey);
@@ -325,8 +327,13 @@ contract ReservationFacet is ReservableTokenEnumerable, ReentrancyGuard {
         Reservation storage reservation = s.reservations[_reservationKey];
         if (reservation.renter != institutionalProvider) revert("Not institutional");
         
-        // Check if user has reached maximum reservations for this lab
-        if (s.activeReservationCountByTokenAndUser[reservation.labId][reservation.renter] >= MAX_RESERVATIONS_PER_LAB_USER) {
+        // Validate this is an institutional reservation
+        if (bytes(reservation.puc).length == 0) revert("Not institutional reservation");
+        
+        // Generate unique address for (provider, puc) pair to track individual user limits
+        address userTrackingKey = address(uint160(uint256(keccak256(abi.encodePacked(institutionalProvider, reservation.puc)))));
+        
+        if (s.activeReservationCountByTokenAndUser[reservation.labId][userTrackingKey] >= MAX_RESERVATIONS_PER_LAB_USER) {
             revert MaxReservationsReached();
         }
         
@@ -342,23 +349,23 @@ contract ReservationFacet is ReservableTokenEnumerable, ReentrancyGuard {
             reservation.status = BOOKED;   
             s.reservationsProvider[labProvider].add(_reservationKey);
             
-            // Increment active reservation count
-            s.activeReservationCountByTokenAndUser[reservation.labId][reservation.renter]++;
+            // Increment per-USER counter
+            s.activeReservationCountByTokenAndUser[reservation.labId][userTrackingKey]++;
             
             // Add to per-token-user index for efficient queries
-            s.reservationKeysByTokenAndUser[reservation.labId][reservation.renter].add(_reservationKey);
+            s.reservationKeysByTokenAndUser[reservation.labId][userTrackingKey].add(_reservationKey);
             
-            // Update index: only store the earliest reservation
-            bytes32 currentIndexKey = s.activeReservationByTokenAndUser[reservation.labId][reservation.renter];
+            // Update index: only store the earliest reservation (use userTrackingKey for institutional users)
+            bytes32 currentIndexKey = s.activeReservationByTokenAndUser[reservation.labId][userTrackingKey];
             
             if (currentIndexKey == bytes32(0)) {
                 // First reservation for this (token, user)
-                s.activeReservationByTokenAndUser[reservation.labId][reservation.renter] = _reservationKey;
+                s.activeReservationByTokenAndUser[reservation.labId][userTrackingKey] = _reservationKey;
             } else {
                 // Update index if new reservation starts earlier
                 Reservation memory currentReservation = s.reservations[currentIndexKey];
                 if (reservation.start < currentReservation.start) {
-                    s.activeReservationByTokenAndUser[reservation.labId][reservation.renter] = _reservationKey;
+                    s.activeReservationByTokenAndUser[reservation.labId][userTrackingKey] = _reservationKey;
                 }
             }
             
@@ -445,6 +452,8 @@ contract ReservationFacet is ReservableTokenEnumerable, ReentrancyGuard {
         uint256 price = reservation.price;
         uint256 labId = reservation.labId;
         address cachedLabProvider = reservation.labProvider;
+        string memory puc = reservation.puc;
+        bool isInstitutional = bytes(puc).length > 0;
         
         // Check current owner to allow new owners to manage reservations after transfer
         address currentOwner = IERC721(address(this)).ownerOf(labId);
@@ -454,14 +463,32 @@ contract ReservationFacet is ReservableTokenEnumerable, ReentrancyGuard {
         s.reservationsProvider[cachedLabProvider].remove(_reservationKey);
         _cancelReservation(_reservationKey);
         
-        // Decrement indices for ALL reservation types (wallet & institutional)
-        // This prevents index corruption when canceling institutional reservations
-        if (s.activeReservationCountByTokenAndUser[labId][renter] > 0) {
-            s.activeReservationCountByTokenAndUser[labId][renter]--;
+        // Decrement correct counter based on reservation type
+        if (isInstitutional) {
+            // For institutional reservations, use the per-user tracking key
+            address userTrackingKey = address(uint160(uint256(keccak256(abi.encodePacked(renter, puc)))));
+            if (s.activeReservationCountByTokenAndUser[labId][userTrackingKey] > 0) {
+                s.activeReservationCountByTokenAndUser[labId][userTrackingKey]--;
+            }
+            s.reservationKeysByTokenAndUser[labId][userTrackingKey].remove(_reservationKey);
+            
+            // Refund to institutional treasury, not to provider's wallet
+            IInstitutionalTreasuryFacet(address(this)).refundToInstitutionalTreasury(
+                renter, // institutional provider
+                puc,
+                price
+            );
+        } else {
+            // For wallet reservations, use the renter address directly
+            if (s.activeReservationCountByTokenAndUser[labId][renter] > 0) {
+                s.activeReservationCountByTokenAndUser[labId][renter]--;
+            }
+            s.reservationKeysByTokenAndUser[labId][renter].remove(_reservationKey);
+            
+            // Refund to wallet
+            IERC20(s.labTokenAddress).safeTransfer(renter, price);
         }
-        s.reservationKeysByTokenAndUser[labId][renter].remove(_reservationKey);
         
-        IERC20(s.labTokenAddress).safeTransfer(renter, price);
         emit BookingCanceled(_reservationKey, labId);
     }
 

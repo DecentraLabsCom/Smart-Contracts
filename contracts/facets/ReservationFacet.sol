@@ -620,7 +620,6 @@ contract ReservationFacet is ReservableTokenEnumerable, ReentrancyGuard {
     /// @custom:revert "Invalid batch size" if maxBatch is 0 or > 100
     /// @custom:revert "No completed reservations" if no eligible reservations were found
     /// @custom:revert If the ERC20 transfer fails
-    /// @custom:gas Optimized with batching to prevent gas limit issues
     /// @custom:security Uses dynamic ownership check to prevent old owners from claiming funds
     function requestFunds(uint256 maxBatch) external isLabProvider nonReentrant {
         if (maxBatch == 0 || maxBatch > 100) revert("Invalid batch size");
@@ -629,61 +628,58 @@ contract ReservationFacet is ReservableTokenEnumerable, ReentrancyGuard {
         uint256 totalAmount;
         uint256 processed;
         
-        uint256 ownedLabsCount = IERC721Enumerable(address(this)).balanceOf(msg.sender);
+
+        EnumerableSet.Bytes32Set storage providerReservations = s.reservationsProvider[msg.sender];
+        uint256 len = providerReservations.length();
         
-        for (uint256 labIdx = 0; labIdx < ownedLabsCount && processed < maxBatch; labIdx++) {
-            uint256 labId = IERC721Enumerable(address(this)).tokenOfOwnerByIndex(msg.sender, labIdx);
+        for (uint256 i = 0; i < len && processed < maxBatch; i++) {
+            bytes32 key = providerReservations.at(i);
+            Reservation storage reservation = s.reservations[key];
             
-            // Access reservations by labId
-            EnumerableSet.Bytes32Set storage reservationKeys = s.reservationsByLabId[labId];
-            uint256 len = reservationKeys.length();
+            // Verify provider still owns the lab (handles NFT transfers)
+            address currentOwner = IERC721(address(this)).ownerOf(reservation.labId);
+            if (currentOwner != msg.sender) {
+                // Provider no longer owns this lab, skip this reservation
+                // It will be collected by the new owner
+                continue;
+            }
             
-            // Scan only this lab's CONFIRMED or COMPLETED reservations
-            for (uint256 i = 0; i < len && processed < maxBatch; i++) {
-                bytes32 key = reservationKeys.at(i);
-                Reservation storage reservation = s.reservations[key];
+            // Only collect completed reservations (end time passed + status is CONFIRMED or COMPLETED)
+            // CONFIRMED: normal expiration path
+            // COMPLETED: already moved to COMPLETED by releaseExpiredReservations()
+            if (reservation.end < block.timestamp && 
+                (reservation.status == CONFIRMED || reservation.status == COMPLETED)) {
+                totalAmount += reservation.price;    
+                reservation.status = COLLECTED;  
                 
-                // Only collect completed reservations (end time passed + status is CONFIRMED or COMPLETED)
-                // CONFIRMED: normal expiration path
-                // COMPLETED: already moved to COMPLETED by releaseExpiredReservations()
-                if (reservation.end < block.timestamp && 
-                    (reservation.status == CONFIRMED || reservation.status == COMPLETED)) {
-                    totalAmount += reservation.price;    
-                    reservation.status = COLLECTED;  
-                    
-                    // Remove from ALL indices (including global set)
-                    reservationKeys.remove(key);
-                    s.reservationsProvider[reservation.labProvider].remove(key);
-                    s.reservationKeys.remove(key); // Remove from global set to free storage
-                    
-                    // Use correct tracking key (institutional vs wallet)
-                    address trackingKey;
-                    if (bytes(reservation.puc).length > 0) {
-                        // Institutional reservation
-                        trackingKey = address(uint160(uint256(keccak256(abi.encodePacked(reservation.renter, reservation.puc)))));
-                    } else {
-                        // Wallet reservation
-                        trackingKey = reservation.renter;
-                    }
-                    
-                    // Decrement counter and remove from per-token-user index
-                    s.activeReservationCountByTokenAndUser[reservation.labId][trackingKey]--;
-                    s.reservationKeysByTokenAndUser[reservation.labId][trackingKey].remove(key);
-                    
-                    // Update active reservation index if this was the indexed one
-                    if (s.activeReservationByTokenAndUser[reservation.labId][trackingKey] == key) {
-                        bytes32 nextKey = _findNextEarliestReservation(reservation.labId, trackingKey);
-                        s.activeReservationByTokenAndUser[reservation.labId][trackingKey] = nextKey;
-                    }
-                    
-                    --len; // Adjust length after removal
-                    if (i > 0) --i; // Re-check same index (safe: guarded against underflow when i==0)
-                    // Removal shifts elements left, so we need to re-check the same index.
-                    // When i==0: Guard prevents underflow. Loop's i++ advances to i=1, which is correct
-                    //            because the old element at index 0 was removed and processed.
-                    // When i>0: --i counteracts the upcoming i++, keeping us at the same index.
-                    unchecked { ++processed; }
+                // Remove from ALL indices (including global set)
+                providerReservations.remove(key); // Remove from provider index
+                s.reservationsByLabId[reservation.labId].remove(key); // Remove from lab index
+                s.reservationKeys.remove(key); // Remove from global set to free storage
+                
+                // Use correct tracking key (institutional vs wallet)
+                address trackingKey;
+                if (bytes(reservation.puc).length > 0) {
+                    // Institutional reservation
+                    trackingKey = address(uint160(uint256(keccak256(abi.encodePacked(reservation.renter, reservation.puc)))));
+                } else {
+                    // Wallet reservation
+                    trackingKey = reservation.renter;
                 }
+                
+                // Decrement counter and remove from per-token-user index
+                s.activeReservationCountByTokenAndUser[reservation.labId][trackingKey]--;
+                s.reservationKeysByTokenAndUser[reservation.labId][trackingKey].remove(key);
+                
+                // Update active reservation index if this was the indexed one
+                if (s.activeReservationByTokenAndUser[reservation.labId][trackingKey] == key) {
+                    bytes32 nextKey = _findNextEarliestReservation(reservation.labId, trackingKey);
+                    s.activeReservationByTokenAndUser[reservation.labId][trackingKey] = nextKey;
+                }
+                
+                --len; // Adjust length after removal
+                if (i > 0) --i; // Re-check same index (safe: guarded against underflow when i==0)
+                unchecked { ++processed; }
             }
         }
 

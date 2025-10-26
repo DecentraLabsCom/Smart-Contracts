@@ -553,7 +553,6 @@ contract ReservationFacet is ReservableTokenEnumerable, ReentrancyGuard {
         if (renter != institutionalProvider) revert("Not renter");
 
         // Cancel the booking
-        AppStorage storage s = _s();
         s.reservationsProvider[labProvider].remove(_reservationKey);
         s.reservationsByLabId[reservation.labId].remove(_reservationKey);
         _cancelReservation(_reservationKey);

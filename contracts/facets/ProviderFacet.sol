@@ -104,8 +104,8 @@ contract ProviderFacet is AccessControlUpgradeable {
         address _labERC20
     ) public initializer {
         LibDiamond.enforceIsContractOwner();
-        bool granted = _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
-        if (granted) _s()._addProviderRole(msg.sender, _name, _email, _country);
+        _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
+        _s()._addProviderRole(msg.sender, _name, _email, _country);
 
         _s().DEFAULT_ADMIN_ROLE = DEFAULT_ADMIN_ROLE;
         _s().labTokenAddress = _labERC20;
@@ -131,59 +131,59 @@ contract ProviderFacet is AccessControlUpgradeable {
         string memory _email,
         string memory _country
     ) external defaultAdminRole {
-        if (_grantRole(PROVIDER_ROLE, _account)) {
-            _s()._addProviderRole(_account, _name, _email, _country);
-            
-            // Try to mint initial tokens (1000 total), but don't revert if it fails (e.g., cap reached)
-            uint256 treasuryAmount = 200_000_000; // 200 tokens to institutional treasury
-            uint256 stakeAmount = 800_000_000;    // 800 tokens to Diamond (staked)
-            
-            try LabERC20(_s().labTokenAddress).mint(address(this), treasuryAmount) {
-                // Mint staked tokens directly to Diamond contract
-                try LabERC20(_s().labTokenAddress).mint(address(this), stakeAmount) {
-                    // Mark that this provider received initial tokens (required for staking)
-                    _s().providerStakes[_account].receivedInitialTokens = true;
-                    
-                    // Register the auto-staked amount and timestamp (for 180-day lock)
-                    _s().providerStakes[_account].stakedAmount = stakeAmount;
-                    _s().providerStakes[_account].initialStakeTimestamp = block.timestamp;
-                    
-                    // Deposit the 200 tokens to institutional treasury
-                    _s().institutionalTreasury[_account] = treasuryAmount;
-                    
-                    // Set default institutional user spending limit (tokens per period)
-                    _s().institutionalUserLimit[_account] = LibAppStorage.DEFAULT_INSTITUTIONAL_USER_LIMIT;
-                    
-                    // Set default spending period
-                    _s().institutionalSpendingPeriod[_account] = LibAppStorage.DEFAULT_SPENDING_PERIOD;
-                    
-                    // Auto-authorize provider address as backend for institutional treasury
-                    _s().institutionalBackends[_account] = _account;
-                    
-                    emit InstitutionalTreasuryInitialized(
-                        _account, 
-                        treasuryAmount, 
-                        LibAppStorage.DEFAULT_INSTITUTIONAL_USER_LIMIT
-                    );
-                    
-                    emit BackendAuthorized(_account, _account);
-                    
-                    emit ProviderAdded(_account, _name, _email, _country);
-                } catch {
-                    // If stake mint fails, revert the treasury mint too
-                    revert("Failed to mint stake tokens");
-                }
-            } catch Error(string memory reason) {
-                // Provider added without tokens (no staking requirement)
-                _s().providerStakes[_account].receivedInitialTokens = false;
-                emit ProviderAddedWithoutTokens(_account, reason);
+        // Check if provider already exists (prevents duplicate additions)
+        require(!hasRole(PROVIDER_ROLE, _account), "Provider already exists");
+        
+        _grantRole(PROVIDER_ROLE, _account);
+        _s()._addProviderRole(_account, _name, _email, _country);
+        
+        // Try to mint initial tokens (1000 total), but don't revert if it fails (e.g., cap reached)
+        uint256 treasuryAmount = 200_000_000; // 200 tokens to institutional treasury
+        uint256 stakeAmount = 800_000_000;    // 800 tokens to Diamond (staked)
+        
+        try LabERC20(_s().labTokenAddress).mint(address(this), treasuryAmount) {
+            // Mint staked tokens directly to Diamond contract
+            try LabERC20(_s().labTokenAddress).mint(address(this), stakeAmount) {
+                // Mark that this provider received initial tokens (required for staking)
+                _s().providerStakes[_account].receivedInitialTokens = true;
+                
+                // Register the auto-staked amount and timestamp (for 180-day lock)
+                _s().providerStakes[_account].stakedAmount = stakeAmount;
+                _s().providerStakes[_account].initialStakeTimestamp = block.timestamp;
+                
+                // Deposit the 200 tokens to institutional treasury
+                _s().institutionalTreasury[_account] = treasuryAmount;
+                
+                // Set default institutional user spending limit (tokens per period)
+                _s().institutionalUserLimit[_account] = LibAppStorage.DEFAULT_INSTITUTIONAL_USER_LIMIT;
+                
+                // Set default spending period
+                _s().institutionalSpendingPeriod[_account] = LibAppStorage.DEFAULT_SPENDING_PERIOD;
+                
+                // Auto-authorize provider address as backend for institutional treasury
+                _s().institutionalBackends[_account] = _account;
+                
+                emit InstitutionalTreasuryInitialized(
+                    _account, 
+                    treasuryAmount, 
+                    LibAppStorage.DEFAULT_INSTITUTIONAL_USER_LIMIT
+                );
+                
+                emit BackendAuthorized(_account, _account);
+                
+                emit ProviderAdded(_account, _name, _email, _country);
             } catch {
-                // Provider added without tokens (no staking requirement)
-                _s().providerStakes[_account].receivedInitialTokens = false;
-                emit ProviderAddedWithoutTokens(_account, "Token minting failed: supply cap reached or other error");
+                // If stake mint fails, revert the treasury mint too
+                revert("Failed to mint stake tokens");
             }
-        } else {
-            revert("Provider already exists");
+        } catch Error(string memory reason) {
+            // Provider added without tokens (no staking requirement)
+            _s().providerStakes[_account].receivedInitialTokens = false;
+            emit ProviderAddedWithoutTokens(_account, reason);
+        } catch {
+            // Provider added without tokens (no staking requirement)
+            _s().providerStakes[_account].receivedInitialTokens = false;
+            emit ProviderAddedWithoutTokens(_account, "Token minting failed: supply cap reached or other error");
         }
     }
 
@@ -196,35 +196,35 @@ contract ProviderFacet is AccessControlUpgradeable {
     function removeProvider(
         address _provider
     ) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        if (_revokeRole(PROVIDER_ROLE, _provider)) {
-            AppStorage storage s = _s();
-            
-            // Burn staked tokens
-            uint256 stakedAmount = s.providerStakes[_provider].stakedAmount;
-            if (stakedAmount > 0) {
-                s.providerStakes[_provider].stakedAmount = 0;
-                LabERC20(s.labTokenAddress).burn(stakedAmount);
-            }
-            
-            // Burn institutional treasury balance
-            uint256 treasuryBalance = s.institutionalTreasury[_provider];
-            if (treasuryBalance > 0) {
-                s.institutionalTreasury[_provider] = 0;
-                LabERC20(s.labTokenAddress).burn(treasuryBalance);
-            }
-            
-            // Clean up stake data
-            delete s.providerStakes[_provider];
-            
-            // Clean up institutional data
-            delete s.institutionalUserLimit[_provider];
-            delete s.institutionalBackends[_provider];
-            
-            s._removeProviderRole(_provider);
-            emit ProviderRemoved(_provider);
-        } else {
-            revert("Provider does not exist");
+        // Check if provider exists (prevents removing non-existent providers)
+        require(hasRole(PROVIDER_ROLE, _provider), "Provider does not exist");
+        
+        _revokeRole(PROVIDER_ROLE, _provider);
+        AppStorage storage s = _s();
+        
+        // Burn staked tokens
+        uint256 stakedAmount = s.providerStakes[_provider].stakedAmount;
+        if (stakedAmount > 0) {
+            s.providerStakes[_provider].stakedAmount = 0;
+            LabERC20(s.labTokenAddress).burn(stakedAmount);
         }
+        
+        // Burn institutional treasury balance
+        uint256 treasuryBalance = s.institutionalTreasury[_provider];
+        if (treasuryBalance > 0) {
+            s.institutionalTreasury[_provider] = 0;
+            LabERC20(s.labTokenAddress).burn(treasuryBalance);
+        }
+        
+        // Clean up stake data
+        delete s.providerStakes[_provider];
+        
+        // Clean up institutional data
+        delete s.institutionalUserLimit[_provider];
+        delete s.institutionalBackends[_provider];
+        
+        s._removeProviderRole(_provider);
+        emit ProviderRemoved(_provider);
     }
 
     /// @notice Updates the provider information for the caller.

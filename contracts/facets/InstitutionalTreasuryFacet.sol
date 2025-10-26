@@ -172,7 +172,10 @@ contract InstitutionalTreasuryFacet {
             require(s.institutionalBackends[provider] != address(0), "No authorized backend");
             require(msg.sender == s.institutionalBackends[provider], "Not authorized: must be backend");
         }
-        require(amount > 0, "Amount must be > 0");
+        
+        // Allow zero-price reservations (free labs)
+        if (amount == 0) return;
+        
         require(s.institutionalTreasury[provider] >= amount, "Insufficient treasury balance");
         
         // Calculate current period
@@ -208,7 +211,10 @@ contract InstitutionalTreasuryFacet {
         onlyAuthorizedBackendOrInternal(provider) 
     {
         AppStorage storage s = LibAppStorage.diamondStorage();
-        require(amount > 0, "Amount must be > 0");
+        
+        // Allow zero-price reservations (free labs) - skip all accounting for free reservations
+        if (amount == 0) return;
+        
         require(s.institutionalTreasury[provider] >= amount, "Insufficient treasury balance");
         
         // Check period and reset if needed
@@ -242,7 +248,9 @@ contract InstitutionalTreasuryFacet {
         onlyAuthorizedBackendOrInternal(provider) 
     {
         AppStorage storage s = LibAppStorage.diamondStorage();
-        require(amount > 0, "Amount must be > 0");
+        
+        // Allow zero-price refunds (free labs) - nothing to refund
+        if (amount == 0) return;
         
         InstitutionalUserSpending storage spending = s.institutionalUserSpending[provider][puc];
         

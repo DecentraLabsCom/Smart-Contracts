@@ -431,6 +431,11 @@ contract ReservationFacet is ReservableTokenEnumerable, ReentrancyGuard {
         if (reservation.status != PENDING) revert("Not pending");
         if (reservation.renter != institutionalProvider) revert("Not institutional");
         
+        // Validate PUC matches stored value (prevents misattribution)
+        if (keccak256(bytes(puc)) != keccak256(bytes(reservation.puc))) {
+            revert("PUC mismatch");
+        }
+        
         _cancelReservation(_reservationKey);
         
         // No refund needed - treasury was never charged (lazy payment pattern)
@@ -529,6 +534,11 @@ contract ReservationFacet is ReservableTokenEnumerable, ReentrancyGuard {
         if (reservation.renter == address(0)) revert("Not found");
         if (reservation.renter != institutionalProvider) revert("Not renter");
         if (reservation.status != PENDING) revert("Not pending");
+
+        // Validate PUC matches stored value (prevents misattribution)
+        if (keccak256(bytes(puc)) != keccak256(bytes(reservation.puc))) {
+            revert("PUC mismatch");
+        }
 
         _cancelReservation(_reservationKey);
         

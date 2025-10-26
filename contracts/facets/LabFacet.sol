@@ -277,8 +277,23 @@ contract LabFacet is ERC721EnumerableUpgradeable, ReservableToken {
         // This protects users' funds from being locked if lab is deleted
         require(!_hasActiveBookings(_labId), "Cannot delete lab with active bookings");
        
+        AppStorage storage s = _s();
+        
+        // Clean up listing status if lab was listed
+        // This prevents corruption of listedLabsCount and tokenStatus
+        if (s.tokenStatus[_labId]) {
+            s.tokenStatus[_labId] = false;
+            
+            // Decrement listed count for the provider
+            if (s.providerStakes[msg.sender].listedLabsCount > 0) {
+                s.providerStakes[msg.sender].listedLabsCount--;
+            }
+            
+            emit LabUnlisted(_labId, msg.sender);
+        }
+        
         _burn(_labId);
-        delete _s().labs[_labId];
+        delete s.labs[_labId];
         emit LabDeleted(_labId);
     }
 

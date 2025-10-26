@@ -96,6 +96,39 @@ library RivalIntervalTreeLibrary {
         return cursor;
     }
 
+    /// @notice Check if a time interval conflicts with existing reservations (safe version for queries)
+    /// @dev Similar to overlaps() but returns true for existing keys instead of reverting
+    ///      This is the correct function to use for availability checks
+    /// @param self The tree storage reference
+    /// @param key The start time of the interval to check
+    /// @param end The end time of the interval to check
+    /// @return bool True if there is a conflict (overlaps or key exists), False if available
+    function hasConflict(Tree storage self, uint key, uint end) view internal returns (bool) {
+        if (key == EMPTY) return true;
+        
+        // CRITICAL FIX: If key already exists, it's definitely a conflict
+        if (exists(self, key)) return true;
+        
+        uint cursor = findParent(self, key);
+
+        // special case for first insert
+        if (cursor == EMPTY) {
+            return false;
+        }
+
+        Node memory referencedNode = self.nodes[cursor];
+        // reservation starts before
+        if (key < cursor) {
+            uint prevCursor = prev(self, cursor);
+            uint prevEnd = self.nodes[prevCursor].end;
+            return (end > cursor) || (key < prevEnd);
+        // reservation starts after
+        } else {
+            uint nextCursor = next(self, cursor);
+            return (key < referencedNode.end) || ((nextCursor != EMPTY) && (end > nextCursor));
+        }
+    }
+
     function overlaps(Tree storage self, uint key, uint end) view internal returns (bool) {
         require(key != EMPTY);
         require(!exists(self, key));

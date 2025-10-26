@@ -347,7 +347,6 @@ abstract contract ReservableToken {
     /// @notice Checks if a specific time range is available for a given token ID.
     /// @dev The function verifies that the start time is less than the end time and that the start time is in the future.
     ///      It then checks if the specified time range overlaps with any existing reservations in the token's calendar.
-    ///      IMPORTANT: overlaps() returns TRUE when there IS a conflict, so we negate it for availability
     /// @param _tokenId The ID of the token to check availability for.
     /// @param _start The start timestamp of the time range to check.
     /// @param _end The end timestamp of the time range to check.
@@ -357,10 +356,7 @@ abstract contract ReservableToken {
         // Early return pattern - invalid ranges are not available
         if (_start >= _end || _start <= block.timestamp) return false;
         
-        // overlaps() returns TRUE when there IS a conflict
-        // We want to return TRUE when AVAILABLE (no conflict)
-        // Therefore: available = !overlaps
-        return !_s().calendars[_tokenId].overlaps(_start, _end);
+        return !_s().calendars[_tokenId].hasConflict(_start, _end);
     }
 
     /// @notice Finds the next available time slot after a given start time

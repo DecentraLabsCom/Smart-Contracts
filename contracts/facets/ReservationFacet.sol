@@ -328,7 +328,6 @@ contract ReservationFacet is ReservableTokenEnumerable, ReentrancyGuard {
     ///      Uses lazy payment pattern: attempts to charge the institutional treasury at confirmation time
     ///      If treasury charge fails (insufficient balance or user limit exceeded), automatically denies
     /// @param institutionalProvider The provider who owns the institutional treasury
-    /// @param puc The schacPersonalUniqueCode of the institutional user
     /// @param _reservationKey The unique identifier of the reservation to confirm
     /// @custom:requires The reservation must exist and be in PENDING status
     /// @custom:requires Caller must have admin role
@@ -336,7 +335,6 @@ contract ReservationFacet is ReservableTokenEnumerable, ReentrancyGuard {
     /// @custom:emits ReservationRequestDenied when treasury charge fails
     function confirmInstitutionalReservationRequest(
         address institutionalProvider,
-        string calldata puc,
         bytes32 _reservationKey
     ) external defaultAdminRole reservationPending(_reservationKey) {
         AppStorage storage s = _s();
@@ -346,13 +344,8 @@ contract ReservationFacet is ReservableTokenEnumerable, ReentrancyGuard {
         // Validate this is an institutional reservation
         if (bytes(reservation.puc).length == 0) revert("Not institutional reservation");
         
-        // CRITICAL: Validate that caller-supplied puc matches stored puc to prevent desync
-        if (keccak256(bytes(puc)) != keccak256(bytes(reservation.puc))) {
-            revert("PUC mismatch");
-        }
-        
         // Generate unique address for (provider, puc) pair to track individual user limits
-        // Use stored PUC to ensure consistency (already validated above)
+        // Use stored PUC to ensure consistency
         address userTrackingKey = address(uint160(uint256(keccak256(abi.encodePacked(institutionalProvider, reservation.puc)))));
         
         
@@ -537,7 +530,6 @@ contract ReservationFacet is ReservableTokenEnumerable, ReentrancyGuard {
     /// @notice Allows authorized backend to cancel an institutional user's confirmed booking
     /// @dev Refunds the tokens back to the institutional treasury (not to provider's wallet)
     /// @param institutionalProvider The provider who owns the institutional treasury
-    /// @param puc The schacPersonalUniqueCode of the institutional user
     /// @param _reservationKey The unique identifier of the reservation to cancel
     /// @custom:throws If reservation is invalid or caller is not authorized
     /// @custom:throws "Not authorized backend" if caller is not the authorized backend for the provider
@@ -545,7 +537,6 @@ contract ReservationFacet is ReservableTokenEnumerable, ReentrancyGuard {
     /// @custom:security Requires the reservation to be in BOOKED status
     function cancelInstitutionalBooking(
         address institutionalProvider,
-        string calldata puc,
         bytes32 _reservationKey
     ) external {
         // Verify caller is authorized backend for this provider

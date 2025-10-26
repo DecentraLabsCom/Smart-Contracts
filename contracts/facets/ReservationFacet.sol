@@ -46,6 +46,12 @@ contract ReservationFacet is ReservableTokenEnumerable {
     /// @param price Required price for the purchase
     error InsuficientsFunds(address user, uint256 funds, uint256 price);
 
+    /// @notice Emitted when a provider successfully collects funds from completed reservations
+    /// @param provider The address of the lab provider
+    /// @param amount Total amount of tokens collected
+    /// @param reservationsProcessed Number of reservations that were processed
+    event FundsCollected(address indexed provider, uint256 amount, uint256 reservationsProcessed);
+
     /// @dev Modifier to restrict access to functions that can only be executed by accounts
     ///      with the `DEFAULT_ADMIN_ROLE`. Ensures that the caller of the function has the
     ///      required role before proceeding with the execution of the function.
@@ -424,22 +430,31 @@ contract ReservationFacet is ReservableTokenEnumerable {
     /// @custom:security Requires the reservation to be in BOOKED status
     /// @custom:refund Transfers the reservation price back to the renter
     function cancelBooking(bytes32 _reservationKey) external override {
-        Reservation storage reservation = _s().reservations[_reservationKey];
+        AppStorage storage s = _s();
+        Reservation storage reservation = s.reservations[_reservationKey];
         if (reservation.renter == address(0) || reservation.status != BOOKED) 
             revert("Invalid");
 
         address renter = reservation.renter;
         uint256 price = reservation.price;
+        uint256 labId = reservation.labId;
         address labProvider = reservation.labProvider;
         
         if (renter != msg.sender && labProvider != msg.sender) revert("Unauthorized");
 
         // Cancel the booking
-        _s().reservationsProvider[labProvider].remove(_reservationKey);
+        s.reservationsProvider[labProvider].remove(_reservationKey);
         _cancelReservation(_reservationKey);
         
-        IERC20(_s().labTokenAddress).safeTransfer(renter, price);
-        emit BookingCanceled(_reservationKey, reservation.labId);
+        // Decrement indices for ALL reservation types (wallet & institutional)
+        // This prevents index corruption when canceling institutional reservations
+        if (s.activeReservationCountByTokenAndUser[labId][renter] > 0) {
+            s.activeReservationCountByTokenAndUser[labId][renter]--;
+        }
+        s.reservationKeysByTokenAndUser[labId][renter].remove(_reservationKey);
+        
+        IERC20(s.labTokenAddress).safeTransfer(renter, price);
+        emit BookingCanceled(_reservationKey, labId);
     }
 
     /// @notice Allows authorized backend to cancel an institutional user's pending reservation request
@@ -584,6 +599,9 @@ contract ReservationFacet is ReservableTokenEnumerable {
         }
         
         IERC20(s.labTokenAddress).safeTransfer(msg.sender, totalAmount);
+        
+        // Emit event with collection details for observability
+        emit FundsCollected(msg.sender, totalAmount, processed);
     }
 
     /// @notice Returns the address of the $LAB ERC20 token contract

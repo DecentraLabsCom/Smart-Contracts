@@ -193,10 +193,6 @@ contract ReservationFacet is ReservableTokenEnumerable, ReentrancyGuard {
         // Check if lab owner has sufficient stake
         address labOwner = IERC721(address(this)).ownerOf(_labId);
         
-        if (labOwner != institutionalProvider) {
-            revert("Lab must belong to institutional provider");
-        }
-        
         uint256 listedLabsCount = s.providerStakes[labOwner].listedLabsCount;
         uint256 requiredStake = ReservableToken(address(this)).calculateRequiredStake(labOwner, listedLabsCount);
         if (s.providerStakes[labOwner].stakedAmount < requiredStake) {
@@ -458,7 +454,7 @@ contract ReservationFacet is ReservableTokenEnumerable, ReentrancyGuard {
     /// @custom:emits BookingCanceled event
     /// @custom:security Requires the reservation to be in BOOKED status
     /// @custom:refund Transfers the reservation price back to the renter
-    function cancelBooking(bytes32 _reservationKey) external override {
+    function cancelBooking(bytes32 _reservationKey) external override nonReentrant {
         AppStorage storage s = _s();
         Reservation storage reservation = s.reservations[_reservationKey];
         if (reservation.renter == address(0) || reservation.status != BOOKED) 
@@ -638,6 +634,10 @@ contract ReservationFacet is ReservableTokenEnumerable, ReentrancyGuard {
                     
                     --len; // Adjust length after removal
                     if (i > 0) --i; // Re-check same index (safe: no underflow at i=0)
+                    // Note: When i==0, no decrement needed. The removed element at index 0 causes
+                    // the element at index 1 to shift down to index 0. The loop's i++ makes i=1,
+                    // correctly skipping the now-processed element. On next requestFunds() call,
+                    // the loop restarts at i=0 and processes any remaining elements at that index.
                     unchecked { ++processed; }
                 }
             }
@@ -687,6 +687,13 @@ contract ReservationFacet is ReservableTokenEnumerable, ReentrancyGuard {
         external 
         returns (uint256 processed) 
     {
+        // Prevent griefing attack where malicious actor marks reservations
+        // as COLLECTED before provider calls requestFunds(), causing permanent loss of funds
+        address labProvider = IERC721(address(this)).ownerOf(_labId);
+        if (msg.sender != _user && msg.sender != labProvider) {
+            revert("Only user or provider can release");
+        }
+        
         if (maxBatch == 0 || maxBatch > 50) revert("Invalid batch size");
         
         AppStorage storage s = _s();

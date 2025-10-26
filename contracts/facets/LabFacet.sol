@@ -481,6 +481,33 @@ contract LabFacet is ERC721EnumerableUpgradeable, ReservableToken {
                     "Recipient lacks sufficient stake for their current listings"
                 );
             }
+            
+            // Clean up reservation indices when NFT is transferred
+            // Transfer BOOKED reservations from old owner's index to new owner's index
+            // This prevents memory leak in reservationsProvider[oldOwner]
+            // 
+            // GAS SAFETY: Limit to MAX_TRANSFER_CLEANUP (50) reservations per transfer
+            // If lab has more than 50 BOOKED reservations, remaining create minor memory leak 
+            // (trade-off for DoS prevention)
+            EnumerableSet.Bytes32Set storage labReservations = s.reservationsByLabId[_tokenId];
+            uint256 reservationCount = labReservations.length();
+            uint256 maxCleanup = 50; // Limit to prevent DoS
+            uint256 cleanupCount = reservationCount < maxCleanup ? reservationCount : maxCleanup;
+            
+            for (uint256 i = 0; i < cleanupCount; i++) {
+                bytes32 key = labReservations.at(i);
+                Reservation storage res = s.reservations[key];
+                
+                // Only update BOOKED reservations (PENDING don't have provider index yet)
+                if (res.status == 1) { // BOOKED = 1
+                    // Update labProvider to new owner
+                    res.labProvider = _to;
+                    
+                    // Move from old provider's index to new provider's index
+                    s.reservationsProvider[from].remove(key);
+                    s.reservationsProvider[_to].add(key);
+                }
+            }
         }
         
         // Proceed with the standard update process

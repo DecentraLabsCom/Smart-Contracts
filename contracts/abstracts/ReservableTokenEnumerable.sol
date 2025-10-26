@@ -346,6 +346,7 @@ abstract contract ReservableTokenEnumerable is ReservableToken {
             address trackingKey;
             if (bytes(reservation.puc).length > 0) {
                 // Institutional reservation - use composite key
+                // reservation.renter == institutionalProvider (set at request time)
                 trackingKey = address(uint160(uint256(keccak256(abi.encodePacked(reservation.renter, reservation.puc)))));
             } else {
                 // Wallet reservation - use renter directly

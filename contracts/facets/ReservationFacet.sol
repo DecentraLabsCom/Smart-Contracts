@@ -184,6 +184,11 @@ contract ReservationFacet is ReservableTokenEnumerable, ReentrancyGuard {
         
         // Check if lab owner has sufficient stake
         address labOwner = IERC721(address(this)).ownerOf(_labId);
+        
+        if (labOwner != institutionalProvider) {
+            revert("Lab must belong to institutional provider");
+        }
+        
         uint256 listedLabsCount = s.providerStakes[labOwner].listedLabsCount;
         uint256 requiredStake = ReservableToken(address(this)).calculateRequiredStake(labOwner, listedLabsCount);
         if (s.providerStakes[labOwner].stakedAmount < requiredStake) {
@@ -439,12 +444,14 @@ contract ReservationFacet is ReservableTokenEnumerable, ReentrancyGuard {
         address renter = reservation.renter;
         uint256 price = reservation.price;
         uint256 labId = reservation.labId;
-        address labProvider = reservation.labProvider;
+        address cachedLabProvider = reservation.labProvider;
         
-        if (renter != msg.sender && labProvider != msg.sender) revert("Unauthorized");
+        // Check current owner to allow new owners to manage reservations after transfer
+        address currentOwner = IERC721(address(this)).ownerOf(labId);
+        if (renter != msg.sender && currentOwner != msg.sender) revert("Unauthorized");
 
-        // Cancel the booking
-        s.reservationsProvider[labProvider].remove(_reservationKey);
+        // Cancel the booking - use cached provider for storage cleanup
+        s.reservationsProvider[cachedLabProvider].remove(_reservationKey);
         _cancelReservation(_reservationKey);
         
         // Decrement indices for ALL reservation types (wallet & institutional)
@@ -548,6 +555,7 @@ contract ReservationFacet is ReservableTokenEnumerable, ReentrancyGuard {
     /// @dev Only lab providers can call this function. It processes reservations that are:
     ///      1. Ended (end < block.timestamp)
     ///      2. In BOOKED status
+    ///      3. Lab still belongs to the caller (handles NFT transfers)
     /// After processing, the reservation status changes to COLLECTED
     /// @param maxBatch Maximum number of reservations to process in this call (max 100)
     /// @custom:modifier isLabProvider - Restricts access to registered lab providers
@@ -556,6 +564,7 @@ contract ReservationFacet is ReservableTokenEnumerable, ReentrancyGuard {
     /// @custom:revert "No funds" if no eligible reservations were found
     /// @custom:revert If the ERC20 transfer fails
     /// @custom:gas Optimized with batching to prevent gas limit issues
+    /// @custom:security Uses dynamic ownership check to prevent old owners from claiming funds
     function requestFunds(uint256 maxBatch) external isLabProvider nonReentrant {
         if (maxBatch == 0 || maxBatch > 100) revert("Invalid batch size");
         
@@ -569,7 +578,11 @@ contract ReservationFacet is ReservableTokenEnumerable, ReentrancyGuard {
             bytes32 key = reservationKeys.at(i);
             Reservation storage reservation = s.reservations[key];
 
-            if (reservation.end < block.timestamp && reservation.status == BOOKED) {
+            // CRITICAL FIX: Verify caller still owns the lab
+            // This prevents old owners from claiming funds after NFT transfer
+            address currentOwner = IERC721(address(this)).ownerOf(reservation.labId);
+            
+            if (reservation.end < block.timestamp && reservation.status == BOOKED && currentOwner == msg.sender) {
                 totalAmount += reservation.price;    
                 reservation.status = COLLECTED;  
                 reservationKeys.remove(key);

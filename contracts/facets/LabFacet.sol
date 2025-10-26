@@ -292,10 +292,17 @@ contract LabFacet is ERC721EnumerableUpgradeable, ReservableToken {
     /// SECURITY: Prevents deletion if there are active (BOOKED) reservations to protect user funds
     /// @param _labId The ID of the Lab to be deleted.
     /// @custom:security Cannot delete lab with active BOOKED reservations
+    /// @custom:optimization Uses O(1) tree root check before expensive O(n) iteration
     function deleteLab(uint _labId) external  onlyLabProvider(_labId) {
-        // Security check: Prevent deletion if there are active bookings
-        // This protects users' funds from being locked if lab is deleted
-        require(!_hasActiveBookings(_labId), "Cannot delete lab with active bookings");
+        AppStorage storage s = _s();
+        
+        // Fast O(1) check: if calendar tree is empty, skip expensive iteration
+        // This optimizes common cases
+        if (s.calendars[_labId].root != 0) {
+            // Security check: Prevent deletion if there are active bookings
+            // This protects users' funds from being locked if lab is deleted
+            require(!_hasActiveBookings(_labId), "Cannot delete lab with active bookings");
+        }
        
         AppStorage storage s = _s();
         

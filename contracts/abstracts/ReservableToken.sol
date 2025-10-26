@@ -357,6 +357,372 @@ abstract contract ReservableToken {
         return _s().calendars[_tokenId].overlaps(_start, _end);
     }
 
+    /// @notice Finds the next available time slot after a given start time
+    /// @dev Uses the interval tree to efficiently find the earliest blocking reservation.
+    ///      This is useful for UX to show users when the next available slot is.
+    ///      Time complexity: O(log n) where n is the number of reservations
+    /// @param _tokenId The ID of the token (lab) to check
+    /// @param _afterTime Find slots after this timestamp (Unix timestamp)
+    /// @return nextSlotStart The start timestamp when next slot is available (0 if no reservations exist)
+    /// @return blockedUntil If a reservation blocks the requested time, when it ends (0 if slot is free)
+    /// @custom:example If _afterTime = 1000 and reservation exists [1000-2000], returns (1000, 2000)
+    ///                  meaning "slot is blocked, next available after 2000"
+    function getNextAvailableSlot(uint256 _tokenId, uint32 _afterTime) 
+        external view virtual exists(_tokenId) returns (uint32 nextSlotStart, uint32 blockedUntil) 
+    {
+        Tree storage calendar = _s().calendars[_tokenId];
+        
+        // If no reservations at all, everything is available
+        if (calendar.root == 0) {
+            return (_afterTime, 0);
+        }
+        
+        // Find first reservation at or after _afterTime using binary search
+        // This is O(log n) thanks to the Red-Black tree structure
+        uint cursor = calendar.root;
+        uint candidate = 0;
+        
+        while (cursor != 0) {
+            if (cursor >= _afterTime) {
+                // This node starts at or after our target time
+                candidate = cursor;
+                // Check if there's an earlier one in left subtree
+                cursor = calendar.nodes[cursor].left;
+            } else {
+                // This node is too early, check right subtree
+                cursor = calendar.nodes[cursor].right;
+            }
+        }
+        
+        if (candidate == 0) {
+            // No reservations after _afterTime, entire future is available
+            return (_afterTime, 0);
+        }
+        
+        // Found a reservation at/after the requested time
+        // Return when it starts and when it ends
+        return (uint32(candidate), calendar.nodes[candidate].end);
+    }
+
+    /// @notice Retrieves all booked time slots for a given token (lab)
+    /// @dev Performs an in-order traversal of the interval tree to collect all reservations.
+    ///      Returns arrays of start and end times in chronological order.
+    ///      Time complexity: O(n) where n is the number of reservations
+    ///      WARNING: For labs with many reservations, this may exceed RPC gas limits in view calls.
+    ///      Recommended: Use pagination or limit results in frontend.
+    /// @param _tokenId The ID of the token (lab) to get booked slots for
+    /// @return starts Array of start timestamps for all reservations
+    /// @return ends Array of end timestamps for all reservations
+    /// @custom:example If lab has reservations [1000-2000] and [3000-4000], returns ([1000, 3000], [2000, 4000])
+    /// @custom:gas-warning May exceed RPC limits if lab has >100 reservations. Use with pagination.
+    function getBookedSlots(uint256 _tokenId) 
+        external view virtual exists(_tokenId) returns (uint32[] memory starts, uint32[] memory ends) 
+    {
+        Tree storage calendar = _s().calendars[_tokenId];
+        
+        // If no reservations, return empty arrays
+        if (calendar.root == 0) {
+            return (new uint32[](0), new uint32[](0));
+        }
+        
+        // First, count total nodes to allocate arrays
+        uint256 count = _countNodes(calendar, calendar.root);
+        
+        starts = new uint32[](count);
+        ends = new uint32[](count);
+        
+        // Perform in-order traversal to collect all slots
+        _collectSlots(calendar, calendar.root, starts, ends, 0);
+        
+        return (starts, ends);
+    }
+
+    /// @dev Helper function to count nodes in the tree via recursion
+    /// @param calendar The interval tree storage
+    /// @param cursor Current node being examined
+    /// @return count Total number of nodes in subtree
+    function _countNodes(Tree storage calendar, uint cursor) private view returns (uint256 count) {
+        if (cursor == 0) return 0;
+        
+        return 1 + 
+               _countNodes(calendar, calendar.nodes[cursor].left) + 
+               _countNodes(calendar, calendar.nodes[cursor].right);
+    }
+
+    /// @dev Helper function to collect slots via in-order traversal
+    /// @param calendar The interval tree storage
+    /// @param cursor Current node being examined
+    /// @param starts Array to store start times
+    /// @param ends Array to store end times
+    /// @param index Current index in output arrays
+    /// @return nextIndex Updated index after processing this subtree
+    function _collectSlots(
+        Tree storage calendar, 
+        uint cursor, 
+        uint32[] memory starts, 
+        uint32[] memory ends,
+        uint256 index
+    ) private view returns (uint256 nextIndex) {
+        if (cursor == 0) return index;
+        
+        // In-order: left subtree -> current node -> right subtree
+        // This naturally orders reservations chronologically
+        index = _collectSlots(calendar, calendar.nodes[cursor].left, starts, ends, index);
+        
+        starts[index] = uint32(cursor);
+        ends[index] = calendar.nodes[cursor].end;
+        index++;
+        
+        index = _collectSlots(calendar, calendar.nodes[cursor].right, starts, ends, index);
+        
+        return index;
+    }
+
+    /// @notice Get comprehensive statistics about a lab's reservations
+    /// @dev Single tree traversal - more efficient than multiple separate queries.
+    ///      Time complexity: O(n) where n is the number of reservations
+    /// @param _tokenId The ID of the token (lab) to get statistics for
+    /// @return count Total number of reservations
+    /// @return firstStart Start time of the earliest reservation (0 if none)
+    /// @return lastEnd End time of the latest reservation (0 if none)
+    /// @return totalDuration Sum of all reservation durations in seconds
+    /// @custom:example For a lab with 3 reservations: [1000-2000], [3000-4000], [5000-6000]
+    ///                  Returns: count=3, firstStart=1000, lastEnd=6000, totalDuration=3000
+    /// @custom:use-case Dashboard analytics, revenue calculations, occupancy metrics
+    function getReservationStats(uint256 _tokenId) 
+        external view virtual exists(_tokenId) 
+        returns (uint32 count, uint32 firstStart, uint32 lastEnd, uint64 totalDuration) 
+    {
+        Tree storage calendar = _s().calendars[_tokenId];
+        
+        // If no reservations, return zeros
+        if (calendar.root == 0) {
+            return (0, 0, 0, 0);
+        }
+        
+        // Use library functions to get first and last efficiently
+        firstStart = uint32(calendar.first());
+        lastEnd = calendar.nodes[calendar.last()].end;
+        
+        // Traverse tree to count and sum durations
+        (count, totalDuration) = _calculateStats(calendar, calendar.root);
+        
+        return (count, firstStart, lastEnd, totalDuration);
+    }
+
+    /// @dev Helper to recursively calculate count and total duration
+    /// @param calendar The interval tree storage
+    /// @param cursor Current node being examined
+    /// @return nodeCount Number of nodes in subtree
+    /// @return duration Total duration of all reservations in subtree
+    function _calculateStats(Tree storage calendar, uint cursor) 
+        private view returns (uint32 nodeCount, uint64 duration) 
+    {
+        if (cursor == 0) return (0, 0);
+        
+        // Recursively process left and right subtrees
+        (uint32 leftCount, uint64 leftDuration) = _calculateStats(calendar, calendar.nodes[cursor].left);
+        (uint32 rightCount, uint64 rightDuration) = _calculateStats(calendar, calendar.nodes[cursor].right);
+        
+        // Current node duration
+        uint32 nodeDuration = calendar.nodes[cursor].end - uint32(cursor);
+        
+        // Sum everything
+        nodeCount = 1 + leftCount + rightCount;
+        duration = nodeDuration + leftDuration + rightDuration;
+        
+        return (nodeCount, duration);
+    }
+
+    /// @notice Find which reservation (if any) occupies a specific timestamp
+    /// @dev Uses binary search through the Red-Black tree for O(log n) complexity.
+    ///      Searches for a reservation where: start <= timestamp < end
+    /// @param _tokenId The ID of the token (lab) to check
+    /// @param _timestamp The specific point in time to check (Unix timestamp)
+    /// @return start Start time of the reservation covering this timestamp (0 if none)
+    /// @return end End time of the reservation covering this timestamp (0 if none)
+    /// @custom:example If reservation [1000-2000] exists and _timestamp=1500, returns (1000, 2000)
+    ///                  If _timestamp=2500 and no reservation covers it, returns (0, 0)
+    /// @custom:use-case Admin panel: "Who has the lab right now?", Debugging, Access control
+    function findReservationAt(uint256 _tokenId, uint32 _timestamp) 
+        external view virtual exists(_tokenId) returns (uint32 start, uint32 end) 
+    {
+        Tree storage calendar = _s().calendars[_tokenId];
+        
+        // If no reservations at all
+        if (calendar.root == 0) {
+            return (0, 0);
+        }
+        
+        // Binary search for the reservation
+        uint cursor = calendar.root;
+        
+        while (cursor != 0) {
+            uint32 nodeStart = uint32(cursor);
+            uint32 nodeEnd = calendar.nodes[cursor].end;
+            
+            // Check if this node covers the timestamp
+            if (_timestamp >= nodeStart && _timestamp < nodeEnd) {
+                return (nodeStart, nodeEnd);
+            }
+            
+            // Navigate tree based on timestamp
+            if (_timestamp < nodeStart) {
+                cursor = calendar.nodes[cursor].left;
+            } else {
+                cursor = calendar.nodes[cursor].right;
+            }
+        }
+        
+        // No reservation found covering this timestamp
+        return (0, 0);
+    }
+
+    /// @notice Find all available time slots within a specific range
+    /// @dev Returns gaps between reservations. Only returns slots >= minDuration.
+    ///      Time complexity: O(n) where n is the number of reservations in range
+    /// @param _tokenId The ID of the token (lab) to search
+    /// @param _rangeStart Start of the search range (Unix timestamp)
+    /// @param _rangeEnd End of the search range (Unix timestamp)
+    /// @param _minDuration Minimum duration in seconds for a slot to be included
+    /// @return slotStarts Array of available slot start times
+    /// @return slotEnds Array of available slot end times
+    /// @custom:example Range [0-10000], minDuration=1000, reservations [2000-3000], [5000-6000]
+    ///                  Returns: ([0, 3000, 6000], [2000, 5000, 10000]) - three available slots
+    /// @custom:use-case Booking assistant: "Show all 2-hour slots available this week"
+    function findAvailableSlots(
+        uint256 _tokenId, 
+        uint32 _rangeStart, 
+        uint32 _rangeEnd,
+        uint32 _minDuration
+    ) external view virtual exists(_tokenId) returns (uint32[] memory slotStarts, uint32[] memory slotEnds) {
+        require(_rangeStart < _rangeEnd, "Invalid range");
+        
+        Tree storage calendar = _s().calendars[_tokenId];
+        
+        // If no reservations, entire range is available
+        if (calendar.root == 0) {
+            if (_rangeEnd - _rangeStart >= _minDuration) {
+                slotStarts = new uint32[](1);
+                slotEnds = new uint32[](1);
+                slotStarts[0] = _rangeStart;
+                slotEnds[0] = _rangeEnd;
+            } else {
+                slotStarts = new uint32[](0);
+                slotEnds = new uint32[](0);
+            }
+            return (slotStarts, slotEnds);
+        }
+        
+        // Get all bookings first (already sorted chronologically)
+        (uint32[] memory bookStarts, uint32[] memory bookEnds) = this.getBookedSlots(_tokenId);
+        
+        // Find gaps - worst case: n+1 gaps (before first, between each, after last)
+        uint32[] memory tempStarts = new uint32[](bookStarts.length + 1);
+        uint32[] memory tempEnds = new uint32[](bookStarts.length + 1);
+        uint32 gapCount = 0;
+        
+        uint32 searchStart = _rangeStart;
+        
+        for (uint i = 0; i < bookStarts.length; i++) {
+            // Skip bookings that end before our range
+            if (bookEnds[i] <= _rangeStart) continue;
+            
+            // Stop if booking starts after our range
+            if (bookStarts[i] >= _rangeEnd) break;
+            
+            // Check gap before this booking
+            uint32 gapEnd = bookStarts[i] < _rangeEnd ? bookStarts[i] : _rangeEnd;
+            if (gapEnd > searchStart && (gapEnd - searchStart) >= _minDuration) {
+                tempStarts[gapCount] = searchStart;
+                tempEnds[gapCount] = gapEnd;
+                gapCount++;
+            }
+            
+            // Move search start to after this booking
+            searchStart = bookEnds[i] > searchStart ? bookEnds[i] : searchStart;
+            
+            // If we've covered the entire range, stop
+            if (searchStart >= _rangeEnd) break;
+        }
+        
+        // Check final gap after last booking
+        if (searchStart < _rangeEnd && (_rangeEnd - searchStart) >= _minDuration) {
+            tempStarts[gapCount] = searchStart;
+            tempEnds[gapCount] = _rangeEnd;
+            gapCount++;
+        }
+        
+        // Copy to correctly sized arrays
+        slotStarts = new uint32[](gapCount);
+        slotEnds = new uint32[](gapCount);
+        for (uint i = 0; i < gapCount; i++) {
+            slotStarts[i] = tempStarts[i];
+            slotEnds[i] = tempEnds[i];
+        }
+        
+        return (slotStarts, slotEnds);
+    }
+
+    /// @notice Fast check if lab has any active booking at the current time
+    /// @dev O(1) if empty, O(log n) binary search otherwise.
+    ///      Uses current block.timestamp to check if lab is currently in use.
+    /// @param _tokenId The ID of the token (lab) to check
+    /// @return bool True if lab is currently booked, false if available
+    /// @custom:example At timestamp 1500: reservation [1000-2000] exists → returns true
+    ///                  At timestamp 500: reservation [1000-2000] exists → returns false
+    /// @custom:use-case Real-time availability checks, access control gates, status indicators
+    function isLabBusy(uint256 _tokenId) external view virtual exists(_tokenId) returns (bool) {
+        Tree storage calendar = _s().calendars[_tokenId];
+        
+        // Fast O(1) check: if no reservations at all
+        if (calendar.root == 0) {
+            return false;
+        }
+        
+        // Binary search for current time - O(log n)
+        uint32 now = uint32(block.timestamp);
+        (uint32 start, ) = this.findReservationAt(_tokenId, now);
+        
+        return start != 0; // If we found a reservation, lab is busy
+    }
+
+    /// @notice Get the end time of the current or next active reservation
+    /// @dev Useful for automatic cleanup, status updates, or showing "available in X hours".
+    ///      Time complexity: O(log n)
+    /// @param _tokenId The ID of the token (lab) to check
+    /// @return uint32 End timestamp of current/next reservation (0 if no future reservations)
+    /// @custom:example Current time 1500, reservation [1000-2000] active → returns 2000
+    ///                  Current time 500, next reservation [1000-2000] → returns 2000
+    ///                  Current time 3000, no future reservations → returns 0
+    /// @custom:use-case UI: "Available in 2 hours", Automatic status updates, Cleanup scheduling
+    function getNextExpiration(uint256 _tokenId) external view virtual exists(_tokenId) returns (uint32) {
+        Tree storage calendar = _s().calendars[_tokenId];
+        
+        // If no reservations at all
+        if (calendar.root == 0) {
+            return 0;
+        }
+        
+        uint32 now = uint32(block.timestamp);
+        
+        // First check if we're currently in a reservation
+        (uint32 currentStart, uint32 currentEnd) = this.findReservationAt(_tokenId, now);
+        if (currentStart != 0) {
+            return currentEnd; // Return end of current reservation
+        }
+        
+        // Not currently booked, find next future reservation
+        (uint32 nextStart, uint32 nextEnd) = this.getNextAvailableSlot(_tokenId, now);
+        
+        // If nextStart == now and blockedUntil is set, that means there's a blocking reservation
+        if (nextEnd > 0) {
+            return nextEnd; // Return end of next reservation
+        }
+        
+        return 0; // No future reservations
+    }
+
     /// @dev Cancels a reservation identified by the given reservation key.
     ///      Updates the reservation status to CANCELLED and removes the reservation
     ///      from the associated lab's calendar.

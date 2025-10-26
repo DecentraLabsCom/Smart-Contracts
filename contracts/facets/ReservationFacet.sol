@@ -143,12 +143,7 @@ contract ReservationFacet is ReservableTokenEnumerable, ReentrancyGuard {
         s.reservationKeys.add(reservationKey);
         s.renters[msg.sender].add(reservationKey);
 
-        // Note: Payment will be collected when reservation is confirmed (lazy payment pattern)
-        // This avoids unnecessary refunds if the request is denied
-        
-        // Update provider's last reservation timestamp (activates 30-day lock)
-        // Provider is committing to provide service, so lock starts from reservation creation
-        IStakingFacet(address(this)).updateLastReservation(labOwner);
+        // Payment will be collected when reservation is confirmed (lazy payment)
         
         emit ReservationRequested(msg.sender, _labId, _start, _end, reservationKey);
     }
@@ -240,9 +235,6 @@ contract ReservationFacet is ReservableTokenEnumerable, ReentrancyGuard {
         // Tokens are already in Diamond (from institutional treasury)
         // No transfer needed - just mark as allocated for this reservation
         
-        // Update provider's last reservation timestamp
-        IStakingFacet(address(this)).updateLastReservation(labOwner);
-        
         emit ReservationRequested(institutionalProvider, _labId, _start, _end, reservationKey);
     }
 
@@ -276,16 +268,18 @@ contract ReservationFacet is ReservableTokenEnumerable, ReentrancyGuard {
             reservation.price
         ) {
             // Payment successful → confirm reservation
-            reservation.status = BOOKED;   
+            reservation.status = BOOKED;
             s.reservationsProvider[labProvider].add(_reservationKey);
+            
+            // Update lastReservation timestamp ONLY on confirmation (after payment)
+            // This prevents spam attacks where unpaid requests lock provider's stake
+            IStakingFacet(address(this)).updateLastReservation(labProvider);
             
             // Increment active reservation count
             s.activeReservationCountByTokenAndUser[reservation.labId][reservation.renter]++;
             
             // Add to per-token-user index for efficient queries
-            s.reservationKeysByTokenAndUser[reservation.labId][reservation.renter].add(_reservationKey);
-            
-            // Update index: only store the earliest reservation
+            s.reservationKeysByTokenAndUser[reservation.labId][reservation.renter].add(_reservationKey);            // Update index: only store the earliest reservation
             bytes32 currentIndexKey = s.activeReservationByTokenAndUser[reservation.labId][reservation.renter];
             
             if (currentIndexKey == bytes32(0)) {
@@ -348,6 +342,10 @@ contract ReservationFacet is ReservableTokenEnumerable, ReentrancyGuard {
             // Treasury charge successful → confirm reservation
             reservation.status = BOOKED;   
             s.reservationsProvider[labProvider].add(_reservationKey);
+            
+            // Update lastReservation timestamp ONLY on confirmation (after payment)
+            // This prevents spam attacks where unpaid requests lock provider's stake
+            IStakingFacet(address(this)).updateLastReservation(labProvider);
             
             // Increment per-USER counter
             s.activeReservationCountByTokenAndUser[reservation.labId][userTrackingKey]++;
@@ -463,15 +461,8 @@ contract ReservationFacet is ReservableTokenEnumerable, ReentrancyGuard {
         s.reservationsProvider[cachedLabProvider].remove(_reservationKey);
         _cancelReservation(_reservationKey);
         
-        // Decrement correct counter based on reservation type
+        // Refund based on reservation type
         if (isInstitutional) {
-            // For institutional reservations, use the per-user tracking key
-            address userTrackingKey = address(uint160(uint256(keccak256(abi.encodePacked(renter, puc)))));
-            if (s.activeReservationCountByTokenAndUser[labId][userTrackingKey] > 0) {
-                s.activeReservationCountByTokenAndUser[labId][userTrackingKey]--;
-            }
-            s.reservationKeysByTokenAndUser[labId][userTrackingKey].remove(_reservationKey);
-            
             // Refund to institutional treasury, not to provider's wallet
             IInstitutionalTreasuryFacet(address(this)).refundToInstitutionalTreasury(
                 renter, // institutional provider
@@ -479,12 +470,6 @@ contract ReservationFacet is ReservableTokenEnumerable, ReentrancyGuard {
                 price
             );
         } else {
-            // For wallet reservations, use the renter address directly
-            if (s.activeReservationCountByTokenAndUser[labId][renter] > 0) {
-                s.activeReservationCountByTokenAndUser[labId][renter]--;
-            }
-            s.reservationKeysByTokenAndUser[labId][renter].remove(_reservationKey);
-            
             // Refund to wallet
             IERC20(s.labTokenAddress).safeTransfer(renter, price);
         }

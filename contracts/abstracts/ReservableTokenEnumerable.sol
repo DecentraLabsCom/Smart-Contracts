@@ -340,8 +340,25 @@ abstract contract ReservableTokenEnumerable is ReservableToken {
         
         // Only decrement counter and remove from indices if reservation was BOOKED
         if (reservation.status == BOOKED) {
-            s.activeReservationCountByTokenAndUser[reservation.labId][reservation.renter]--;
-            s.reservationKeysByTokenAndUser[reservation.labId][reservation.renter].remove(_reservationKey);
+            // Handle institutional vs wallet reservations differently
+            // Institutional reservations use hash(provider, puc) as tracking key
+            address trackingKey;
+            if (bytes(reservation.puc).length > 0) {
+                // Institutional reservation - use composite key
+                trackingKey = address(uint160(uint256(keccak256(abi.encodePacked(reservation.renter, reservation.puc)))));
+            } else {
+                // Wallet reservation - use renter directly
+                trackingKey = reservation.renter;
+            }
+            
+            s.activeReservationCountByTokenAndUser[reservation.labId][trackingKey]--;
+            s.reservationKeysByTokenAndUser[reservation.labId][trackingKey].remove(_reservationKey);
+            
+            // Update earliest reservation index
+            if (s.activeReservationByTokenAndUser[reservation.labId][trackingKey] == _reservationKey) {
+                bytes32 nextKey = _findNextEarliestReservation(reservation.labId, trackingKey);
+                s.activeReservationByTokenAndUser[reservation.labId][trackingKey] = nextKey;
+            }
         }
         
         // Gas optimizations: O(1) operations
@@ -349,12 +366,6 @@ abstract contract ReservableTokenEnumerable is ReservableToken {
         s.reservationKeysByToken[reservation.labId].remove(_reservationKey);
         
         s.renters[reservation.renter].remove(_reservationKey);
-        
-        // If this was the indexed reservation, find the next earliest one
-        if (s.activeReservationByTokenAndUser[reservation.labId][reservation.renter] == _reservationKey) {
-            bytes32 nextKey = _findNextEarliestReservation(reservation.labId, reservation.renter);
-            s.activeReservationByTokenAndUser[reservation.labId][reservation.renter] = nextKey;
-        }
         
         super._cancelReservation(_reservationKey);
     }

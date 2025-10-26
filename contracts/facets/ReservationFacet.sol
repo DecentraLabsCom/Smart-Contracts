@@ -507,17 +507,7 @@ contract ReservationFacet is ReservableTokenEnumerable, ReentrancyGuard {
         if (reservation.renter != institutionalProvider) revert("Not renter");
         if (reservation.status != PENDING) revert("Not pending");
 
-        uint256 price = reservation.price;
-        
         _cancelReservation(_reservationKey);
-        
-        // Refund to institutional treasury (not to provider's wallet)
-        // This also decrements the user's spent amount
-        IInstitutionalTreasuryFacet(address(this)).refundToInstitutionalTreasury(
-            institutionalProvider,
-            puc,
-            price
-        );
         
         emit ReservationRequestCanceled(_reservationKey, reservation.labId);
     }

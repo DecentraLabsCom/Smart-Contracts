@@ -114,7 +114,7 @@ library RivalIntervalTreeLibrary {
             return (end > cursor) || (key < prevEnd);
         // reservation starts after
         } else {
-            uint nextCursor = prev(self, cursor);
+            uint nextCursor = next(self, cursor);  // FIX: Changed from prev() to next()
             return (key < referencedNode.end) || ((nextCursor != EMPTY) && (end > nextCursor));
         }
     }

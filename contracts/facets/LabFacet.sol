@@ -114,6 +114,7 @@ contract LabFacet is ERC721EnumerableUpgradeable, ReservableToken {
     /// @notice Adds a new Lab (Cyber Physical System) with the specified details.
     /// @dev This function increments the Lab ID, mints a new token for the Lab,
     ///      and stores the Lab's details in the contract's state.
+    ///      labId is incremented AFTER successful mint to avoid ID gaps on mint failures.
     /// @param _uri The URI of the Lab, providing metadata or additional information.
     /// @param _price The price of the Lab in the smallest unit of the currency.
     /// @param _auth The URI to the authentication service that issues session tokens for lab access
@@ -129,17 +130,28 @@ contract LabFacet is ERC721EnumerableUpgradeable, ReservableToken {
         string memory _accessURI,
         string memory _accessKey
     ) external isLabProvider {
-        _s().labId++;
-        _safeMint(msg.sender, _s().labId);
-        _s().labs[_s().labId] = LabBase(
+        AppStorage storage s = _s();
+        
+        // Calculate next lab ID (but don't increment storage yet)
+        uint256 nextLabId = s.labId + 1;
+        
+        // Mint the NFT first (can fail if receiver rejects)
+        _safeMint(msg.sender, nextLabId);
+        
+        // Only increment labId in storage after successful mint
+        s.labId = nextLabId;
+        
+        // Store lab metadata
+        s.labs[nextLabId] = LabBase(
             _uri,
             _price,
             _auth,
             _accessURI,
             _accessKey
         );
+        
         emit LabAdded(
-            _s().labId,
+            nextLabId,
             msg.sender,
             _uri,
             _price,
@@ -153,6 +165,7 @@ contract LabFacet is ERC721EnumerableUpgradeable, ReservableToken {
     /// @dev This is a convenience function that combines addLab() and listToken() functionality.
     ///      Requires the provider to have sufficient staked tokens based on listed labs count.
     ///      Formula: 800 base + max(0, listedLabs - 10) * 200
+    ///      labId is incremented AFTER successful mint to avoid ID gaps on mint failures.
     /// @param _uri The URI of the Lab, providing metadata or additional information.
     /// @param _price The price of the Lab in the smallest unit of the currency.
     /// @param _auth The URI to the authentication service that issues session tokens for lab access
@@ -178,10 +191,17 @@ contract LabFacet is ERC721EnumerableUpgradeable, ReservableToken {
             revert("Insufficient stake to list lab");
         }
         
-        // Create the lab
-        s.labId++;
-        _safeMint(msg.sender, s.labId);
-        s.labs[s.labId] = LabBase(
+        // Calculate next lab ID (but don't increment storage yet)
+        uint256 nextLabId = s.labId + 1;
+        
+        // Mint the NFT first (can fail if receiver rejects)
+        _safeMint(msg.sender, nextLabId);
+        
+        // Only increment labId in storage after successful mint
+        s.labId = nextLabId;
+        
+        // Store lab metadata
+        s.labs[nextLabId] = LabBase(
             _uri,
             _price,
             _auth,
@@ -191,10 +211,10 @@ contract LabFacet is ERC721EnumerableUpgradeable, ReservableToken {
         
         // Update listed count and list the lab
         s.providerStakes[msg.sender].listedLabsCount = newListedCount;
-        s.tokenStatus[s.labId] = true;
+        s.tokenStatus[nextLabId] = true;
         
         emit LabAdded(
-            s.labId,
+            nextLabId,
             msg.sender,
             _uri,
             _price,
@@ -202,7 +222,7 @@ contract LabFacet is ERC721EnumerableUpgradeable, ReservableToken {
             _accessURI,
             _accessKey
         );
-        emit LabListed(s.labId, msg.sender);
+        emit LabListed(nextLabId, msg.sender);
     }
 
     /// @notice Sets the token URI for a specific lab, used for compliance with ERC721 standards.
@@ -400,8 +420,12 @@ contract LabFacet is ERC721EnumerableUpgradeable, ReservableToken {
     /// Overrides the parent `_update` function to include additional validation.
     /// This function is called when transferring ownership of a Lab token.
     ///
+    /// Transferring a listed lab will automatically unlist it to maintain
+    /// consistent listedLabsCount for both sender and receiver.
+    ///
     /// Requirements:
     /// - `_to` must be a valid Lab provider. Only one Lab owner can receive the Lab.
+    /// - If lab is listed and being transferred (not minted/burned), it will be unlisted
     ///
     /// @param _to The address of the new owner of the Lab token.
     /// @param _tokenId The ID of the Lab token being updated.
@@ -413,8 +437,34 @@ contract LabFacet is ERC721EnumerableUpgradeable, ReservableToken {
         uint256 _tokenId,
         address _auth
     ) internal virtual override returns (address) {
-        if (_to!= address(0))   //It's a burn operation
-            require(_s()._isLabProvider(_to), "Only one Lab owner can receive Lab");
+        AppStorage storage s = _s();
+        
+        // Get previous owner (will be address(0) for mints)
+        address from = _ownerOf(_tokenId);
+        
+        // If not a burn operation (to != address(0)), require recipient to be a provider
+        if (_to != address(0)) {
+            require(s._isLabProvider(_to), "Only one Lab owner can receive Lab");
+        }
+        
+        // Handle listing status for TRANSFERS (not mints or burns)
+        // from != address(0) means it's not a mint
+        // _to != address(0) means it's not a burn
+        if (from != address(0) && _to != address(0)) {
+            // This is a transfer between two providers
+            // If lab is listed, unlist it to maintain consistent listedLabsCount
+            if (s.tokenStatus[_tokenId]) {
+                s.tokenStatus[_tokenId] = false;
+                
+                // Decrement sender's listed count
+                if (s.providerStakes[from].listedLabsCount > 0) {
+                    s.providerStakes[from].listedLabsCount--;
+                }
+                
+                emit LabUnlisted(_tokenId, from);
+            }
+        }
+        
         // Proceed with the standard update process
         return super._update(_to, _tokenId, _auth);
     }

@@ -5,11 +5,13 @@ import "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol"
 import {LibAppStorage, AppStorage, PROVIDER_ROLE} from "../libraries/LibAppStorage.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import "../libraries/LibDiamond.sol";
 import "../external/LabERC20.sol";
 import "../abstracts/ReservableToken.sol";
 
 using SafeERC20 for IERC20;
+using EnumerableSet for EnumerableSet.Bytes32Set;
 
 /// @title StakingFacet Contract
 /// @author Luis de la Torre Cubillo
@@ -24,6 +26,11 @@ contract StakingFacet is AccessControlUpgradeable {
     
     /// @notice Initial stake lock period (180 days from auto-stake)
     uint256 public constant INITIAL_STAKE_LOCK_PERIOD = 180 days;
+    
+    /// @dev Reservation status constants (must match ReservableToken.sol)
+    uint8 private constant CONFIRMED = 1;
+    uint8 private constant IN_USE = 2;
+    uint8 private constant COMPLETED = 3;
     
     /// @notice Emitted when a provider stakes tokens
     /// @param provider The address of the provider
@@ -185,7 +192,28 @@ contract StakingFacet is AccessControlUpgradeable {
                 "StakingFacet: cannot unstake below required minimum while labs are listed"
             );
         } else {
-            // If no labs listed, can unstake everything or down to required minimum
+            // Defense in depth: Even if no labs are listed, verify no active reservations exist
+            // This prevents attack where provider unlists with PENDING and then unstakes
+            EnumerableSet.Bytes32Set storage providerReservations = s.reservationsProvider[msg.sender];
+            uint256 activeReservationCount = providerReservations.length();
+            
+            if (activeReservationCount > 0) {
+                // Check if any are in active states (CONFIRMED, IN_USE, COMPLETED)
+                for (uint256 i = 0; i < activeReservationCount; i++) {
+                    bytes32 key = providerReservations.at(i);
+                    uint8 status = s.reservations[key].status;
+                    
+                    if (status == CONFIRMED || status == IN_USE || status == COMPLETED) {
+                        require(
+                            remainingStake >= requiredStake,
+                            "StakingFacet: cannot unstake below minimum with active reservations"
+                        );
+                        break; // Found active reservation, requirement enforced
+                    }
+                }
+            }
+            
+            // If no labs listed and no active reservations, can unstake everything or down to required minimum
             require(
                 remainingStake >= requiredStake || remainingStake == 0,
                 "StakingFacet: cannot unstake below required minimum"

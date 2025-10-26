@@ -187,14 +187,32 @@ abstract contract ReservableToken {
     /// @dev This function updates the token's status to `false` in the storage mapping.
     /// @dev No stake verification is required - providers can always unlist their own labs.
     /// @dev Decrements the listed labs count for the provider.
+    /// @dev Prevents unlisting if there are active reservations (CONFIRMED, IN_USE, or COMPLETED)
     /// @param _tokenId The unique identifier of the token to be unlisted.
-    /// @dev Caller must be the owner of the token.
     function unlistToken(uint256 _tokenId) external onlyTokenOwner(_tokenId) {
         AppStorage storage s = _s();
         
         // Check if actually listed to avoid under-counting
         if (!s.tokenStatus[_tokenId]) {
             revert("Lab not listed");
+        }
+        
+        // Prevent unlisting if there are active reservations
+        // This protects users who have already paid for confirmed reservations
+        EnumerableSet.Bytes32Set storage labReservations = s.reservationsByLabId[_tokenId];
+        uint256 reservationCount = labReservations.length();
+        
+        for (uint256 i = 0; i < reservationCount; i++) {
+            bytes32 key = labReservations.at(i);
+            uint8 status = s.reservations[key].status;
+            
+            // Block unlisting if any reservation is in active state
+            // CONFIRMED: User paid, slot blocked in calendar
+            // IN_USE: Reservation is currently being used
+            // COMPLETED: Reservation ended but provider hasn't collected funds yet
+            if (status == CONFIRMED || status == IN_USE || status == COMPLETED) {
+                revert("Cannot unlist: active reservations exist");
+            }
         }
         
         // Decrement listed count

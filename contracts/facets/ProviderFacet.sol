@@ -178,11 +178,52 @@ contract ProviderFacet is AccessControlUpgradeable {
             }
         } catch Error(string memory reason) {
             // Provider added without tokens (no staking requirement)
+            // IMPORTANT: Still initialize institutional treasury configuration
+            // even if minting fails, so provider can configure it manually later
             _s().providerStakes[_account].receivedInitialTokens = false;
+            
+            // Initialize institutional treasury with zero balance but valid configuration
+            _s().institutionalTreasury[_account] = 0;
+            
+            // Set default institutional user spending limit (tokens per period)
+            _s().institutionalUserLimit[_account] = LibAppStorage.DEFAULT_INSTITUTIONAL_USER_LIMIT;
+            
+            // Set default spending period
+            _s().institutionalSpendingPeriod[_account] = LibAppStorage.DEFAULT_SPENDING_PERIOD;
+            
+            // Auto-authorize provider address as backend for institutional treasury
+            // This allows provider to configure their institutional system even without initial tokens
+            _s().institutionalBackends[_account] = _account;
+            
+            emit InstitutionalTreasuryInitialized(
+                _account, 
+                0, // zero balance but valid configuration
+                LibAppStorage.DEFAULT_INSTITUTIONAL_USER_LIMIT
+            );
+            
+            emit BackendAuthorized(_account, _account);
+            
             emit ProviderAddedWithoutTokens(_account, reason);
         } catch {
             // Provider added without tokens (no staking requirement)
+            // IMPORTANT: Still initialize institutional treasury configuration
             _s().providerStakes[_account].receivedInitialTokens = false;
+            
+            // Initialize institutional treasury with zero balance but valid configuration
+            _s().institutionalTreasury[_account] = 0;
+            
+            // Set default institutional user spending limit
+            _s().institutionalUserLimit[_account] = LibAppStorage.DEFAULT_INSTITUTIONAL_USER_LIMIT;
+            
+            // Set default spending period
+            _s().institutionalSpendingPeriod[_account] = LibAppStorage.DEFAULT_SPENDING_PERIOD;
+            
+            // Auto-authorize provider address as backend
+            _s().institutionalBackends[_account] = _account;
+            
+            emit InstitutionalTreasuryInitialized(_account, 0, LibAppStorage.DEFAULT_INSTITUTIONAL_USER_LIMIT);
+            emit BackendAuthorized(_account, _account);
+            
             emit ProviderAddedWithoutTokens(_account, "Token minting failed: supply cap reached or other error");
         }
     }

@@ -43,14 +43,16 @@ contract InstitutionalTreasuryFacet {
     ///   2. The Diamond contract itself (for internal calls from other facets like ReservationFacet)
     modifier onlyAuthorizedBackendOrInternal(address provider) {
         AppStorage storage s = LibAppStorage.diamondStorage();
-        require(s.institutionalBackends[provider] != address(0), "No authorized backend");
         
-        // Allow internal calls from Diamond (msg.sender == address(this))
-        // OR external calls from authorized backend
-        require(
-            msg.sender == address(this) || msg.sender == s.institutionalBackends[provider],
-            "Not authorized: must be backend or internal call"
-        );
+        // Allow internal Diamond calls without requiring a backend
+        // Check msg.sender first to avoid reverting on backend check for internal calls
+        if (msg.sender != address(this)) {
+            require(s.institutionalBackends[provider] != address(0), "No authorized backend");
+            require(
+                msg.sender == s.institutionalBackends[provider],
+                "Not authorized: must be backend"
+            );
+        }
         _;
     }
     
@@ -238,10 +240,6 @@ contract InstitutionalTreasuryFacet {
         AppStorage storage s = LibAppStorage.diamondStorage();
         require(amount > 0, "Amount must be > 0");
         
-        // Get current period for event logging only
-        uint256 periodDuration = _getSpendingPeriod(provider);
-        uint256 currentPeriodStart = (block.timestamp / periodDuration) * periodDuration;
-        
         InstitutionalUserSpending storage spending = s.institutionalUserSpending[provider][puc];
         
         // Use totalHistoricalSpent for validation (never reset across periods)
@@ -250,14 +248,19 @@ contract InstitutionalTreasuryFacet {
         
         s.institutionalTreasury[provider] += amount;
         
-        // Decrement both counters
+        // Always decrement totalHistoricalSpent (tracks all-time spending)
         spending.totalHistoricalSpent -= amount;
         
-        // Only decrement current period amount if it's non-zero
-        // (prevents underflow if refunding old-period bookings after rollover)
+        // Check if we're in the same period as when the spend was tracked
+        // Only decrement current period amount if refund doesn't exceed it
+        // (prevents underflow when refunding old-period bookings after rollover)
         if (spending.amount >= amount) {
             spending.amount -= amount;
         }
+        
+        // Get current period for event logging
+        uint256 periodDuration = _getSpendingPeriod(provider);
+        uint256 currentPeriodStart = (block.timestamp / periodDuration) * periodDuration;
         
         emit InstitutionalUserSpent(provider, puc, 0, spending.amount, currentPeriodStart); // Emit with 0 to indicate refund
     }

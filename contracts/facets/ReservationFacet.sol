@@ -259,7 +259,12 @@ contract ReservationFacet is ReservableTokenEnumerable, ReentrancyGuard {
             revert MaxReservationsReached();
         }
         
-        address labProvider = reservation.labProvider;
+        // Get CURRENT owner at confirmation time, not the stale value from request
+        // This ensures the correct provider's stake is locked if NFT was transferred after request
+        address labProvider = IERC721(address(this)).ownerOf(reservation.labId);
+        
+        // Update stored labProvider in case of NFT transfer between request and confirmation
+        reservation.labProvider = labProvider;
 
         // Attempt to collect payment from user using SafeERC20
         // safeTransferFrom will revert if transfer fails or returns false
@@ -333,7 +338,12 @@ contract ReservationFacet is ReservableTokenEnumerable, ReentrancyGuard {
             revert MaxReservationsReached();
         }
         
-        address labProvider = reservation.labProvider;
+        // Get CURRENT owner at confirmation time, not the stale value from request
+        // This ensures the correct provider's stake is locked if NFT was transferred after request
+        address labProvider = IERC721(address(this)).ownerOf(reservation.labId);
+        
+        // Update stored labProvider in case of NFT transfer between request and confirmation
+        reservation.labProvider = labProvider;
 
         // Attempt to charge institutional treasury
         try IInstitutionalTreasuryFacet(address(this)).spendFromInstitutionalTreasury(

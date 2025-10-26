@@ -518,7 +518,7 @@ contract LabFacet is ERC721EnumerableUpgradeable, ReservableToken {
             // This prevents transferring labs to providers who can't afford them
             uint256 recipientListedCount = s.providerStakes[_to].listedLabsCount;
             if (recipientListedCount > 0) {
-                uint256 requiredStake = s._calculateRequiredStake(_to);
+                uint256 requiredStake = calculateRequiredStake(_to, recipientListedCount);
                 uint256 currentStake = s.providerStakes[_to].stakedAmount;
                 
                 require(

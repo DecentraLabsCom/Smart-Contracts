@@ -789,10 +789,9 @@ contract ReservationFacet is ReservableTokenEnumerable, ReentrancyGuard {
             if (reservation.end < block.timestamp && reservation.status == CONFIRMED) {
                 reservation.status = COMPLETED;
                 
-                // Remove from user and lab indices, but NOT from reservationsProvider
+                // Remove from user index only 
                 // Provider must be able to collect funds via requestFunds()
                 userReservations.remove(key);
-                s.reservationsByLabId[_labId].remove(key);
                 
                 // Decrement active reservation counter
                 s.activeReservationCountByTokenAndUser[_labId][_user]--;

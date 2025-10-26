@@ -165,9 +165,13 @@ contract InstitutionalTreasuryFacet {
     function checkInstitutionalTreasuryAvailability(address provider, string calldata puc, uint256 amount) 
         external 
         view
-        onlyAuthorizedBackendOrInternal(provider)
     {
         AppStorage storage s = LibAppStorage.diamondStorage();
+        
+        if (msg.sender != address(this)) {
+            require(s.institutionalBackends[provider] != address(0), "No authorized backend");
+            require(msg.sender == s.institutionalBackends[provider], "Not authorized: must be backend");
+        }
         require(amount > 0, "Amount must be > 0");
         require(s.institutionalTreasury[provider] >= amount, "Insufficient treasury balance");
         

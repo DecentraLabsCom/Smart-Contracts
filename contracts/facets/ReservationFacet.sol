@@ -153,7 +153,8 @@ contract ReservationFacet is ReservableTokenEnumerable, ReentrancyGuard {
             end: _end,
             status: PENDING,
             puc: "", // Empty for wallet reservations
-            requestPeriodStart: 0 // 0 for wallet reservations (only used for institutional)
+            requestPeriodStart: 0, // 0 for wallet reservations (only used for institutional)
+            requestPeriodDuration: 0
         });
         
         // Add to tracking sets
@@ -256,6 +257,10 @@ contract ReservationFacet is ReservableTokenEnumerable, ReentrancyGuard {
         // Store current period start for slippage protection
         uint256 periodDuration = _resolveSpendingPeriod(s, institutionalProvider);
         uint256 currentPeriodStart = (block.timestamp / periodDuration) * periodDuration;
+        require(periodDuration <= type(uint64).max, "Spending period too long");
+        require(currentPeriodStart <= type(uint64).max, "Timestamp overflow");
+        uint64 requestPeriodDuration = uint64(periodDuration);
+        uint64 requestPeriodStart = uint64(currentPeriodStart);
 
         s.reservationKeysByToken[_labId].add(reservationKey);
         
@@ -271,7 +276,8 @@ contract ReservationFacet is ReservableTokenEnumerable, ReentrancyGuard {
             end: _end,
             status: PENDING,
             puc: puc, // Store PUC to identify institutional reservations
-            requestPeriodStart: currentPeriodStart
+            requestPeriodStart: requestPeriodStart,
+            requestPeriodDuration: requestPeriodDuration
         });
         
         s.reservationKeys.add(reservationKey);
@@ -398,14 +404,14 @@ contract ReservationFacet is ReservableTokenEnumerable, ReentrancyGuard {
             return;
         }
         
-        // Verify the spending period hasn't changed since request
-        // This prevents exploits where a user makes a request at the end of a period,
-        // and gets it confirmed in the next period after the spent amount has reset to zero
-        uint256 periodDuration = _resolveSpendingPeriod(s, institutionalProvider);
-        uint256 currentPeriodStart = (block.timestamp / periodDuration) * periodDuration;
+        uint256 requestStart = reservation.requestPeriodStart;
+        uint256 requestDuration = reservation.requestPeriodDuration;
+        if (requestDuration == 0) {
+            requestDuration = _resolveSpendingPeriod(s, institutionalProvider);
+        }
         
-        if (currentPeriodStart != reservation.requestPeriodStart) {
-            // Period has changed - deny the reservation and require a fresh request
+        if (block.timestamp >= requestStart + requestDuration) {
+            // Request expired before it could be confirmed
             _cancelReservation(_reservationKey);
             emit ReservationRequestDenied(_reservationKey, reservation.labId);
             return;
@@ -672,19 +678,22 @@ contract ReservationFacet is ReservableTokenEnumerable, ReentrancyGuard {
         
         EnumerableSet.Bytes32Set storage labReservations = s.reservationsByLabId[_labId];
         uint256 len = labReservations.length();
+        uint256 i;
         
-        for (uint256 i = 0; i < len && processed < maxBatch; i++) {
+        while (i < len && processed < maxBatch) {
             bytes32 key = labReservations.at(i);
             Reservation storage reservation = s.reservations[key];
             
             // Quick status check first (cheapest operation)
             // Skip if not in collectable state
             if (reservation.status != CONFIRMED && reservation.status != COMPLETED) {
+                unchecked { ++i; }
                 continue;
             }
             
             // Skip if not expired yet
             if (reservation.end >= block.timestamp) {
+                unchecked { ++i; }
                 continue;
             }
             
@@ -725,8 +734,7 @@ contract ReservationFacet is ReservableTokenEnumerable, ReentrancyGuard {
                 s.activeReservationByTokenAndUser[_labId][trackingKey] = nextKey;
             }
             
-            --len; // Adjust length after removal
-            if (i > 0) --i; // Re-check same index (safe: guarded against underflow when i==0)
+            len = labReservations.length();
             unchecked { ++processed; }
         }
 
@@ -799,8 +807,9 @@ contract ReservationFacet is ReservableTokenEnumerable, ReentrancyGuard {
         AppStorage storage s = _s();
         EnumerableSet.Bytes32Set storage userReservations = s.reservationKeysByTokenAndUser[_labId][_user];
         uint256 len = userReservations.length();
+        uint256 i;
         
-        for (uint256 i = 0; i < len && processed < maxBatch; i++) {
+        while (i < len && processed < maxBatch) {
             bytes32 key = userReservations.at(i);
             Reservation storage reservation = s.reservations[key];
             
@@ -822,10 +831,12 @@ contract ReservationFacet is ReservableTokenEnumerable, ReentrancyGuard {
                     s.activeReservationByTokenAndUser[_labId][_user] = nextKey;
                 }
                 
-                --len; // Adjust length after removal
-                if (i > 0) --i; // Re-check same index (safe: no underflow at i=0)
+                len = userReservations.length();
                 unchecked { ++processed; }
+                continue;
             }
+
+            unchecked { ++i; }
         }
         
         // Emit event if any reservations were processed

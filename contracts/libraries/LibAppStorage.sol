@@ -64,7 +64,7 @@ struct Lab {
 ///      - Slot 1: renter (address - 20 bytes) + price (uint96 - 12 bytes) = 32 bytes
 ///      - Slot 2: labProvider (address - 20 bytes) + status (uint8 - 1 byte) + start (uint32 - 4 bytes) + end (uint32 - 4 bytes) = 29 bytes
 ///      - Slot 3: puc (string - 32 bytes pointer)
-///      - Slot 4: requestPeriodStart (uint256 - 32 bytes)
+///      - Slot 4: requestPeriodStart (uint64) + requestPeriodDuration (uint64) + padding
 ///      Total: 5 slots (vs 7 slots in unoptimized version)
 /// @param labId Unique identifier of the lab being reserved
 /// @param renter Address of the user making the reservation
@@ -84,7 +84,8 @@ struct Reservation {
         uint32 start;            // Slot 2: +4 bytes
         uint32 end;              // Slot 2: +4 bytes = 29 bytes total
         string puc;              // Slot 3: 32 bytes (pointer)
-        uint256 requestPeriodStart; // Slot 4: 32 bytes
+        uint64 requestPeriodStart; // Slot 4: +8 bytes
+        uint64 requestPeriodDuration; // Slot 4: +8 bytes (0 for wallet reservations)
 }
 
 /// @notice Represents a node in a red-black tree data structure, necessary for the library RivalIntervalTree Node data structure

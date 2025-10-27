@@ -33,10 +33,6 @@ contract LabFacet is ERC721EnumerableUpgradeable, ReservableToken {
     /// @notice Higher values reduce memory leaks but increase gas cost
     uint256 private constant MAX_CLEANUP_PER_TRANSFER = 100;
     
-    /// @dev Maximum number of reservations to check in _hasActiveBookings
-    /// @notice Conservative limit to prevent DoS attacks during lab deletion
-    uint256 private constant MAX_RESERVATIONS_CHECK = 100;
-
     /// @dev Emitted when a new lab is added to the system.
     /// @param _labId The unique identifier of the lab.
     /// @param _provider The address of the provider adding the lab.
@@ -326,20 +322,15 @@ contract LabFacet is ERC721EnumerableUpgradeable, ReservableToken {
     /// @notice Deletes a Lab identified by `_labId`.
     /// @dev This function can only be called by the Lab provider and the contract owner.
     /// It checks if the Lab exists before deleting it.
-    /// SECURITY: Prevents deletion if there are active (CONFIRMED or IN_USE) reservations to protect user funds
+    /// SECURITY: Prevents deletion if there are uncollected reservations (CONFIRMED, IN_USE, or COMPLETED)
     /// @param _labId The ID of the Lab to be deleted.
-    /// @custom:security Cannot delete lab with active CONFIRMED or IN_USE reservations
-    /// @custom:optimization Uses O(1) tree root check before expensive O(n) iteration
+    /// @custom:security Cannot delete lab with active reservations to protect user funds
     function deleteLab(uint256 _labId) external onlyLabProvider(_labId) {
         AppStorage storage s = _s();
         
-        // Fast O(1) check: if calendar tree is empty, skip expensive iteration
-        // This optimizes common cases
-        if (s.calendars[_labId].root != 0) {
-            // Security check: Prevent deletion if there are uncollected reservations
-            // This protects provider's funds from being locked if lab is deleted before collection
-            require(!_hasActiveBookings(_labId), "Cannot delete lab with uncollected reservations");
-        }
+        // Security check: Prevent deletion if there are uncollected reservations
+        // This protects provider's funds from being locked if lab is deleted before collection
+        require(!_hasActiveBookings(_labId), "Cannot delete lab with uncollected reservations");
         
         // Clean up listing status if lab was listed
         // This prevents corruption of listedLabsCount and tokenStatus
@@ -360,35 +351,15 @@ contract LabFacet is ERC721EnumerableUpgradeable, ReservableToken {
     }
 
     /// @notice Checks if a lab has any uncollected reservations (CONFIRMED, IN_USE, or COMPLETED)
-    /// @dev Internal helper function to prevent lab deletion with uncollected funds
-    ///      Limited to check max 100 reservations to prevent DoS attacks.
-    ///      CRITICAL: Must include COMPLETED status to prevent fund loss bug where:
-    ///      1. Lab has COMPLETED reservations (expired but not collected)
-    ///      2. Provider deletes lab → NFT burned
-    ///      3. requestFunds() fails on ownerOf() revert
-    ///      4. Provider funds are permanently locked
+    /// @dev Uses the active reservation counter (labActiveReservationCount) for O(1) constant-time checks.
+    ///      This counter is maintained by:
+    ///      - Incremented when reservation is confirmed (PENDING → CONFIRMED)
+    ///      - Decremented when reservation is collected (CONFIRMED/COMPLETED → COLLECTED)
+    ///      - Decremented when reservation is cancelled (CONFIRMED/IN_USE/COMPLETED → CANCELLED)
     /// @param _labId The ID of the lab to check
     /// @return true if there are any reservations with CONFIRMED, IN_USE, or COMPLETED status
     function _hasActiveBookings(uint256 _labId) internal view returns (bool) {
-        AppStorage storage s = _s();
-        EnumerableSet.Bytes32Set storage reservationKeys = s.reservationKeysByToken[_labId];
-        uint256 length = reservationKeys.length();
-        
-        // If we can't check all reservations, assume there are active bookings
-        uint256 maxCheck = length > MAX_RESERVATIONS_CHECK ? MAX_RESERVATIONS_CHECK : length;
-        
-        for (uint256 i = 0; i < maxCheck;) {
-            bytes32 key = reservationKeys.at(i);
-            // Check for CONFIRMED, IN_USE, and COMPLETED (all states with uncollected funds)
-            uint8 status = s.reservations[key].status;
-            if (status == CONFIRMED || status == IN_USE || status == COMPLETED) {
-                return true;
-            }
-            unchecked { ++i; }
-        }
-        
-        // Prevents deletion of labs with >MAX_RESERVATIONS_CHECK (conservative but safe)
-        return length > MAX_RESERVATIONS_CHECK;
+        return _s().labActiveReservationCount[_labId] > 0;
     }
 
     /// @notice Retrieves the details of a Lab by its ID.
@@ -533,7 +504,7 @@ contract LabFacet is ERC721EnumerableUpgradeable, ReservableToken {
             }
             
             // Clean up reservation indices when NFT is transferred.
-            // Transfer CONFIRMED/IN_USE reservations from old owner's index to new owner's index
+            // Transfer CONFIRMED/IN_USE/COMPLETED reservations from old owner's index to new owner's index
             // This prevents memory leak in reservationsProvider[oldOwner] and ensures stake accounting
             // remains accurate. Transfers are limited to MAX_CLEANUP_PER_TRANSFER active reservations
             // to keep the loop bounded and avoid DoS vectors.
@@ -550,8 +521,10 @@ contract LabFacet is ERC721EnumerableUpgradeable, ReservableToken {
                 // Cache status in memory to save SLOAD
                 uint8 status = s.reservations[key].status;
                 
-                // Only update CONFIRMED or IN_USE reservations 
-                // (PENDING don't have provider index yet, others are finished)
+                // Migrate CONFIRMED, IN_USE and COMPLETED reservations to new lab owner.
+                // The new owner inherits the right to collect pending funds earned by the lab.
+                // PENDING reservations don't have provider assigned yet.
+                // COLLECTED/CANCELLED are terminal states and don't need migration.
                 if (status == CONFIRMED || status == IN_USE || status == COMPLETED) {
                     // Update labProvider to new owner
                     s.reservations[key].labProvider = _to;

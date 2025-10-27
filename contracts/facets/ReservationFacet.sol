@@ -110,8 +110,17 @@ contract ReservationFacet is ReservableTokenEnumerable, ReentrancyGuard {
         // Auto-release if user is within 2 slots of limit (80% threshold)
         // This provides breathing room while avoiding unnecessary gas for casual users
         if (userActiveCount >= MAX_RESERVATIONS_PER_LAB_USER - 2) {
-            _releaseExpiredReservationsInternal(_labId, msg.sender, MAX_RESERVATIONS_PER_LAB_USER);
-            userActiveCount = s.activeReservationCountByTokenAndUser[_labId][msg.sender]; // Update after cleanup
+            bytes32 earliestKey = s.activeReservationByTokenAndUser[_labId][msg.sender];
+            if (earliestKey != bytes32(0)) {
+                Reservation storage earliestReservation = s.reservations[earliestKey];
+                if (
+                    earliestReservation.status == CONFIRMED &&
+                    earliestReservation.end < block.timestamp
+                ) {
+                    _releaseExpiredReservationsInternal(_labId, msg.sender, MAX_RESERVATIONS_PER_LAB_USER);
+                    userActiveCount = s.activeReservationCountByTokenAndUser[_labId][msg.sender]; // update after cleanup
+                }
+            }
         }
         
         // Check limit after auto-release attempt

@@ -359,7 +359,8 @@ contract LabFacet is ERC721EnumerableUpgradeable, ReservableToken {
     /// @param _labId The ID of the lab to check
     /// @return true if there are any reservations with CONFIRMED, IN_USE, or COMPLETED status
     function _hasActiveBookings(uint256 _labId) internal view returns (bool) {
-        return _s().labActiveReservationCount[_labId] > 0;
+        AppStorage storage s = _s();
+        return s.labActiveReservationCount[_labId] > 0 || s.pendingLabPayout[_labId] > 0;
     }
 
     /// @notice Retrieves the details of a Lab by its ID.

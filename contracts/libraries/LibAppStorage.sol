@@ -187,6 +187,7 @@ struct AppStorage {
     mapping (uint256 => bool) tokenStatus;
     mapping (uint256 => uint256) labActiveReservationCount;
     mapping (address => uint256) providerActiveReservationCount;
+    mapping (uint256 => uint256) pendingLabPayout;
     
     mapping (address => ProviderStake) providerStakes;
 

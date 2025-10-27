@@ -682,7 +682,6 @@ contract ReservationFacet is ReservableTokenEnumerable, ReentrancyGuard {
             revert("Not lab owner");
         }
         
-        uint256 totalAmount;
         uint256 processed;
         uint256 currentTime = block.timestamp;
         
@@ -694,79 +693,28 @@ contract ReservationFacet is ReservableTokenEnumerable, ReentrancyGuard {
             bytes32 key = labReservations.at(i);
             Reservation storage reservation = s.reservations[key];
             
-            // Quick status check first (cheapest operation)
-            // Skip if not in collectable state
-            if (reservation.status != CONFIRMED && reservation.status != COMPLETED) {
+            bool shouldFinalize = reservation.end < currentTime && 
+                (reservation.status == CONFIRMED || reservation.status == IN_USE || reservation.status == COMPLETED);
+            
+            if (!shouldFinalize) {
                 unchecked { ++i; }
                 continue;
             }
             
-            // Skip if not expired yet
-            if (reservation.end >= currentTime) {
-                unchecked { ++i; }
-                continue;
-            }
-            
-            // At this point, reservation is eligible for collection
-            // (No ownership check needed - already verified caller owns lab at function start)
-            totalAmount += reservation.price;
-
-            if (reservation.status == CONFIRMED) {
-                _removeReservationFromCalendar(_labId, reservation.start);
-            }
-            
-            if (_isActiveReservationStatus(reservation.status)) {
-                _decrementActiveReservationCounters(reservation);
-            }
-            reservation.status = COLLECTED;  
-                
-            // Remove from ALL indices (including global set)
-            s.reservationsProvider[msg.sender].remove(key); // Remove from provider index
-            labReservations.remove(key); // Remove from lab index (already reference to reservationsByLabId)
-            s.reservationKeys.remove(key); // Remove from global set to free storage
-            s.reservationKeysByToken[_labId].remove(key); // Remove from per-token aggregate
-            
-            // Use correct tracking key (institutional vs wallet)
-            address trackingKey;
-            if (bytes(reservation.puc).length > 0) {
-                // Institutional reservation
-                trackingKey = address(uint160(uint256(keccak256(abi.encodePacked(reservation.renter, reservation.puc)))));
-            } else {
-                // Wallet reservation
-                trackingKey = reservation.renter;
-            }
-            
-            // Decrement counter and remove from per-token-user index
-            // Use _labId parameter instead of reading reservation.labId from storage
-            s.activeReservationCountByTokenAndUser[_labId][trackingKey]--;
-            s.reservationKeysByTokenAndUser[_labId][trackingKey].remove(key);
-            
-            // Update active reservation index if this was the indexed one
-            if (s.activeReservationByTokenAndUser[_labId][trackingKey] == key) {
-                bytes32 nextKey = _findNextEarliestReservation(_labId, trackingKey);
-                s.activeReservationByTokenAndUser[_labId][trackingKey] = nextKey;
-            }
-            
+            _finalizeReservationForPayout(s, key, reservation, _labId);
             len = labReservations.length();
             unchecked { ++processed; }
         }
 
-        // Revert if no eligible reservations were found
-        if (processed == 0) revert("No completed reservations");
+        uint256 payout = s.pendingLabPayout[_labId];
+        if (payout == 0) revert("No completed reservations");
         
-        // Update provider's last reservation timestamp (activates 30-day lock)
-        // This is done after successfully completing/collecting reservations
-        if (processed > 0) {
-            IStakingFacet(address(this)).updateLastReservation(msg.sender);
-        }
+        s.pendingLabPayout[_labId] = 0;
+        IERC20(s.labTokenAddress).safeTransfer(msg.sender, payout);
         
-        // Only transfer if there are actual funds to transfer
-        if (totalAmount > 0) {
-            IERC20(s.labTokenAddress).safeTransfer(msg.sender, totalAmount);
-        }
+        IStakingFacet(address(this)).updateLastReservation(msg.sender);
         
-        // Emit event with collection details for observability (including labId)
-        emit FundsCollected(msg.sender, _labId, totalAmount, processed);
+        emit FundsCollected(msg.sender, _labId, payout, processed);
     }
 
     /// @notice Returns the address of the $LAB ERC20 token contract
@@ -829,22 +777,7 @@ contract ReservationFacet is ReservableTokenEnumerable, ReentrancyGuard {
             
             // Only process expired reservations that are still CONFIRMED
             if (reservation.end < currentTime && reservation.status == CONFIRMED) {
-                reservation.status = COMPLETED;
-                _removeReservationFromCalendar(_labId, reservation.start);
-                
-                // Remove from user index only 
-                // Provider must be able to collect funds via requestFunds()
-                userReservations.remove(key);
-                
-                // Decrement active reservation counter
-                s.activeReservationCountByTokenAndUser[_labId][_user]--;
-                
-                // Update active reservation index if this was the indexed one
-                if (s.activeReservationByTokenAndUser[_labId][_user] == key) {
-                    bytes32 nextKey = _findNextEarliestReservation(_labId, _user);
-                    s.activeReservationByTokenAndUser[_labId][_user] = nextKey;
-                }
-                
+                _finalizeReservationForPayout(s, key, reservation, _labId);
                 len = userReservations.length();
                 unchecked { ++processed; }
                 continue;
@@ -889,5 +822,56 @@ contract ReservationFacet is ReservableTokenEnumerable, ReentrancyGuard {
     {
         uint256 duration = s.institutionalSpendingPeriod[provider];
         return duration == 0 ? LibAppStorage.DEFAULT_SPENDING_PERIOD : duration;
+    }
+
+    /// @dev Returns the tracking key used for per-token/user indexes (wallet or institutional)
+    function _computeTrackingKey(Reservation storage reservation) internal view returns (address) {
+        if (bytes(reservation.puc).length > 0) {
+            return address(uint160(uint256(keccak256(abi.encodePacked(reservation.renter, reservation.puc)))));
+        }
+        return reservation.renter;
+    }
+
+    /// @dev Finalizes a reservation by crediting the lab payout balance and cleaning indexes
+    function _finalizeReservationForPayout(
+        AppStorage storage s,
+        bytes32 key,
+        Reservation storage reservation,
+        uint256 labId
+    ) internal returns (bool) {
+        if (reservation.status == COLLECTED || reservation.status == CANCELLED) {
+            return false;
+        }
+
+        address trackingKey = _computeTrackingKey(reservation);
+        address labProvider = reservation.labProvider;
+
+        if (reservation.status == CONFIRMED || reservation.status == IN_USE) {
+            _removeReservationFromCalendar(labId, reservation.start);
+        }
+
+        if (_isActiveReservationStatus(reservation.status)) {
+            _decrementActiveReservationCounters(reservation);
+        }
+
+        reservation.status = COLLECTED;
+        s.pendingLabPayout[labId] += reservation.price;
+
+        s.reservationsProvider[labProvider].remove(key);
+        s.reservationsByLabId[labId].remove(key);
+        s.reservationKeys.remove(key);
+        s.reservationKeysByToken[labId].remove(key);
+
+        if (s.activeReservationCountByTokenAndUser[labId][trackingKey] > 0) {
+            s.activeReservationCountByTokenAndUser[labId][trackingKey]--;
+        }
+        s.reservationKeysByTokenAndUser[labId][trackingKey].remove(key);
+
+        if (s.activeReservationByTokenAndUser[labId][trackingKey] == key) {
+            bytes32 nextKey = _findNextEarliestReservation(labId, trackingKey);
+            s.activeReservationByTokenAndUser[labId][trackingKey] = nextKey;
+        }
+
+        return true;
     }
 }

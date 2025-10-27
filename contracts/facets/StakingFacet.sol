@@ -2,9 +2,10 @@
 pragma solidity ^0.8.23;
 
 import "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
-import {LibAppStorage, AppStorage, PROVIDER_ROLE} from "../libraries/LibAppStorage.sol";
+import {LibAppStorage, AppStorage, PROVIDER_ROLE, Reservation} from "../libraries/LibAppStorage.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import "../libraries/LibDiamond.sol";
 import "../external/LabERC20.sol";
@@ -195,21 +196,37 @@ contract StakingFacet is AccessControlUpgradeable {
             // Defense in depth: Even if no labs are listed, verify no active reservations exist
             // This prevents attack where provider unlists with PENDING and then unstakes
             EnumerableSet.Bytes32Set storage providerReservations = s.reservationsProvider[msg.sender];
-            uint256 activeReservationCount = providerReservations.length();
             
-            if (activeReservationCount > 0) {
-                // Check if any are in active states (CONFIRMED, IN_USE, COMPLETED)
-                for (uint256 i = 0; i < activeReservationCount; i++) {
+            if (providerReservations.length() > 0) {
+                uint256 i;
+                while (i < providerReservations.length()) {
                     bytes32 key = providerReservations.at(i);
-                    uint8 status = s.reservations[key].status;
+                    Reservation storage reservation = s.reservations[key];
                     
+                    bool ownerMismatch = true;
+                    if (reservation.labId != 0) {
+                        try IERC721(address(this)).ownerOf(reservation.labId) returns (address labOwner) {
+                            ownerMismatch = (labOwner != msg.sender);
+                        } catch {
+                            ownerMismatch = true;
+                        }
+                    }
+                    
+                    if (ownerMismatch) {
+                        providerReservations.remove(key);
+                        continue;
+                    }
+                    
+                    uint8 status = reservation.status;
                     if (status == CONFIRMED || status == IN_USE || status == COMPLETED) {
                         require(
                             remainingStake >= requiredStake,
                             "StakingFacet: cannot unstake below minimum with active reservations"
                         );
-                        break; // Found active reservation, requirement enforced
+                        break;
                     }
+                    
+                    unchecked { ++i; }
                 }
             }
             

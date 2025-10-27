@@ -4,10 +4,10 @@ pragma solidity ^0.8.23;
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
-import {IERC721Enumerable} from "@openzeppelin/contracts/token/ERC721/extensions/IERC721Enumerable.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import "../abstracts/ReservableTokenEnumerable.sol";
 import "./ProviderFacet.sol";
+import "../libraries/LibAppStorage.sol";
 
 using SafeERC20 for IERC20;
 
@@ -254,7 +254,7 @@ contract ReservationFacet is ReservableTokenEnumerable, ReentrancyGuard {
         );
         
         // Store current period start for slippage protection
-        uint256 periodDuration = s.institutionalProviders[institutionalProvider].spendingPeriodDuration;
+        uint256 periodDuration = _resolveSpendingPeriod(s, institutionalProvider);
         uint256 currentPeriodStart = (block.timestamp / periodDuration) * periodDuration;
 
         s.reservationKeysByToken[_labId].add(reservationKey);
@@ -309,6 +309,13 @@ contract ReservationFacet is ReservableTokenEnumerable, ReentrancyGuard {
         
         // Update stored labProvider in case of NFT transfer between request and confirmation
         reservation.labProvider = labProvider;
+
+        // Re-validate provider stake/listing before attempting to charge renter
+        if (!_providerCanFulfill(s, labProvider, reservation.labId)) {
+            _cancelReservation(_reservationKey);
+            emit ReservationRequestDenied(_reservationKey, reservation.labId);
+            return;
+        }
 
         // Attempt to collect payment from user using SafeERC20
         // safeTransferFrom will revert if transfer fails or returns false
@@ -384,11 +391,17 @@ contract ReservationFacet is ReservableTokenEnumerable, ReentrancyGuard {
         
         // Update stored labProvider in case of NFT transfer between request and confirmation
         reservation.labProvider = labProvider;
+
+        if (!_providerCanFulfill(s, labProvider, reservation.labId)) {
+            _cancelReservation(_reservationKey);
+            emit ReservationRequestDenied(_reservationKey, reservation.labId);
+            return;
+        }
         
         // Verify the spending period hasn't changed since request
         // This prevents exploits where a user makes a request at the end of a period,
         // and gets it confirmed in the next period after the spent amount has reset to zero
-        uint256 periodDuration = s.institutionalProviders[institutionalProvider].spendingPeriodDuration;
+        uint256 periodDuration = _resolveSpendingPeriod(s, institutionalProvider);
         uint256 currentPeriodStart = (block.timestamp / periodDuration) * periodDuration;
         
         if (currentPeriodStart != reservation.requestPeriodStart) {
@@ -677,13 +690,19 @@ contract ReservationFacet is ReservableTokenEnumerable, ReentrancyGuard {
             
             // At this point, reservation is eligible for collection
             // (No ownership check needed - already verified caller owns lab at function start)
-            totalAmount += reservation.price;    
+            totalAmount += reservation.price;
+
+            if (reservation.status == CONFIRMED) {
+                _removeReservationFromCalendar(_labId, reservation.start);
+            }
+
             reservation.status = COLLECTED;  
                 
             // Remove from ALL indices (including global set)
             s.reservationsProvider[msg.sender].remove(key); // Remove from provider index
             labReservations.remove(key); // Remove from lab index (already reference to reservationsByLabId)
             s.reservationKeys.remove(key); // Remove from global set to free storage
+            s.reservationKeysByToken[_labId].remove(key); // Remove from per-token aggregate
             
             // Use correct tracking key (institutional vs wallet)
             address trackingKey;
@@ -788,6 +807,7 @@ contract ReservationFacet is ReservableTokenEnumerable, ReentrancyGuard {
             // Only process expired reservations that are still CONFIRMED
             if (reservation.end < block.timestamp && reservation.status == CONFIRMED) {
                 reservation.status = COMPLETED;
+                _removeReservationFromCalendar(_labId, reservation.start);
                 
                 // Remove from user index only 
                 // Provider must be able to collect funds via requestFunds()
@@ -814,5 +834,35 @@ contract ReservationFacet is ReservableTokenEnumerable, ReentrancyGuard {
         }
         
         return processed;
+    }
+
+    /// @dev Checks whether the current lab owner still satisfies stake and listing requirements.
+    /// @param s App storage pointer.
+    /// @param labProvider Current provider address.
+    /// @param labId Lab identifier linked to the reservation.
+    function _providerCanFulfill(AppStorage storage s, address labProvider, uint256 labId) 
+        internal 
+        view 
+        returns (bool) 
+    {
+        if (!s.tokenStatus[labId]) {
+            return false;
+        }
+        
+        uint256 listedLabsCount = s.providerStakes[labProvider].listedLabsCount;
+        uint256 requiredStake = calculateRequiredStake(labProvider, listedLabsCount);
+        return s.providerStakes[labProvider].stakedAmount >= requiredStake;
+    }
+
+    /// @dev Resolves institutional spending period (falls back to default when unset).
+    /// @param s App storage pointer.
+    /// @param provider Institutional provider address.
+    function _resolveSpendingPeriod(AppStorage storage s, address provider) 
+        internal 
+        view 
+        returns (uint256) 
+    {
+        uint256 duration = s.institutionalSpendingPeriod[provider];
+        return duration == 0 ? LibAppStorage.DEFAULT_SPENDING_PERIOD : duration;
     }
 }

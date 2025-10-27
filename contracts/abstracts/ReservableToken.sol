@@ -790,7 +790,7 @@ abstract contract ReservableToken {
         // Only remove from calendar if reservation was actually inserted (CONFIRMED or IN_USE)
         // PENDING reservations are never inserted in calendar, so no need to remove
         if (reservation.status == CONFIRMED || reservation.status == IN_USE) {
-            s.calendars[reservation.labId].remove(reservation.start);
+            _removeReservationFromCalendar(reservation.labId, reservation.start);
         }
         
         reservation.status = CANCELLED;
@@ -806,6 +806,20 @@ abstract contract ReservableToken {
     /// @return bytes32 A unique hash representing the reservation
     function _getReservationKey(uint256 _tokenId, uint32 _time) internal pure returns (bytes32) {  
         return keccak256(abi.encodePacked(_tokenId, _time));
+    }
+
+    /// @dev Safely removes a reservation entry from the lab's calendar if it exists.
+    /// @param _labId The lab associated with the reservation.
+    /// @param _start The reservation start timestamp used as calendar key.
+    function _removeReservationFromCalendar(uint256 _labId, uint32 _start) internal {
+        Tree storage calendar = _s().calendars[_labId];
+        if (calendar.root == 0) {
+            return;
+        }
+
+        if (calendar.exists(_start)) {
+            calendar.remove(_start);
+        }
     }
 
     /// @notice Calculates required stake for a provider based on listed labs count

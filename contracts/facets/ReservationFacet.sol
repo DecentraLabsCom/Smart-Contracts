@@ -104,15 +104,19 @@ contract ReservationFacet is ReservableTokenEnumerable, ReentrancyGuard {
         }
         
         // Check user hasn't exceeded reservation limit (including PENDING)
-        // If at limit, try to auto-release expired reservations first
-        if (s.activeReservationCountByTokenAndUser[_labId][msg.sender] >= MAX_RESERVATIONS_PER_LAB_USER) {
-            // Attempt to free up slots by releasing expired reservations
+        // Proactive auto-release when approaching limit to prevent blocking
+        uint256 userActiveCount = s.activeReservationCountByTokenAndUser[_labId][msg.sender];
+        
+        // Auto-release if user is within 2 slots of limit (80% threshold)
+        // This provides breathing room while avoiding unnecessary gas for casual users
+        if (userActiveCount >= MAX_RESERVATIONS_PER_LAB_USER - 2) {
             _releaseExpiredReservationsInternal(_labId, msg.sender, MAX_RESERVATIONS_PER_LAB_USER);
-            
-            // Check again after auto-release attempt
-            if (s.activeReservationCountByTokenAndUser[_labId][msg.sender] >= MAX_RESERVATIONS_PER_LAB_USER) {
-                revert MaxReservationsReached();
-            }
+            userActiveCount = s.activeReservationCountByTokenAndUser[_labId][msg.sender]; // Update after cleanup
+        }
+        
+        // Check limit after auto-release attempt
+        if (userActiveCount >= MAX_RESERVATIONS_PER_LAB_USER) {
+            revert MaxReservationsReached();
         }
         
         if (_start >= _end || _start <= block.timestamp + RESERVATION_MARGIN) 
@@ -225,15 +229,19 @@ contract ReservationFacet is ReservableTokenEnumerable, ReentrancyGuard {
         address userTrackingKey = address(uint160(uint256(keccak256(abi.encodePacked(institutionalProvider, puc)))));
         
         // Check user hasn't exceeded reservation limit (including PENDING)
-        // If at limit, try to auto-release expired reservations first
-        if (s.activeReservationCountByTokenAndUser[_labId][userTrackingKey] >= MAX_RESERVATIONS_PER_LAB_USER) {
-            // Attempt to free up slots by releasing expired reservations
+        // Proactive auto-release when approaching limit to prevent blocking
+        uint256 userActiveCount = s.activeReservationCountByTokenAndUser[_labId][userTrackingKey];
+        
+        // Auto-release if user is within 2 slots of limit (80% threshold)
+        // This provides breathing room while avoiding unnecessary gas for casual users
+        if (userActiveCount >= MAX_RESERVATIONS_PER_LAB_USER - 2) {
             _releaseExpiredReservationsInternal(_labId, userTrackingKey, MAX_RESERVATIONS_PER_LAB_USER);
-            
-            // Check again after auto-release attempt
-            if (s.activeReservationCountByTokenAndUser[_labId][userTrackingKey] >= MAX_RESERVATIONS_PER_LAB_USER) {
-                revert MaxReservationsReached();
-            }
+            userActiveCount = s.activeReservationCountByTokenAndUser[_labId][userTrackingKey]; // Update after cleanup
+        }
+        
+        // Check limit after auto-release attempt
+        if (userActiveCount >= MAX_RESERVATIONS_PER_LAB_USER) {
+            revert MaxReservationsReached();
         }
         
         // Check availability: Only check if key exists with non-cancelled/non-collected status
@@ -676,6 +684,7 @@ contract ReservationFacet is ReservableTokenEnumerable, ReentrancyGuard {
         
         uint256 totalAmount;
         uint256 processed;
+        uint256 currentTime = block.timestamp;
         
         EnumerableSet.Bytes32Set storage labReservations = s.reservationsByLabId[_labId];
         uint256 len = labReservations.length();
@@ -693,7 +702,7 @@ contract ReservationFacet is ReservableTokenEnumerable, ReentrancyGuard {
             }
             
             // Skip if not expired yet
-            if (reservation.end >= block.timestamp) {
+            if (reservation.end >= currentTime) {
                 unchecked { ++i; }
                 continue;
             }
@@ -812,13 +821,14 @@ contract ReservationFacet is ReservableTokenEnumerable, ReentrancyGuard {
         EnumerableSet.Bytes32Set storage userReservations = s.reservationKeysByTokenAndUser[_labId][_user];
         uint256 len = userReservations.length();
         uint256 i;
+        uint256 currentTime = block.timestamp;
         
         while (i < len && processed < maxBatch) {
             bytes32 key = userReservations.at(i);
             Reservation storage reservation = s.reservations[key];
             
             // Only process expired reservations that are still CONFIRMED
-            if (reservation.end < block.timestamp && reservation.status == CONFIRMED) {
+            if (reservation.end < currentTime && reservation.status == CONFIRMED) {
                 reservation.status = COMPLETED;
                 _removeReservationFromCalendar(_labId, reservation.start);
                 

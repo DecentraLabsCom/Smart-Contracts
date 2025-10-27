@@ -183,11 +183,11 @@ abstract contract ReservableToken {
         emit LabListed(_tokenId, msg.sender);
     }
 
-    /// @notice Unlists a token, marking it as unavailable for reservation or other operations.
+    /// @notice Unlists a token, marking it as unavailable for new reservations.
     /// @dev This function updates the token's status to `false` in the storage mapping.
     /// @dev No stake verification is required - providers can always unlist their own labs.
     /// @dev Decrements the listed labs count for the provider.
-    /// @dev Prevents unlisting if there are active reservations (CONFIRMED, IN_USE, or COMPLETED)
+    /// @dev Allows unlisting even with active reservations (existing reservations remain valid).
     /// @param _tokenId The unique identifier of the token to be unlisted.
     function unlistToken(uint256 _tokenId) external onlyTokenOwner(_tokenId) {
         AppStorage storage s = _s();
@@ -195,11 +195,6 @@ abstract contract ReservableToken {
         // Check if actually listed to avoid under-counting
         if (!s.tokenStatus[_tokenId]) {
             revert("Lab not listed");
-        }
-        
-        // Prevent unlisting if there are active reservations
-        if (s.labActiveReservationCount[_tokenId] > 0) {
-            revert("Cannot unlist: active reservations exist");
         }
         
         // Decrement listed count

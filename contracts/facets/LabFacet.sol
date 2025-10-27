@@ -552,13 +552,18 @@ contract LabFacet is ERC721EnumerableUpgradeable, ReservableToken {
                 
                 // Only update CONFIRMED or IN_USE reservations 
                 // (PENDING don't have provider index yet, others are finished)
-                if (status == CONFIRMED || status == IN_USE) {
+                if (status == CONFIRMED || status == IN_USE || status == COMPLETED) {
                     // Update labProvider to new owner
                     s.reservations[key].labProvider = _to;
                     
                     // Move from old provider's index to new provider's index
                     s.reservationsProvider[from].remove(key);
                     s.reservationsProvider[_to].add(key);
+
+                    if (s.providerActiveReservationCount[from] > 0) {
+                        s.providerActiveReservationCount[from]--;
+                    }
+                    s.providerActiveReservationCount[_to]++;
                     
                     // Emit event for off-chain tracking
                     emit ReservationProviderUpdated(key, _tokenId, from, _to);

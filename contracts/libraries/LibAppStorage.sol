@@ -185,6 +185,8 @@ struct AppStorage {
     mapping (uint256 => mapping(address => uint8)) activeReservationCountByTokenAndUser;
     mapping (uint256 => mapping(address => EnumerableSet.Bytes32Set)) reservationKeysByTokenAndUser;
     mapping (uint256 => bool) tokenStatus;
+    mapping (uint256 => uint256) labActiveReservationCount;
+    mapping (address => uint256) providerActiveReservationCount;
     
     mapping (address => ProviderStake) providerStakes;
 

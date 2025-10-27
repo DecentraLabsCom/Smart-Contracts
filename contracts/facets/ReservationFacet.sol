@@ -338,6 +338,7 @@ contract ReservationFacet is ReservableTokenEnumerable, ReentrancyGuard {
             reservation.status = CONFIRMED;
             s.reservationsProvider[labProvider].add(_reservationKey);
             s.reservationsByLabId[reservation.labId].add(_reservationKey);
+            _incrementActiveReservationCounters(reservation);
             
             // Update lastReservation timestamp ONLY on confirmation (after payment)
             // This prevents spam attacks where unpaid requests lock provider's stake
@@ -704,7 +705,10 @@ contract ReservationFacet is ReservableTokenEnumerable, ReentrancyGuard {
             if (reservation.status == CONFIRMED) {
                 _removeReservationFromCalendar(_labId, reservation.start);
             }
-
+            
+            if (_isActiveReservationStatus(reservation.status)) {
+                _decrementActiveReservationCounters(reservation);
+            }
             reservation.status = COLLECTED;  
                 
             // Remove from ALL indices (including global set)

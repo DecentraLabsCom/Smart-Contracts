@@ -2,17 +2,14 @@
 pragma solidity ^0.8.23;
 
 import "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
-import {LibAppStorage, AppStorage, PROVIDER_ROLE, Reservation} from "../libraries/LibAppStorage.sol";
+import {LibAppStorage, AppStorage, PROVIDER_ROLE} from "../libraries/LibAppStorage.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
-import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import "../libraries/LibDiamond.sol";
 import "../external/LabERC20.sol";
 import "../abstracts/ReservableToken.sol";
 
 using SafeERC20 for IERC20;
-using EnumerableSet for EnumerableSet.Bytes32Set;
 
 /// @title StakingFacet Contract
 /// @author Luis de la Torre Cubillo
@@ -27,11 +24,6 @@ contract StakingFacet is AccessControlUpgradeable {
     
     /// @notice Initial stake lock period (180 days from auto-stake)
     uint256 public constant INITIAL_STAKE_LOCK_PERIOD = 180 days;
-    
-    /// @dev Reservation status constants (must match ReservableToken.sol)
-    uint8 private constant CONFIRMED = 1;
-    uint8 private constant IN_USE = 2;
-    uint8 private constant COMPLETED = 3;
     
     /// @notice Emitted when a provider stakes tokens
     /// @param provider The address of the provider
@@ -193,48 +185,18 @@ contract StakingFacet is AccessControlUpgradeable {
                 "StakingFacet: cannot unstake below required minimum while labs are listed"
             );
         } else {
-            // Defense in depth: Even if no labs are listed, verify no active reservations exist
-            // This prevents attack where provider unlists with PENDING and then unstakes
-            EnumerableSet.Bytes32Set storage providerReservations = s.reservationsProvider[msg.sender];
-            
-            if (providerReservations.length() > 0) {
-                uint256 i;
-                while (i < providerReservations.length()) {
-                    bytes32 key = providerReservations.at(i);
-                    Reservation storage reservation = s.reservations[key];
-                    
-                    bool ownerMismatch = true;
-                    if (reservation.labId != 0) {
-                        try IERC721(address(this)).ownerOf(reservation.labId) returns (address labOwner) {
-                            ownerMismatch = (labOwner != msg.sender);
-                        } catch {
-                            ownerMismatch = true;
-                        }
-                    }
-                    
-                    if (ownerMismatch) {
-                        providerReservations.remove(key);
-                        continue;
-                    }
-                    
-                    uint8 status = reservation.status;
-                    if (status == CONFIRMED || status == IN_USE || status == COMPLETED) {
-                        require(
-                            remainingStake >= requiredStake,
-                            "StakingFacet: cannot unstake below minimum with active reservations"
-                        );
-                        break;
-                    }
-                    
-                    unchecked { ++i; }
-                }
+            uint256 activeReservations = s.providerActiveReservationCount[msg.sender];
+            if (activeReservations > 0) {
+                require(
+                    remainingStake >= requiredStake,
+                    "StakingFacet: cannot unstake below minimum with active reservations"
+                );
+            } else {
+                require(
+                    remainingStake >= requiredStake || remainingStake == 0,
+                    "StakingFacet: cannot unstake below required minimum"
+                );
             }
-            
-            // If no labs listed and no active reservations, can unstake everything or down to required minimum
-            require(
-                remainingStake >= requiredStake || remainingStake == 0,
-                "StakingFacet: cannot unstake below required minimum"
-            );
         }
         
         s.providerStakes[msg.sender].stakedAmount = remainingStake;

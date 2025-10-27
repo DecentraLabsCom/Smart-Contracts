@@ -198,23 +198,8 @@ abstract contract ReservableToken {
         }
         
         // Prevent unlisting if there are active reservations
-        // This protects users who have already paid for confirmed reservations
-        EnumerableSet.Bytes32Set storage labReservations = s.reservationsByLabId[_tokenId];
-        uint256 reservationCount = labReservations.length();
-        
-        for (uint256 i = 0; i < reservationCount;) {
-            bytes32 key = labReservations.at(i);
-            uint8 status = s.reservations[key].status;
-            
-            // Block unlisting if any reservation is in active state
-            // CONFIRMED: User paid, slot blocked in calendar
-            // IN_USE: Reservation is currently being used
-            // COMPLETED: Reservation ended but provider hasn't collected funds yet
-            if (status == CONFIRMED || status == IN_USE || status == COMPLETED) {
-                revert("Cannot unlist: active reservations exist");
-            }
-            
-            unchecked { ++i; }
+        if (s.labActiveReservationCount[_tokenId] > 0) {
+            revert("Cannot unlist: active reservations exist");
         }
         
         // Decrement listed count
@@ -787,16 +772,42 @@ abstract contract ReservableToken {
         AppStorage storage s = _s();
         Reservation storage reservation = s.reservations[_reservationKey];
         
+        bool wasActive = _isActiveReservationStatus(reservation.status);
         // Only remove from calendar if reservation was actually inserted (CONFIRMED or IN_USE)
         // PENDING reservations are never inserted in calendar, so no need to remove
         if (reservation.status == CONFIRMED || reservation.status == IN_USE) {
             _removeReservationFromCalendar(reservation.labId, reservation.start);
+        }
+
+        if (wasActive) {
+            _decrementActiveReservationCounters(reservation);
         }
         
         reservation.status = CANCELLED;
         
         // Remove from global set to free storage and allow slot reuse
         s.reservationKeys.remove(_reservationKey);
+    }
+
+    /// @notice Returns true when reservation status should keep lab/provider locked
+    function _isActiveReservationStatus(uint8 status) internal pure returns (bool) {
+        return status == CONFIRMED || status == IN_USE || status == COMPLETED;
+    }
+
+    function _incrementActiveReservationCounters(Reservation storage reservation) internal {
+        AppStorage storage s = _s();
+        s.labActiveReservationCount[reservation.labId]++;
+        s.providerActiveReservationCount[reservation.labProvider]++;
+    }
+
+    function _decrementActiveReservationCounters(Reservation storage reservation) internal {
+        AppStorage storage s = _s();
+        if (s.labActiveReservationCount[reservation.labId] > 0) {
+            s.labActiveReservationCount[reservation.labId]--;
+        }
+        if (s.providerActiveReservationCount[reservation.labProvider] > 0) {
+            s.providerActiveReservationCount[reservation.labProvider]--;
+        }
     }
 
     /// @notice Generates a unique key for token reservation based on token ID and time

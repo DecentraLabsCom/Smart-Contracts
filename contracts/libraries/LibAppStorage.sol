@@ -88,6 +88,11 @@ struct Reservation {
         uint64 requestPeriodDuration; // Slot 4: +8 bytes (0 for wallet reservations)
 }
 
+struct PayoutCandidate {
+        uint32 end;
+        bytes32 key;
+}
+
 /// @notice Represents a node in a red-black tree data structure, necessary for the library RivalIntervalTree Node data structure
 /// @dev Used for interval tree implementation where each node represents a time interval
 /// @param parent Index of the parent node in the tree
@@ -188,6 +193,9 @@ struct AppStorage {
     mapping (uint256 => uint256) labActiveReservationCount;
     mapping (address => uint256) providerActiveReservationCount;
     mapping (uint256 => uint256) pendingLabPayout;
+    mapping (uint256 => PayoutCandidate[]) payoutHeaps;
+    mapping (bytes32 => bool) payoutHeapContains;
+    mapping (uint256 => uint256) payoutHeapInvalidCount;
     
     mapping (address => ProviderStake) providerStakes;
 

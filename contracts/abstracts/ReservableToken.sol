@@ -48,8 +48,8 @@ abstract contract ReservableToken {
     /// - PENDING: Reservation requested but not yet confirmed. Does NOT block calendar slot.
     /// - CONFIRMED: Reservation confirmed and paid. Blocks calendar slot. Actively reserving the lab.
     /// - IN_USE: User is actively using the lab (optional state for analytics/check-in systems).
-    /// - COMPLETED: Reservation time expired, waiting for provider to collect funds.
-    /// - COLLECTED: Provider has collected the payment for this reservation.
+    /// - COMPLETED: Reservation time expired, waiting for the system to finalize payout.
+    /// - COLLECTED: Funds have been credited to the provider's pending balance (withdrawn later via requestFunds()).
     /// - CANCELLED: Reservation cancelled by user, admin, or provider.
     /// @dev The status is represented as an 8-bit unsigned integer for gas efficiency.
     /// @dev State transition rules:
@@ -779,6 +779,12 @@ abstract contract ReservableToken {
         }
         
         reservation.status = CANCELLED;
+        
+        // Mark heap entry as invalid for lazy cleanup
+        // When counter reaches threshold, _popEligiblePayoutCandidate will prune all invalid entries
+        if (s.payoutHeapContains[_reservationKey]) {
+            s.payoutHeapInvalidCount[reservation.labId]++;
+        }
         
         // Remove from global set to free storage and allow slot reuse
         s.reservationKeys.remove(_reservationKey);

@@ -347,6 +347,7 @@ contract ReservationFacet is ReservableTokenEnumerable, ReentrancyGuard {
             s.reservationsProvider[labProvider].add(_reservationKey);
             s.reservationsByLabId[reservation.labId].add(_reservationKey);
             _incrementActiveReservationCounters(reservation);
+            _enqueuePayoutCandidate(s, reservation.labId, _reservationKey, reservation.end);
             
             // Update lastReservation timestamp ONLY on confirmation (after payment)
             // This prevents spam attacks where unpaid requests lock provider's stake
@@ -439,6 +440,8 @@ contract ReservationFacet is ReservableTokenEnumerable, ReentrancyGuard {
             reservation.status = CONFIRMED;   
             s.reservationsProvider[labProvider].add(_reservationKey);
             s.reservationsByLabId[reservation.labId].add(_reservationKey);
+            _incrementActiveReservationCounters(reservation);
+            _enqueuePayoutCandidate(s, reservation.labId, _reservationKey, reservation.end);
             
             // Update lastReservation timestamp ONLY on confirmation (after payment)
             // This prevents spam attacks where unpaid requests lock provider's stake
@@ -666,13 +669,13 @@ contract ReservationFacet is ReservableTokenEnumerable, ReentrancyGuard {
     ///      - Status is CONFIRMED or COMPLETED
     ///      After processing, reservation status changes to COLLECTED and funds are transferred
     /// @param _labId The ID of the lab to collect funds from (must be owned by caller)
-    /// @param maxBatch Maximum number of reservations to process (1-50)
+    /// @param maxBatch Maximum number of reservations to process (1-100)
     /// @custom:emits FundsCollected with provider, labId, amount, and reservation count
-    /// @custom:revert "Invalid batch size" if maxBatch is 0 or > 50
+    /// @custom:revert "Invalid batch size" if maxBatch is 0 or > 100
     /// @custom:revert "Not lab owner" if caller doesn't own the specified lab
     /// @custom:revert "No completed reservations" if no eligible reservations found
     function requestFunds(uint256 _labId, uint256 maxBatch) external isLabProvider nonReentrant {
-        if (maxBatch == 0 || maxBatch > 50) revert("Invalid batch size");
+        if (maxBatch == 0 || maxBatch > 100) revert("Invalid batch size");
         
         AppStorage storage s = _s();
         
@@ -685,25 +688,15 @@ contract ReservationFacet is ReservableTokenEnumerable, ReentrancyGuard {
         uint256 processed;
         uint256 currentTime = block.timestamp;
         
-        EnumerableSet.Bytes32Set storage labReservations = s.reservationsByLabId[_labId];
-        uint256 len = labReservations.length();
-        uint256 i;
-        
-        while (i < len && processed < maxBatch) {
-            bytes32 key = labReservations.at(i);
-            Reservation storage reservation = s.reservations[key];
-            
-            bool shouldFinalize = reservation.end < currentTime && 
-                (reservation.status == CONFIRMED || reservation.status == IN_USE || reservation.status == COMPLETED);
-            
-            if (!shouldFinalize) {
-                unchecked { ++i; }
-                continue;
+        while (processed < maxBatch) {
+            bytes32 key = _popEligiblePayoutCandidate(s, _labId, currentTime);
+            if (key == bytes32(0)) {
+                break;
             }
-            
-            _finalizeReservationForPayout(s, key, reservation, _labId);
-            len = labReservations.length();
-            unchecked { ++processed; }
+            Reservation storage reservation = s.reservations[key];
+            if (_finalizeReservationForPayout(s, key, reservation, _labId)) {
+                unchecked { ++processed; }
+            }
         }
 
         uint256 payout = s.pendingLabPayout[_labId];
@@ -712,7 +705,9 @@ contract ReservationFacet is ReservableTokenEnumerable, ReentrancyGuard {
         s.pendingLabPayout[_labId] = 0;
         IERC20(s.labTokenAddress).safeTransfer(msg.sender, payout);
         
-        IStakingFacet(address(this)).updateLastReservation(msg.sender);
+        if (processed > 0) {
+            IStakingFacet(address(this)).updateLastReservation(msg.sender);
+        }
         
         emit FundsCollected(msg.sender, _labId, payout, processed);
     }
@@ -872,6 +867,164 @@ contract ReservationFacet is ReservableTokenEnumerable, ReentrancyGuard {
             s.activeReservationByTokenAndUser[labId][trackingKey] = nextKey;
         }
 
+        if (s.payoutHeapContains[key]) {
+            s.payoutHeapContains[key] = false;
+        }
+
         return true;
+    }
+
+    function _enqueuePayoutCandidate(
+        AppStorage storage s,
+        uint256 labId,
+        bytes32 key,
+        uint32 end
+    ) internal {
+        LibAppStorage.PayoutCandidate[] storage heap = s.payoutHeaps[labId];
+        if (s.payoutHeapContains[key]) {
+            return;
+        }
+        heap.push(LibAppStorage.PayoutCandidate(end, key));
+        s.payoutHeapContains[key] = true;
+        _heapifyUp(heap, heap.length - 1);
+    }
+
+    function _popEligiblePayoutCandidate(
+        AppStorage storage s,
+        uint256 labId,
+        uint256 currentTime
+    ) internal returns (bytes32) {
+        LibAppStorage.PayoutCandidate[] storage heap = s.payoutHeaps[labId];
+        
+        // Lazy cleanup optimization: if >20% of heap is invalid entries, rebuild heap
+        // This amortizes cleanup cost instead of doing expensive removal on each cancellation
+        uint256 heapSize = heap.length;
+        uint256 invalidCount = s.payoutHeapInvalidCount[labId];
+        if (heapSize > 0 && invalidCount > heapSize / 5) {
+            _compactHeap(s, labId);
+            heapSize = heap.length; // Update after compaction
+        }
+        
+        while (heapSize > 0) {
+            LibAppStorage.PayoutCandidate memory root = heap[0];
+            if (root.end > currentTime) {
+                return bytes32(0);
+            }
+            _removeHeapRoot(heap);
+            s.payoutHeapContains[root.key] = false;
+            Reservation storage reservation = s.reservations[root.key];
+            if (
+                reservation.labId == labId &&
+                (reservation.status == CONFIRMED || reservation.status == IN_USE || reservation.status == COMPLETED)
+            ) {
+                return root.key;
+            }
+            // Entry was invalid (cancelled/collected), decrement counter
+            if (invalidCount > 0) {
+                s.payoutHeapInvalidCount[labId]--;
+                invalidCount--;
+            }
+            heapSize--;
+        }
+        return bytes32(0);
+    }
+
+    function _heapifyUp(
+        LibAppStorage.PayoutCandidate[] storage heap,
+        uint256 index
+    ) internal {
+        while (index > 0) {
+            uint256 parent = (index - 1) / 2;
+            if (heap[index].end >= heap[parent].end) {
+                break;
+            }
+            (heap[index], heap[parent]) = (heap[parent], heap[index]);
+            index = parent;
+        }
+    }
+
+    function _removeHeapRoot(LibAppStorage.PayoutCandidate[] storage heap) internal {
+        uint256 lastIndex = heap.length - 1;
+        if (lastIndex == 0) {
+            heap.pop();
+            return;
+        }
+        heap[0] = heap[lastIndex];
+        heap.pop();
+        _heapifyDown(heap, 0);
+    }
+
+    function _heapifyDown(
+        LibAppStorage.PayoutCandidate[] storage heap,
+        uint256 index
+    ) internal {
+        uint256 length = heap.length;
+        while (true) {
+            uint256 left = index * 2 + 1;
+            if (left >= length) {
+                break;
+            }
+            uint256 right = left + 1;
+            uint256 smallest = left;
+            if (right < length && heap[right].end < heap[left].end) {
+                smallest = right;
+            }
+            if (heap[index].end <= heap[smallest].end) {
+                break;
+            }
+            (heap[index], heap[smallest]) = (heap[smallest], heap[index]);
+            index = smallest;
+        }
+    }
+
+    /// @dev Compacts the heap by removing all invalid entries (cancelled/collected reservations)
+    ///      Rebuilds the heap in O(n) time instead of O(n log n) individual removals
+    ///      Called when invalid entries exceed 20% threshold
+    /// @param s App storage pointer
+    /// @param labId Lab identifier for the heap to compact
+    function _compactHeap(AppStorage storage s, uint256 labId) internal {
+        LibAppStorage.PayoutCandidate[] storage heap = s.payoutHeaps[labId];
+        uint256 oldLength = heap.length;
+        
+        // Create temporary array to hold valid entries
+        LibAppStorage.PayoutCandidate[] memory validEntries = new LibAppStorage.PayoutCandidate[](oldLength);
+        uint256 validCount = 0;
+        
+        // Scan heap and collect only valid entries
+        for (uint256 i = 0; i < oldLength; i++) {
+            bytes32 key = heap[i].key;
+            Reservation storage reservation = s.reservations[key];
+            
+            // Keep entry if it's still valid (CONFIRMED, IN_USE, or COMPLETED)
+            if (reservation.labId == labId && 
+                (reservation.status == CONFIRMED || reservation.status == IN_USE || reservation.status == COMPLETED)) {
+                validEntries[validCount] = heap[i];
+                validCount++;
+            } else {
+                // Entry is invalid, clear its flag
+                s.payoutHeapContains[key] = false;
+            }
+        }
+        
+        // Clear old heap
+        while (heap.length > 0) {
+            heap.pop();
+        }
+        
+        // Rebuild heap with valid entries using heapify (O(n) construction)
+        for (uint256 i = 0; i < validCount; i++) {
+            heap.push(validEntries[i]);
+        }
+        
+        // Heapify from bottom up (Floyd's algorithm - O(n))
+        if (validCount > 1) {
+            uint256 lastParent = (validCount - 2) / 2;
+            for (uint256 i = lastParent + 1; i > 0; i--) {
+                _heapifyDown(heap, i - 1);
+            }
+        }
+        
+        // Reset invalid counter
+        s.payoutHeapInvalidCount[labId] = 0;
     }
 }

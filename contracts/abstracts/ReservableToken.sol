@@ -24,23 +24,10 @@ import "../libraries/RivalIntervalTreeLibrary.sol";
 /// - Event emission for tracking reservation lifecycle
 /// - Access control for token owners and renters
 ///
-/// @dev Implements the following main functionalities:
-/// - Token listing/unlisting
-/// - Reservation requests and confirmations
-/// - Booking management
-/// - Reservation status tracking
-/// - Calendar management for time slots
-///
 /// @dev Dependencies:
 /// - Requires RivalIntervalTreeLibrary for managing time intervals
 /// - Assumes EIP-2535 Diamond standard compliance
 /// - Integrates with ERC721 token standard
-///
-/// @dev Security considerations:
-/// - Implements access control through modifiers
-/// - Validates time ranges and reservation states
-/// - Checks for existing reservations before new bookings
-/// - Ensures proper authorization for cancellations
 abstract contract ReservableToken {
     using RivalIntervalTreeLibrary for Tree;
     
@@ -128,7 +115,6 @@ abstract contract ReservableToken {
     error Unauthorized();
     error InvalidBooking();
 
-    
     /// @dev Modifier to check if a token with the given ID exists.
     /// @param _tokenId The ID of the token to check.
     /// @notice Reverts if the token does not exist (i.e., its owner is the zero address).
@@ -262,7 +248,6 @@ abstract contract ReservableToken {
         emit ReservationRequested(msg.sender, _tokenId, _start, _end, reservationKey);
     }
 
-
     /// @notice Confirms a reservation request for the given reservation key
     /// @dev Changes the status of the reservation from PENDING to CONFIRMED
     /// @param _reservationKey The unique key identifying the reservation to be confirmed
@@ -283,7 +268,6 @@ abstract contract ReservableToken {
         _cancelReservation(_reservationKey);
         emit ReservationRequestDenied(_reservationKey, tokenId);
     }
-
 
     /// @notice Cancels a reservation request associated with the given reservation key.
     /// @dev This function can only be called by the renter who created the reservation request.

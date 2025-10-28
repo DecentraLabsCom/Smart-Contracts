@@ -8,11 +8,12 @@ import "../libraries/LibAppStorage.sol";
 /// @author
 /// - Luis de la Torre Cubillo
 /// - Juan Luis Ramos Villalón
-/// @dev Abstract contract extending ReservableTokenEnumerable with institutional reservation features
-/// @notice Provides institutional-authentication support for token reservations including tracking and querying
+/// @dev Abstract contract by design (prevents direct deployment in Diamond pattern)
+/// @notice Extends ReservableTokenEnumerable with institutional user support (SAML2 schacPersonalUniqueCode)
 ///
-/// @dev This contract implements institutional functionality for reservations.
-
+/// @dev This contract is marked abstract to enforce inheritance-only usage, even though it has
+///      no pending abstract functions. It extends wallet reservation logic with institutional features.
+///      Should only be inherited by facets like InstitutionalReservationFacet.
 abstract contract InstitutionalReservableTokenEnumerable is ReservableTokenEnumerable {
 
     function _isInstitutionalReservation(Reservation storage reservation) internal view returns (bool) {

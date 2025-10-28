@@ -9,24 +9,12 @@ import "./ReservableToken.sol";
 /// @author
 /// - Juan Luis Ramos Villalón
 /// - Luis de la Torre Cubillo
-/// @dev Abstract contract extending ReservableToken with enumerable functionality for token reservations
-/// @notice Provides enumerable capabilities for token reservations including tracking and querying
+/// @dev Abstract contract by design (prevents direct deployment in Diamond pattern)
+/// @notice Provides complete wallet reservation implementation with enumerable functionality
 ///
-/// @dev This contract implements enumerable functionality for reservations including:
-/// - Reservation requests and confirmations
-/// - Booking cancellations 
-/// - Reservation tracking and querying
-/// - Token-specific reservation management
-///
-/// The contract uses RivalIntervalTreeLibrary for managing time intervals and
-/// EnumerableSet for efficient set operations on reservation keys.
-///
-/// Key features:
-/// - Request and confirm reservations for tokens
-/// - Cancel existing bookings
-/// - Query reservations by token, user or index
-/// - Track active bookings
-/// - Enumerate through all reservations
+/// @dev This contract fully implements all abstract functions from ReservableToken but is marked
+///      as abstract to enforce inheritance-only usage. It should never be deployed directly,
+///      only inherited by facets like WalletReservationFacet.
 abstract contract ReservableTokenEnumerable is ReservableToken {
     using RivalIntervalTreeLibrary for Tree;
     using EnumerableSet for EnumerableSet.Bytes32Set;

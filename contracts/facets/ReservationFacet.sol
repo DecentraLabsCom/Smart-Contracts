@@ -357,39 +357,40 @@ abstract contract BaseReservationFacet is InstitutionalReservableTokenEnumerable
     }
 
     /// @dev Compacts the heap by removing all invalid entries (cancelled/collected reservations)
+    /// @notice Optimized version using in-place compaction to reduce gas costs
     function _compactHeap(AppStorage storage s, uint256 labId) internal {
         LibAppStorage.PayoutCandidate[] storage heap = s.payoutHeaps[labId];
-        uint256 oldLength = heap.length;
+        uint256 originalLength = heap.length; // Preserve original length for safe iteration
+        uint256 writeIndex = 0;
 
-        LibAppStorage.PayoutCandidate[] memory validEntries = new LibAppStorage.PayoutCandidate[](oldLength);
-        uint256 validCount = 0;
-
-        for (uint256 i = 0; i < oldLength; i++) {
-            bytes32 key = heap[i].key;
+        // In-place compaction: iterate through original heap, keeping only valid entries
+        for (uint256 readIndex = 0; readIndex < originalLength; readIndex++) {
+            bytes32 key = heap[readIndex].key;
             Reservation storage reservation = s.reservations[key];
 
             if (
                 reservation.labId == labId
                     && (reservation.status == CONFIRMED || reservation.status == IN_USE || reservation.status == COMPLETED)
             ) {
-                validEntries[validCount] = heap[i];
-                validCount++;
+                // Keep valid entry: move to write position if different from read position
+                if (writeIndex != readIndex) {
+                    heap[writeIndex] = heap[readIndex]; // Copies both end and key
+                }
+                writeIndex++;
             } else {
+                // Remove invalid entry: reset containment flag
                 s.payoutHeapContains[key] = false;
             }
         }
 
-        while (heap.length > 0) {
+        // Truncate heap to new valid size
+        while (heap.length > writeIndex) {
             heap.pop();
         }
 
-        for (uint256 i = 0; i < validCount; i++) {
-            heap.push(validEntries[i]);
-        }
-
-        if (validCount > 1) {
-            uint256 lastParent = (validCount - 2) / 2;
-            for (uint256 i = lastParent + 1; i > 0; i--) {
+        // Rebuild heap using efficient bottom-up construction (O(n) vs O(n log n))
+        if (writeIndex > 1) {
+            for (uint256 i = (writeIndex - 1) / 2 + 1; i > 0; i--) {
                 _heapifyDown(heap, i - 1);
             }
         }

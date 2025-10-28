@@ -152,11 +152,23 @@ contract InstitutionalReservationFacet is BaseReservationFacet, ReentrancyGuard 
             revert("Not available");
         }
 
-        IInstitutionalTreasuryFacet(address(this)).checkInstitutionalTreasuryAvailability(
-            institutionalProvider,
-            puc,
-            price
-        );
+        address collectorInstitution = address(0);
+        if (s.institutionalBackends[labOwner] != address(0)) {
+            collectorInstitution = labOwner;
+        }
+
+        uint96 chargeAmount = price;
+        if (institutionalProvider == collectorInstitution) {
+            chargeAmount = 0;
+        }
+
+        if (chargeAmount > 0) {
+            IInstitutionalTreasuryFacet(address(this)).checkInstitutionalTreasuryAvailability(
+                institutionalProvider,
+                puc,
+                chargeAmount
+            );
+        }
 
         uint256 periodDuration = _resolveSpendingPeriod(s, institutionalProvider);
         uint256 currentPeriodStart = (block.timestamp / periodDuration) * periodDuration;
@@ -171,13 +183,15 @@ contract InstitutionalReservationFacet is BaseReservationFacet, ReentrancyGuard 
             labId: _labId,
             renter: institutionalProvider,
             labProvider: labOwner,
-            price: price,
+            price: chargeAmount,
             start: _start,
             end: _end,
             status: PENDING,
             puc: puc,
             requestPeriodStart: requestPeriodStart,
-            requestPeriodDuration: requestPeriodDuration
+            requestPeriodDuration: requestPeriodDuration,
+            payerInstitution: institutionalProvider,
+            collectorInstitution: collectorInstitution
         });
 
         s.reservationKeys.add(reservationKey);
@@ -194,7 +208,7 @@ contract InstitutionalReservationFacet is BaseReservationFacet, ReentrancyGuard 
     ) internal override {
         AppStorage storage s = _s();
         Reservation storage reservation = s.reservations[_reservationKey];
-        if (reservation.renter != institutionalProvider) revert("Not institutional");
+        if (reservation.payerInstitution != institutionalProvider) revert("Not institutional");
         if (bytes(reservation.puc).length == 0) revert("Not institutional reservation");
 
         address userTrackingKey = _trackingKeyFromInstitution(institutionalProvider, reservation.puc);
@@ -207,6 +221,8 @@ contract InstitutionalReservationFacet is BaseReservationFacet, ReentrancyGuard 
             return;
         }
 
+        reservation.collectorInstitution = s.institutionalBackends[labProvider] != address(0) ? labProvider : address(0);
+
         uint256 requestStart = reservation.requestPeriodStart;
         uint256 requestDuration = reservation.requestPeriodDuration;
         if (requestDuration == 0) {
@@ -218,8 +234,34 @@ contract InstitutionalReservationFacet is BaseReservationFacet, ReentrancyGuard 
             return;
         }
 
+        if (reservation.price == 0) {
+            s.calendars[reservation.labId].insert(reservation.start, reservation.end);
+
+            reservation.status = CONFIRMED;
+            s.reservationsProvider[labProvider].add(_reservationKey);
+            s.reservationsByLabId[reservation.labId].add(_reservationKey);
+            _incrementActiveReservationCounters(reservation);
+            _enqueuePayoutCandidate(s, reservation.labId, _reservationKey, reservation.end);
+            _enqueueInstitutionalActiveReservation(s, reservation.labId, reservation, _reservationKey);
+            IStakingFacet(address(this)).updateLastReservation(labProvider);
+
+            bytes32 currentIndexKey = s.activeReservationByTokenAndUser[reservation.labId][userTrackingKey];
+
+            if (currentIndexKey == bytes32(0)) {
+                s.activeReservationByTokenAndUser[reservation.labId][userTrackingKey] = _reservationKey;
+            } else {
+                Reservation memory currentReservation = s.reservations[currentIndexKey];
+                if (reservation.start < currentReservation.start) {
+                    s.activeReservationByTokenAndUser[reservation.labId][userTrackingKey] = _reservationKey;
+                }
+            }
+
+            emit ReservationConfirmed(_reservationKey, reservation.labId);
+            return;
+        }
+
         try IInstitutionalTreasuryFacet(address(this)).spendFromInstitutionalTreasury(
-            institutionalProvider,
+            reservation.payerInstitution,
             reservation.puc,
             reservation.price
         ) {
@@ -257,7 +299,7 @@ contract InstitutionalReservationFacet is BaseReservationFacet, ReentrancyGuard 
     ) internal override {
         Reservation storage reservation = _s().reservations[_reservationKey];
         if (reservation.status != PENDING) revert("Not pending");
-        if (reservation.renter != institutionalProvider) revert("Not institutional");
+        if (reservation.payerInstitution != institutionalProvider) revert("Not institutional");
         if (keccak256(bytes(puc)) != keccak256(bytes(reservation.puc))) revert("PUC mismatch");
 
         _cancelReservation(_reservationKey);
@@ -275,7 +317,7 @@ contract InstitutionalReservationFacet is BaseReservationFacet, ReentrancyGuard 
 
         Reservation storage reservation = s.reservations[_reservationKey];
         if (reservation.renter == address(0)) revert("Not found");
-        if (reservation.renter != institutionalProvider) revert("Not renter");
+        if (reservation.payerInstitution != institutionalProvider) revert("Not renter");
         if (reservation.status != PENDING) revert("Not pending");
         if (keccak256(bytes(puc)) != keccak256(bytes(reservation.puc))) revert("PUC mismatch");
 
@@ -295,7 +337,7 @@ contract InstitutionalReservationFacet is BaseReservationFacet, ReentrancyGuard 
         if (reservation.renter == address(0) || (reservation.status != CONFIRMED && reservation.status != IN_USE)) {
             revert("Invalid");
         }
-        if (reservation.renter != institutionalProvider) revert("Not renter");
+        if (reservation.payerInstitution != institutionalProvider) revert("Not renter");
 
         address labProvider = reservation.labProvider;
         s.reservationsProvider[labProvider].remove(_reservationKey);
@@ -303,7 +345,7 @@ contract InstitutionalReservationFacet is BaseReservationFacet, ReentrancyGuard 
         _cancelReservation(_reservationKey);
 
         IInstitutionalTreasuryFacet(address(this)).refundToInstitutionalTreasury(
-            institutionalProvider,
+            reservation.payerInstitution,
             reservation.puc,
             reservation.price
         );

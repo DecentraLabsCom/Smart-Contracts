@@ -75,6 +75,8 @@ struct Lab {
 /// @param end Ending timestamp of the reservation (as uint32)
 /// @param puc schacPersonalUniqueCode for institutional reservations (empty for wallet reservations)
 /// @param requestPeriodStart Period start timestamp when institutional reservation was requested (0 for wallet, used for slippage protection)
+/// @param payerInstitution Address of the institution paying for the reservation (zero for wallet payments)
+/// @param collectorInstitution Address of the institution that should receive the payout (zero for direct wallet payouts)
 struct Reservation {
         uint256 labId;           // Slot 0: 32 bytes
         address renter;          // Slot 1: 20 bytes
@@ -86,6 +88,8 @@ struct Reservation {
         string puc;              // Slot 3: 32 bytes (pointer)
         uint64 requestPeriodStart; // Slot 4: +8 bytes
         uint64 requestPeriodDuration; // Slot 4: +8 bytes (0 for wallet reservations)
+        address payerInstitution;   // Slot 5: 20 bytes
+        address collectorInstitution; // Slot 5: +20 bytes (stored in separate slot)
 }
 
 struct PayoutCandidate {
@@ -203,6 +207,8 @@ struct AppStorage {
     mapping (uint256 => PayoutCandidate[]) payoutHeaps;
     mapping (bytes32 => bool) payoutHeapContains;
     mapping (uint256 => uint256) payoutHeapInvalidCount;
+    mapping (uint256 => mapping(address => uint256)) pendingInstitutionalLabPayout; // labId -> collector -> amount
+    mapping (uint256 => EnumerableSet.AddressSet) pendingInstitutionalCollectors;    // labId -> collectors set
     
     mapping (address => ProviderStake) providerStakes;
 

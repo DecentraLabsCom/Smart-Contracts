@@ -9,6 +9,7 @@ import {LibAccessControlEnumerable} from "../libraries/LibAccessControlEnumerabl
 import "../abstracts/ReservableToken.sol";
 
 using EnumerableSet for EnumerableSet.Bytes32Set;
+using EnumerableSet for EnumerableSet.AddressSet;
 
 
 /// @title LabFacet Contract
@@ -360,7 +361,10 @@ contract LabFacet is ERC721EnumerableUpgradeable, ReservableToken {
     /// @return true if there are any reservations with CONFIRMED, IN_USE, or COMPLETED status
     function _hasActiveBookings(uint256 _labId) internal view returns (bool) {
         AppStorage storage s = _s();
-        return s.labActiveReservationCount[_labId] > 0 || s.pendingLabPayout[_labId] > 0;
+        return
+            s.labActiveReservationCount[_labId] > 0 ||
+            s.pendingLabPayout[_labId] > 0 ||
+            s.pendingInstitutionalCollectors[_labId].length() > 0;
     }
 
     /// @notice Retrieves the details of a Lab by its ID.
@@ -529,6 +533,8 @@ contract LabFacet is ERC721EnumerableUpgradeable, ReservableToken {
                 if (status == CONFIRMED || status == IN_USE || status == COMPLETED) {
                     // Update labProvider to new owner
                     s.reservations[key].labProvider = _to;
+                    s.reservations[key].collectorInstitution =
+                        s.institutionalBackends[_to] != address(0) ? _to : address(0);
                     
                     // Move from old provider's index to new provider's index
                     s.reservationsProvider[from].remove(key);
@@ -544,6 +550,21 @@ contract LabFacet is ERC721EnumerableUpgradeable, ReservableToken {
                 }
                 
                 unchecked { ++i; }
+            }
+
+            if (s.pendingInstitutionalCollectors[_tokenId].contains(from)) {
+                uint256 pendingAmount = s.pendingInstitutionalLabPayout[_tokenId][from];
+                s.pendingInstitutionalCollectors[_tokenId].remove(from);
+                s.pendingInstitutionalLabPayout[_tokenId][from] = 0;
+
+                if (pendingAmount > 0) {
+                    if (s.institutionalBackends[_to] != address(0)) {
+                        s.pendingInstitutionalLabPayout[_tokenId][_to] += pendingAmount;
+                        s.pendingInstitutionalCollectors[_tokenId].add(_to);
+                    } else {
+                        s.pendingLabPayout[_tokenId] += pendingAmount;
+                    }
+                }
             }
         }
         

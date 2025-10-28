@@ -26,6 +26,7 @@ interface IInstitutionalTreasuryFacet {
 abstract contract BaseReservationFacet is InstitutionalReservableTokenEnumerable {
     using LibAccessControlEnumerable for AppStorage;
     using EnumerableSet for EnumerableSet.Bytes32Set;
+    using EnumerableSet for EnumerableSet.AddressSet;
 
     /// @notice Emitted when a provider successfully collects funds from completed reservations
     /// @param provider The address of the lab provider
@@ -204,6 +205,8 @@ abstract contract BaseReservationFacet is InstitutionalReservableTokenEnumerable
 
         address trackingKey = _computeTrackingKey(reservation);
         address labProvider = reservation.labProvider;
+        address collectorInstitution = reservation.collectorInstitution;
+        uint256 reservationPrice = reservation.price;
 
         if (reservation.status == CONFIRMED || reservation.status == IN_USE) {
             _removeReservationFromCalendar(labId, reservation.start);
@@ -214,7 +217,15 @@ abstract contract BaseReservationFacet is InstitutionalReservableTokenEnumerable
         }
 
         reservation.status = COLLECTED;
-        s.pendingLabPayout[labId] += reservation.price;
+
+        if (reservationPrice > 0) {
+            if (collectorInstitution == address(0)) {
+                s.pendingLabPayout[labId] += reservationPrice;
+            } else {
+                s.pendingInstitutionalLabPayout[labId][collectorInstitution] += reservationPrice;
+                s.pendingInstitutionalCollectors[labId].add(collectorInstitution);
+            }
+        }
 
         s.reservationsProvider[labProvider].remove(key);
         s.reservationsByLabId[labId].remove(key);

@@ -4,6 +4,7 @@ pragma solidity ^0.8.23;
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
+import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import "./ReservationFacet.sol";
 
@@ -12,11 +13,15 @@ import "./ReservationFacet.sol";
 /// - Luis de la Torre Cubillo
 /// - Juan Luis Ramos Villalón
 /// @dev Facet contract to manage wallet reservations
-/// @notice Provides functions to handle wallet reservation requests, 
+/// @notice Provides functions to handle wallet reservation requests,
 /// confirmations, denials, cancellations, and expired reservation releases.
+/// @dev Payout utilities (`requestFunds`, `getPendingLabPayout`) live here even for
+/// institutional labs, because the ERC20 transfer logic and treasury accruals are
+/// shared. Institutional providers invoke the same functions via the diamond router.
 
 contract WalletReservationFacet is BaseReservationFacet, ReentrancyGuard {
     using SafeERC20 for IERC20;
+    using EnumerableSet for EnumerableSet.AddressSet;
 
     error InsufficientFunds(address user, uint256 funds, uint256 price);
 
@@ -148,6 +153,11 @@ contract WalletReservationFacet is BaseReservationFacet, ReentrancyGuard {
         // Add to enumerable set (maintains count internally)
         s.reservationKeysByToken[_labId].add(reservationKey);
         
+        address collectorInstitution = address(0);
+        if (s.institutionalBackends[labOwner] != address(0)) {
+            collectorInstitution = labOwner;
+        }
+
         // Direct struct initialization - includes labProvider for safety
         s.reservations[reservationKey] = Reservation({
             labId: _labId,
@@ -159,7 +169,9 @@ contract WalletReservationFacet is BaseReservationFacet, ReentrancyGuard {
             status: PENDING,
             puc: "", // Empty for wallet reservations
             requestPeriodStart: 0, // 0 for wallet reservations (only used for institutional)
-            requestPeriodDuration: 0
+            requestPeriodDuration: 0,
+            payerInstitution: address(0),
+            collectorInstitution: collectorInstitution
         });
         
         // Add to tracking sets
@@ -189,7 +201,8 @@ contract WalletReservationFacet is BaseReservationFacet, ReentrancyGuard {
         
         // Update stored labProvider in case of NFT transfer between request and confirmation
         reservation.labProvider = labProvider;
-    
+        reservation.collectorInstitution = s.institutionalBackends[labProvider] != address(0) ? labProvider : address(0);
+
         // Re-validate provider stake/listing before attempting to charge renter
         if (!_providerCanFulfill(s, labProvider, reservation.labId)) {
             _cancelReservation(_reservationKey);
@@ -285,10 +298,10 @@ contract WalletReservationFacet is BaseReservationFacet, ReentrancyGuard {
         _cancelReservation(_reservationKey);
         
         // Refund based on reservation type
-        if (isInstitutional) {
-            // Refund to institutional treasury, not to provider's wallet
+        if (isInstitutional && reservation.payerInstitution != address(0)) {
+            // Refund to institutional treasury (payer institution), not to provider's wallet
             IInstitutionalTreasuryFacet(address(this)).refundToInstitutionalTreasury(
-                renter, // institutional provider
+                reservation.payerInstitution,
                 puc,
                 price
             );
@@ -302,18 +315,18 @@ contract WalletReservationFacet is BaseReservationFacet, ReentrancyGuard {
 
     function _requestFunds(uint256 _labId, uint256 maxBatch) internal override {
         if (maxBatch == 0 || maxBatch > 100) revert("Invalid batch size");
-        
+
         AppStorage storage s = _s();
-        
-        // Verify caller owns this lab
-        address currentOwner = IERC721(address(this)).ownerOf(_labId);
-        if (currentOwner != msg.sender) {
-            revert("Not lab owner");
+
+        address labOwner = IERC721(address(this)).ownerOf(_labId);
+        address backend = s.institutionalBackends[labOwner];
+        if (msg.sender != labOwner && msg.sender != backend) {
+            revert("Not authorized");
         }
-        
+
         uint256 processed;
         uint256 currentTime = block.timestamp;
-        
+
         while (processed < maxBatch) {
             bytes32 key = _popEligiblePayoutCandidate(s, _labId, currentTime);
             if (key == bytes32(0)) {
@@ -321,21 +334,42 @@ contract WalletReservationFacet is BaseReservationFacet, ReentrancyGuard {
             }
             Reservation storage reservation = s.reservations[key];
             if (_finalizeReservationForPayout(s, key, reservation, _labId)) {
-                unchecked { ++processed; }
+                unchecked {
+                    ++processed;
+                }
             }
         }
-    
-        uint256 payout = s.pendingLabPayout[_labId];
-        if (payout == 0) revert("No completed reservations");
-        
-        s.pendingLabPayout[_labId] = 0;
-        IERC20(s.labTokenAddress).safeTransfer(msg.sender, payout);
-        
-        if (processed > 0) {
-            IStakingFacet(address(this)).updateLastReservation(msg.sender);
+
+        uint256 walletPayout = s.pendingLabPayout[_labId];
+        uint256 totalPayout = walletPayout;
+        if (walletPayout > 0) {
+            IERC20(s.labTokenAddress).safeTransfer(labOwner, walletPayout);
         }
-        
-        emit FundsCollected(msg.sender, _labId, payout, processed);
+        s.pendingLabPayout[_labId] = 0;
+
+        EnumerableSet.AddressSet storage collectors = s.pendingInstitutionalCollectors[_labId];
+        uint256 collectorsLength = collectors.length();
+        for (uint256 i = collectorsLength; i > 0; ) {
+            address collector = collectors.at(i - 1);
+            uint256 amount = s.pendingInstitutionalLabPayout[_labId][collector];
+            if (amount > 0) {
+                s.institutionalTreasury[collector] += amount;
+                totalPayout += amount;
+                s.pendingInstitutionalLabPayout[_labId][collector] = 0;
+            }
+            collectors.remove(collector);
+            unchecked {
+                --i;
+            }
+        }
+
+        if (totalPayout == 0 && processed == 0) revert("No completed reservations");
+
+        if (processed > 0) {
+            IStakingFacet(address(this)).updateLastReservation(labOwner);
+        }
+
+        emit FundsCollected(labOwner, _labId, totalPayout, processed);
     }
 
     function _getLabTokenAddress() internal view override returns (address){
@@ -356,5 +390,38 @@ contract WalletReservationFacet is BaseReservationFacet, ReentrancyGuard {
         
         // Delegate to internal function
         return _releaseExpiredReservationsInternal(_labId, _user, maxBatch);
+    }
+
+    /// @notice Returns the total pending payout amount for a lab (wallet + institutional)
+    /// @dev Useful for backends/frontends to decide when to call requestFunds()
+    ///      and to display total collectable funds in provider dashboard
+    /// @param _labId The ID of the lab to query
+    /// @return walletPayout Amount pending for direct wallet payout to lab owner
+    /// @return institutionalPayout Total amount pending for institutional treasury payouts
+    /// @return totalPayout Sum of wallet and institutional payouts
+    /// @return institutionalCollectorCount Number of different institutional collectors
+    function getPendingLabPayout(uint256 _labId) 
+        external 
+        view 
+        returns (
+            uint256 walletPayout,
+            uint256 institutionalPayout,
+            uint256 totalPayout,
+            uint256 institutionalCollectorCount
+        ) 
+    {
+        AppStorage storage s = _s();
+        
+        walletPayout = s.pendingLabPayout[_labId];
+        
+        EnumerableSet.AddressSet storage collectors = s.pendingInstitutionalCollectors[_labId];
+        institutionalCollectorCount = collectors.length();
+        
+        for (uint256 i = 0; i < institutionalCollectorCount; i++) {
+            address collector = collectors.at(i);
+            institutionalPayout += s.pendingInstitutionalLabPayout[_labId][collector];
+        }
+        
+        totalPayout = walletPayout + institutionalPayout;
     }
 }

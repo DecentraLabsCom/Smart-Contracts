@@ -131,6 +131,12 @@ abstract contract ReservableToken {
         _;
     }
 
+    /// @dev Modifier to restrict access to functions callable only by accounts with DEFAULT_ADMIN_ROLE
+    modifier onlyAdmin() {
+        require(_s().roleMembers[_s().DEFAULT_ADMIN_ROLE].contains(msg.sender), "Only admin can call this function");
+        _;
+    }
+
     /// @dev Modifier to ensure that a reservation exists and is in a pending state.
     /// @param _reservationKey The unique key identifying the reservation.
     /// @notice Reverts if the reservation does not exist or if its status is not pending.
@@ -489,21 +495,25 @@ abstract contract ReservableToken {
         return index;
     }
 
-    /// @notice Get comprehensive statistics about a lab's reservations
-    /// @dev Single tree traversal - more efficient than multiple separate queries.
-    ///      Time complexity: O(n) where n is the number of reservations
+    /// @notice Get comprehensive statistics about a lab's reservations within a date range
+    /// @dev Single tree traversal filtered by date range - limits gas usage.
+    ///      Time complexity: O(n) where n is the number of reservations in range
     /// @param _tokenId The ID of the token (lab) to get statistics for
-    /// @return count Total number of reservations
-    /// @return firstStart Start time of the earliest reservation (0 if none)
-    /// @return lastEnd End time of the latest reservation (0 if none)
-    /// @return totalDuration Sum of all reservation durations in seconds
-    /// @custom:example For a lab with 3 reservations: [1000-2000], [3000-4000], [5000-6000]
+    /// @param _startTime Start of the date range (Unix timestamp)
+    /// @param _endTime End of the date range (Unix timestamp)
+    /// @return count Total number of reservations in the range
+    /// @return firstStart Start time of the earliest reservation in range (0 if none)
+    /// @return lastEnd End time of the latest reservation in range (0 if none)
+    /// @return totalDuration Sum of all reservation durations in seconds within range
+    /// @custom:example For range [1000-6000] with reservations [1000-2000], [3000-4000], [5000-6000]
     ///                  Returns: count=3, firstStart=1000, lastEnd=6000, totalDuration=3000
-    /// @custom:use-case Dashboard analytics, revenue calculations, occupancy metrics
-    function getReservationStats(uint256 _tokenId) 
-        external view virtual exists(_tokenId) 
+    /// @custom:use-case Premium admin analytics, revenue calculations, occupancy metrics
+    function getReservationStats(uint256 _tokenId, uint32 _startTime, uint32 _endTime) 
+        external view virtual exists(_tokenId) onlyAdmin
         returns (uint32 count, uint32 firstStart, uint32 lastEnd, uint256 totalDuration) 
     {
+        require(_startTime < _endTime, "Invalid time range");
+        
         Tree storage calendar = _s().calendars[_tokenId];
         
         // If no reservations, return zeros
@@ -511,38 +521,61 @@ abstract contract ReservableToken {
             return (0, 0, 0, 0);
         }
         
-        // Use library functions to get first and last efficiently
-        firstStart = uint32(calendar.first());
-        lastEnd = calendar.nodes[calendar.last()].end;
+        // Traverse tree to count, sum durations, and find min/max within range
+        (count, totalDuration, firstStart, lastEnd) = _calculateStats(calendar, calendar.root, _startTime, _endTime);
         
-        // Traverse tree to count and sum durations
-        (count, totalDuration) = _calculateStats(calendar, calendar.root);
+        if (count == 0) {
+            return (0, 0, 0, 0);
+        }
         
         return (count, firstStart, lastEnd, totalDuration);
     }
 
-    /// @dev Helper to recursively calculate count and total duration
+    /// @dev Helper to recursively calculate count, total duration, min start and max end within date range
     /// @param calendar The interval tree storage
     /// @param cursor Current node being examined
-    /// @return nodeCount Number of nodes in subtree
-    /// @return duration Total duration of all reservations in subtree
-    function _calculateStats(Tree storage calendar, uint cursor) 
-        private view returns (uint32 nodeCount, uint256 duration) 
+    /// @param _startTime Start of the date range filter
+    /// @param _endTime End of the date range filter
+    /// @return nodeCount Number of nodes in subtree within range
+    /// @return duration Total duration of all reservations in subtree within range
+    /// @return minStart Minimum start time of reservations in range (type(uint32).max if none)
+    /// @return maxEnd Maximum end time of reservations in range (0 if none)
+    function _calculateStats(Tree storage calendar, uint cursor, uint32 _startTime, uint32 _endTime) 
+        private view returns (uint32 nodeCount, uint256 duration, uint32 minStart, uint32 maxEnd) 
     {
-        if (cursor == 0) return (0, 0);
+        if (cursor == 0) return (0, 0, type(uint32).max, 0);
+        
+        uint32 currentStart = uint32(cursor);
+        uint32 currentEnd = calendar.nodes[cursor].end;
+        
+        // Check if current reservation overlaps with the requested range
+        // A reservation overlaps if: start < _endTime && end > _startTime
+        bool overlapsRange = currentStart < _endTime && currentEnd > _startTime;
         
         // Recursively process left and right subtrees
-        (uint32 leftCount, uint256 leftDuration) = _calculateStats(calendar, calendar.nodes[cursor].left);
-        (uint32 rightCount, uint256 rightDuration) = _calculateStats(calendar, calendar.nodes[cursor].right);
+        (uint32 leftCount, uint256 leftDuration, uint32 leftMin, uint32 leftMax) = _calculateStats(calendar, calendar.nodes[cursor].left, _startTime, _endTime);
+        (uint32 rightCount, uint256 rightDuration, uint32 rightMin, uint32 rightMax) = _calculateStats(calendar, calendar.nodes[cursor].right, _startTime, _endTime);
         
-        // Current node duration
-        uint32 nodeDuration = calendar.nodes[cursor].end - uint32(cursor);
+        // Combine results from subtrees
+        nodeCount = leftCount + rightCount;
+        duration = leftDuration + rightDuration;
+        minStart = leftMin < rightMin ? leftMin : rightMin;
+        maxEnd = leftMax > rightMax ? leftMax : rightMax;
         
-        // Sum everything
-        nodeCount = 1 + leftCount + rightCount;
-        duration = nodeDuration + leftDuration + rightDuration;
+        // Include current node if it overlaps with range
+        if (overlapsRange) {
+            nodeCount += 1;
+            // Calculate the duration within the range
+            uint32 effectiveStart = currentStart > _startTime ? currentStart : _startTime;
+            uint32 effectiveEnd = currentEnd < _endTime ? currentEnd : _endTime;
+            duration += effectiveEnd - effectiveStart;
+            
+            // Update min/max
+            if (currentStart < minStart) minStart = currentStart;
+            if (currentEnd > maxEnd) maxEnd = currentEnd;
+        }
         
-        return (nodeCount, duration);
+        return (nodeCount, duration, minStart, maxEnd);
     }
 
     /// @notice Find which reservation (if any) occupies a specific timestamp

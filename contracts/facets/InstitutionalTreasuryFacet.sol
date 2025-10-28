@@ -109,6 +109,12 @@ contract InstitutionalTreasuryFacet is ReentrancyGuard {
     function authorizeBackend(address backend) external {
         AppStorage storage s = LibAppStorage.diamondStorage();
         require(backend != address(0), "Invalid backend address");
+
+        address previousBackend = s.institutionalBackends[msg.sender];
+        if (previousBackend != address(0) && previousBackend != backend) {
+            emit BackendRevoked(msg.sender, previousBackend);
+        }
+
         s.institutionalBackends[msg.sender] = backend;
         emit BackendAuthorized(msg.sender, backend);
     }

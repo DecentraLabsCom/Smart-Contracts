@@ -196,6 +196,7 @@ contract InstitutionalReservationFacet is BaseReservationFacet, ReentrancyGuard 
 
         s.reservationKeys.add(reservationKey);
         s.renters[institutionalProvider].add(reservationKey);
+        s.renters[userTrackingKey].add(reservationKey);
         s.activeReservationCountByTokenAndUser[_labId][userTrackingKey]++;
         s.reservationKeysByTokenAndUser[_labId][userTrackingKey].add(reservationKey);
 

@@ -66,6 +66,13 @@ contract InstitutionalTreasuryFacet is ReentrancyGuard {
         uint256 period = s.institutionalSpendingPeriod[provider];
         return period == 0 ? LibAppStorage.DEFAULT_SPENDING_PERIOD : period;
     }
+
+    /// @notice Returns the per-user spending limit, falling back to default when unset
+    function _getSpendingLimit(address provider) internal view returns (uint256) {
+        AppStorage storage s = LibAppStorage.diamondStorage();
+        uint256 limit = s.institutionalUserLimit[provider];
+        return limit == 0 ? LibAppStorage.DEFAULT_INSTITUTIONAL_USER_LIMIT : limit;
+    }
     
     /// @notice Check if we're in a new spending period and reset if needed
     /// @param provider The provider address
@@ -198,7 +205,7 @@ contract InstitutionalTreasuryFacet is ReentrancyGuard {
         }
         
         uint256 newSpent = currentSpending + amount;
-        require(newSpent <= s.institutionalUserLimit[provider], "User spending limit exceeded for period");
+        require(newSpent <= _getSpendingLimit(provider), "User spending limit exceeded for period");
     }
 
     /// @notice Spend tokens from the provider's institutional treasury as an institutional user
@@ -228,7 +235,7 @@ contract InstitutionalTreasuryFacet is ReentrancyGuard {
         InstitutionalUserSpending storage spending = s.institutionalUserSpending[provider][puc];
         uint256 newSpent = spending.amount + amount;
         
-        require(newSpent <= s.institutionalUserLimit[provider], "User spending limit exceeded for period");
+        require(newSpent <= _getSpendingLimit(provider), "User spending limit exceeded for period");
         
         s.institutionalTreasury[provider] -= amount;
         spending.amount = newSpent;
@@ -330,7 +337,7 @@ contract InstitutionalTreasuryFacet is ReentrancyGuard {
     /// @notice Get institutional user spending limit
     function getInstitutionalUserLimit(address provider) external view returns (uint256) {
         AppStorage storage s = LibAppStorage.diamondStorage();
-        return s.institutionalUserLimit[provider];
+        return _getSpendingLimit(provider);
     }
     
     /// @notice Get the spending period duration for a provider
@@ -354,7 +361,7 @@ contract InstitutionalTreasuryFacet is ReentrancyGuard {
     /// @return The remaining amount the user can spend in the current period
     function getInstitutionalUserRemainingAllowance(address provider, string calldata puc) external view returns (uint256) {
         AppStorage storage s = LibAppStorage.diamondStorage();
-        uint256 limit = s.institutionalUserLimit[provider];
+        uint256 limit = _getSpendingLimit(provider);
         uint256 periodDuration = _getSpendingPeriod(provider);
         uint256 currentPeriodStart = (block.timestamp / periodDuration) * periodDuration;
         
@@ -395,7 +402,7 @@ contract InstitutionalTreasuryFacet is ReentrancyGuard {
         AppStorage storage s = LibAppStorage.diamondStorage();
         
         // Get spending limit and period duration
-        spendingLimit = s.institutionalUserLimit[provider];
+        spendingLimit = _getSpendingLimit(provider);
         periodDuration = _getSpendingPeriod(provider);
         
         // Calculate current period boundaries

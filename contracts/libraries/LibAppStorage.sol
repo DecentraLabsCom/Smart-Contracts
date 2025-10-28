@@ -93,6 +93,11 @@ struct PayoutCandidate {
         bytes32 key;
 }
 
+struct UserActiveReservation {
+        uint32 start;
+        bytes32 key;
+}
+
 /// @notice Represents a node in a red-black tree data structure, necessary for the library RivalIntervalTree Node data structure
 /// @dev Used for interval tree implementation where each node represents a time interval
 /// @param parent Index of the parent node in the tree
@@ -189,6 +194,8 @@ struct AppStorage {
     mapping (uint256 => mapping(address => bytes32)) activeReservationByTokenAndUser;
     mapping (uint256 => mapping(address => uint8)) activeReservationCountByTokenAndUser;
     mapping (uint256 => mapping(address => EnumerableSet.Bytes32Set)) reservationKeysByTokenAndUser;
+    mapping (uint256 => mapping(address => UserActiveReservation[])) activeReservationHeaps;
+    mapping (bytes32 => bool) activeReservationHeapContains;
     mapping (uint256 => bool) tokenStatus;
     mapping (uint256 => uint256) labActiveReservationCount;
     mapping (address => uint256) providerActiveReservationCount;

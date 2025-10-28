@@ -341,38 +341,23 @@ abstract contract ReservableTokenEnumerable is ReservableToken {
     function _cancelReservation(bytes32 _reservationKey) internal override {
         AppStorage storage s = _s();
         Reservation storage reservation = s.reservations[_reservationKey];
-        
-        // Decrement counter and remove from indices for CONFIRMED, IN_USE, or PENDING reservations
-        // This handles confirmed bookings, active usage, and pending requests (prevents DoS)
+
         if (reservation.status == CONFIRMED || reservation.status == IN_USE || reservation.status == PENDING) {
-            // Handle institutional vs wallet reservations differently
-            // Institutional reservations use hash(provider, puc) as tracking key
-            address trackingKey;
-            if (bytes(reservation.puc).length > 0) {
-                // Institutional reservation - use composite key
-                // reservation.renter == institutionalProvider (set at request time)
-                trackingKey = address(uint160(uint256(keccak256(abi.encodePacked(reservation.renter, reservation.puc)))));
-            } else {
-                // Wallet reservation - use renter directly
-                trackingKey = reservation.renter;
+            if (s.activeReservationCountByTokenAndUser[reservation.labId][reservation.renter] > 0) {
+                s.activeReservationCountByTokenAndUser[reservation.labId][reservation.renter]--;
             }
-            
-            s.activeReservationCountByTokenAndUser[reservation.labId][trackingKey]--;
-            s.reservationKeysByTokenAndUser[reservation.labId][trackingKey].remove(_reservationKey);
-            
-            // Update earliest reservation index (only if CONFIRMED or IN_USE, not PENDING)
-            if ((reservation.status == CONFIRMED || reservation.status == IN_USE) && 
-                s.activeReservationByTokenAndUser[reservation.labId][trackingKey] == _reservationKey) {
-                bytes32 nextKey = _findNextEarliestReservation(reservation.labId, trackingKey);
-                s.activeReservationByTokenAndUser[reservation.labId][trackingKey] = nextKey;
+            s.reservationKeysByTokenAndUser[reservation.labId][reservation.renter].remove(_reservationKey);
+
+            if ((reservation.status == CONFIRMED || reservation.status == IN_USE) &&
+                s.activeReservationByTokenAndUser[reservation.labId][reservation.renter] == _reservationKey) {
+                bytes32 nextKey = _findNextEarliestReservation(reservation.labId, reservation.renter);
+                s.activeReservationByTokenAndUser[reservation.labId][reservation.renter] = nextKey;
             }
         }
-        
-        // Remove from enumerable set (maintains count internally)
+
         s.reservationKeysByToken[reservation.labId].remove(_reservationKey);
-        
         s.renters[reservation.renter].remove(_reservationKey);
-        
+
         super._cancelReservation(_reservationKey);
     }
     
@@ -388,7 +373,7 @@ abstract contract ReservableTokenEnumerable is ReservableToken {
         bytes32 earliestKey = bytes32(0);
         uint32 earliestStart = type(uint32).max;
         
-        for (uint i = 0; i < tokenUserReservations.length(); i++) {
+        for (uint256 i = 0; i < tokenUserReservations.length(); i++) {
             bytes32 key = tokenUserReservations.at(i);
             Reservation memory res = s.reservations[key];
             

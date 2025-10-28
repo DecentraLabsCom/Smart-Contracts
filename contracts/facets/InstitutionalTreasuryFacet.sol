@@ -42,7 +42,7 @@ contract InstitutionalTreasuryFacet is ReentrancyGuard {
     /// @param provider The provider address
     /// @custom:security Allows two types of callers:
     ///   1. The authorized backend (for external calls from backend)
-    ///   2. The Diamond contract itself (for internal calls from other facets like ReservationFacet)
+    ///   2. The Diamond contract itself (for internal calls from other facets like WalletReservationFacet or InstitutionalReservationFacet)
     modifier onlyAuthorizedBackendOrInternal(address provider) {
         AppStorage storage s = LibAppStorage.diamondStorage();
         
@@ -204,7 +204,7 @@ contract InstitutionalTreasuryFacet is ReentrancyGuard {
     /// @notice Spend tokens from the provider's institutional treasury as an institutional user
     /// @dev Only callable by the provider's authorized backend
     ///      This function marks the spending for accounting purposes with automatic period reset.
-    ///      The actual token transfer must be coordinated with ReservationFacet or other payment mechanisms.
+    ///      The actual token transfer must be coordinated with WalletReservationFacet, InstitutionalReservationFacet or other payment mechanisms.
     ///      Tokens remain in Diamond contract until explicitly transferred by another facet.
     ///      Spending resets automatically when a new period begins.
     /// @param provider The provider who owns the treasury
@@ -240,7 +240,7 @@ contract InstitutionalTreasuryFacet is ReentrancyGuard {
     }
 
     /// @notice Refund tokens back to the provider's institutional treasury (e.g., when canceling a reservation)
-    /// @dev Only ReservationFacet can call this via cancelBooking/cancelInstitutionalBooking
+    /// @dev Only WalletReservationFacet or InstitutionalReservationFacet can call this via cancelBooking/cancelInstitutionalBooking
     ///      This reverses a previous spend, incrementing treasury and decrementing user's spent amount
     ///      Allows refunds from past periods
     /// @param provider The provider who owns the treasury
@@ -367,5 +367,66 @@ contract InstitutionalTreasuryFacet is ReentrancyGuard {
         
         uint256 spent = spending.amount;
         return limit > spent ? limit - spent : 0;
+    }
+
+    /// @notice Get comprehensive financial statistics for an institutional user
+    /// @dev Provides all financial metrics needed for user dashboard in a single call
+    /// @param provider The provider who owns the treasury
+    /// @param puc The schacPersonalUniqueCode of the institutional user
+    /// @return currentPeriodSpent Amount spent in the current period
+    /// @return totalHistoricalSpent Total amount ever spent (across all periods)
+    /// @return spendingLimit Maximum allowed spending per period
+    /// @return remainingAllowance Amount remaining in current period
+    /// @return periodStart Start timestamp of the current period
+    /// @return periodEnd End timestamp of the current period (periodStart + duration)
+    /// @return periodDuration Duration of each spending period in seconds
+    function getInstitutionalUserFinancialStats(
+        address provider,
+        string calldata puc
+    ) external view returns (
+        uint256 currentPeriodSpent,
+        uint256 totalHistoricalSpent,
+        uint256 spendingLimit,
+        uint256 remainingAllowance,
+        uint256 periodStart,
+        uint256 periodEnd,
+        uint256 periodDuration
+    ) {
+        AppStorage storage s = LibAppStorage.diamondStorage();
+        
+        // Get spending limit and period duration
+        spendingLimit = s.institutionalUserLimit[provider];
+        periodDuration = _getSpendingPeriod(provider);
+        
+        // Calculate current period boundaries
+        periodStart = (block.timestamp / periodDuration) * periodDuration;
+        periodEnd = periodStart + periodDuration;
+        
+        // Get user spending data
+        InstitutionalUserSpending storage spending = s.institutionalUserSpending[provider][puc];
+        totalHistoricalSpent = spending.totalHistoricalSpent;
+        
+        // If stored period matches current period, use stored spending
+        // Otherwise, spending is 0 (new period)
+        if (spending.periodStart == periodStart) {
+            currentPeriodSpent = spending.amount;
+        } else {
+            currentPeriodSpent = 0;
+        }
+        
+        // Calculate remaining allowance
+        remainingAllowance = spendingLimit > currentPeriodSpent 
+            ? spendingLimit - currentPeriodSpent 
+            : 0;
+        
+        return (
+            currentPeriodSpent,
+            totalHistoricalSpent,
+            spendingLimit,
+            remainingAllowance,
+            periodStart,
+            periodEnd,
+            periodDuration
+        );
     }
 }

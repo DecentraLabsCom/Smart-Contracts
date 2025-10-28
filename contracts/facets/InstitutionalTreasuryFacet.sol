@@ -2,6 +2,7 @@
 pragma solidity ^0.8.23;
 
 import {LibAppStorage, AppStorage} from "../libraries/LibAppStorage.sol";
+import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/security/ReentrancyGuard.sol";
@@ -15,6 +16,7 @@ using SafeERC20 for IERC20;
 /// @notice Allows providers to assign and manage token balances for institutional users (SAML2 schacPersonalUniqueCode)
 /// @dev Uses LabERC20 token for deposits and spending. Implements backend authorization pattern for institutional users.
 contract InstitutionalTreasuryFacet is ReentrancyGuard {
+    using EnumerableSet for EnumerableSet.AddressSet;
     
     /// @notice Emitted when a provider authorizes a backend address
     event BackendAuthorized(address indexed provider, address indexed backend);
@@ -73,6 +75,11 @@ contract InstitutionalTreasuryFacet is ReentrancyGuard {
         uint256 limit = s.institutionalUserLimit[provider];
         return limit == 0 ? LibAppStorage.DEFAULT_INSTITUTIONAL_USER_LIMIT : limit;
     }
+
+    function _requireDefaultAdmin(address account) internal view {
+        AppStorage storage s = LibAppStorage.diamondStorage();
+        require(s.roleMembers[s.DEFAULT_ADMIN_ROLE].contains(account), "Only default admin");
+    }
     
     /// @notice Check if we're in a new spending period and reset if needed
     /// @param provider The provider address
@@ -113,6 +120,26 @@ contract InstitutionalTreasuryFacet is ReentrancyGuard {
         require(previousBackend != address(0), "No backend to revoke");
         delete s.institutionalBackends[msg.sender];
         emit BackendRevoked(msg.sender, previousBackend);
+    }
+
+    /// @notice Emergency admin path to reset or assign institutional backend
+    /// @param provider The provider whose backend is being updated
+    /// @param newBackend Optional new backend address (set to address(0) to just clear)
+    function adminResetBackend(address provider, address newBackend) external {
+        _requireDefaultAdmin(msg.sender);
+
+        AppStorage storage s = LibAppStorage.diamondStorage();
+        address previousBackend = s.institutionalBackends[provider];
+
+        if (previousBackend != address(0)) {
+            delete s.institutionalBackends[provider];
+            emit BackendRevoked(provider, previousBackend);
+        }
+
+        if (newBackend != address(0)) {
+            s.institutionalBackends[provider] = newBackend;
+            emit BackendAuthorized(provider, newBackend);
+        }
     }
     /// @notice Deposit tokens to the provider's institutional treasury (global)
     /// @dev Provider must approve tokens before calling this function

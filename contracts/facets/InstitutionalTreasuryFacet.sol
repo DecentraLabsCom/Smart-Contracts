@@ -36,6 +36,9 @@ contract InstitutionalTreasuryFacet is ReentrancyGuard {
     /// @notice Emitted when institutional spending period is updated
     event InstitutionalSpendingPeriodUpdated(address indexed provider, uint256 newPeriod);
     
+    /// @notice Emitted when a provider manually resets their period anchor
+    event InstitutionalSpendingPeriodReset(address indexed provider, uint256 newPeriodStart);
+    
     /// @notice Emitted when an institutional user spends tokens
     /// @dev The puc parameter is indexed as keccak256 hash for efficient filtering
     event InstitutionalUserSpent(address indexed provider, string indexed puc, uint256 amount, uint256 totalSpent, uint256 periodStart);
@@ -69,6 +72,23 @@ contract InstitutionalTreasuryFacet is ReentrancyGuard {
         return period == 0 ? LibAppStorage.DEFAULT_SPENDING_PERIOD : period;
     }
 
+    function _calculatePeriodStart(uint256 timestamp, uint256 periodDuration, uint256 anchor) internal pure returns (uint256) {
+        if (anchor == 0) {
+            return (timestamp / periodDuration) * periodDuration;
+        }
+
+        if (anchor > timestamp) {
+            anchor = timestamp;
+        }
+
+        return anchor + ((timestamp - anchor) / periodDuration) * periodDuration;
+    }
+
+    function _currentPeriodStart(address provider, uint256 periodDuration) internal view returns (uint256) {
+        AppStorage storage s = LibAppStorage.diamondStorage();
+        return _calculatePeriodStart(block.timestamp, periodDuration, s.institutionalSpendingPeriodAnchor[provider]);
+    }
+
     /// @notice Returns the per-user spending limit, falling back to default when unset
     function _getSpendingLimit(address provider) internal view returns (uint256) {
         AppStorage storage s = LibAppStorage.diamondStorage();
@@ -88,12 +108,11 @@ contract InstitutionalTreasuryFacet is ReentrancyGuard {
     function _checkAndResetPeriod(address provider, string calldata puc) internal returns (uint256 currentPeriodStart) {
         AppStorage storage s = LibAppStorage.diamondStorage();
         uint256 periodDuration = _getSpendingPeriod(provider);
-        uint256 now_ = block.timestamp;
-        
         InstitutionalUserSpending storage spending = s.institutionalUserSpending[provider][puc];
+        uint256 anchor = s.institutionalSpendingPeriodAnchor[provider];
         
-        // Calculate current period start based on period duration
-        currentPeriodStart = (now_ / periodDuration) * periodDuration;
+        // Calculate current period start based on period duration or custom anchor
+        currentPeriodStart = _calculatePeriodStart(block.timestamp, periodDuration, anchor);
         
         // If period has changed, reset spending
         if (spending.periodStart != currentPeriodStart) {
@@ -199,6 +218,15 @@ contract InstitutionalTreasuryFacet is ReentrancyGuard {
         emit InstitutionalSpendingPeriodUpdated(msg.sender, periodDuration);
     }
 
+    /// @notice Restart the spending period counting window from now without changing its duration
+    /// @dev Sets a provider-specific anchor so that the current period starts at the timestamp of this call
+    function resetInstitutionalSpendingPeriod() external {
+        AppStorage storage s = LibAppStorage.diamondStorage();
+        uint256 newPeriodStart = block.timestamp;
+        s.institutionalSpendingPeriodAnchor[msg.sender] = newPeriodStart;
+        emit InstitutionalSpendingPeriodReset(msg.sender, newPeriodStart);
+    }
+
     /// @notice Checks if the institutional treasury has sufficient balance and user hasn't exceeded spending limit
     /// @dev View function that verifies availability without modifying state
     ///      Used in lazy payment pattern to verify before creating reservation request
@@ -223,13 +251,9 @@ contract InstitutionalTreasuryFacet is ReentrancyGuard {
         require(s.institutionalTreasury[provider] >= amount, "Insufficient treasury balance");
         
         // Calculate current period
-        uint256 periodDuration = s.institutionalSpendingPeriod[provider];
-        if (periodDuration == 0) {
-            periodDuration = LibAppStorage.DEFAULT_SPENDING_PERIOD;
-        }
-        
+        uint256 periodDuration = _getSpendingPeriod(provider);
         InstitutionalUserSpending storage spending = s.institutionalUserSpending[provider][puc];
-        uint256 currentPeriodStart = (block.timestamp / periodDuration) * periodDuration;
+        uint256 currentPeriodStart = _currentPeriodStart(provider, periodDuration);
         
         // Check if we're in a new period (spending would be reset to 0)
         uint256 currentSpending = 0;
@@ -317,7 +341,7 @@ contract InstitutionalTreasuryFacet is ReentrancyGuard {
         
         // Get current period for event logging
         uint256 periodDuration = _getSpendingPeriod(provider);
-        uint256 currentPeriodStart = (block.timestamp / periodDuration) * periodDuration;
+        uint256 currentPeriodStart = _currentPeriodStart(provider, periodDuration);
         
         emit InstitutionalUserSpent(provider, puc, 0, spending.amount, currentPeriodStart); // Emit with 0 to indicate refund
     }
@@ -335,7 +359,7 @@ contract InstitutionalTreasuryFacet is ReentrancyGuard {
     function getInstitutionalUserSpent(address provider, string calldata puc) external view returns (uint256) {
         AppStorage storage s = LibAppStorage.diamondStorage();
         uint256 periodDuration = _getSpendingPeriod(provider);
-        uint256 currentPeriodStart = (block.timestamp / periodDuration) * periodDuration;
+        uint256 currentPeriodStart = _currentPeriodStart(provider, periodDuration);
         
         InstitutionalUserSpending storage spending = s.institutionalUserSpending[provider][puc];
         
@@ -355,7 +379,7 @@ contract InstitutionalTreasuryFacet is ReentrancyGuard {
     function getInstitutionalUserSpendingData(address provider, string calldata puc) external view returns (uint256 amount, uint256 periodStart) {
         AppStorage storage s = LibAppStorage.diamondStorage();
         uint256 periodDuration = _getSpendingPeriod(provider);
-        uint256 currentPeriodStart = (block.timestamp / periodDuration) * periodDuration;
+        uint256 currentPeriodStart = _currentPeriodStart(provider, periodDuration);
         
         InstitutionalUserSpending storage spending = s.institutionalUserSpending[provider][puc];
         
@@ -396,7 +420,7 @@ contract InstitutionalTreasuryFacet is ReentrancyGuard {
         AppStorage storage s = LibAppStorage.diamondStorage();
         uint256 limit = _getSpendingLimit(provider);
         uint256 periodDuration = _getSpendingPeriod(provider);
-        uint256 currentPeriodStart = (block.timestamp / periodDuration) * periodDuration;
+        uint256 currentPeriodStart = _currentPeriodStart(provider, periodDuration);
         
         InstitutionalUserSpending storage spending = s.institutionalUserSpending[provider][puc];
         
@@ -439,7 +463,7 @@ contract InstitutionalTreasuryFacet is ReentrancyGuard {
         periodDuration = _getSpendingPeriod(provider);
         
         // Calculate current period boundaries
-        periodStart = (block.timestamp / periodDuration) * periodDuration;
+        periodStart = _currentPeriodStart(provider, periodDuration);
         periodEnd = periodStart + periodDuration;
         
         // Get user spending data

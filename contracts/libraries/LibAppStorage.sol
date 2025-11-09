@@ -179,6 +179,7 @@ struct InstitutionalUserSpending {
 /// @custom:member institutionalUserSpending Mapping of provider addresses to their institutional user spending data with period tracking
 /// @custom:member institutionalBackends Mapping of provider addresses to their authorized backend addresses
 /// @custom:member institutionalSpendingPeriod Duration of the spending period in seconds (default: 30 days)
+/// @custom:member institutionalSpendingPeriodAnchor Optional anchor timestamp used to realign spending periods
 struct AppStorage {
     bytes32 DEFAULT_ADMIN_ROLE;
     address labTokenAddress;
@@ -217,6 +218,7 @@ struct AppStorage {
     mapping(address provider => mapping(string puc => InstitutionalUserSpending spending)) institutionalUserSpending;
     mapping(address provider => address authorizedBackend) institutionalBackends;
     mapping(address provider => uint256 periodDuration) institutionalSpendingPeriod;
+    mapping(address provider => uint256 periodAnchor) institutionalSpendingPeriodAnchor;
 }
 
 /// @title LibAppStorage

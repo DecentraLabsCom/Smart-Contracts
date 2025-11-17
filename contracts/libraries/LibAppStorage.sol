@@ -180,6 +180,9 @@ struct InstitutionalUserSpending {
 /// @custom:member institutionalBackends Mapping of provider addresses to their authorized backend addresses
 /// @custom:member institutionalSpendingPeriod Duration of the spending period in seconds (default: 30 days)
 /// @custom:member institutionalSpendingPeriodAnchor Optional anchor timestamp used to realign spending periods
+/// @custom:member schacHomeOrganizationRegistry Mapping of normalized schacHomeOrganization hashes to provider addresses
+/// @custom:member schacHomeOrganizationNames Canonical lower-case schacHomeOrganization string stored per hash
+/// @custom:member providerSchacHomeOrganizations Enumerable set of organization hashes registered by each provider
 struct AppStorage {
     bytes32 DEFAULT_ADMIN_ROLE;
     address labTokenAddress;
@@ -219,6 +222,9 @@ struct AppStorage {
     mapping(address provider => address authorizedBackend) institutionalBackends;
     mapping(address provider => uint256 periodDuration) institutionalSpendingPeriod;
     mapping(address provider => uint256 periodAnchor) institutionalSpendingPeriodAnchor;
+    mapping(bytes32 orgHash => address provider) schacHomeOrganizationRegistry;
+    mapping(bytes32 orgHash => string orgName) schacHomeOrganizationNames;
+    mapping(address provider => EnumerableSet.Bytes32Set) providerSchacHomeOrganizations;
 }
 
 /// @title LibAppStorage

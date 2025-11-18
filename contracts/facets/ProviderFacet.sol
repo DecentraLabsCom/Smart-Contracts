@@ -240,7 +240,7 @@ contract ProviderFacet is AccessControlUpgradeable {
 
     /// @notice Removes a provider from the system by revoking their PROVIDER_ROLE.
     /// @dev This function can only be called by an account with the DEFAULT_ADMIN_ROLE.
-    ///      Burns all staked tokens and institutional treasury balance before removal.
+    ///      Burns all staked tokens but keeps institutional configuration untouched.
     ///      If the provider does not have the PROVIDER_ROLE, the transaction reverts with an error.
     ///      Emits a `ProviderRemoved` event upon successful removal.
     /// @param _provider The address of the provider to be removed.
@@ -260,19 +260,8 @@ contract ProviderFacet is AccessControlUpgradeable {
             LabERC20(s.labTokenAddress).burn(stakedAmount);
         }
         
-        // Burn institutional treasury balance
-        uint256 treasuryBalance = s.institutionalTreasury[_provider];
-        if (treasuryBalance > 0) {
-            s.institutionalTreasury[_provider] = 0;
-            LabERC20(s.labTokenAddress).burn(treasuryBalance);
-        }
-        
         // Clean up stake data
         delete s.providerStakes[_provider];
-        
-        // Clean up institutional data
-        delete s.institutionalUserLimit[_provider];
-        delete s.institutionalBackends[_provider];
         
         s._removeProviderRole(_provider);
         emit ProviderRemoved(_provider);

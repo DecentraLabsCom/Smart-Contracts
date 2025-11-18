@@ -13,6 +13,10 @@ bytes32 constant APP_STORAGE_POSITION = keccak256(
 ///      This is used as a unique identifier for the provider role within the contract.
 bytes32 constant PROVIDER_ROLE = keccak256("PROVIDER_ROLE");
 
+/// @dev Constant representing the hash of the string "INSTITUTION_ROLE".
+///      This role gates access to institutional-only features such as domain registration.
+bytes32 constant INSTITUTION_ROLE = keccak256("INSTITUTION_ROLE");
+
 /// @dev Struct representing a Lab Provider.
 /// @param name The name of the Lab Provider.
 /// @param email The email address of the Lab Provider.
@@ -180,9 +184,9 @@ struct InstitutionalUserSpending {
 /// @custom:member institutionalBackends Mapping of provider addresses to their authorized backend addresses
 /// @custom:member institutionalSpendingPeriod Duration of the spending period in seconds (default: 30 days)
 /// @custom:member institutionalSpendingPeriodAnchor Optional anchor timestamp used to realign spending periods
-/// @custom:member schacHomeOrganizationRegistry Mapping of normalized schacHomeOrganization hashes to provider addresses
 /// @custom:member schacHomeOrganizationNames Canonical lower-case schacHomeOrganization string stored per hash
-/// @custom:member providerSchacHomeOrganizations Enumerable set of organization hashes registered by each provider
+/// @custom:member organizationInstitutionWallet Mapping of normalized organization hashes to institution wallets
+/// @custom:member institutionSchacHomeOrganizations Enumerable set of organization hashes registered by each institution wallet
 struct AppStorage {
     bytes32 DEFAULT_ADMIN_ROLE;
     address labTokenAddress;
@@ -222,9 +226,9 @@ struct AppStorage {
     mapping(address provider => address authorizedBackend) institutionalBackends;
     mapping(address provider => uint256 periodDuration) institutionalSpendingPeriod;
     mapping(address provider => uint256 periodAnchor) institutionalSpendingPeriodAnchor;
-    mapping(bytes32 orgHash => address provider) schacHomeOrganizationRegistry;
     mapping(bytes32 orgHash => string orgName) schacHomeOrganizationNames;
-    mapping(address provider => EnumerableSet.Bytes32Set) providerSchacHomeOrganizations;
+    mapping(bytes32 orgHash => address wallet) organizationInstitutionWallet;
+    mapping(address institution => EnumerableSet.Bytes32Set) institutionSchacHomeOrganizations;
 }
 
 /// @title LibAppStorage

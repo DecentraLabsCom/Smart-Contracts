@@ -24,14 +24,14 @@ contract InstitutionalReservationFacet is BaseReservationFacet, ReentrancyGuard 
         uint256 _labId,
         uint32 _start,
         uint32 _end
-    ) external exists(_labId) {
+    ) external exists(_labId) onlyInstitution(institutionalProvider) {
         _institutionalReservationRequest(institutionalProvider, puc, _labId, _start, _end);
     }
 
     function confirmInstitutionalReservationRequest(
         address institutionalProvider,
         bytes32 _reservationKey
-    ) external defaultAdminRole reservationPending(_reservationKey) {
+    ) external defaultAdminRole reservationPending(_reservationKey) onlyInstitution(institutionalProvider) {
         _confirmInstitutionalReservationRequest(institutionalProvider, _reservationKey);
     }
 
@@ -39,7 +39,7 @@ contract InstitutionalReservationFacet is BaseReservationFacet, ReentrancyGuard 
         address institutionalProvider,
         string calldata puc,
         bytes32 _reservationKey
-    ) external defaultAdminRole {
+    ) external defaultAdminRole onlyInstitution(institutionalProvider) {
         _denyInstitutionalReservationRequest(institutionalProvider, puc, _reservationKey);
     }
 
@@ -47,14 +47,14 @@ contract InstitutionalReservationFacet is BaseReservationFacet, ReentrancyGuard 
         address institutionalProvider,
         string calldata puc,
         bytes32 _reservationKey
-    ) external {
+    ) external onlyInstitution(institutionalProvider) {
         _cancelInstitutionalReservationRequest(institutionalProvider, puc, _reservationKey);
     }
 
     function cancelInstitutionalBooking(
         address institutionalProvider,
         bytes32 _reservationKey
-    ) external {
+    ) external onlyInstitution(institutionalProvider) {
         _cancelInstitutionalBooking(institutionalProvider, _reservationKey);
     }
 
@@ -63,7 +63,7 @@ contract InstitutionalReservationFacet is BaseReservationFacet, ReentrancyGuard 
         string calldata puc,
         uint256 _labId,
         uint256 maxBatch
-    ) external returns (uint256 processed) {
+    ) external onlyInstitution(institutionalProvider) returns (uint256 processed) {
         AppStorage storage s = _s();
 
         require(s.institutionalBackends[institutionalProvider] != address(0), "No authorized backend");
@@ -77,7 +77,7 @@ contract InstitutionalReservationFacet is BaseReservationFacet, ReentrancyGuard 
     function getInstitutionalUserReservationCount(
         address institutionalProvider,
         string calldata puc
-    ) external view returns (uint256) {
+    ) external view onlyInstitution(institutionalProvider) returns (uint256) {
         return _getInstitutionalUserReservationCount(institutionalProvider, puc);
     }
 
@@ -85,7 +85,7 @@ contract InstitutionalReservationFacet is BaseReservationFacet, ReentrancyGuard 
         address institutionalProvider,
         string calldata puc,
         uint256 index
-    ) external view returns (bytes32 key) {
+    ) external view onlyInstitution(institutionalProvider) returns (bytes32 key) {
         return _getInstitutionalUserReservationByIndex(institutionalProvider, puc, index);
     }
 
@@ -93,7 +93,7 @@ contract InstitutionalReservationFacet is BaseReservationFacet, ReentrancyGuard 
         address institutionalProvider,
         string calldata puc,
         uint256 labId
-    ) external returns (bool) {
+    ) external onlyInstitution(institutionalProvider) returns (bool) {
         return _hasInstitutionalUserActiveBooking(institutionalProvider, puc, labId);
     }
 
@@ -101,13 +101,19 @@ contract InstitutionalReservationFacet is BaseReservationFacet, ReentrancyGuard 
         address institutionalProvider,
         string calldata puc,
         uint256 labId
-    ) external returns (bytes32 reservationKey) {
+    ) external onlyInstitution(institutionalProvider) returns (bytes32 reservationKey) {
         return _getInstitutionalUserActiveReservationKey(institutionalProvider, puc, labId);
     }
 
     // ---------------------------------------------------------------------
     // Institutional overrides
     // ---------------------------------------------------------------------
+
+    modifier onlyInstitution(address institution) {
+        AppStorage storage s = _s();
+        require(s.roleMembers[INSTITUTION_ROLE].contains(institution), "Unknown institution");
+        _;
+    }
 
     function _institutionalReservationRequest(
         address institutionalProvider,
@@ -298,7 +304,8 @@ contract InstitutionalReservationFacet is BaseReservationFacet, ReentrancyGuard 
         string calldata puc,
         bytes32 _reservationKey
     ) internal override {
-        Reservation storage reservation = _s().reservations[_reservationKey];
+        AppStorage storage s = _s();
+        Reservation storage reservation = s.reservations[_reservationKey];
         if (reservation.status != PENDING) revert("Not pending");
         if (reservation.payerInstitution != institutionalProvider) revert("Not institutional");
         if (keccak256(bytes(puc)) != keccak256(bytes(reservation.puc))) revert("PUC mismatch");
@@ -360,6 +367,7 @@ contract InstitutionalReservationFacet is BaseReservationFacet, ReentrancyGuard 
         uint256 _labId,
         uint256 maxBatch
     ) internal override returns (uint256) {
+        AppStorage storage s = _s();
         if (maxBatch == 0 || maxBatch > 50) revert("Invalid batch size");
         if (bytes(puc).length == 0) revert("PUC cannot be empty");
         address userTrackingKey = _trackingKeyFromInstitution(institutionalProvider, puc);
@@ -439,4 +447,5 @@ contract InstitutionalReservationFacet is BaseReservationFacet, ReentrancyGuard 
         uint256 duration = s.institutionalSpendingPeriod[provider];
         return duration == 0 ? LibAppStorage.DEFAULT_SPENDING_PERIOD : duration;
     }
+
 }

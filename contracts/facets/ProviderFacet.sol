@@ -2,7 +2,7 @@
 pragma solidity ^0.8.23;
 
 import "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
-import {LibAppStorage, AppStorage, PROVIDER_ROLE, Provider, ProviderBase} from "../libraries/LibAppStorage.sol";
+import {LibAppStorage, AppStorage, PROVIDER_ROLE, INSTITUTION_ROLE, Provider, ProviderBase} from "../libraries/LibAppStorage.sol";
 import "../libraries/LibDiamond.sol";
 import {LibAccessControlEnumerable} from "../libraries/LibAccessControlEnumerable.sol";
 import "../external/LabERC20.sol"; // Import the LabERC20 contract, no yet implemented
@@ -105,6 +105,8 @@ contract ProviderFacet is AccessControlUpgradeable {
     ) public initializer {
         LibDiamond.enforceIsContractOwner();
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
+        _grantRole(PROVIDER_ROLE, msg.sender);
+        _grantRole(INSTITUTION_ROLE, msg.sender);
         _s()._addProviderRole(msg.sender, _name, _email, _country);
 
         _s().DEFAULT_ADMIN_ROLE = DEFAULT_ADMIN_ROLE;
@@ -142,6 +144,7 @@ contract ProviderFacet is AccessControlUpgradeable {
         require(!hasRole(PROVIDER_ROLE, _account), "Provider already exists");
         
         _grantRole(PROVIDER_ROLE, _account);
+        _grantRole(INSTITUTION_ROLE, _account);
         _s()._addProviderRole(_account, _name, _email, _country);
         
         // Try to mint initial tokens (1000 total), but don't revert if it fails (e.g., cap reached)
@@ -315,6 +318,16 @@ contract ProviderFacet is AccessControlUpgradeable {
         external view returns (Provider[] memory providers, uint256 total) 
     {
         return _s()._getLabProvidersPaginated(offset, limit);
+    }
+
+    function _grantRole(bytes32 role, address account) internal virtual override {
+        super._grantRole(role, account);
+        _s().roleMembers[role].add(account);
+    }
+
+    function _revokeRole(bytes32 role, address account) internal virtual override {
+        super._revokeRole(role, account);
+        _s().roleMembers[role].remove(account);
     }
 
     /// @dev Internal pure function to retrieve the application storage structure.

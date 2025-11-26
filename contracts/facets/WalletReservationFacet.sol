@@ -217,6 +217,7 @@ contract WalletReservationFacet is BaseReservationFacet, ReentrancyGuard {
             address(this),
             reservation.price
         ) {
+            _setReservationSplit(reservation);
             // Payment successful ÔåÆ insert into calendar (blocks the slot)
             // This prevents phantom slots from denied PENDING requests
             s.calendars[reservation.labId].insert(reservation.start, reservation.end);
@@ -282,11 +283,19 @@ contract WalletReservationFacet is BaseReservationFacet, ReentrancyGuard {
             revert("Invalid");
     
         address renter = reservation.renter;
-        uint256 price = reservation.price;
+        uint96 price = reservation.price;
         uint256 labId = reservation.labId;
         address cachedLabProvider = reservation.labProvider;
         string memory puc = reservation.puc;
         bool isInstitutional = bytes(puc).length > 0;
+        uint96 providerFee;
+        uint96 treasuryFee;
+        uint96 governanceFee;
+        uint96 refundAmount = price;
+        
+        if (price > 0) {
+            (providerFee, treasuryFee, governanceFee, refundAmount) = _computeCancellationFee(price);
+        }
         
         // Check current owner to allow new owners to manage reservations after transfer
         address currentOwner = IERC721(address(this)).ownerOf(labId);
@@ -296,6 +305,10 @@ contract WalletReservationFacet is BaseReservationFacet, ReentrancyGuard {
         s.reservationsProvider[cachedLabProvider].remove(_reservationKey);
         s.reservationsByLabId[labId].remove(_reservationKey);
         _cancelReservation(_reservationKey);
+
+        if (price > 0) {
+            _applyCancellationFees(s, labId, providerFee, treasuryFee, governanceFee);
+        }
         
         // Refund based on reservation type
         if (isInstitutional && reservation.payerInstitution != address(0)) {
@@ -303,11 +316,11 @@ contract WalletReservationFacet is BaseReservationFacet, ReentrancyGuard {
             IInstitutionalTreasuryFacet(address(this)).refundToInstitutionalTreasury(
                 reservation.payerInstitution,
                 puc,
-                price
+                refundAmount
             );
         } else {
             // Refund to wallet
-            IERC20(s.labTokenAddress).safeTransfer(renter, price);
+            IERC20(s.labTokenAddress).safeTransfer(renter, refundAmount);
         }
         
         emit BookingCanceled(_reservationKey, labId);
@@ -340,36 +353,19 @@ contract WalletReservationFacet is BaseReservationFacet, ReentrancyGuard {
             }
         }
 
-        uint256 walletPayout = s.pendingLabPayout[_labId];
-        uint256 totalPayout = walletPayout;
-        if (walletPayout > 0) {
-            IERC20(s.labTokenAddress).safeTransfer(labOwner, walletPayout);
-        }
-        s.pendingLabPayout[_labId] = 0;
+        uint256 providerPayout = s.pendingProviderPayout[_labId];
+        if (providerPayout == 0 && processed == 0) revert("No completed reservations");
 
-        EnumerableSet.AddressSet storage collectors = s.pendingInstitutionalCollectors[_labId];
-        uint256 collectorsLength = collectors.length();
-        for (uint256 i = collectorsLength; i > 0; ) {
-            address collector = collectors.at(i - 1);
-            uint256 amount = s.pendingInstitutionalLabPayout[_labId][collector];
-            if (amount > 0) {
-                s.institutionalTreasury[collector] += amount;
-                totalPayout += amount;
-                s.pendingInstitutionalLabPayout[_labId][collector] = 0;
-            }
-            collectors.remove(collector);
-            unchecked {
-                --i;
-            }
+        if (providerPayout > 0) {
+            IERC20(s.labTokenAddress).safeTransfer(labOwner, providerPayout);
+            s.pendingProviderPayout[_labId] = 0;
         }
-
-        if (totalPayout == 0 && processed == 0) revert("No completed reservations");
 
         if (processed > 0) {
             IStakingFacet(address(this)).updateLastReservation(labOwner);
         }
 
-        emit FundsCollected(labOwner, _labId, totalPayout, processed);
+        emit FundsCollected(labOwner, _labId, providerPayout, processed);
     }
 
     function _getLabTokenAddress() internal view override returns (address){
@@ -412,16 +408,56 @@ contract WalletReservationFacet is BaseReservationFacet, ReentrancyGuard {
     {
         AppStorage storage s = _s();
         
-        walletPayout = s.pendingLabPayout[_labId];
+        walletPayout = s.pendingProviderPayout[_labId];
+        institutionalPayout = 0;
+        institutionalCollectorCount = 0;
         
-        EnumerableSet.AddressSet storage collectors = s.pendingInstitutionalCollectors[_labId];
-        institutionalCollectorCount = collectors.length();
-        
-        for (uint256 i = 0; i < institutionalCollectorCount; i++) {
-            address collector = collectors.at(i);
-            institutionalPayout += s.pendingInstitutionalLabPayout[_labId][collector];
-        }
-        
-        totalPayout = walletPayout + institutionalPayout;
+        totalPayout = walletPayout;
+    }
+
+    /// @notice One-time initializer to set revenue recipient wallets (15% treasury, 10% subsidies, 5% governance)
+    /// @dev Can only be called once by default admin. Addresses are immutable afterwards.
+    function initializeRevenueRecipients(
+        address projectTreasury,
+        address subsidies,
+        address governance
+    ) external defaultAdminRole {
+        AppStorage storage s = _s();
+        require(s.projectTreasuryWallet == address(0), "Revenue recipients already set");
+        require(projectTreasury != address(0) && subsidies != address(0) && governance != address(0), "Invalid address");
+
+        s.projectTreasuryWallet = projectTreasury;
+        s.subsidiesWallet = subsidies;
+        s.governanceWallet = governance;
+    }
+
+    /// @notice Withdraw accumulated project treasury share
+    function withdrawProjectTreasury() external {
+        AppStorage storage s = _s();
+        require(msg.sender == s.projectTreasuryWallet, "Not treasury wallet");
+        uint256 amount = s.pendingProjectTreasury;
+        require(amount > 0, "No funds");
+        s.pendingProjectTreasury = 0;
+        IERC20(s.labTokenAddress).safeTransfer(msg.sender, amount);
+    }
+
+    /// @notice Withdraw accumulated subsidies share
+    function withdrawSubsidies() external {
+        AppStorage storage s = _s();
+        require(msg.sender == s.subsidiesWallet, "Not subsidies wallet");
+        uint256 amount = s.pendingSubsidies;
+        require(amount > 0, "No funds");
+        s.pendingSubsidies = 0;
+        IERC20(s.labTokenAddress).safeTransfer(msg.sender, amount);
+    }
+
+    /// @notice Withdraw accumulated governance incentives share
+    function withdrawGovernance() external {
+        AppStorage storage s = _s();
+        require(msg.sender == s.governanceWallet, "Not governance wallet");
+        uint256 amount = s.pendingGovernance;
+        require(amount > 0, "No funds");
+        s.pendingGovernance = 0;
+        IERC20(s.labTokenAddress).safeTransfer(msg.sender, amount);
     }
 }

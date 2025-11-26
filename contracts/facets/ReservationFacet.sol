@@ -35,6 +35,17 @@ abstract contract BaseReservationFacet is InstitutionalReservableTokenEnumerable
     /// @param reservationsProcessed Number of reservations that were processed
     event FundsCollected(address indexed provider, uint256 indexed labId, uint256 amount, uint256 reservationsProcessed);
 
+    uint256 internal constant REVENUE_DENOMINATOR = 100;
+    uint256 internal constant REVENUE_PROVIDER = 70;
+    uint256 internal constant REVENUE_TREASURY = 15;
+    uint256 internal constant REVENUE_SUBSIDIES = 10;
+    uint256 internal constant REVENUE_GOVERNANCE = 5;
+
+    uint256 internal constant CANCEL_FEE_TOTAL = 3;
+    uint256 internal constant CANCEL_FEE_PROVIDER = 1;
+    uint256 internal constant CANCEL_FEE_TREASURY = 1;
+    uint256 internal constant CANCEL_FEE_GOVERNANCE = 1;
+
     /// @dev Modifier to restrict access to functions callable only by accounts with DEFAULT_ADMIN_ROLE
     modifier defaultAdminRole() {
         if (!ProviderFacet(address(this)).hasRole(_s().DEFAULT_ADMIN_ROLE, msg.sender)) {
@@ -205,7 +216,6 @@ abstract contract BaseReservationFacet is InstitutionalReservableTokenEnumerable
 
         address trackingKey = _computeTrackingKey(reservation);
         address labProvider = reservation.labProvider;
-        address collectorInstitution = reservation.collectorInstitution;
         uint256 reservationPrice = reservation.price;
 
         if (reservation.status == CONFIRMED || reservation.status == IN_USE) {
@@ -219,12 +229,7 @@ abstract contract BaseReservationFacet is InstitutionalReservableTokenEnumerable
         reservation.status = COLLECTED;
 
         if (reservationPrice > 0) {
-            if (collectorInstitution == address(0)) {
-                s.pendingLabPayout[labId] += reservationPrice;
-            } else {
-                s.pendingInstitutionalLabPayout[labId][collectorInstitution] += reservationPrice;
-                s.pendingInstitutionalCollectors[labId].add(collectorInstitution);
-            }
+            _creditRevenueBuckets(s, reservation);
         }
 
         s.reservationsProvider[labProvider].remove(key);
@@ -253,6 +258,100 @@ abstract contract BaseReservationFacet is InstitutionalReservableTokenEnumerable
         }
 
         return true;
+    }
+
+    function _creditRevenueBuckets(AppStorage storage s, Reservation storage reservation) internal {
+        uint96 providerShare = reservation.providerShare;
+        uint96 treasuryShare = reservation.projectTreasuryShare;
+        uint96 subsidiesShare = reservation.subsidiesShare;
+        uint96 governanceShare = reservation.governanceShare;
+
+        if (providerShare > 0) {
+            s.pendingProviderPayout[reservation.labId] += providerShare;
+        }
+        if (treasuryShare > 0) {
+            s.pendingProjectTreasury += treasuryShare;
+        }
+        if (subsidiesShare > 0) {
+            s.pendingSubsidies += subsidiesShare;
+        }
+        if (governanceShare > 0) {
+            s.pendingGovernance += governanceShare;
+        }
+    }
+
+    function _calculateRevenueSplit(uint96 price)
+        internal
+        pure
+        returns (uint96 providerShare, uint96 treasuryShare, uint96 subsidiesShare, uint96 governanceShare)
+    {
+        if (price == 0) {
+            return (0, 0, 0, 0);
+        }
+
+        providerShare = uint96((uint256(price) * REVENUE_PROVIDER) / REVENUE_DENOMINATOR);
+        treasuryShare = uint96((uint256(price) * REVENUE_TREASURY) / REVENUE_DENOMINATOR);
+        subsidiesShare = uint96((uint256(price) * REVENUE_SUBSIDIES) / REVENUE_DENOMINATOR);
+        governanceShare = uint96((uint256(price) * REVENUE_GOVERNANCE) / REVENUE_DENOMINATOR);
+
+        uint96 allocated = providerShare + treasuryShare + subsidiesShare + governanceShare;
+        uint96 remainder = price - allocated;
+        treasuryShare += remainder; // round remainder to treasury as agreed
+    }
+
+    function _setReservationSplit(Reservation storage reservation) internal {
+        (
+            uint96 providerShare,
+            uint96 treasuryShare,
+            uint96 subsidiesShare,
+            uint96 governanceShare
+        ) = _calculateRevenueSplit(reservation.price);
+
+        reservation.providerShare = providerShare;
+        reservation.projectTreasuryShare = treasuryShare;
+        reservation.subsidiesShare = subsidiesShare;
+        reservation.governanceShare = governanceShare;
+    }
+
+    function _computeCancellationFee(uint96 price)
+        internal
+        pure
+        returns (uint96 providerFee, uint96 treasuryFee, uint96 governanceFee, uint96 refundAmount)
+    {
+        if (price == 0) {
+            return (0, 0, 0, 0);
+        }
+
+        uint96 totalFee = uint96((uint256(price) * CANCEL_FEE_TOTAL) / REVENUE_DENOMINATOR);
+        providerFee = uint96((uint256(price) * CANCEL_FEE_PROVIDER) / REVENUE_DENOMINATOR);
+        treasuryFee = uint96((uint256(price) * CANCEL_FEE_TREASURY) / REVENUE_DENOMINATOR);
+        governanceFee = uint96((uint256(price) * CANCEL_FEE_GOVERNANCE) / REVENUE_DENOMINATOR);
+
+        uint96 allocated = providerFee + treasuryFee + governanceFee;
+        if (allocated < totalFee) {
+            uint96 remainder = totalFee - allocated;
+            treasuryFee += remainder; // round fee remainder to treasury bucket
+        }
+
+        refundAmount = price - totalFee;
+    }
+
+    function _applyCancellationFees(
+        AppStorage storage s,
+        uint256 labId,
+        uint96 providerFee,
+        uint96 treasuryFee,
+        uint96 governanceFee
+    ) internal {
+        if (providerFee > 0) {
+            s.pendingProviderPayout[labId] += providerFee;
+        }
+        if (treasuryFee > 0) {
+            s.pendingProjectTreasury += treasuryFee;
+        }
+        if (governanceFee > 0) {
+            s.pendingGovernance += governanceFee;
+        }
     }
 
     function _enqueuePayoutCandidate(

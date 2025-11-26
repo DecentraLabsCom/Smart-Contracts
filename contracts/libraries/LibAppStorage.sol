@@ -94,6 +94,10 @@ struct Reservation {
         uint64 requestPeriodDuration; // Slot 4: +8 bytes (0 for wallet reservations)
         address payerInstitution;   // Slot 5: 20 bytes
         address collectorInstitution; // Slot 5: +20 bytes (stored in separate slot)
+        uint96 providerShare;      // Slot 6: Provider allocation cached at confirmation
+        uint96 projectTreasuryShare; // Slot 6: +12 bytes
+        uint96 subsidiesShare;     // Slot 7: Allocation for subsidies pool
+        uint96 governanceShare;    // Slot 7: +12 bytes
 }
 
 struct PayoutCandidate {
@@ -190,6 +194,14 @@ struct InstitutionalUserSpending {
 struct AppStorage {
     bytes32 DEFAULT_ADMIN_ROLE;
     address labTokenAddress;
+    address projectTreasuryWallet;
+    address subsidiesWallet;
+    address governanceWallet;
+    address liquidityWallet;
+    address ecosystemGrowthWallet;
+    address treasuryTimelock;
+    address teamVestingWallet;
+    address liquidityTimelock;
 
     mapping(bytes32 role => EnumerableSet.AddressSet) roleMembers;
     mapping(address => ProviderBase) providers;
@@ -229,6 +241,22 @@ struct AppStorage {
     mapping(bytes32 orgHash => string orgName) schacHomeOrganizationNames;
     mapping(bytes32 orgHash => address wallet) organizationInstitutionWallet;
     mapping(address institution => EnumerableSet.Bytes32Set) institutionSchacHomeOrganizations;
+
+    // Revenue split buckets (new split replaces legacy pendingLabPayout/pendingInstitutionalLabPayout)
+    mapping (uint256 => uint256) pendingProviderPayout; // per lab pending amount for provider withdrawals
+    uint256 pendingProjectTreasury; // global pending amount for project treasury
+    uint256 pendingSubsidies; // global pending amount for student subsidies
+    uint256 pendingGovernance; // global pending amount for governance incentives
+
+    // Tokenomics accounting
+    uint256 providerPoolMinted;
+    uint256 treasuryPoolMinted;
+    uint256 subsidiesPoolMinted;
+    uint256 liquidityPoolMinted;
+    uint256 ecosystemPoolMinted;
+    uint256 teamPoolMinted;
+    uint256 reservePoolMinted;
+    bool tokenPoolsInitialized;
 }
 
 /// @title LibAppStorage
@@ -257,6 +285,21 @@ library LibAppStorage {
     
     /// @notice Default spending period duration (120 days in seconds)
     uint256 internal constant DEFAULT_SPENDING_PERIOD = 120 days;
+
+    // Tokenomics caps (base units, 6 decimals)
+    uint256 internal constant MAX_SUPPLY_BASE = 1_000_000_000_000; // 1,000,000 * 1e6
+    uint256 internal constant PROVIDER_POOL_CAP = 200_000_000_000; // 20%
+    uint256 internal constant TREASURY_POOL_CAP = 150_000_000_000; // 15%
+    uint256 internal constant SUBSIDIES_POOL_CAP = 150_000_000_000; // 15%
+    uint256 internal constant LIQUIDITY_POOL_CAP = 120_000_000_000; // 12%
+    uint256 internal constant ECOSYSTEM_POOL_CAP = 100_000_000_000; // 10%
+    uint256 internal constant TEAM_POOL_CAP = 100_000_000_000; // 10%
+    uint256 internal constant RESERVE_POOL_CAP = 180_000_000_000; // 18%
+
+    uint256 internal constant SUBSIDIES_TOPUP_TRANCHE = 30_000_000_000; // 3%
+    uint256 internal constant SUBSIDIES_TOPUP_THRESHOLD = 1_000_000_000; // 1,000 tokens (base units)
+    uint256 internal constant ECOSYSTEM_TOPUP_TRANCHE = 20_000_000_000; // 2%
+    uint256 internal constant ECOSYSTEM_TOPUP_THRESHOLD = 1_000_000_000; // 1,000 tokens (base units)
 
     /// @dev Provides access to the `AppStorage` struct stored at a specific slot in contract storage.
     /// This function uses inline assembly to set the storage pointer to the predefined `APP_STORAGE_POSITION`.

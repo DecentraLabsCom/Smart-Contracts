@@ -242,6 +242,7 @@ contract InstitutionalReservationFacet is BaseReservationFacet, ReentrancyGuard 
         }
 
         if (reservation.price == 0) {
+            _setReservationSplit(reservation);
             s.calendars[reservation.labId].insert(reservation.start, reservation.end);
 
             reservation.status = CONFIRMED;
@@ -272,6 +273,7 @@ contract InstitutionalReservationFacet is BaseReservationFacet, ReentrancyGuard 
             reservation.puc,
             reservation.price
         ) {
+            _setReservationSplit(reservation);
             s.calendars[reservation.labId].insert(reservation.start, reservation.end);
             reservation.status = CONFIRMED;
             s.reservationsProvider[labProvider].add(_reservationKey);
@@ -346,16 +348,29 @@ contract InstitutionalReservationFacet is BaseReservationFacet, ReentrancyGuard 
             revert("Invalid");
         }
         if (reservation.payerInstitution != institutionalProvider) revert("Not renter");
+        uint96 price = reservation.price;
+        uint96 providerFee;
+        uint96 treasuryFee;
+        uint96 governanceFee;
+        uint96 refundAmount = price;
+
+        if (price > 0) {
+            (providerFee, treasuryFee, governanceFee, refundAmount) = _computeCancellationFee(price);
+        }
 
         address labProvider = reservation.labProvider;
         s.reservationsProvider[labProvider].remove(_reservationKey);
         s.reservationsByLabId[reservation.labId].remove(_reservationKey);
         _cancelReservation(_reservationKey);
 
+        if (price > 0) {
+            _applyCancellationFees(s, reservation.labId, providerFee, treasuryFee, governanceFee);
+        }
+
         IInstitutionalTreasuryFacet(address(this)).refundToInstitutionalTreasury(
             reservation.payerInstitution,
             reservation.puc,
-            reservation.price
+            refundAmount
         );
 
         emit BookingCanceled(_reservationKey, reservation.labId);

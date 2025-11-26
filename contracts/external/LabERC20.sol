@@ -101,9 +101,6 @@ contract LabERC20 is
         
         // Grant pauser role to the deployer (for emergency situations)
         _grantRole(PAUSER_ROLE, msg.sender);
-        
-        // Mint initial supply to deployer (100,000 tokens = 100,000,000,000 base units)
-        _mint(msg.sender, 100_000_000_000);
     }
 
     /// @notice Mints new tokens and assigns them to the specified account

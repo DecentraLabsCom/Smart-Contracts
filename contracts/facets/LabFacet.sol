@@ -363,8 +363,7 @@ contract LabFacet is ERC721EnumerableUpgradeable, ReservableToken {
         AppStorage storage s = _s();
         return
             s.labActiveReservationCount[_labId] > 0 ||
-            s.pendingLabPayout[_labId] > 0 ||
-            s.pendingInstitutionalCollectors[_labId].length() > 0;
+            s.pendingProviderPayout[_labId] > 0;
     }
 
     /// @notice Retrieves the details of a Lab by its ID.
@@ -552,20 +551,6 @@ contract LabFacet is ERC721EnumerableUpgradeable, ReservableToken {
                 unchecked { ++i; }
             }
 
-            if (s.pendingInstitutionalCollectors[_tokenId].contains(from)) {
-                uint256 pendingAmount = s.pendingInstitutionalLabPayout[_tokenId][from];
-                s.pendingInstitutionalCollectors[_tokenId].remove(from);
-                s.pendingInstitutionalLabPayout[_tokenId][from] = 0;
-
-                if (pendingAmount > 0) {
-                    if (s.institutionalBackends[_to] != address(0)) {
-                        s.pendingInstitutionalLabPayout[_tokenId][_to] += pendingAmount;
-                        s.pendingInstitutionalCollectors[_tokenId].add(_to);
-                    } else {
-                        s.pendingLabPayout[_tokenId] += pendingAmount;
-                    }
-                }
-            }
         }
         
         // Proceed with the standard update process

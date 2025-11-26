@@ -150,7 +150,11 @@ contract ProviderFacet is AccessControlUpgradeable {
         // Try to mint initial tokens (1000 total), but don't revert if it fails (e.g., cap reached)
         uint256 treasuryAmount = 200_000_000; // 200 tokens to institutional treasury
         uint256 stakeAmount = 800_000_000;    // 800 tokens to Diamond (staked)
+        uint256 totalAmount = treasuryAmount + stakeAmount;
+
+        bool canMintProvider = _s().providerPoolMinted + totalAmount <= LibAppStorage.PROVIDER_POOL_CAP;
         
+        if (canMintProvider) {
         try LabERC20(_s().labTokenAddress).mint(address(this), treasuryAmount) {
             // Mint staked tokens directly to Diamond contract
             try LabERC20(_s().labTokenAddress).mint(address(this), stakeAmount) {
@@ -163,6 +167,9 @@ contract ProviderFacet is AccessControlUpgradeable {
                 
                 // Deposit the 200 tokens to institutional treasury
                 _s().institutionalTreasury[_account] = treasuryAmount;
+
+                // Track minted provider pool
+                _s().providerPoolMinted += totalAmount;
                 
                 // Set default institutional user spending limit (tokens per period)
                 _s().institutionalUserLimit[_account] = LibAppStorage.DEFAULT_INSTITUTIONAL_USER_LIMIT;
@@ -235,6 +242,24 @@ contract ProviderFacet is AccessControlUpgradeable {
             emit BackendAuthorized(_account, _account);
             
             emit ProviderAddedWithoutTokens(_account, "Token minting failed: supply cap reached or other error");
+        }
+        } else {
+            // Not enough tokens left in provider pool cap, add provider without tokens
+            _s().providerStakes[_account].receivedInitialTokens = false;
+            _s().institutionalTreasury[_account] = 0;
+            _s().institutionalUserLimit[_account] = LibAppStorage.DEFAULT_INSTITUTIONAL_USER_LIMIT;
+            _s().institutionalSpendingPeriod[_account] = LibAppStorage.DEFAULT_SPENDING_PERIOD;
+            _s().institutionalBackends[_account] = _account;
+
+            emit InstitutionalTreasuryInitialized(
+                _account, 
+                0, 
+                LibAppStorage.DEFAULT_INSTITUTIONAL_USER_LIMIT
+            );
+            
+            emit BackendAuthorized(_account, _account);
+            
+            emit ProviderAddedWithoutTokens(_account, "Provider pool exhausted");
         }
     }
 

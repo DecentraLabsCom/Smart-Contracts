@@ -31,7 +31,9 @@ contract InstitutionalReservationFacet is BaseReservationFacet, ReentrancyGuard 
     function confirmInstitutionalReservationRequest(
         address institutionalProvider,
         bytes32 _reservationKey
-    ) external defaultAdminRole reservationPending(_reservationKey) onlyInstitution(institutionalProvider) {
+    ) external reservationPending(_reservationKey) onlyInstitution(institutionalProvider) {
+        // Only lab provider (owner or authorized backend) can confirm
+        _requireLabProviderOrBackend(_reservationKey);
         _confirmInstitutionalReservationRequest(institutionalProvider, _reservationKey);
     }
 
@@ -39,7 +41,9 @@ contract InstitutionalReservationFacet is BaseReservationFacet, ReentrancyGuard 
         address institutionalProvider,
         string calldata puc,
         bytes32 _reservationKey
-    ) external defaultAdminRole onlyInstitution(institutionalProvider) {
+    ) external onlyInstitution(institutionalProvider) {
+        // Only lab provider (owner or authorized backend) can deny
+        _requireLabProviderOrBackend(_reservationKey);
         _denyInstitutionalReservationRequest(institutionalProvider, puc, _reservationKey);
     }
 
@@ -113,6 +117,19 @@ contract InstitutionalReservationFacet is BaseReservationFacet, ReentrancyGuard 
         AppStorage storage s = _s();
         require(s.roleMembers[INSTITUTION_ROLE].contains(institution), "Unknown institution");
         _;
+    }
+
+    /// @dev Verifies that caller is the lab owner or authorized backend for institutional labs
+    function _requireLabProviderOrBackend(bytes32 _reservationKey) internal view {
+        AppStorage storage s = _s();
+        Reservation storage reservation = s.reservations[_reservationKey];
+        address labOwner = IERC721(address(this)).ownerOf(reservation.labId);
+        address authorizedBackend = s.institutionalBackends[labOwner];
+        
+        require(
+            msg.sender == labOwner || (authorizedBackend != address(0) && msg.sender == authorizedBackend),
+            "Only lab provider or authorized backend"
+        );
     }
 
     function _institutionalReservationRequest(

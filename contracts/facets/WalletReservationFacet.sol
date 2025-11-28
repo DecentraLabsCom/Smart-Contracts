@@ -36,18 +36,20 @@ contract WalletReservationFacet is BaseReservationFacet, ReentrancyGuard {
     function confirmReservationRequest(bytes32 _reservationKey)
         external
         override
-        defaultAdminRole
         reservationPending(_reservationKey)
     {
+        // Only lab provider (owner or authorized backend) can confirm
+        _requireLabProviderOrBackend(_reservationKey);
         _confirmReservationRequest(_reservationKey);
     }
 
     function denyReservationRequest(bytes32 _reservationKey)
         external
         override
-        defaultAdminRole
         reservationPending(_reservationKey)
     {
+        // Only lab provider (owner or authorized backend) can deny
+        _requireLabProviderOrBackend(_reservationKey);
         _denyReservationRequest(_reservationKey);
     }
 
@@ -81,6 +83,23 @@ contract WalletReservationFacet is BaseReservationFacet, ReentrancyGuard {
     {
         if (msg.sender != _user) revert("Only user can release their quota");
         return _releaseExpiredReservations(_labId, _user, maxBatch);
+    }
+
+    // ---------------------------------------------------------------------
+    // Access control helpers
+    // ---------------------------------------------------------------------
+
+    /// @dev Verifies that caller is the lab owner or authorized backend for institutional labs
+    function _requireLabProviderOrBackend(bytes32 _reservationKey) internal view {
+        AppStorage storage s = _s();
+        Reservation storage reservation = s.reservations[_reservationKey];
+        address labOwner = IERC721(address(this)).ownerOf(reservation.labId);
+        address authorizedBackend = s.institutionalBackends[labOwner];
+        
+        require(
+            msg.sender == labOwner || (authorizedBackend != address(0) && msg.sender == authorizedBackend),
+            "Only lab provider or authorized backend"
+        );
     }
 
     // ---------------------------------------------------------------------

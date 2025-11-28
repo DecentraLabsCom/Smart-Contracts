@@ -89,18 +89,6 @@ contract LabFacet is ERC721EnumerableUpgradeable, ReservableToken {
     /// @param _uri The URI of the lab.
     event LabURISet(uint256 indexed _labId, string _uri);
 
-    /// @dev Modifier to restrict access to functions to only the provider of a specific lab.
-    /// @param _labId The ID of the lab whose ownership is being verified.
-    /// @notice Ensures that only the LabProvider (owner of the lab) can perform the action.
-    /// @custom:reverts "Only the LabProvider can perform this action" if the caller is not the provider of the lab.
-    modifier onlyLabProvider(uint256 _labId) {
-        require(
-            ownerOf(_labId) == msg.sender,
-            "Only the LabProvider can perform this action"
-        );
-        _;
-    }
-
     /// @dev Modifier to restrict access to functions that can only be executed by the LabProvider.
     ///      Ensures that the caller is authorized as the LabProvider before proceeding.
     /// @notice Throws an error if the caller is not the designated LabProvider.
@@ -263,7 +251,7 @@ contract LabFacet is ERC721EnumerableUpgradeable, ReservableToken {
     function setTokenURI(
         uint256 _labId,
         string memory _tokenURI
-    ) external exists(_labId) onlyLabProvider(_labId) {
+    ) external exists(_labId) onlyTokenOwner(_labId) {
         require(bytes(_tokenURI).length > 0, "Token URI cannot be empty");
 
         LabBase memory lab = _s().labs[_labId];
@@ -303,7 +291,7 @@ contract LabFacet is ERC721EnumerableUpgradeable, ReservableToken {
         string calldata _auth,
         string calldata _accessURI,
         string calldata _accessKey
-    ) external onlyLabProvider(_labId) {
+    ) external onlyTokenOwner(_labId) {
         // Validate string lengths to prevent DoS attacks
         require(bytes(_uri).length > 0 && bytes(_uri).length <= 500, "Invalid URI length");
         require(bytes(_auth).length > 0 && bytes(_auth).length <= 500, "Invalid auth length");
@@ -326,7 +314,7 @@ contract LabFacet is ERC721EnumerableUpgradeable, ReservableToken {
     /// SECURITY: Prevents deletion if there are uncollected reservations (CONFIRMED, IN_USE, or COMPLETED)
     /// @param _labId The ID of the Lab to be deleted.
     /// @custom:security Cannot delete lab with active reservations to protect user funds
-    function deleteLab(uint256 _labId) external onlyLabProvider(_labId) {
+    function deleteLab(uint256 _labId) external onlyTokenOwner(_labId) {
         AppStorage storage s = _s();
         
         // Security check: Prevent deletion if there are uncollected reservations

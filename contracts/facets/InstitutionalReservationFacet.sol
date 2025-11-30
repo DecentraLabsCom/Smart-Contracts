@@ -21,6 +21,20 @@ contract InstitutionalReservationFacet is BaseReservationFacet, ReentrancyGuard 
     /// @notice Event of institutional intents (creation/cancellation)
     event ReservationIntentProcessed(bytes32 indexed requestId, bytes32 reservationKey, string action, address institution, bool success, string reason);
 
+    /// @notice Institutional reservation request via intent (emits ReservationIntentProcessed)
+    function institutionalReservationRequestWithIntent(
+        bytes32 requestId,
+        address institutionalProvider,
+        string calldata puc,
+        uint256 _labId,
+        uint32 _start,
+        uint32 _end
+    ) external exists(_labId) onlyInstitution(institutionalProvider) {
+        bytes32 reservationKey = _getReservationKey(_labId, _start);
+        _institutionalReservationRequest(institutionalProvider, puc, _labId, _start, _end);
+        emit ReservationIntentProcessed(requestId, reservationKey, "RESERVATION_REQUEST", institutionalProvider, true, "");
+    }
+    
     function institutionalReservationRequest(
         address institutionalProvider,
         string calldata puc,
@@ -50,28 +64,6 @@ contract InstitutionalReservationFacet is BaseReservationFacet, ReentrancyGuard 
         _denyInstitutionalReservationRequest(institutionalProvider, puc, _reservationKey);
     }
 
-    function cancelInstitutionalReservationRequest(
-        address institutionalProvider,
-        string calldata puc,
-        bytes32 _reservationKey
-    ) external onlyInstitution(institutionalProvider) {
-        _cancelInstitutionalReservationRequest(institutionalProvider, puc, _reservationKey);
-    }
-
-    /// @notice Institutional reservation request via intent (emits ReservationIntentProcessed)
-    function institutionalReservationRequestWithIntent(
-        bytes32 requestId,
-        address institutionalProvider,
-        string calldata puc,
-        uint256 _labId,
-        uint32 _start,
-        uint32 _end
-    ) external exists(_labId) onlyInstitution(institutionalProvider) {
-        bytes32 reservationKey = _getReservationKey(_labId, _start);
-        _institutionalReservationRequest(institutionalProvider, puc, _labId, _start, _end);
-        emit ReservationIntentProcessed(requestId, reservationKey, "RESERVATION_REQUEST", institutionalProvider, true, "");
-    }
-
     /// @notice Institutional cancellation via intent (emits ReservationIntentProcessed)
     function cancelInstitutionalReservationRequestWithIntent(
         bytes32 requestId,
@@ -81,6 +73,24 @@ contract InstitutionalReservationFacet is BaseReservationFacet, ReentrancyGuard 
     ) external onlyInstitution(institutionalProvider) {
         _cancelInstitutionalReservationRequest(institutionalProvider, puc, _reservationKey);
         emit ReservationIntentProcessed(requestId, _reservationKey, "CANCEL_RESERVATION_REQUEST", institutionalProvider, true, "");
+    }
+
+    function cancelInstitutionalReservationRequest(
+        address institutionalProvider,
+        string calldata puc,
+        bytes32 _reservationKey
+    ) external onlyInstitution(institutionalProvider) {
+        _cancelInstitutionalReservationRequest(institutionalProvider, puc, _reservationKey);
+    }
+
+    /// @notice  Cancels a confirmed booking via intent and emits ReservationIntentProcessed
+    function cancelInstitutionalBookingWithIntent(
+        bytes32 requestId,
+        address institutionalProvider,
+        bytes32 _reservationKey
+    ) external onlyInstitution(institutionalProvider) {
+        _cancelInstitutionalBooking(institutionalProvider, _reservationKey);
+        emit ReservationIntentProcessed(requestId, _reservationKey, "CANCEL_BOOKING", institutionalProvider, true, "");
     }
 
     function cancelInstitutionalBooking(

@@ -175,7 +175,7 @@ contract LabFacet is ERC721EnumerableUpgradeable, ReservableToken {
         );
     }
 
-    /// @notice Adds a new Lab via intent and emite evento con requestId.
+    /// @notice Adds a new Lab via intent and emmits event with requestId.
     function addLabWithIntent(
         bytes32 requestId,
         string calldata _uri,
@@ -259,7 +259,7 @@ contract LabFacet is ERC721EnumerableUpgradeable, ReservableToken {
         emit LabListed(nextLabId, msg.sender);
     }
 
-    /// @notice Adds y lista un lab via intent (emite LabIntentProcessed)
+    /// @notice Adds and lists a lab via intent (emits LabIntentProcessed)
     function addAndListLabWithIntent(
         bytes32 requestId,
         string calldata _uri,
@@ -293,7 +293,7 @@ contract LabFacet is ERC721EnumerableUpgradeable, ReservableToken {
         emit LabURISet(_labId, _tokenURI);
     }
 
-    /// @notice Actualiza URI via intent y emite LabIntentProcessed
+    /// @notice Updates URI via intent and emits LabIntentProcessed
     function setTokenURIWithIntent(
         bytes32 requestId,
         uint256 _labId,
@@ -349,7 +349,7 @@ contract LabFacet is ERC721EnumerableUpgradeable, ReservableToken {
         emit LabUpdated(_labId, _uri, _price, _auth, _accessURI, _accessKey);
     }
 
-    /// @notice Actualiza un lab via intent
+    /// @notice Updates a lab via intent
     function updateLabWithIntent(
         bytes32 requestId,
         uint256 _labId,

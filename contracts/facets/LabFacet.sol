@@ -84,6 +84,9 @@ contract LabFacet is ERC721EnumerableUpgradeable, ReservableToken {
         address newProvider
     );
 
+    /// @notice Intent lifecycle event for lab operations
+    event LabIntentProcessed(bytes32 indexed requestId, uint256 labId, string action, address provider, bool success, string reason);
+
     /// @dev Emitted when the URI of a lab is set.
     /// @param _labId The unique identifier of the lab.
     /// @param _uri The URI of the lab.
@@ -172,6 +175,20 @@ contract LabFacet is ERC721EnumerableUpgradeable, ReservableToken {
         );
     }
 
+    /// @notice Adds a new Lab via intent and emite evento con requestId.
+    function addLabWithIntent(
+        bytes32 requestId,
+        string calldata _uri,
+        uint96 _price,
+        string calldata _auth,
+        string calldata _accessURI,
+        string calldata _accessKey
+    ) external isLabProvider {
+        addLab(_uri, _price, _auth, _accessURI, _accessKey);
+        uint256 newLabId = _s().labId;
+        emit LabIntentProcessed(requestId, newLabId, "LAB_ADD", msg.sender, true, "");
+    }
+
     /// @notice Adds a new Lab and immediately lists it for reservations in a single transaction.
     /// @dev This is a convenience function that combines addLab() and listToken() functionality.
     ///      Requires the provider to have sufficient staked tokens based on listed labs count.
@@ -242,6 +259,20 @@ contract LabFacet is ERC721EnumerableUpgradeable, ReservableToken {
         emit LabListed(nextLabId, msg.sender);
     }
 
+    /// @notice Adds y lista un lab via intent (emite LabIntentProcessed)
+    function addAndListLabWithIntent(
+        bytes32 requestId,
+        string calldata _uri,
+        uint96 _price,
+        string calldata _auth,
+        string calldata _accessURI,
+        string calldata _accessKey
+    ) external isLabProvider {
+        addAndListLab(_uri, _price, _auth, _accessURI, _accessKey);
+        uint256 newLabId = _s().labId;
+        emit LabIntentProcessed(requestId, newLabId, "LAB_LIST", msg.sender, true, "");
+    }
+
     /// @notice Sets the token URI for a specific lab, used for compliance with ERC721 standards.
     /// @dev This function allows a lab provider to update the URI of a lab.
     ///      The lab must already exist, and the new URI cannot be empty.
@@ -260,6 +291,16 @@ contract LabFacet is ERC721EnumerableUpgradeable, ReservableToken {
         _s().labs[_labId] = lab;
 
         emit LabURISet(_labId, _tokenURI);
+    }
+
+    /// @notice Actualiza URI via intent y emite LabIntentProcessed
+    function setTokenURIWithIntent(
+        bytes32 requestId,
+        uint256 _labId,
+        string calldata _tokenURI
+    ) external exists(_labId) onlyTokenOwner(_labId) {
+        setTokenURI(_labId, _tokenURI);
+        emit LabIntentProcessed(requestId, _labId, "LAB_SET_URI", msg.sender, true, "");
     }
 
     /// @notice Returns the URI for a given token ID.
@@ -308,6 +349,20 @@ contract LabFacet is ERC721EnumerableUpgradeable, ReservableToken {
         emit LabUpdated(_labId, _uri, _price, _auth, _accessURI, _accessKey);
     }
 
+    /// @notice Actualiza un lab via intent
+    function updateLabWithIntent(
+        bytes32 requestId,
+        uint256 _labId,
+        string calldata _uri,
+        uint96 _price,
+        string calldata _auth,
+        string calldata _accessURI,
+        string calldata _accessKey
+    ) external onlyTokenOwner(_labId) {
+        updateLab(_labId, _uri, _price, _auth, _accessURI, _accessKey);
+        emit LabIntentProcessed(requestId, _labId, "LAB_UPDATE", msg.sender, true, "");
+    }
+
     /// @notice Deletes a Lab identified by `_labId`.
     /// @dev This function can only be called by the Lab provider and the contract owner.
     /// It checks if the Lab exists before deleting it.
@@ -339,6 +394,12 @@ contract LabFacet is ERC721EnumerableUpgradeable, ReservableToken {
         emit LabDeleted(_labId);
     }
 
+    /// @notice Deletes a lab via intent
+    function deleteLabWithIntent(bytes32 requestId, uint256 _labId) external onlyTokenOwner(_labId) {
+        deleteLab(_labId);
+        emit LabIntentProcessed(requestId, _labId, "LAB_DELETE", msg.sender, true, "");
+    }
+
     /// @notice Checks if a lab has any uncollected reservations (CONFIRMED, IN_USE, or COMPLETED)
     /// @dev Uses the active reservation counter (labActiveReservationCount) for O(1) constant-time checks.
     ///      This counter is maintained by:
@@ -352,6 +413,18 @@ contract LabFacet is ERC721EnumerableUpgradeable, ReservableToken {
         return
             s.labActiveReservationCount[_labId] > 0 ||
             s.pendingProviderPayout[_labId] > 0;
+    }
+
+    /// @notice Lists a lab via intent
+    function listLabWithIntent(bytes32 requestId, uint256 _labId) external onlyTokenOwner(_labId) {
+        listToken(_labId);
+        emit LabIntentProcessed(requestId, _labId, "LAB_LIST", msg.sender, true, "");
+    }
+
+    /// @notice Unlists a lab via intent
+    function unlistLabWithIntent(bytes32 requestId, uint256 _labId) external onlyTokenOwner(_labId) {
+        unlistToken(_labId);
+        emit LabIntentProcessed(requestId, _labId, "LAB_UNLIST", msg.sender, true, "");
     }
 
     /// @notice Retrieves the details of a Lab by its ID.

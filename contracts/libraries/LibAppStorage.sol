@@ -2,6 +2,7 @@
 pragma solidity ^0.8.23;
 
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
+import {IntentMeta} from "./IntentTypes.sol";
 
 /// @dev Constant representing the hash of the string "APP_STORAGE_POSITION".
 ///      This is used as a unique identifier for the application storage position.
@@ -257,6 +258,10 @@ struct AppStorage {
     uint256 teamPoolMinted;
     uint256 reservePoolMinted;
     bool tokenPoolsInitialized;
+
+    // Intent registry
+    mapping(bytes32 => IntentMeta) intents; // requestId -> intent meta
+    mapping(address => uint256) intentNonces; // per-signer nonce
 }
 
 /// @title LibAppStorage

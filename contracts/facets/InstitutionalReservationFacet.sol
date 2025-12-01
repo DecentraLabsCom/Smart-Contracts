@@ -6,6 +6,8 @@ import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import "./ReservationFacet.sol";
 import "../libraries/LibAppStorage.sol";
+import {LibIntent} from "../libraries/LibIntent.sol";
+import {ReservationIntentPayload, ActionIntentPayload} from "../libraries/IntentTypes.sol";
 
 /// @title InstitutionalReservationFacet
 /// @author
@@ -21,6 +23,28 @@ contract InstitutionalReservationFacet is BaseReservationFacet, ReentrancyGuard 
     /// @notice Event of institutional intents (creation/cancellation)
     event ReservationIntentProcessed(bytes32 indexed requestId, bytes32 reservationKey, string action, address institution, bool success, string reason);
 
+    /// @dev Consumes a reservation intent ensuring caller matches signer/executor
+    function _consumeReservationIntent(
+        bytes32 requestId,
+        uint8 action,
+        ReservationIntentPayload memory payload
+    ) internal {
+        require(payload.executor == msg.sender, "Executor must be caller");
+        bytes32 payloadHash = LibIntent.hashReservationPayload(payload);
+        LibIntent.consumeIntent(requestId, action, payloadHash, msg.sender, msg.sender);
+    }
+
+    /// @dev Consumes an action intent (for booking cancellations)
+    function _consumeActionIntent(
+        bytes32 requestId,
+        uint8 action,
+        ActionIntentPayload memory payload
+    ) internal {
+        require(payload.executor == msg.sender, "Executor must be caller");
+        bytes32 payloadHash = LibIntent.hashActionPayload(payload);
+        LibIntent.consumeIntent(requestId, action, payloadHash, msg.sender, msg.sender);
+    }
+
     /// @notice Institutional reservation request via intent (emits ReservationIntentProcessed)
     function institutionalReservationRequestWithIntent(
         bytes32 requestId,
@@ -30,7 +54,23 @@ contract InstitutionalReservationFacet is BaseReservationFacet, ReentrancyGuard 
         uint32 _start,
         uint32 _end
     ) external exists(_labId) onlyInstitution(institutionalProvider) {
+        require(institutionalProvider == msg.sender, "Institution must be caller");
+        AppStorage storage s = _s();
         bytes32 reservationKey = _getReservationKey(_labId, _start);
+
+        ReservationIntentPayload memory payload = ReservationIntentPayload({
+            executor: msg.sender,
+            schacHomeOrganization: "",
+            puc: puc,
+            assertionHash: bytes32(0),
+            labId: _labId,
+            start: _start,
+            end: _end,
+            price: s.labs[_labId].price,
+            reservationKey: reservationKey
+        });
+        _consumeReservationIntent(requestId, LibIntent.ACTION_REQUEST_BOOKING, payload);
+
         _institutionalReservationRequest(institutionalProvider, puc, _labId, _start, _end);
         emit ReservationIntentProcessed(requestId, reservationKey, "RESERVATION_REQUEST", institutionalProvider, true, "");
     }
@@ -71,6 +111,24 @@ contract InstitutionalReservationFacet is BaseReservationFacet, ReentrancyGuard 
         string calldata puc,
         bytes32 _reservationKey
     ) external onlyInstitution(institutionalProvider) {
+        require(institutionalProvider == msg.sender, "Institution must be caller");
+        AppStorage storage s = _s();
+        Reservation storage reservation = s.reservations[_reservationKey];
+        require(reservation.labId != 0, "Unknown reservation");
+
+        ReservationIntentPayload memory payload = ReservationIntentPayload({
+            executor: msg.sender,
+            schacHomeOrganization: "",
+            puc: puc,
+            assertionHash: bytes32(0),
+            labId: reservation.labId,
+            start: reservation.start,
+            end: reservation.end,
+            price: reservation.price,
+            reservationKey: _reservationKey
+        });
+        _consumeReservationIntent(requestId, LibIntent.ACTION_CANCEL_REQUEST_BOOKING, payload);
+
         _cancelInstitutionalReservationRequest(institutionalProvider, puc, _reservationKey);
         emit ReservationIntentProcessed(requestId, _reservationKey, "CANCEL_RESERVATION_REQUEST", institutionalProvider, true, "");
     }
@@ -89,6 +147,27 @@ contract InstitutionalReservationFacet is BaseReservationFacet, ReentrancyGuard 
         address institutionalProvider,
         bytes32 _reservationKey
     ) external onlyInstitution(institutionalProvider) {
+        require(institutionalProvider == msg.sender, "Institution must be caller");
+        AppStorage storage s = _s();
+        Reservation storage reservation = s.reservations[_reservationKey];
+        require(reservation.labId != 0, "Unknown reservation");
+
+        ActionIntentPayload memory payload = ActionIntentPayload({
+            executor: msg.sender,
+            schacHomeOrganization: "",
+            puc: reservation.puc,
+            assertionHash: bytes32(0),
+            labId: reservation.labId,
+            reservationKey: _reservationKey,
+            uri: "",
+            price: reservation.price,
+            auth: "",
+            accessURI: "",
+            accessKey: "",
+            tokenURI: ""
+        });
+        _consumeActionIntent(requestId, LibIntent.ACTION_CANCEL_BOOKING, payload);
+
         _cancelInstitutionalBooking(institutionalProvider, _reservationKey);
         emit ReservationIntentProcessed(requestId, _reservationKey, "CANCEL_BOOKING", institutionalProvider, true, "");
     }
@@ -161,6 +240,7 @@ contract InstitutionalReservationFacet is BaseReservationFacet, ReentrancyGuard 
     function _requireLabProviderOrBackend(bytes32 _reservationKey) internal view {
         AppStorage storage s = _s();
         Reservation storage reservation = s.reservations[_reservationKey];
+        require(reservation.labId != 0, "Unknown reservation");
         address labOwner = IERC721(address(this)).ownerOf(reservation.labId);
         address authorizedBackend = s.institutionalBackends[labOwner];
         

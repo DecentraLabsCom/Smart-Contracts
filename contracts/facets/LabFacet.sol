@@ -6,6 +6,8 @@ import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import {LibAppStorage, AppStorage, Lab, LabBase} from "../libraries/LibAppStorage.sol";
 import {LibAccessControlEnumerable} from "../libraries/LibAccessControlEnumerable.sol";
+import {LibIntent} from "../libraries/LibIntent.sol";
+import {ActionIntentPayload} from "../libraries/IntentTypes.sol";
 import "../abstracts/ReservableToken.sol";
 
 using EnumerableSet for EnumerableSet.Bytes32Set;
@@ -91,6 +93,17 @@ contract LabFacet is ERC721EnumerableUpgradeable, ReservableToken {
     /// @param _labId The unique identifier of the lab.
     /// @param _uri The URI of the lab.
     event LabURISet(uint256 indexed _labId, string _uri);
+
+    /// @dev Consumes a pending intent ensuring the caller matches signer/executor
+    function _consumeLabIntent(
+        bytes32 requestId,
+        uint8 action,
+        ActionIntentPayload memory payload
+    ) internal {
+        require(payload.executor == msg.sender, "Executor must be caller");
+        bytes32 payloadHash = LibIntent.hashActionPayload(payload);
+        LibIntent.consumeIntent(requestId, action, payloadHash, msg.sender, msg.sender);
+    }
 
     /// @dev Modifier to restrict access to functions that can only be executed by the LabProvider.
     ///      Ensures that the caller is authorized as the LabProvider before proceeding.
@@ -184,8 +197,26 @@ contract LabFacet is ERC721EnumerableUpgradeable, ReservableToken {
         string calldata _accessURI,
         string calldata _accessKey
     ) external isLabProvider {
+        AppStorage storage s = _s();
+        uint256 nextLabId = s.labId + 1;
+        ActionIntentPayload memory payload = ActionIntentPayload({
+            executor: msg.sender,
+            schacHomeOrganization: "",
+            puc: "",
+            assertionHash: bytes32(0),
+            labId: nextLabId,
+            reservationKey: bytes32(0),
+            uri: _uri,
+            price: _price,
+            auth: _auth,
+            accessURI: _accessURI,
+            accessKey: _accessKey,
+            tokenURI: ""
+        });
+        _consumeLabIntent(requestId, LibIntent.ACTION_LAB_ADD, payload);
+
         addLab(_uri, _price, _auth, _accessURI, _accessKey);
-        uint256 newLabId = _s().labId;
+        uint256 newLabId = s.labId;
         emit LabIntentProcessed(requestId, newLabId, "LAB_ADD", msg.sender, true, "");
     }
 
@@ -268,8 +299,26 @@ contract LabFacet is ERC721EnumerableUpgradeable, ReservableToken {
         string calldata _accessURI,
         string calldata _accessKey
     ) external isLabProvider {
+        AppStorage storage s = _s();
+        uint256 nextLabId = s.labId + 1;
+        ActionIntentPayload memory payload = ActionIntentPayload({
+            executor: msg.sender,
+            schacHomeOrganization: "",
+            puc: "",
+            assertionHash: bytes32(0),
+            labId: nextLabId,
+            reservationKey: bytes32(0),
+            uri: _uri,
+            price: _price,
+            auth: _auth,
+            accessURI: _accessURI,
+            accessKey: _accessKey,
+            tokenURI: ""
+        });
+        _consumeLabIntent(requestId, LibIntent.ACTION_LAB_ADD_AND_LIST, payload);
+
         addAndListLab(_uri, _price, _auth, _accessURI, _accessKey);
-        uint256 newLabId = _s().labId;
+        uint256 newLabId = s.labId;
         emit LabIntentProcessed(requestId, newLabId, "LAB_LIST", msg.sender, true, "");
     }
 
@@ -299,6 +348,22 @@ contract LabFacet is ERC721EnumerableUpgradeable, ReservableToken {
         uint256 _labId,
         string calldata _tokenURI
     ) external exists(_labId) onlyTokenOwner(_labId) {
+        ActionIntentPayload memory payload = ActionIntentPayload({
+            executor: msg.sender,
+            schacHomeOrganization: "",
+            puc: "",
+            assertionHash: bytes32(0),
+            labId: _labId,
+            reservationKey: bytes32(0),
+            uri: "",
+            price: 0,
+            auth: "",
+            accessURI: "",
+            accessKey: "",
+            tokenURI: _tokenURI
+        });
+        _consumeLabIntent(requestId, LibIntent.ACTION_LAB_SET_URI, payload);
+
         setTokenURI(_labId, _tokenURI);
         emit LabIntentProcessed(requestId, _labId, "LAB_SET_URI", msg.sender, true, "");
     }
@@ -359,6 +424,22 @@ contract LabFacet is ERC721EnumerableUpgradeable, ReservableToken {
         string calldata _accessURI,
         string calldata _accessKey
     ) external onlyTokenOwner(_labId) {
+        ActionIntentPayload memory payload = ActionIntentPayload({
+            executor: msg.sender,
+            schacHomeOrganization: "",
+            puc: "",
+            assertionHash: bytes32(0),
+            labId: _labId,
+            reservationKey: bytes32(0),
+            uri: _uri,
+            price: _price,
+            auth: _auth,
+            accessURI: _accessURI,
+            accessKey: _accessKey,
+            tokenURI: ""
+        });
+        _consumeLabIntent(requestId, LibIntent.ACTION_LAB_UPDATE, payload);
+
         updateLab(_labId, _uri, _price, _auth, _accessURI, _accessKey);
         emit LabIntentProcessed(requestId, _labId, "LAB_UPDATE", msg.sender, true, "");
     }
@@ -396,6 +477,22 @@ contract LabFacet is ERC721EnumerableUpgradeable, ReservableToken {
 
     /// @notice Deletes a lab via intent
     function deleteLabWithIntent(bytes32 requestId, uint256 _labId) external onlyTokenOwner(_labId) {
+        ActionIntentPayload memory payload = ActionIntentPayload({
+            executor: msg.sender,
+            schacHomeOrganization: "",
+            puc: "",
+            assertionHash: bytes32(0),
+            labId: _labId,
+            reservationKey: bytes32(0),
+            uri: "",
+            price: 0,
+            auth: "",
+            accessURI: "",
+            accessKey: "",
+            tokenURI: ""
+        });
+        _consumeLabIntent(requestId, LibIntent.ACTION_LAB_DELETE, payload);
+
         deleteLab(_labId);
         emit LabIntentProcessed(requestId, _labId, "LAB_DELETE", msg.sender, true, "");
     }
@@ -417,12 +514,44 @@ contract LabFacet is ERC721EnumerableUpgradeable, ReservableToken {
 
     /// @notice Lists a lab via intent
     function listLabWithIntent(bytes32 requestId, uint256 _labId) external onlyTokenOwner(_labId) {
+        ActionIntentPayload memory payload = ActionIntentPayload({
+            executor: msg.sender,
+            schacHomeOrganization: "",
+            puc: "",
+            assertionHash: bytes32(0),
+            labId: _labId,
+            reservationKey: bytes32(0),
+            uri: "",
+            price: 0,
+            auth: "",
+            accessURI: "",
+            accessKey: "",
+            tokenURI: ""
+        });
+        _consumeLabIntent(requestId, LibIntent.ACTION_LAB_LIST, payload);
+
         listToken(_labId);
         emit LabIntentProcessed(requestId, _labId, "LAB_LIST", msg.sender, true, "");
     }
 
     /// @notice Unlists a lab via intent
     function unlistLabWithIntent(bytes32 requestId, uint256 _labId) external onlyTokenOwner(_labId) {
+        ActionIntentPayload memory payload = ActionIntentPayload({
+            executor: msg.sender,
+            schacHomeOrganization: "",
+            puc: "",
+            assertionHash: bytes32(0),
+            labId: _labId,
+            reservationKey: bytes32(0),
+            uri: "",
+            price: 0,
+            auth: "",
+            accessURI: "",
+            accessKey: "",
+            tokenURI: ""
+        });
+        _consumeLabIntent(requestId, LibIntent.ACTION_LAB_UNLIST, payload);
+
         unlistToken(_labId);
         emit LabIntentProcessed(requestId, _labId, "LAB_UNLIST", msg.sender, true, "");
     }

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 pragma solidity ^0.8.23;
 
-import {LibAppStorage, AppStorage, INSTITUTION_ROLE} from "../libraries/LibAppStorage.sol";
+import {LibAppStorage, AppStorage, INSTITUTION_ROLE, InstitutionalUserSpending} from "../libraries/LibAppStorage.sol";
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
@@ -407,7 +407,6 @@ contract InstitutionalTreasuryFacet is ReentrancyGuard {
 
     /// @notice Get institutional user spending limit
     function getInstitutionalUserLimit(address institution) external view returns (uint256) {
-        AppStorage storage s = LibAppStorage.diamondStorage();
         return _getSpendingLimit(institution);
     }
     

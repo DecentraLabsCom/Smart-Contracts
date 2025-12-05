@@ -7,6 +7,7 @@ import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import "./ReservationFacet.sol";
+import "../libraries/RivalIntervalTreeLibrary.sol";
 
 /// @title WalletReservationFacet
 /// @author
@@ -22,6 +23,8 @@ import "./ReservationFacet.sol";
 contract WalletReservationFacet is BaseReservationFacet, ReentrancyGuard {
     using SafeERC20 for IERC20;
     using EnumerableSet for EnumerableSet.AddressSet;
+    using EnumerableSet for EnumerableSet.Bytes32Set;
+    using RivalIntervalTreeLibrary for Tree;
 
     error InsufficientFunds(address user, uint256 funds, uint256 price);
 
@@ -148,35 +151,24 @@ contract WalletReservationFacet is BaseReservationFacet, ReentrancyGuard {
             revert("Invalid time range");
       
         uint96 price = s.labs[_labId].price;
-        address tokenAddr = s.labTokenAddress;
     
         // Verify user has sufficient balance and allowance (but don't transfer yet)
-        uint256 balance = IERC20(tokenAddr).balanceOf(msg.sender);
+        uint256 balance = IERC20(s.labTokenAddress).balanceOf(msg.sender);
         if (balance < price) revert InsufficientFunds(msg.sender, balance, price);
         
-        uint256 allowance = IERC20(tokenAddr).allowance(msg.sender, address(this));
-        if (allowance < price) revert("Insufficient allowance");
+        if (IERC20(s.labTokenAddress).allowance(msg.sender, address(this)) < price) revert("Insufficient allowance");
         
         bytes32 reservationKey = _getReservationKey(_labId, _start);
         
-        // Check availability: Only check if key exists with non-cancelled/non-collected status
-        // Note: CANCELLED and COLLECTED keys are removed from reservationKeys set, so this check
-        // primarily catches active reservations (PENDING, CONFIRMED, IN_USE, COMPLETED)
-        if (s.reservationKeys.contains(reservationKey)) {
-            uint8 existingStatus = s.reservations[reservationKey].status;
-            // This should only trigger for PENDING, CONFIRMED, IN_USE, or COMPLETED
-            // (CANCELLED and COLLECTED are already removed from the set)
+        // Check availability: block reuse if an active reservation already exists for this slot
+        Reservation storage existing = s.reservations[reservationKey];
+        if (existing.renter != address(0) && existing.status != CANCELLED && existing.status != COLLECTED) {
             revert("Not available");
         }
         
         // Add to enumerable set (maintains count internally)
         s.reservationKeysByToken[_labId].add(reservationKey);
         
-        address collectorInstitution = address(0);
-        if (s.institutionalBackends[labOwner] != address(0)) {
-            collectorInstitution = labOwner;
-        }
-
         // Direct struct initialization - includes labProvider for safety
         s.reservations[reservationKey] = Reservation({
             labId: _labId,
@@ -190,11 +182,15 @@ contract WalletReservationFacet is BaseReservationFacet, ReentrancyGuard {
             requestPeriodStart: 0, // 0 for wallet reservations (only used for institutional)
             requestPeriodDuration: 0,
             payerInstitution: address(0),
-            collectorInstitution: collectorInstitution
+            collectorInstitution: s.institutionalBackends[labOwner] != address(0) ? labOwner : address(0),
+            providerShare: 0,
+            projectTreasuryShare: 0,
+            subsidiesShare: 0,
+            governanceShare: 0
         });
         
         // Add to tracking sets
-        s.reservationKeys.add(reservationKey);
+        s.totalReservationsCount++;
         s.renters[msg.sender].add(reservationKey);
         
         // Increment active reservation count (includes PENDING to prevent DoS)
@@ -202,6 +198,9 @@ contract WalletReservationFacet is BaseReservationFacet, ReentrancyGuard {
         
         // Add to per-token-user index
         s.reservationKeysByTokenAndUser[_labId][msg.sender].add(reservationKey);
+
+        // Maintain recent buffers (token and user)
+        _recordRecent(s, _labId, msg.sender, reservationKey, _start);
     
         // Payment will be collected when reservation is confirmed (lazy payment)
         
@@ -213,11 +212,11 @@ contract WalletReservationFacet is BaseReservationFacet, ReentrancyGuard {
         Reservation storage reservation = s.reservations[_reservationKey];
         // NOTE: Max reservation check was already done in reservationRequest()
         // Counter was incremented there, so no need to check or increment again
-        
+
         // Get CURRENT owner at confirmation time, not the stale value from request
         // This ensures the correct provider's stake is locked if NFT was transferred after request
         address labProvider = IERC721(address(this)).ownerOf(reservation.labId);
-        
+
         // Update stored labProvider in case of NFT transfer between request and confirmation
         reservation.labProvider = labProvider;
         reservation.collectorInstitution = s.institutionalBackends[labProvider] != address(0) ? labProvider : address(0);
@@ -228,50 +227,48 @@ contract WalletReservationFacet is BaseReservationFacet, ReentrancyGuard {
             emit ReservationRequestDenied(_reservationKey, reservation.labId);
             return;
         }
-    
-        // Attempt to collect payment from user using SafeERC20
-        // safeTransferFrom will revert if transfer fails or returns false
-        try IERC20(s.labTokenAddress).safeTransferFrom(
-            reservation.renter,
-            address(this),
-            reservation.price
-        ) {
-            _setReservationSplit(reservation);
-            // Payment successful ÔåÆ insert into calendar (blocks the slot)
-            // This prevents phantom slots from denied PENDING requests
-            s.calendars[reservation.labId].insert(reservation.start, reservation.end);
-            
-            // Update status to CONFIRMED (payment received, slot blocked)
-            reservation.status = CONFIRMED;
-            s.reservationsProvider[labProvider].add(_reservationKey);
-            s.reservationsByLabId[reservation.labId].add(_reservationKey);
-            _incrementActiveReservationCounters(reservation);
-            _enqueuePayoutCandidate(s, reservation.labId, _reservationKey, reservation.end);
-            
-            // Update lastReservation timestamp ONLY on confirmation (after payment)
-            // This prevents spam attacks where unpaid requests lock provider's stake
-            IStakingFacet(address(this)).updateLastReservation(labProvider);
-            
-            // Update index: only store the earliest reservation
-            bytes32 currentIndexKey = s.activeReservationByTokenAndUser[reservation.labId][reservation.renter];
-            
-            if (currentIndexKey == bytes32(0)) {
-                // First reservation for this (token, user)
-                s.activeReservationByTokenAndUser[reservation.labId][reservation.renter] = _reservationKey;
-            } else {
-                // Update index if new reservation starts earlier
-                Reservation memory currentReservation = s.reservations[currentIndexKey];
-                if (reservation.start < currentReservation.start) {
-                    s.activeReservationByTokenAndUser[reservation.labId][reservation.renter] = _reservationKey;
-                }
-            }
-            
-            emit ReservationConfirmed(_reservationKey, reservation.labId);
-        } catch {
-            // transferFrom reverted (insufficient funds/allowance/failed transfer) ÔåÆ deny reservation
+
+        // Attempt to collect payment from user with graceful failure handling
+        (bool success, bytes memory data) = s.labTokenAddress.call(
+            abi.encodeWithSelector(IERC20.transferFrom.selector, reservation.renter, address(this), uint256(reservation.price))
+        );
+
+        if (!success || (data.length != 0 && !abi.decode(data, (bool)))) {
             _cancelReservation(_reservationKey);
             emit ReservationRequestDenied(_reservationKey, reservation.labId);
+            return;
         }
+
+        _setReservationSplit(reservation);
+        // Payment successful ? insert into calendar (blocks the slot)
+        // This prevents phantom slots from denied PENDING requests
+        s.calendars[reservation.labId].insert(reservation.start, reservation.end);
+        
+        // Update status to CONFIRMED (payment received, slot blocked)
+        reservation.status = CONFIRMED;
+        s.reservationsProvider[labProvider].add(_reservationKey);
+        _incrementActiveReservationCounters(reservation);
+        _enqueuePayoutCandidate(s, reservation.labId, _reservationKey, reservation.end);
+        
+        // Update lastReservation timestamp ONLY on confirmation (after payment)
+        // This prevents spam attacks where unpaid requests lock provider's stake
+        IStakingFacet(address(this)).updateLastReservation(labProvider);
+        
+        // Update index: only store the earliest reservation
+        bytes32 currentIndexKey = s.activeReservationByTokenAndUser[reservation.labId][reservation.renter];
+        
+        if (currentIndexKey == bytes32(0)) {
+            // First reservation for this (token, user)
+            s.activeReservationByTokenAndUser[reservation.labId][reservation.renter] = _reservationKey;
+        } else {
+            // Update index if new reservation starts earlier
+            Reservation memory currentReservation = s.reservations[currentIndexKey];
+            if (reservation.start < currentReservation.start) {
+                s.activeReservationByTokenAndUser[reservation.labId][reservation.renter] = _reservationKey;
+            }
+        }
+        
+        emit ReservationConfirmed(_reservationKey, reservation.labId);
     }
 
     function _denyReservationRequest(bytes32 _reservationKey) internal override {
@@ -322,7 +319,6 @@ contract WalletReservationFacet is BaseReservationFacet, ReentrancyGuard {
     
         // Cancel the booking - use cached provider for storage cleanup
         s.reservationsProvider[cachedLabProvider].remove(_reservationKey);
-        s.reservationsByLabId[labId].remove(_reservationKey);
         _cancelReservation(_reservationKey);
 
         if (price > 0) {
@@ -479,4 +475,48 @@ contract WalletReservationFacet is BaseReservationFacet, ReentrancyGuard {
         s.pendingGovernance = 0;
         IERC20(s.labTokenAddress).safeTransfer(msg.sender, amount);
     }
+
+    // Institutional-only hooks required by BaseReservationFacet but unused here
+    function _institutionalReservationRequest(
+        address,
+        string calldata,
+        uint256,
+        uint32,
+        uint32
+    ) internal pure override { revert("Institutional reservation only"); }
+
+    function _confirmInstitutionalReservationRequest(address, bytes32) internal pure override { revert("Institutional reservation only"); }
+
+    function _denyInstitutionalReservationRequest(address, string calldata, bytes32) internal pure override { revert("Institutional reservation only"); }
+
+    function _cancelInstitutionalReservationRequest(address, string calldata, bytes32) internal pure override { revert("Institutional reservation only"); }
+
+    function _cancelInstitutionalBooking(address, bytes32) internal pure override { revert("Institutional reservation only"); }
+
+    function _releaseInstitutionalExpiredReservations(
+        address,
+        string calldata,
+        uint256,
+        uint256
+    ) internal pure override returns (uint256) { revert("Institutional reservation only"); }
+
+    function _getInstitutionalUserReservationCount(address, string calldata) internal pure override returns (uint256) { return 0; }
+
+    function _getInstitutionalUserReservationByIndex(
+        address,
+        string calldata,
+        uint256
+    ) internal pure override returns (bytes32) { return bytes32(0); }
+
+    function _hasInstitutionalUserActiveBooking(
+        address,
+        string calldata,
+        uint256
+    ) internal pure override returns (bool) { return false; }
+
+    function _getInstitutionalUserActiveReservationKey(
+        address,
+        string calldata,
+        uint256
+    ) internal pure override returns (bytes32) { return bytes32(0); }
 }

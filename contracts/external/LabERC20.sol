@@ -155,16 +155,24 @@ contract LabERC20 is
     }
     
     /// @notice Internal function called before any token transfer
-    /// @dev Required override when using multiple inheritance with ERC20PausableUpgradeable and ERC20CappedUpgradeable
-    /// @dev Checks if contract is paused and enforces supply cap before allowing transfers
+    /// @dev Required override when using multiple inheritance with ERC20PausableUpgradeable
+    /// @dev Checks if contract is paused before allowing transfers
     /// @param from Address tokens are transferred from
     /// @param to Address tokens are transferred to
-    /// @param value Amount of tokens transferred
-    function _update(
+    /// @param amount Amount of tokens transferred
+    function _beforeTokenTransfer(
         address from,
         address to,
-        uint256 value
-    ) internal override(ERC20Upgradeable, ERC20PausableUpgradeable, ERC20CappedUpgradeable) {
-        super._update(from, to, value);
+        uint256 amount
+    ) internal override(ERC20Upgradeable, ERC20PausableUpgradeable) {
+        super._beforeTokenTransfer(from, to, amount);
+    }
+
+    /// @notice Internal function for minting tokens with cap enforcement
+    /// @dev Required override when using ERC20CappedUpgradeable
+    /// @param account Address to mint tokens to
+    /// @param amount Amount of tokens to mint
+    function _mint(address account, uint256 amount) internal override(ERC20Upgradeable, ERC20CappedUpgradeable) {
+        super._mint(account, amount);
     }
 }

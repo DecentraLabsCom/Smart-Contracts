@@ -6,6 +6,7 @@ import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import "./ReservationFacet.sol";
 import "../libraries/LibAppStorage.sol";
+import "../libraries/RivalIntervalTreeLibrary.sol";
 import {LibIntent} from "../libraries/LibIntent.sol";
 import {ReservationIntentPayload, ActionIntentPayload} from "../libraries/IntentTypes.sol";
 
@@ -19,9 +20,30 @@ import {ReservationIntentPayload, ActionIntentPayload} from "../libraries/Intent
 
 contract InstitutionalReservationFacet is BaseReservationFacet, ReentrancyGuard {
     using EnumerableSet for EnumerableSet.Bytes32Set;
+    using EnumerableSet for EnumerableSet.AddressSet;
+    using RivalIntervalTreeLibrary for Tree;
+
+    struct InstReservationInput {
+        address provider;
+        address labOwner;
+        uint256 labId;
+        uint32 startTime;
+        uint32 endTime;
+        string puc;
+        bytes32 reservationKey;
+        address userTrackingKey;
+    }
 
     /// @notice Event of institutional intents (creation/cancellation)
-    event ReservationIntentProcessed(bytes32 indexed requestId, bytes32 reservationKey, string action, address institution, bool success, string reason);
+    event ReservationIntentProcessed(
+        bytes32 indexed requestId,
+        bytes32 reservationKey,
+        string action,
+        address institution,
+        string puc,
+        bool success,
+        string reason
+    );
 
     /// @dev Consumes a reservation intent ensuring caller matches signer/executor
     function _consumeReservationIntent(
@@ -72,7 +94,7 @@ contract InstitutionalReservationFacet is BaseReservationFacet, ReentrancyGuard 
         _consumeReservationIntent(requestId, LibIntent.ACTION_REQUEST_BOOKING, payload);
 
         _institutionalReservationRequest(institutionalProvider, puc, _labId, _start, _end);
-        emit ReservationIntentProcessed(requestId, reservationKey, "RESERVATION_REQUEST", institutionalProvider, true, "");
+        emit ReservationIntentProcessed(requestId, reservationKey, "RESERVATION_REQUEST", institutionalProvider, puc, true, "");
     }
     
     function institutionalReservationRequest(
@@ -130,7 +152,7 @@ contract InstitutionalReservationFacet is BaseReservationFacet, ReentrancyGuard 
         _consumeReservationIntent(requestId, LibIntent.ACTION_CANCEL_REQUEST_BOOKING, payload);
 
         _cancelInstitutionalReservationRequest(institutionalProvider, puc, _reservationKey);
-        emit ReservationIntentProcessed(requestId, _reservationKey, "CANCEL_RESERVATION_REQUEST", institutionalProvider, true, "");
+        emit ReservationIntentProcessed(requestId, _reservationKey, "CANCEL_RESERVATION_REQUEST", institutionalProvider, puc, true, "");
     }
 
     function cancelInstitutionalReservationRequest(
@@ -169,7 +191,7 @@ contract InstitutionalReservationFacet is BaseReservationFacet, ReentrancyGuard 
         _consumeActionIntent(requestId, LibIntent.ACTION_CANCEL_BOOKING, payload);
 
         _cancelInstitutionalBooking(institutionalProvider, _reservationKey);
-        emit ReservationIntentProcessed(requestId, _reservationKey, "CANCEL_BOOKING", institutionalProvider, true, "");
+        emit ReservationIntentProcessed(requestId, _reservationKey, "CANCEL_BOOKING", institutionalProvider, reservation.puc, true, "");
     }
 
     function cancelInstitutionalBooking(
@@ -191,8 +213,7 @@ contract InstitutionalReservationFacet is BaseReservationFacet, ReentrancyGuard 
         require(msg.sender == s.institutionalBackends[institutionalProvider], "Not authorized backend");
         require(bytes(puc).length > 0, "PUC cannot be empty");
 
-        address userTrackingKey = _trackingKeyFromInstitution(institutionalProvider, puc);
-        return _releaseInstitutionalExpiredReservations(institutionalProvider, puc, _labId, maxBatch, userTrackingKey);
+        return _releaseInstitutionalExpiredReservations(institutionalProvider, puc, _labId, maxBatch);
     }
 
     function getInstitutionalUserReservationCount(
@@ -233,6 +254,8 @@ contract InstitutionalReservationFacet is BaseReservationFacet, ReentrancyGuard 
     modifier onlyInstitution(address institution) {
         AppStorage storage s = _s();
         require(s.roleMembers[INSTITUTION_ROLE].contains(institution), "Unknown institution");
+        address backend = s.institutionalBackends[institution];
+        require(msg.sender == institution || (backend != address(0) && msg.sender == backend), "Not authorized institution");
         _;
     }
 
@@ -258,90 +281,27 @@ contract InstitutionalReservationFacet is BaseReservationFacet, ReentrancyGuard 
         uint32 _end
     ) internal override {
         AppStorage storage s = _s();
+        (address labOwner, bytes32 reservationKey, address userTrackingKey) = _validateInstitutionalRequest(
+            s,
+            institutionalProvider,
+            puc,
+            _labId,
+            _start,
+            _end
+        );
 
-        require(s.institutionalBackends[institutionalProvider] != address(0), "No authorized backend");
-        require(msg.sender == s.institutionalBackends[institutionalProvider], "Caller must be authorized backend");
-
-        require(bytes(puc).length > 0, "PUC cannot be empty");
-        require(bytes(puc).length <= 256, "PUC too long");
-
-        if (!s.tokenStatus[_labId]) revert("Lab not listed for reservations");
-
-        address labOwner = IERC721(address(this)).ownerOf(_labId);
-        uint256 listedLabsCount = s.providerStakes[labOwner].listedLabsCount;
-        uint256 requiredStake = ReservableToken(address(this)).calculateRequiredStake(labOwner, listedLabsCount);
-        if (s.providerStakes[labOwner].stakedAmount < requiredStake) {
-            revert("Lab provider does not have sufficient stake");
-        }
-
-        if (_start >= _end || _start <= block.timestamp + RESERVATION_MARGIN) {
-            revert("Invalid time range");
-        }
-
-        uint96 price = s.labs[_labId].price;
-        bytes32 reservationKey = _getReservationKey(_labId, _start);
-        address userTrackingKey = _trackingKeyFromInstitution(institutionalProvider, puc);
-
-        uint256 userActiveCount = s.activeReservationCountByTokenAndUser[_labId][userTrackingKey];
-        if (userActiveCount >= MAX_RESERVATIONS_PER_LAB_USER - 2) {
-            _releaseExpiredReservationsInternal(_labId, userTrackingKey, MAX_RESERVATIONS_PER_LAB_USER);
-            userActiveCount = s.activeReservationCountByTokenAndUser[_labId][userTrackingKey];
-        }
-        if (userActiveCount >= MAX_RESERVATIONS_PER_LAB_USER) revert MaxReservationsReached();
-
-        if (s.reservationKeys.contains(reservationKey)) {
-            revert("Not available");
-        }
-
-        address collectorInstitution = address(0);
-        if (s.institutionalBackends[labOwner] != address(0)) {
-            collectorInstitution = labOwner;
-        }
-
-        uint96 chargeAmount = price;
-        if (institutionalProvider == collectorInstitution) {
-            chargeAmount = 0;
-        }
-
-        if (chargeAmount > 0) {
-            IInstitutionalTreasuryFacet(address(this)).checkInstitutionalTreasuryAvailability(
-                institutionalProvider,
-                puc,
-                chargeAmount
-            );
-        }
-
-        uint256 periodDuration = _resolveSpendingPeriod(s, institutionalProvider);
-        uint256 currentPeriodStart = (block.timestamp / periodDuration) * periodDuration;
-        require(periodDuration <= type(uint64).max, "Spending period too long");
-        require(currentPeriodStart <= type(uint64).max, "Timestamp overflow");
-
-        uint64 requestPeriodDuration = uint64(periodDuration);
-        uint64 requestPeriodStart = uint64(currentPeriodStart);
-
-        s.reservationKeysByToken[_labId].add(reservationKey);
-        s.reservations[reservationKey] = Reservation({
+        InstReservationInput memory input = InstReservationInput({
+            provider: institutionalProvider,
+            labOwner: labOwner,
             labId: _labId,
-            renter: institutionalProvider,
-            labProvider: labOwner,
-            price: chargeAmount,
-            start: _start,
-            end: _end,
-            status: PENDING,
+            startTime: _start,
+            endTime: _end,
             puc: puc,
-            requestPeriodStart: requestPeriodStart,
-            requestPeriodDuration: requestPeriodDuration,
-            payerInstitution: institutionalProvider,
-            collectorInstitution: collectorInstitution
+            reservationKey: reservationKey,
+            userTrackingKey: userTrackingKey
         });
 
-        s.reservationKeys.add(reservationKey);
-        s.renters[institutionalProvider].add(reservationKey);
-        s.renters[userTrackingKey].add(reservationKey);
-        s.activeReservationCountByTokenAndUser[_labId][userTrackingKey]++;
-        s.reservationKeysByTokenAndUser[_labId][userTrackingKey].add(reservationKey);
-
-        emit ReservationRequested(institutionalProvider, _labId, _start, _end, reservationKey);
+        _createInstitutionalReservation(s, input);
     }
 
     function _confirmInstitutionalReservationRequest(
@@ -382,7 +342,6 @@ contract InstitutionalReservationFacet is BaseReservationFacet, ReentrancyGuard 
 
             reservation.status = CONFIRMED;
             s.reservationsProvider[labProvider].add(_reservationKey);
-            s.reservationsByLabId[reservation.labId].add(_reservationKey);
             _incrementActiveReservationCounters(reservation);
             _enqueuePayoutCandidate(s, reservation.labId, _reservationKey, reservation.end);
             _enqueueInstitutionalActiveReservation(s, reservation.labId, reservation, _reservationKey);
@@ -412,7 +371,6 @@ contract InstitutionalReservationFacet is BaseReservationFacet, ReentrancyGuard 
             s.calendars[reservation.labId].insert(reservation.start, reservation.end);
             reservation.status = CONFIRMED;
             s.reservationsProvider[labProvider].add(_reservationKey);
-            s.reservationsByLabId[reservation.labId].add(_reservationKey);
             _incrementActiveReservationCounters(reservation);
             _enqueuePayoutCandidate(s, reservation.labId, _reservationKey, reservation.end);
             _enqueueInstitutionalActiveReservation(s, reservation.labId, reservation, _reservationKey);
@@ -495,7 +453,6 @@ contract InstitutionalReservationFacet is BaseReservationFacet, ReentrancyGuard 
 
         address labProvider = reservation.labProvider;
         s.reservationsProvider[labProvider].remove(_reservationKey);
-        s.reservationsByLabId[reservation.labId].remove(_reservationKey);
         _cancelReservation(_reservationKey);
 
         if (price > 0) {
@@ -517,11 +474,115 @@ contract InstitutionalReservationFacet is BaseReservationFacet, ReentrancyGuard 
         uint256 _labId,
         uint256 maxBatch
     ) internal override returns (uint256) {
-        AppStorage storage s = _s();
         if (maxBatch == 0 || maxBatch > 50) revert("Invalid batch size");
         if (bytes(puc).length == 0) revert("PUC cannot be empty");
         address userTrackingKey = _trackingKeyFromInstitution(institutionalProvider, puc);
         return _releaseExpiredReservationsInternal(_labId, userTrackingKey, maxBatch);
+    }
+
+    function _resolveRequestWindow(AppStorage storage s, address provider)
+        internal
+        view
+        returns (uint64 start, uint64 duration)
+    {
+        uint256 rawDuration = _resolveSpendingPeriod(s, provider);
+        duration = uint64(rawDuration);
+        start = uint64((block.timestamp / rawDuration) * rawDuration);
+    }
+
+    function _validateInstitutionalRequest(
+        AppStorage storage s,
+        address institutionalProvider,
+        string calldata puc,
+        uint256 labId,
+        uint32 startTime,
+        uint32 endTime
+    ) internal returns (address labOwner, bytes32 reservationKey, address userTrackingKey) {
+        require(s.institutionalBackends[institutionalProvider] != address(0), "No authorized backend");
+        require(msg.sender == s.institutionalBackends[institutionalProvider], "Caller must be authorized backend");
+
+        require(bytes(puc).length > 0, "PUC cannot be empty");
+        require(bytes(puc).length <= 256, "PUC too long");
+
+        if (!s.tokenStatus[labId]) revert("Lab not listed for reservations");
+
+        labOwner = IERC721(address(this)).ownerOf(labId);
+        if (
+            s.providerStakes[labOwner].stakedAmount <
+            ReservableToken(address(this)).calculateRequiredStake(labOwner, s.providerStakes[labOwner].listedLabsCount)
+        ) {
+            revert("Lab provider does not have sufficient stake");
+        }
+
+        if (startTime >= endTime || startTime <= block.timestamp + RESERVATION_MARGIN) {
+            revert("Invalid time range");
+        }
+
+        reservationKey = _getReservationKey(labId, startTime);
+        userTrackingKey = _trackingKeyFromInstitution(institutionalProvider, puc);
+
+        uint256 userActiveCount = s.activeReservationCountByTokenAndUser[labId][userTrackingKey];
+        if (userActiveCount >= MAX_RESERVATIONS_PER_LAB_USER - 2) {
+            _releaseExpiredReservationsInternal(labId, userTrackingKey, MAX_RESERVATIONS_PER_LAB_USER);
+            userActiveCount = s.activeReservationCountByTokenAndUser[labId][userTrackingKey];
+        }
+        if (userActiveCount >= MAX_RESERVATIONS_PER_LAB_USER) revert MaxReservationsReached();
+
+        Reservation storage existing = s.reservations[reservationKey];
+        if (existing.renter != address(0) && existing.status != CANCELLED && existing.status != COLLECTED) {
+            revert("Not available");
+        }
+    }
+
+    function _createInstitutionalReservation(
+        AppStorage storage s,
+        InstReservationInput memory input
+    ) internal {
+        bool hasBackendCollector = s.institutionalBackends[input.labOwner] != address(0);
+        address collectorInstitution = hasBackendCollector ? input.labOwner : address(0);
+        uint96 chargeAmount = (hasBackendCollector && input.provider == input.labOwner)
+            ? 0
+            : s.labs[input.labId].price;
+
+        if (chargeAmount > 0) {
+            IInstitutionalTreasuryFacet(address(this)).checkInstitutionalTreasuryAvailability(
+                input.provider,
+                input.puc,
+                chargeAmount
+            );
+        }
+
+        (uint64 requestPeriodStart, uint64 requestPeriodDuration) = _resolveRequestWindow(s, input.provider);
+
+        s.reservationKeysByToken[input.labId].add(input.reservationKey);
+        s.reservations[input.reservationKey] = Reservation({
+            labId: input.labId,
+            renter: input.provider,
+            labProvider: input.labOwner,
+            price: chargeAmount,
+            start: input.startTime,
+            end: input.endTime,
+            status: PENDING,
+            puc: input.puc,
+            requestPeriodStart: requestPeriodStart,
+            requestPeriodDuration: requestPeriodDuration,
+            payerInstitution: input.provider,
+            collectorInstitution: collectorInstitution,
+            providerShare: 0,
+            projectTreasuryShare: 0,
+            subsidiesShare: 0,
+            governanceShare: 0
+        });
+
+        s.totalReservationsCount++;
+        s.renters[input.provider].add(input.reservationKey);
+        s.renters[input.userTrackingKey].add(input.reservationKey);
+        s.activeReservationCountByTokenAndUser[input.labId][input.userTrackingKey]++;
+        s.reservationKeysByTokenAndUser[input.labId][input.userTrackingKey].add(input.reservationKey);
+
+        _recordRecent(s, input.labId, input.userTrackingKey, input.reservationKey, input.startTime);
+
+        emit ReservationRequested(input.provider, input.labId, input.startTime, input.endTime, input.reservationKey);
     }
 
     function _getInstitutionalUserReservationCount(
@@ -592,6 +653,25 @@ contract InstitutionalReservationFacet is BaseReservationFacet, ReentrancyGuard 
 
         return bytes32(0);
     }
+
+    // Wallet-only hooks required by BaseReservationFacet but unused here
+    function _reservationRequest(uint256, uint32, uint32) internal pure override { revert("Wallet reservation only"); }
+
+    function _confirmReservationRequest(bytes32) internal pure override { revert("Wallet reservation only"); }
+
+    function _denyReservationRequest(bytes32) internal pure override { revert("Wallet reservation only"); }
+
+    function _cancelReservationRequest(bytes32) internal pure override { revert("Wallet reservation only"); }
+
+    function _cancelBooking(bytes32) internal pure override { revert("Wallet reservation only"); }
+
+    function _requestFunds(uint256, uint256) internal pure override { revert("Wallet reservation only"); }
+
+    function _getLabTokenAddress() internal pure override returns (address) { return address(0); }
+
+    function _getSafeBalance() internal pure override returns (uint256) { return 0; }
+
+    function _releaseExpiredReservations(uint256, address, uint256) internal pure override returns (uint256) { return 0; }
 
     function _resolveSpendingPeriod(AppStorage storage s, address provider) private view returns (uint256) {
         uint256 duration = s.institutionalSpendingPeriod[provider];

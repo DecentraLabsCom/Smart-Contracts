@@ -5,5 +5,13 @@ cache
 artifacts
 .env
 
+# Foundry files
+out/
+cache_forge/
+broadcast/
+
+# Libraries (managed by forge)
+lib/
+
 #Developer documentation
 dev/

@@ -2,8 +2,12 @@
 pragma solidity ^0.8.23;
 
 import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
+import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import {LibAppStorage, AppStorage, Reservation}  from "../libraries/LibAppStorage.sol";
 import "../libraries/RivalIntervalTreeLibrary.sol";
+
+using EnumerableSet for EnumerableSet.AddressSet;
+using EnumerableSet for EnumerableSet.Bytes32Set;
 
 /// @title ReservableToken Abstract Contract
 /// @author
@@ -30,6 +34,13 @@ import "../libraries/RivalIntervalTreeLibrary.sol";
 /// - Integrates with ERC721 token standard
 abstract contract ReservableToken {
     using RivalIntervalTreeLibrary for Tree;
+    
+    struct StatsResult {
+        uint32 count;
+        uint256 duration;
+        uint32 minStart;
+        uint32 maxEnd;
+    }
     
     /// @notice The status of a reservation follows this lifecycle:
     /// - PENDING: Reservation requested but not yet confirmed. Does NOT block calendar slot.
@@ -152,7 +163,7 @@ abstract contract ReservableToken {
     /// @dev Requires the provider to have sufficient staked tokens based on listed labs count.
     ///      Formula: 800 base + max(0, listedLabs - 10) * 200
     /// @param _tokenId The unique identifier of the token to be listed.
-    function listToken(uint256 _tokenId) external onlyTokenOwner(_tokenId) {
+    function listToken(uint256 _tokenId) public onlyTokenOwner(_tokenId) {
         AppStorage storage s = _s();
         
         // Check if already listed to avoid double-counting
@@ -181,7 +192,7 @@ abstract contract ReservableToken {
     /// @dev Decrements the listed labs count for the provider.
     /// @dev Allows unlisting even with active reservations (existing reservations remain valid).
     /// @param _tokenId The unique identifier of the token to be unlisted.
-    function unlistToken(uint256 _tokenId) external onlyTokenOwner(_tokenId) {
+    function unlistToken(uint256 _tokenId) public onlyTokenOwner(_tokenId) {
         AppStorage storage s = _s();
         
         // Check if actually listed to avoid under-counting
@@ -412,13 +423,12 @@ abstract contract ReservableToken {
         
         // Found a reservation at/after the requested time
         // Return when it starts and when it ends
-        return (uint32(candidate), calendar.nodes[candidate].end);
+        return (uint32(candidate), uint32(calendar.nodes[candidate].end));
     }
 
-    /// @notice Retrieves all booked time slots for a given token (lab)
-    /// @dev Performs an in-order traversal of the interval tree to collect all reservations.
-    ///      Returns arrays of start and end times in chronological order.
-    ///      Time complexity: O(n) where n is the number of reservations
+    /// @notice Retrieves up to 100 booked time slots for a given token (lab)
+    /// @dev In-order traversal with a hard cap of 100 entries; avoids pre-counting the tree.
+    ///      Returns start/end arrays in chronological order.
     /// @param _tokenId The ID of the token (lab) to get booked slots for
     /// @return starts Array of start timestamps (max 100 results)
     /// @return ends Array of end timestamps (max 100 results)
@@ -433,29 +443,25 @@ abstract contract ReservableToken {
             return (new uint32[](0), new uint32[](0));
         }
         
-        // First, count total nodes to allocate arrays (capped at 100)
-        uint256 count = _countNodes(calendar, calendar.root);
-        uint256 maxResults = count > 100 ? 100 : count;
+        uint256 maxResults = 100;
         
         starts = new uint32[](maxResults);
         ends = new uint32[](maxResults);
         
         // Perform in-order traversal to collect slots (stops at 100)
-        _collectSlotsLimited(calendar, calendar.root, starts, ends, 0, maxResults);
+        uint256 filled = _collectSlotsLimited(calendar, calendar.root, starts, ends, 0, maxResults);
+        
+        if (filled < maxResults) {
+            uint32[] memory trimmedStarts = new uint32[](filled);
+            uint32[] memory trimmedEnds = new uint32[](filled);
+            for (uint256 i; i < filled; i++) {
+                trimmedStarts[i] = starts[i];
+                trimmedEnds[i] = ends[i];
+            }
+            return (trimmedStarts, trimmedEnds);
+        }
         
         return (starts, ends);
-    }
-
-    /// @dev Helper function to count nodes in the tree via recursion
-    /// @param calendar The interval tree storage
-    /// @param cursor Current node being examined
-    /// @return count Total number of nodes in subtree
-    function _countNodes(Tree storage calendar, uint cursor) private view returns (uint256 count) {
-        if (cursor == 0) return 0;
-        
-        return 1 + 
-               _countNodes(calendar, calendar.nodes[cursor].left) + 
-               _countNodes(calendar, calendar.nodes[cursor].right);
     }
 
     /// @dev Helper function to collect slots via in-order traversal with limit
@@ -483,7 +489,7 @@ abstract contract ReservableToken {
         // Check limit before adding current node
         if (index < maxResults) {
             starts[index] = uint32(cursor);
-            ends[index] = calendar.nodes[cursor].end;
+            ends[index] = uint32(calendar.nodes[cursor].end);
             index++;
         }
         
@@ -496,8 +502,7 @@ abstract contract ReservableToken {
     }
 
     /// @notice Get comprehensive statistics about a lab's reservations within a date range
-    /// @dev Single tree traversal filtered by date range - limits gas usage.
-    ///      Time complexity: O(n) where n is the number of reservations in range
+    /// @dev Single tree traversal filtered by date range; reverts if more than 500 nodes are present to avoid excessive gas.
     /// @param _tokenId The ID of the token (lab) to get statistics for
     /// @param _startTime Start of the date range (Unix timestamp)
     /// @param _endTime End of the date range (Unix timestamp)
@@ -520,9 +525,17 @@ abstract contract ReservableToken {
         if (calendar.root == 0) {
             return (0, 0, 0, 0);
         }
+
+        // Safety: cap the traversal size to avoid excessive gas
+        (, bool capped) = _countNodesCapped(calendar, calendar.root, 500);
+        require(!capped, "Too many reservations for stats");
         
         // Traverse tree to count, sum durations, and find min/max within range
-        (count, totalDuration, firstStart, lastEnd) = _calculateStats(calendar, calendar.root, _startTime, _endTime);
+        StatsResult memory stats = _calculateStats(calendar, calendar.root, _startTime, _endTime);
+        count = stats.count;
+        totalDuration = stats.duration;
+        firstStart = stats.minStart;
+        lastEnd = stats.maxEnd;
         
         if (count == 0) {
             return (0, 0, 0, 0);
@@ -536,46 +549,77 @@ abstract contract ReservableToken {
     /// @param cursor Current node being examined
     /// @param _startTime Start of the date range filter
     /// @param _endTime End of the date range filter
-    /// @return nodeCount Number of nodes in subtree within range
-    /// @return duration Total duration of all reservations in subtree within range
-    /// @return minStart Minimum start time of reservations in range (type(uint32).max if none)
-    /// @return maxEnd Maximum end time of reservations in range (0 if none)
+    /// @return res Aggregated stats (count, duration, min start, max end)
     function _calculateStats(Tree storage calendar, uint cursor, uint32 _startTime, uint32 _endTime) 
-        private view returns (uint32 nodeCount, uint256 duration, uint32 minStart, uint32 maxEnd) 
+        private view returns (StatsResult memory res) 
     {
-        if (cursor == 0) return (0, 0, type(uint32).max, 0);
+        if (cursor == 0) {
+            res.minStart = type(uint32).max;
+            return res;
+        }
         
         uint32 currentStart = uint32(cursor);
-        uint32 currentEnd = calendar.nodes[cursor].end;
+        uint32 currentEnd = uint32(calendar.nodes[cursor].end);
         
         // Check if current reservation overlaps with the requested range
         // A reservation overlaps if: start < _endTime && end > _startTime
         bool overlapsRange = currentStart < _endTime && currentEnd > _startTime;
         
         // Recursively process left and right subtrees
-        (uint32 leftCount, uint256 leftDuration, uint32 leftMin, uint32 leftMax) = _calculateStats(calendar, calendar.nodes[cursor].left, _startTime, _endTime);
-        (uint32 rightCount, uint256 rightDuration, uint32 rightMin, uint32 rightMax) = _calculateStats(calendar, calendar.nodes[cursor].right, _startTime, _endTime);
+        StatsResult memory left = _calculateStats(calendar, calendar.nodes[cursor].left, _startTime, _endTime);
+        StatsResult memory right = _calculateStats(calendar, calendar.nodes[cursor].right, _startTime, _endTime);
         
         // Combine results from subtrees
-        nodeCount = leftCount + rightCount;
-        duration = leftDuration + rightDuration;
-        minStart = leftMin < rightMin ? leftMin : rightMin;
-        maxEnd = leftMax > rightMax ? leftMax : rightMax;
+        res.count = left.count + right.count;
+        res.duration = left.duration + right.duration;
+        res.minStart = left.minStart < right.minStart ? left.minStart : right.minStart;
+        res.maxEnd = left.maxEnd > right.maxEnd ? left.maxEnd : right.maxEnd;
         
         // Include current node if it overlaps with range
         if (overlapsRange) {
-            nodeCount += 1;
+            res.count += 1;
             // Calculate the duration within the range
             uint32 effectiveStart = currentStart > _startTime ? currentStart : _startTime;
             uint32 effectiveEnd = currentEnd < _endTime ? currentEnd : _endTime;
-            duration += effectiveEnd - effectiveStart;
+            res.duration += effectiveEnd - effectiveStart;
             
             // Update min/max
-            if (currentStart < minStart) minStart = currentStart;
-            if (currentEnd > maxEnd) maxEnd = currentEnd;
+            if (currentStart < res.minStart) res.minStart = currentStart;
+            if (currentEnd > res.maxEnd) res.maxEnd = currentEnd;
         }
         
-        return (nodeCount, duration, minStart, maxEnd);
+        return res;
+    }
+
+    /// @dev Counts nodes up to a cap to guard expensive traversals (short-circuits when cap exceeded)
+    function _countNodesCapped(Tree storage calendar, uint cursor, uint256 cap)
+        private
+        view
+        returns (uint256 count, bool capped)
+    {
+        if (cursor == 0 || cap == 0) {
+            return (0, false);
+        }
+        (count, capped) = _countNodesCappedRec(calendar, cursor, cap, 0);
+    }
+
+    function _countNodesCappedRec(
+        Tree storage calendar,
+        uint cursor,
+        uint256 cap,
+        uint256 running
+    ) private view returns (uint256 count, bool capped) {
+        if (cursor == 0) {
+            return (running, false);
+        }
+        running++;
+        if (running > cap) {
+            return (running, true);
+        }
+        (running, capped) = _countNodesCappedRec(calendar, calendar.nodes[cursor].left, cap, running);
+        if (capped) return (running, true);
+        (running, capped) = _countNodesCappedRec(calendar, calendar.nodes[cursor].right, cap, running);
+        return (running, capped);
     }
 
     /// @notice Find which reservation (if any) occupies a specific timestamp
@@ -603,7 +647,7 @@ abstract contract ReservableToken {
         
         while (cursor != 0) {
             uint32 nodeStart = uint32(cursor);
-            uint32 nodeEnd = calendar.nodes[cursor].end;
+            uint32 nodeEnd = uint32(calendar.nodes[cursor].end);
             
             // Check if this node covers the timestamp
             if (_timestamp >= nodeStart && _timestamp < nodeEnd) {
@@ -733,8 +777,8 @@ abstract contract ReservableToken {
         }
         
         // Binary search for current time - O(log n)
-        uint32 now = uint32(block.timestamp);
-        (uint32 start, ) = this.findReservationAt(_tokenId, now);
+        uint32 currentTime = uint32(block.timestamp);
+        (uint32 start, ) = this.findReservationAt(_tokenId, currentTime);
         
         return start != 0; // If we found a reservation, lab is busy
     }
@@ -756,18 +800,17 @@ abstract contract ReservableToken {
             return 0;
         }
         
-        uint32 now = uint32(block.timestamp);
+        uint32 currentTime = uint32(block.timestamp);
         
         // First check if we're currently in a reservation
-        (uint32 currentStart, uint32 currentEnd) = this.findReservationAt(_tokenId, now);
+        (uint32 currentStart, uint32 currentEnd) = this.findReservationAt(_tokenId, currentTime);
         if (currentStart != 0) {
             return currentEnd; // Return end of current reservation
         }
         
         // Not currently booked, find next future reservation
-        (uint32 nextStart, uint32 nextEnd) = this.getNextAvailableSlot(_tokenId, now);
+        (, uint32 nextEnd) = this.getNextAvailableSlot(_tokenId, currentTime);
         
-        // If nextStart == now and blockedUntil is set, that means there's a blocking reservation
         if (nextEnd > 0) {
             return nextEnd; // Return end of next reservation
         }
@@ -778,7 +821,6 @@ abstract contract ReservableToken {
     /// @dev Cancels a reservation identified by the given reservation key.
     ///      Updates the reservation status to CANCELLED and removes the reservation
     ///      from the associated lab's calendar (only if it was inserted, i.e., CONFIRMED or IN_USE).
-    ///      Also removes the key from the global reservationKeys set to free storage.
     /// @param _reservationKey The unique key identifying the reservation to be cancelled.
     function _cancelReservation(bytes32 _reservationKey) internal virtual {
         AppStorage storage s = _s();
@@ -803,8 +845,9 @@ abstract contract ReservableToken {
             s.payoutHeapInvalidCount[reservation.labId]++;
         }
         
-        // Remove from global set to free storage and allow slot reuse
-        s.reservationKeys.remove(_reservationKey);
+        if (s.totalReservationsCount > 0) {
+            s.totalReservationsCount--;
+        }
     }
 
     /// @notice Returns true when reservation status should keep lab/provider locked

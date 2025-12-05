@@ -4,7 +4,7 @@ pragma solidity ^0.8.23;
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import "../abstracts/InstitutionalReservableTokenEnumerable.sol";
 import "./ProviderFacet.sol";
-import "../libraries/LibAppStorage.sol";
+import {LibAppStorage, AppStorage, PayoutCandidate} from "../libraries/LibAppStorage.sol";
 
 /// @dev Interface for StakingFacet to update reservation timestamps
 interface IStakingFacet {
@@ -40,6 +40,7 @@ abstract contract BaseReservationFacet is InstitutionalReservableTokenEnumerable
     uint256 internal constant REVENUE_TREASURY = 15;
     uint256 internal constant REVENUE_SUBSIDIES = 10;
     uint256 internal constant REVENUE_GOVERNANCE = 5;
+    uint256 internal constant MAX_COMPACTION_SIZE = 500;
 
     uint256 internal constant CANCEL_FEE_TOTAL = 3;
     uint256 internal constant CANCEL_FEE_PROVIDER = 1;
@@ -232,11 +233,15 @@ abstract contract BaseReservationFacet is InstitutionalReservableTokenEnumerable
             _creditRevenueBuckets(s, reservation);
         }
 
+        // Track as past reservation using scheduled end time for ordering
+        _recordPast(s, labId, trackingKey, key, reservation.end);
+
         s.reservationsProvider[labProvider].remove(key);
-        s.reservationsByLabId[labId].remove(key);
-        s.reservationKeys.remove(key);
         s.reservationKeysByToken[labId].remove(key);
         s.renters[reservation.renter].remove(key);
+        if (s.totalReservationsCount > 0) {
+            s.totalReservationsCount--;
+        }
 
         if (s.activeReservationCountByTokenAndUser[labId][trackingKey] > 0) {
             s.activeReservationCountByTokenAndUser[labId][trackingKey]--;
@@ -360,11 +365,11 @@ abstract contract BaseReservationFacet is InstitutionalReservableTokenEnumerable
         bytes32 key,
         uint32 end
     ) internal {
-        LibAppStorage.PayoutCandidate[] storage heap = s.payoutHeaps[labId];
+        PayoutCandidate[] storage heap = s.payoutHeaps[labId];
         if (s.payoutHeapContains[key]) {
             return;
         }
-        heap.push(LibAppStorage.PayoutCandidate(end, key));
+        heap.push(PayoutCandidate(end, key));
         s.payoutHeapContains[key] = true;
         _heapifyUp(heap, heap.length - 1);
     }
@@ -374,7 +379,7 @@ abstract contract BaseReservationFacet is InstitutionalReservableTokenEnumerable
         uint256 labId,
         uint256 currentTime
     ) internal returns (bytes32) {
-        LibAppStorage.PayoutCandidate[] storage heap = s.payoutHeaps[labId];
+        PayoutCandidate[] storage heap = s.payoutHeaps[labId];
 
         // Lazy cleanup optimization: if >20% of heap is invalid entries, rebuild heap
         uint256 heapSize = heap.length;
@@ -385,7 +390,7 @@ abstract contract BaseReservationFacet is InstitutionalReservableTokenEnumerable
         }
 
         while (heapSize > 0) {
-            LibAppStorage.PayoutCandidate memory root = heap[0];
+            PayoutCandidate memory root = heap[0];
             if (root.end > currentTime) {
                 return bytes32(0);
             }
@@ -408,7 +413,7 @@ abstract contract BaseReservationFacet is InstitutionalReservableTokenEnumerable
     }
 
     function _heapifyUp(
-        LibAppStorage.PayoutCandidate[] storage heap,
+        PayoutCandidate[] storage heap,
         uint256 index
     ) internal {
         while (index > 0) {
@@ -416,12 +421,14 @@ abstract contract BaseReservationFacet is InstitutionalReservableTokenEnumerable
             if (heap[index].end >= heap[parent].end) {
                 break;
             }
-            (heap[index], heap[parent]) = (heap[parent], heap[index]);
+            PayoutCandidate memory temp = heap[index];
+            heap[index] = heap[parent];
+            heap[parent] = temp;
             index = parent;
         }
     }
 
-    function _removeHeapRoot(LibAppStorage.PayoutCandidate[] storage heap) internal {
+    function _removeHeapRoot(PayoutCandidate[] storage heap) internal {
         uint256 lastIndex = heap.length - 1;
         if (lastIndex == 0) {
             heap.pop();
@@ -433,7 +440,7 @@ abstract contract BaseReservationFacet is InstitutionalReservableTokenEnumerable
     }
 
     function _heapifyDown(
-        LibAppStorage.PayoutCandidate[] storage heap,
+        PayoutCandidate[] storage heap,
         uint256 index
     ) internal {
         uint256 length = heap.length;
@@ -450,7 +457,9 @@ abstract contract BaseReservationFacet is InstitutionalReservableTokenEnumerable
             if (heap[index].end <= heap[smallest].end) {
                 break;
             }
-            (heap[index], heap[smallest]) = (heap[smallest], heap[index]);
+            PayoutCandidate memory temp = heap[index];
+            heap[index] = heap[smallest];
+            heap[smallest] = temp;
             index = smallest;
         }
     }
@@ -458,8 +467,12 @@ abstract contract BaseReservationFacet is InstitutionalReservableTokenEnumerable
     /// @dev Compacts the heap by removing all invalid entries (cancelled/collected reservations)
     /// @notice Optimized version using in-place compaction to reduce gas costs
     function _compactHeap(AppStorage storage s, uint256 labId) internal {
-        LibAppStorage.PayoutCandidate[] storage heap = s.payoutHeaps[labId];
+        PayoutCandidate[] storage heap = s.payoutHeaps[labId];
         uint256 originalLength = heap.length; // Preserve original length for safe iteration
+        if (originalLength > MAX_COMPACTION_SIZE) {
+            // Too large to safely compact in one go; try again in a later call
+            return;
+        }
         uint256 writeIndex = 0;
 
         // In-place compaction: iterate through original heap, keeping only valid entries

@@ -106,6 +106,24 @@ struct PayoutCandidate {
         bytes32 key;
 }
 
+struct RecentReservationBuffer {
+        bytes32[50] keys;
+        uint32[50] starts;
+        uint8 size;
+}
+
+struct UpcomingReservationBuffer {
+        bytes32[50] keys;
+        uint32[50] starts;
+        uint8 size;
+}
+
+struct PastReservationBuffer {
+        bytes32[50] keys;
+        uint32[50] ends;
+        uint8 size;
+}
+
 struct UserActiveReservation {
         uint32 start;
         bytes32 key;
@@ -175,7 +193,6 @@ struct InstitutionalUserSpending {
 /// @custom:member calendars Mapping of labs IDs to their availability trees
 /// @custom:member reservations Mapping of reservation hashes to reservation details
 /// @custom:member renters Mapping of renter addresses to their reservation hashes
-/// @custom:member reservationKeys Set of all reservation hashes in the system
 /// @custom:member reservationKeysByToken Mapping of token IDs to their reservation hashes (use .length() for count)
 /// @custom:member reservationsProvider Mapping of provider addresses to their pending reservation hashes
 /// @custom:member activeReservationByTokenAndUser Mapping of token IDs and user addresses to their active reservation hashes
@@ -212,13 +229,18 @@ struct AppStorage {
     mapping(uint256 => Tree) calendars;
     mapping(bytes32 => Reservation) reservations; 
     mapping(address => EnumerableSet.Bytes32Set) renters; 
-    EnumerableSet.Bytes32Set reservationKeys;
+    uint256 totalReservationsCount;
     mapping (uint256 => EnumerableSet.Bytes32Set) reservationKeysByToken;
     mapping (address => EnumerableSet.Bytes32Set) reservationsProvider; 
-    mapping (uint256 => EnumerableSet.Bytes32Set) reservationsByLabId;
     mapping (uint256 => mapping(address => bytes32)) activeReservationByTokenAndUser;
     mapping (uint256 => mapping(address => uint8)) activeReservationCountByTokenAndUser;
     mapping (uint256 => mapping(address => EnumerableSet.Bytes32Set)) reservationKeysByTokenAndUser;
+    mapping (uint256 => RecentReservationBuffer) recentReservationsByToken;
+    mapping (uint256 => mapping(address => RecentReservationBuffer)) recentReservationsByTokenAndUser;
+    mapping (uint256 => UpcomingReservationBuffer) upcomingReservationsByToken;
+    mapping (uint256 => mapping(address => UpcomingReservationBuffer)) upcomingReservationsByTokenAndUser;
+    mapping (uint256 => PastReservationBuffer) pastReservationsByToken;
+    mapping (uint256 => mapping(address => PastReservationBuffer)) pastReservationsByTokenAndUser;
     mapping (uint256 => mapping(address => UserActiveReservation[])) activeReservationHeaps;
     mapping (bytes32 => bool) activeReservationHeapContains;
     mapping (uint256 => bool) tokenStatus;
@@ -233,15 +255,15 @@ struct AppStorage {
     
     mapping (address => ProviderStake) providerStakes;
 
-    mapping(address provider => uint256 institutionalTreasury);
-    mapping(address provider => uint256 institutionalUserLimit);
-    mapping(address provider => mapping(string puc => InstitutionalUserSpending spending)) institutionalUserSpending;
-    mapping(address provider => address authorizedBackend) institutionalBackends;
-    mapping(address provider => uint256 periodDuration) institutionalSpendingPeriod;
-    mapping(address provider => uint256 periodAnchor) institutionalSpendingPeriodAnchor;
-    mapping(bytes32 orgHash => string orgName) schacHomeOrganizationNames;
+    mapping(address provider => uint256 balance) institutionalTreasury;
+    mapping(address provider => uint256 limit) institutionalUserLimit;
+    mapping(address provider => mapping(string puc => InstitutionalUserSpending data)) institutionalUserSpending;
+    mapping(address provider => address backend) institutionalBackends;
+    mapping(address provider => uint256 duration) institutionalSpendingPeriod;
+    mapping(address provider => uint256 anchor) institutionalSpendingPeriodAnchor;
+    mapping(bytes32 orgHash => string name) schacHomeOrganizationNames;
     mapping(bytes32 orgHash => address wallet) organizationInstitutionWallet;
-    mapping(address institution => EnumerableSet.Bytes32Set) institutionSchacHomeOrganizations;
+    mapping(address institution => EnumerableSet.Bytes32Set orgs) institutionSchacHomeOrganizations;
 
     // Revenue split buckets (new split replaces legacy pendingLabPayout/pendingInstitutionalLabPayout)
     mapping (uint256 => uint256) pendingProviderPayout; // per lab pending amount for provider withdrawals

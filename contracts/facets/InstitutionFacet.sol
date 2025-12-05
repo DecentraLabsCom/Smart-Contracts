@@ -10,6 +10,7 @@ import {LibInstitutionalOrg} from "../libraries/LibInstitutionalOrg.sol";
 /// @notice Admin helpers to manage institution wallets and their associated schacHomeOrganization domains
 contract InstitutionFacet is AccessControlUpgradeable {
     using EnumerableSet for EnumerableSet.Bytes32Set;
+    using EnumerableSet for EnumerableSet.AddressSet;
 
     /// @notice Emitted whenever the INSTITUTION_ROLE is granted
     event InstitutionRoleGranted(address indexed institution, bytes32 indexed organizationHash);
@@ -61,6 +62,27 @@ contract InstitutionFacet is AccessControlUpgradeable {
         institutions = new address[](total);
         for (uint256 i = 0; i < total; i++) {
             institutions[i] = s.roleMembers[INSTITUTION_ROLE].at(i);
+        }
+    }
+
+    /// @notice Paginated list of institution wallets
+    function getInstitutionsPaginated(uint256 offset, uint256 limit)
+        external
+        view
+        returns (address[] memory institutions, uint256 total)
+    {
+        AppStorage storage s = _s();
+        total = s.roleMembers[INSTITUTION_ROLE].length();
+        require(limit > 0 && limit <= 200, "Invalid limit");
+        if (offset >= total) {
+            return (new address[](0), total);
+        }
+        uint256 end = offset + limit;
+        if (end > total) end = total;
+        uint256 size = end - offset;
+        institutions = new address[](size);
+        for (uint256 i; i < size; i++) {
+            institutions[i] = s.roleMembers[INSTITUTION_ROLE].at(offset + i);
         }
     }
 

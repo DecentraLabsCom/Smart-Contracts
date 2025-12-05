@@ -80,37 +80,15 @@ contract DistributionFacet is AccessControlUpgradeable {
         s.liquidityTimelock = address(timelock);
 
         // Deploy vesting wallet for founding team: start after 6-month cliff, duration 36 months.
-        uint64 start = uint64(block.timestamp + 180 days); // cliff
-        uint64 duration = uint64(36 * 30 days); // approx 36 months
-        VestingWallet vesting = new VestingWallet(teamBeneficiary, start, duration);
+        VestingWallet vesting = new VestingWallet(
+            teamBeneficiary,
+            uint64(block.timestamp + 180 days), // cliff
+            uint64(36 * 30 days) // approx 36 months
+        );
         s.teamVestingWallet = address(vesting);
 
-        LabERC20 token = LabERC20(s.labTokenAddress);
-
-        // Treasury: mint full 15%
-        uint256 treasuryAmount = LibAppStorage.TREASURY_POOL_CAP;
-        token.mint(address(timelock), treasuryAmount);
-        s.treasuryPoolMinted = treasuryAmount;
-
-        // Subsidies: initial 3%
-        uint256 subsidiesInit = LibAppStorage.SUBSIDIES_TOPUP_TRANCHE;
-        token.mint(subsidies, subsidiesInit);
-        s.subsidiesPoolMinted = subsidiesInit;
-
-        // Liquidity: mint full 12% to timelock to enforce on-chain lock of liquidity funds
-        uint256 liquidityAmount = LibAppStorage.LIQUIDITY_POOL_CAP;
-        token.mint(address(timelock), liquidityAmount);
-        s.liquidityPoolMinted = liquidityAmount;
-
-        // Ecosystem: initial 2%
-        uint256 ecosystemInit = LibAppStorage.ECOSYSTEM_TOPUP_TRANCHE;
-        token.mint(ecosystemGrowth, ecosystemInit);
-        s.ecosystemPoolMinted = ecosystemInit;
-
-        // Team: vesting 10%
-        uint256 teamAmount = LibAppStorage.TEAM_POOL_CAP;
-        token.mint(address(vesting), teamAmount);
-        s.teamPoolMinted = teamAmount;
+        // Mint initial pools in a helper to reduce stack footprint
+        _mintInitialPools(s, s.labTokenAddress, address(timelock), address(vesting), subsidies, ecosystemGrowth);
 
         s.tokenPoolsInitialized = true;
 
@@ -183,6 +161,38 @@ contract DistributionFacet is AccessControlUpgradeable {
         LabERC20 token = LabERC20(s.labTokenAddress);
         token.grantRole(token.MINTER_ROLE(), newMinter);
         token.revokeRole(token.MINTER_ROLE(), address(this));
+    }
+
+    function _mintInitialPools(
+        AppStorage storage s,
+        address tokenAddr,
+        address timelock,
+        address vesting,
+        address subsidies,
+        address ecosystemGrowth
+    ) internal {
+        LabERC20 token = LabERC20(tokenAddr);
+        // Treasury: mint full 15%
+        token.mint(timelock, LibAppStorage.TREASURY_POOL_CAP);
+        s.treasuryPoolMinted = LibAppStorage.TREASURY_POOL_CAP;
+
+        // Subsidies: initial 3%
+        uint256 subsidiesInit = LibAppStorage.SUBSIDIES_TOPUP_TRANCHE;
+        token.mint(subsidies, subsidiesInit);
+        s.subsidiesPoolMinted = subsidiesInit;
+
+        // Liquidity: mint full 12% to timelock to enforce on-chain lock of liquidity funds
+        token.mint(timelock, LibAppStorage.LIQUIDITY_POOL_CAP);
+        s.liquidityPoolMinted = LibAppStorage.LIQUIDITY_POOL_CAP;
+
+        // Ecosystem: initial 2%
+        uint256 ecosystemInit = LibAppStorage.ECOSYSTEM_TOPUP_TRANCHE;
+        token.mint(ecosystemGrowth, ecosystemInit);
+        s.ecosystemPoolMinted = ecosystemInit;
+
+        // Team: vesting 10%
+        token.mint(vesting, LibAppStorage.TEAM_POOL_CAP);
+        s.teamPoolMinted = LibAppStorage.TEAM_POOL_CAP;
     }
 
     function _s() internal pure returns (AppStorage storage s) {

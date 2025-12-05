@@ -2,7 +2,7 @@
 pragma solidity ^0.8.23;
 
 import "@openzeppelin/contracts-upgradeable/token/ERC721/extensions/ERC721EnumerableUpgradeable.sol";
-import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
+import "@openzeppelin/contracts-upgradeable/token/ERC721/IERC721Upgradeable.sol";
 import "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import {LibAppStorage, AppStorage, Lab, LabBase} from "../libraries/LibAppStorage.sol";
 import {LibAccessControlEnumerable} from "../libraries/LibAccessControlEnumerable.sol";
@@ -150,7 +150,7 @@ contract LabFacet is ERC721EnumerableUpgradeable, ReservableToken {
         string calldata _auth,
         string calldata _accessURI,
         string calldata _accessKey
-    ) external isLabProvider {
+    ) public isLabProvider {
         // Validate string lengths to prevent DoS attacks
         require(bytes(_uri).length > 0 && bytes(_uri).length <= 500, "Invalid URI length");
         require(bytes(_auth).length > 0 && bytes(_auth).length <= 500, "Invalid auth length");
@@ -239,7 +239,7 @@ contract LabFacet is ERC721EnumerableUpgradeable, ReservableToken {
         string calldata _auth,
         string calldata _accessURI,
         string calldata _accessKey
-    ) external isLabProvider {
+    ) public isLabProvider {
         // Validate string lengths to prevent DoS attacks
         require(bytes(_uri).length > 0 && bytes(_uri).length <= 500, "Invalid URI length");
         require(bytes(_auth).length > 0 && bytes(_auth).length <= 500, "Invalid auth length");
@@ -331,7 +331,7 @@ contract LabFacet is ERC721EnumerableUpgradeable, ReservableToken {
     function setTokenURI(
         uint256 _labId,
         string memory _tokenURI
-    ) external exists(_labId) onlyTokenOwner(_labId) {
+    ) public exists(_labId) onlyTokenOwner(_labId) {
         require(bytes(_tokenURI).length > 0, "Token URI cannot be empty");
 
         LabBase memory lab = _s().labs[_labId];
@@ -397,7 +397,7 @@ contract LabFacet is ERC721EnumerableUpgradeable, ReservableToken {
         string calldata _auth,
         string calldata _accessURI,
         string calldata _accessKey
-    ) external onlyTokenOwner(_labId) {
+    ) public onlyTokenOwner(_labId) {
         // Validate string lengths to prevent DoS attacks
         require(bytes(_uri).length > 0 && bytes(_uri).length <= 500, "Invalid URI length");
         require(bytes(_auth).length > 0 && bytes(_auth).length <= 500, "Invalid auth length");
@@ -450,7 +450,7 @@ contract LabFacet is ERC721EnumerableUpgradeable, ReservableToken {
     /// SECURITY: Prevents deletion if there are uncollected reservations (CONFIRMED, IN_USE, or COMPLETED)
     /// @param _labId The ID of the Lab to be deleted.
     /// @custom:security Cannot delete lab with active reservations to protect user funds
-    function deleteLab(uint256 _labId) external onlyTokenOwner(_labId) {
+    function deleteLab(uint256 _labId) public onlyTokenOwner(_labId) {
         AppStorage storage s = _s();
         
         // Security check: Prevent deletion if there are uncollected reservations
@@ -592,7 +592,7 @@ contract LabFacet is ERC721EnumerableUpgradeable, ReservableToken {
     }
 
     /// @notice Approves a specific address to manage the given token ID.
-    /// @dev Overrides the `approve` function from both IERC721 and ERC721Upgradeable.
+    /// @dev Overrides the `approve` function from both IERC721Upgradeable and ERC721Upgradeable.
     ///      Ensures that only a LabProvider can be approved for the token.
     /// @param _to The address to be approved.
     /// @param _tokenId The ID of the token to approve.
@@ -601,7 +601,7 @@ contract LabFacet is ERC721EnumerableUpgradeable, ReservableToken {
     function approve(
         address _to,
         uint256 _tokenId
-    ) public virtual override(IERC721, ERC721Upgradeable) {
+    ) public virtual override(IERC721Upgradeable, ERC721Upgradeable) {
         require(
             _s()._isLabProvider(_to),
             "Only one LabProvider can be approved"
@@ -615,11 +615,11 @@ contract LabFacet is ERC721EnumerableUpgradeable, ReservableToken {
     /// @param _operator The address of the operator to be approved or disapproved.
     /// @param _approved A boolean indicating whether the operator is approved (`true`) or disapproved (`false`).
     /// @custom:require `_operator` must be a LabProvider as determined by `_s()._isLabProvider`.
-    /// @custom:override Overrides the `setApprovalForAll` function from both `IERC721` and `ERC721Upgradeable`.
+    /// @custom:override Overrides the `setApprovalForAll` function from both `IERC721Upgradeable` and `ERC721Upgradeable`.
     function setApprovalForAll(
         address _operator,
         bool _approved
-    ) public virtual override(IERC721, ERC721Upgradeable) {
+    ) public virtual override(IERC721Upgradeable, ERC721Upgradeable) {
         require(
             _s()._isLabProvider(_operator),
             "Only one LabProvider can be approved"
@@ -628,68 +628,45 @@ contract LabFacet is ERC721EnumerableUpgradeable, ReservableToken {
         super.setApprovalForAll(_operator, _approved);
     }
 
-    /// @dev Internal pure function to retrieve the application storage structure.
-    ///      This function provides access to the `AppStorage` instance by calling
-    ///      the `diamondStorage` function from the `LibAppStorage` library.
-    /// @return s The storage instance of type `AppStorage`.
-    function _s() internal pure returns (AppStorage storage s) {
-        return LibAppStorage.diamondStorage();
-    }
-
-    /// @dev Internal function to update the ownership of a Lab token.
-    /// Overrides the parent `_update` function to include additional validation.
-    /// This function is called when transferring ownership of a Lab token.
-    ///
-    /// Transferring a listed lab will automatically unlist it to maintain
-    /// consistent listedLabsCount for both sender and receiver.
-    ///
-    /// Requirements:
-    /// - `_to` must be a valid Lab provider. Only one Lab owner can receive the Lab.
-    /// - If lab is listed and being transferred (not minted/burned), it will be unlisted
-    ///
-    /// @param _to The address of the new owner of the Lab token.
-    /// @param _tokenId The ID of the Lab token being updated.
-    /// @param _auth The address authorized for the update operation.
-    ///
-    /// @return The address of the new owner after the update.
-    function _update(
-        address _to,
-        uint256 _tokenId,
-        address _auth
-    ) internal virtual override returns (address) {
+    /// @dev Internal hook executed before transfers/mints/burns to enforce provider/stake rules
+    ///      and migrate reservation bookkeeping on ownership changes.
+    function _beforeTokenTransfer(
+        address from,
+        address to,
+        uint256 tokenId,
+        uint256 batchSize
+    ) internal virtual override(ERC721EnumerableUpgradeable) {
         AppStorage storage s = _s();
-        
-        // Get previous owner (will be address(0) for mints)
-        address from = _ownerOf(_tokenId);
+        require(batchSize == 1, "Batch transfers not supported");
         
         // If not a burn operation (to != address(0)), require recipient to be a provider
-        if (_to != address(0)) {
-            require(s._isLabProvider(_to), "Only one Lab owner can receive Lab");
+        if (to != address(0)) {
+            require(s._isLabProvider(to), "Only one Lab owner can receive Lab");
         }
         
         // Handle listedLabsCount for TRANSFERS (not mints or burns)
         // from != address(0) means it's not a mint
         // _to != address(0) means it's not a burn
-        if (from != address(0) && _to != address(0)) {
-            bool isListed = s.tokenStatus[_tokenId];
+        if (from != address(0) && to != address(0)) {
+            bool isListed = s.tokenStatus[tokenId];
             
             if (isListed) {
                 // Lab is currently listed - unlist it and decrement old owner's count
-                s.tokenStatus[_tokenId] = false;
+                s.tokenStatus[tokenId] = false;
                 
                 if (s.providerStakes[from].listedLabsCount > 0) {
                     s.providerStakes[from].listedLabsCount--;
                 }
                 
-                emit LabUnlisted(_tokenId, from);
+                emit LabUnlisted(tokenId, from);
             }
             
             // Validate new owner has sufficient stake for their current listings
             // This prevents transferring labs to providers who can't afford them
-            uint256 recipientListedCount = s.providerStakes[_to].listedLabsCount;
+            uint256 recipientListedCount = s.providerStakes[to].listedLabsCount;
             if (recipientListedCount > 0) {
-                uint256 requiredStake = calculateRequiredStake(_to, recipientListedCount);
-                uint256 currentStake = s.providerStakes[_to].stakedAmount;
+                uint256 requiredStake = calculateRequiredStake(to, recipientListedCount);
+                uint256 currentStake = s.providerStakes[to].stakedAmount;
                 
                 require(
                     currentStake >= requiredStake,
@@ -702,7 +679,7 @@ contract LabFacet is ERC721EnumerableUpgradeable, ReservableToken {
             // This prevents memory leak in reservationsProvider[oldOwner] and ensures stake accounting
             // remains accurate. Transfers are limited to MAX_CLEANUP_PER_TRANSFER active reservations
             // to keep the loop bounded and avoid DoS vectors.
-            EnumerableSet.Bytes32Set storage labReservations = s.reservationsByLabId[_tokenId];
+            EnumerableSet.Bytes32Set storage labReservations = s.reservationKeysByToken[tokenId];
             uint256 reservationCount = labReservations.length();
             require(
                 reservationCount <= MAX_CLEANUP_PER_TRANSFER,
@@ -721,29 +698,28 @@ contract LabFacet is ERC721EnumerableUpgradeable, ReservableToken {
                 // COLLECTED/CANCELLED are terminal states and don't need migration.
                 if (status == CONFIRMED || status == IN_USE || status == COMPLETED) {
                     // Update labProvider to new owner
-                    s.reservations[key].labProvider = _to;
+                    s.reservations[key].labProvider = to;
                     s.reservations[key].collectorInstitution =
-                        s.institutionalBackends[_to] != address(0) ? _to : address(0);
+                        s.institutionalBackends[to] != address(0) ? to : address(0);
                     
                     // Move from old provider's index to new provider's index
                     s.reservationsProvider[from].remove(key);
-                    s.reservationsProvider[_to].add(key);
+                    s.reservationsProvider[to].add(key);
 
                     if (s.providerActiveReservationCount[from] > 0) {
                         s.providerActiveReservationCount[from]--;
                     }
-                    s.providerActiveReservationCount[_to]++;
+                    s.providerActiveReservationCount[to]++;
                     
                     // Emit event for off-chain tracking
-                    emit ReservationProviderUpdated(key, _tokenId, from, _to);
+                    emit ReservationProviderUpdated(key, tokenId, from, to);
                 }
                 
                 unchecked { ++i; }
             }
 
         }
-        
-        // Proceed with the standard update process
-        return super._update(_to, _tokenId, _auth);
+
+        super._beforeTokenTransfer(from, to, tokenId, batchSize);
     }
 }

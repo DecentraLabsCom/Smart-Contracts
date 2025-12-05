@@ -3,6 +3,7 @@ pragma solidity ^0.8.23;
 
 import "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
 import {LibAppStorage, AppStorage, PROVIDER_ROLE, INSTITUTION_ROLE, Provider, ProviderBase} from "../libraries/LibAppStorage.sol";
+import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import "../libraries/LibDiamond.sol";
 import {LibAccessControlEnumerable} from "../libraries/LibAccessControlEnumerable.sol";
 import "../external/LabERC20.sol"; // Import the LabERC20 contract, no yet implemented
@@ -18,6 +19,7 @@ import "../external/LabERC20.sol"; // Import the LabERC20 contract, no yet imple
 /// @custom:security Only accounts with the appropriate roles can perform restricted actions.
 contract ProviderFacet is AccessControlUpgradeable {
     using LibAccessControlEnumerable for AppStorage;
+    using EnumerableSet for EnumerableSet.AddressSet;
 
     /// @dev Represents the initial amount of LAB tokens minted to new providers.
     /// Total: 1000 tokens (1,000,000,000 units with 6 decimals)

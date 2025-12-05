@@ -4,6 +4,7 @@ pragma solidity ^0.8.23;
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import "./ReservableToken.sol";
+import {RecentReservationBuffer, UpcomingReservationBuffer, PastReservationBuffer, AppStorage} from "../libraries/LibAppStorage.sol";
 
 /// @title ReservableTokenEnumerable
 /// @author
@@ -28,6 +29,8 @@ abstract contract ReservableTokenEnumerable is ReservableToken {
     
     /// @dev Maximum number of active future reservations per user per lab
     uint8 constant MAX_RESERVATIONS_PER_LAB_USER = 10;
+    uint8 internal constant TOKEN_BUFFER_CAP = 40;
+    uint8 internal constant USER_BUFFER_CAP = 20;
 
     /// @notice Allows a user to request a reservation for a specific token during a time period
     /// @dev Creates a new reservation request and adds it to tracking sets
@@ -51,8 +54,8 @@ abstract contract ReservableTokenEnumerable is ReservableToken {
         bytes32 reservationKey = _getReservationKey(_tokenId, _start);
         
         // Optimized availability check
-        bool keyExists = s.reservationKeys.contains(reservationKey);
-        if (keyExists && s.reservations[reservationKey].status != CANCELLED) {
+        Reservation storage existing = s.reservations[reservationKey];
+        if (existing.renter != address(0) && existing.status != CANCELLED && existing.status != COLLECTED) {
             revert NotAvailable();
         }
 
@@ -75,7 +78,7 @@ abstract contract ReservableTokenEnumerable is ReservableToken {
         newReservation.status = PENDING;
         
         // Batch set operations
-        s.reservationKeys.add(reservationKey);
+        s.totalReservationsCount++;
         s.renters[msg.sender].add(reservationKey);
         
         emit ReservationRequested(msg.sender, _tokenId, _start, _end, reservationKey);
@@ -149,20 +152,10 @@ abstract contract ReservableTokenEnumerable is ReservableToken {
     }
 
     /// @notice Returns the total number of existing reservations
-    /// @dev Retrieves the length of the reservationKeys array from storage
+    /// @dev Uses a simple counter of active reservations
     /// @return The total count of reservations as a uint256
     function totalReservations() external view returns (uint256) {
-        return _s().reservationKeys.length();
-    }
-
-    /// @notice Retrieves a reservation key at a specified index from the stored reservation keys
-    /// @dev Reverts if the index is out of bounds
-    /// @param _index The index at which to retrieve the reservation key
-    /// @return bytes32 The reservation key at the specified index
-    function reservationKeyByIndex(uint256 _index) external view returns (bytes32) {
-        AppStorage storage s = _s();
-        if (_index >= s.reservationKeys.length()) revert IndexOutOfBounds();
-        return s.reservationKeys.at(_index);
+        return _s().totalReservationsCount;
     }
 
     /// @notice Get the number of reservations for a specific user
@@ -205,6 +198,288 @@ abstract contract ReservableTokenEnumerable is ReservableToken {
         AppStorage storage s = _s();
         if (_index >= s.reservationKeysByToken[_tokenId].length()) revert IndexOutOfBounds();
         return s.reservationKeysByToken[_tokenId].at(_index);
+    }
+
+    /// @notice Paginated access to reservation keys of a token (unordered set order)
+    function getReservationsOfTokenPaginated(
+        uint256 _tokenId,
+        uint256 offset,
+        uint256 limit
+    ) external view exists(_tokenId) returns (bytes32[] memory keys, uint256 total) {
+        AppStorage storage s = _s();
+        total = s.reservationKeysByToken[_tokenId].length();
+        require(limit > 0 && limit <= 100, "Invalid limit");
+        if (offset >= total) {
+            return (new bytes32[](0), total);
+        }
+        uint256 end = offset + limit;
+        if (end > total) end = total;
+        uint256 size = end - offset;
+        keys = new bytes32[](size);
+        for (uint256 i; i < size; i++) {
+            keys[i] = s.reservationKeysByToken[_tokenId].at(offset + i);
+        }
+    }
+
+    /// @notice Returns the most recent past reservation keys for a token ordered by end time (desc)
+    /// @dev Uses fixed-size buffer maintained on cancellation/collection; maxScan kept for ABI compatibility
+    function getRecentReservationsOfToken(
+        uint256 _tokenId,
+        uint256 maxCount,
+        uint256 maxScan
+    ) external view exists(_tokenId) returns (bytes32[] memory keys) {
+        maxScan; // kept for ABI compatibility
+        AppStorage storage s = _s();
+        PastReservationBuffer storage buf = s.pastReservationsByToken[_tokenId];
+        if (buf.size == 0 || maxCount == 0) {
+            return new bytes32[](0);
+        }
+        uint256 size = buf.size;
+        if (size > TOKEN_BUFFER_CAP) size = TOKEN_BUFFER_CAP;
+        uint256 take = size < maxCount ? size : maxCount;
+        keys = new bytes32[](take);
+        for (uint256 i; i < take; i++) {
+            keys[i] = buf.keys[i];
+        }
+    }
+
+    /// @notice Returns upcoming (current/future) reservation keys for a token ordered by start time (asc)
+    /// @dev Filters out expired/cancelled entries from the fixed-size buffer; capped at 40 entries for token-level
+    function getUpcomingReservationsOfToken(
+        uint256 _tokenId,
+        uint256 maxCount
+    ) external view exists(_tokenId) returns (bytes32[] memory keys) {
+        AppStorage storage s = _s();
+        UpcomingReservationBuffer storage buf = s.upcomingReservationsByToken[_tokenId];
+        if (buf.size == 0 || maxCount == 0) {
+            return new bytes32[](0);
+        }
+        uint256 size = buf.size;
+        if (size > TOKEN_BUFFER_CAP) size = TOKEN_BUFFER_CAP;
+        uint256 take = size < maxCount ? size : maxCount;
+        bytes32[] memory tmp = new bytes32[](take);
+        uint256 found;
+        uint32 currentTime = uint32(block.timestamp);
+        for (uint256 i; i < size && found < maxCount; i++) {
+            bytes32 key = buf.keys[i];
+            Reservation storage r = s.reservations[key];
+            if (r.end < currentTime || r.status == CANCELLED) {
+                continue;
+            }
+            tmp[found] = key;
+            found++;
+        }
+        if (found == take) {
+            return tmp;
+        }
+        keys = new bytes32[](found);
+        for (uint256 j; j < found; j++) {
+            keys[j] = tmp[j];
+        }
+    }
+
+    /// @notice Paginated access to reservation keys for a token/user pair (unordered set order)
+    function getReservationsOfTokenByUserPaginated(
+        uint256 _tokenId,
+        address _user,
+        uint256 offset,
+        uint256 limit
+    ) external view exists(_tokenId) returns (bytes32[] memory keys, uint256 total) {
+        AppStorage storage s = _s();
+        EnumerableSet.Bytes32Set storage set = s.reservationKeysByTokenAndUser[_tokenId][_user];
+        total = set.length();
+        require(limit > 0 && limit <= 100, "Invalid limit");
+        if (offset >= total) {
+            return (new bytes32[](0), total);
+        }
+        uint256 end = offset + limit;
+        if (end > total) end = total;
+        uint256 size = end - offset;
+        keys = new bytes32[](size);
+        for (uint256 i; i < size; i++) {
+            keys[i] = set.at(offset + i);
+        }
+    }
+
+    /// @notice Recent past reservations for a token/user ordered by end time (desc), with scan cap
+    function getRecentReservationsOfTokenByUser(
+        uint256 _tokenId,
+        address _user,
+        uint256 maxCount,
+        uint256 maxScan
+    ) external view exists(_tokenId) returns (bytes32[] memory keys) {
+        maxScan; // kept for ABI compatibility
+        AppStorage storage s = _s();
+        PastReservationBuffer storage buf = s.pastReservationsByTokenAndUser[_tokenId][_user];
+        if (buf.size == 0 || maxCount == 0) {
+            return new bytes32[](0);
+        }
+        uint256 size = buf.size;
+        if (size > USER_BUFFER_CAP) size = USER_BUFFER_CAP;
+        uint256 take = size < maxCount ? size : maxCount;
+        keys = new bytes32[](take);
+        for (uint256 i; i < take; i++) {
+            keys[i] = buf.keys[i];
+        }
+    }
+
+    /// @notice Upcoming (current/future) reservations for a token/user ordered by start time (asc)
+    /// @dev Filters out expired/cancelled entries from the fixed-size buffer; capped at 20 entries for user-level
+    function getUpcomingReservationsOfTokenByUser(
+        uint256 _tokenId,
+        address _user,
+        uint256 maxCount
+    ) external view exists(_tokenId) returns (bytes32[] memory keys) {
+        AppStorage storage s = _s();
+        UpcomingReservationBuffer storage buf = s.upcomingReservationsByTokenAndUser[_tokenId][_user];
+        if (buf.size == 0 || maxCount == 0) {
+            return new bytes32[](0);
+        }
+        uint256 size = buf.size;
+        if (size > USER_BUFFER_CAP) size = USER_BUFFER_CAP;
+        uint256 take = size < maxCount ? size : maxCount;
+        bytes32[] memory tmp = new bytes32[](take);
+        uint256 found;
+        uint32 currentTime = uint32(block.timestamp);
+        for (uint256 i; i < size && found < maxCount; i++) {
+            bytes32 key = buf.keys[i];
+            Reservation storage r = s.reservations[key];
+            if (r.end < currentTime || r.status == CANCELLED) {
+                continue;
+            }
+            tmp[found] = key;
+            found++;
+        }
+        if (found == take) {
+            return tmp;
+        }
+        keys = new bytes32[](found);
+        for (uint256 j; j < found; j++) {
+            keys[j] = tmp[j];
+        }
+    }
+
+    function _recordRecent(
+        AppStorage storage s,
+        uint256 labId,
+        address userTrackingKey,
+        bytes32 reservationKey,
+        uint32 startTime
+    ) internal {
+        _insertRecent(s.recentReservationsByToken[labId], reservationKey, startTime, TOKEN_BUFFER_CAP);
+        _insertRecent(s.recentReservationsByTokenAndUser[labId][userTrackingKey], reservationKey, startTime, USER_BUFFER_CAP);
+        _insertUpcoming(s.upcomingReservationsByToken[labId], reservationKey, startTime, TOKEN_BUFFER_CAP);
+        _insertUpcoming(s.upcomingReservationsByTokenAndUser[labId][userTrackingKey], reservationKey, startTime, USER_BUFFER_CAP);
+    }
+
+    function _recordPast(
+        AppStorage storage s,
+        uint256 labId,
+        address userTrackingKey,
+        bytes32 reservationKey,
+        uint32 endTime
+    ) internal {
+        _insertPast(s.pastReservationsByToken[labId], reservationKey, endTime, TOKEN_BUFFER_CAP);
+        _insertPast(s.pastReservationsByTokenAndUser[labId][userTrackingKey], reservationKey, endTime, USER_BUFFER_CAP);
+    }
+
+    function _insertRecent(
+        RecentReservationBuffer storage buf,
+        bytes32 key,
+        uint32 startTime,
+        uint8 cap
+    ) internal {
+        uint8 size = buf.size;
+        if (size > cap) {
+            size = cap;
+            buf.size = cap;
+        }
+        // If buffer full and new entry is older than or equal to last, ignore
+        if (size == cap && startTime <= buf.starts[size - 1]) {
+            return;
+        }
+        // Find insertion position (desc by start)
+        uint8 pos = size;
+        while (pos > 0 && startTime > buf.starts[pos - 1]) {
+            pos--;
+        }
+        // Shift to make room, capping at cap
+        uint8 upper = size < cap ? size : cap - 1;
+        for (uint8 i = upper; i > pos; i--) {
+            buf.keys[i] = buf.keys[i - 1];
+            buf.starts[i] = buf.starts[i - 1];
+        }
+        buf.keys[pos] = key;
+        buf.starts[pos] = startTime;
+        if (size < cap) {
+            buf.size = size + 1;
+        }
+    }
+
+    function _insertUpcoming(
+        UpcomingReservationBuffer storage buf,
+        bytes32 key,
+        uint32 startTime,
+        uint8 cap
+    ) internal {
+        uint8 size = buf.size;
+        if (size > cap) {
+            size = cap;
+            buf.size = cap;
+        }
+        // If buffer full and new entry is later than or equal to the last, ignore (keep earliest cap)
+        if (size == cap && startTime >= buf.starts[size - 1]) {
+            return;
+        }
+        // Find insertion position (asc by start)
+        uint8 pos = size;
+        while (pos > 0 && startTime < buf.starts[pos - 1]) {
+            pos--;
+        }
+        // Shift to make room, capping at cap
+        uint8 upper = size < cap ? size : cap - 1;
+        for (uint8 i = upper; i > pos; i--) {
+            buf.keys[i] = buf.keys[i - 1];
+            buf.starts[i] = buf.starts[i - 1];
+        }
+        buf.keys[pos] = key;
+        buf.starts[pos] = startTime;
+        if (size < cap) {
+            buf.size = size + 1;
+        }
+    }
+
+    function _insertPast(
+        PastReservationBuffer storage buf,
+        bytes32 key,
+        uint32 endTime,
+        uint8 cap
+    ) internal {
+        uint8 size = buf.size;
+        if (size > cap) {
+            size = cap;
+            buf.size = cap;
+        }
+        // If buffer full and new entry is older than or equal to the last, ignore (keep most recent cap)
+        if (size == cap && endTime <= buf.ends[size - 1]) {
+            return;
+        }
+        // Find insertion position (desc by end)
+        uint8 pos = size;
+        while (pos > 0 && endTime > buf.ends[pos - 1]) {
+            pos--;
+        }
+        // Shift to make room, capping at cap
+        uint8 upper = size < cap ? size : cap - 1;
+        for (uint8 i = upper; i > pos; i--) {
+            buf.keys[i] = buf.keys[i - 1];
+            buf.ends[i] = buf.ends[i - 1];
+        }
+        buf.keys[pos] = key;
+        buf.ends[pos] = endTime;
+        if (size < cap) {
+            buf.size = size + 1;
+        }
     }
 
     /// @notice Checks if a user has an active booking for a specific token
@@ -326,7 +601,7 @@ abstract contract ReservableTokenEnumerable is ReservableToken {
     /// @param _reservationKey The unique identifier of the reservation to be canceled
     /// @notice This function removes the reservation from both the renter's list and through
     ///         the parent implementation
-    function _cancelReservation(bytes32 _reservationKey) internal override {
+    function _cancelReservation(bytes32 _reservationKey) internal virtual override {
         AppStorage storage s = _s();
         Reservation storage reservation = s.reservations[_reservationKey];
 
@@ -346,7 +621,19 @@ abstract contract ReservableTokenEnumerable is ReservableToken {
         s.reservationKeysByToken[reservation.labId].remove(_reservationKey);
         s.renters[reservation.renter].remove(_reservationKey);
 
+        _recordPastOnCancel(s, reservation, _reservationKey);
+
         super._cancelReservation(_reservationKey);
+    }
+
+    /// @dev Hook to track past reservations on cancel; overridable for institutional tracking keys
+    function _recordPastOnCancel(
+        AppStorage storage s,
+        Reservation storage reservation,
+        bytes32 reservationKey
+    ) internal virtual {
+        // Use cancellation time to reflect recency for user history
+        _recordPast(s, reservation.labId, reservation.renter, reservationKey, uint32(block.timestamp));
     }
     
     /// @dev Internal helper to find the next earliest active reservation for a (token, user) pair

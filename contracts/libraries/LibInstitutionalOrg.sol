@@ -8,6 +8,7 @@ import {AppStorage, INSTITUTION_ROLE} from "./LibAppStorage.sol";
 /// @notice Shared helpers to normalize and manage schacHomeOrganization registrations
 library LibInstitutionalOrg {
     using EnumerableSet for EnumerableSet.Bytes32Set;
+    using EnumerableSet for EnumerableSet.AddressSet;
 
     /// @notice Emitted when an institution registers a schacHomeOrganization
     event SchacHomeOrganizationRegistered(

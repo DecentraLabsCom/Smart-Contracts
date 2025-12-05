@@ -2,7 +2,8 @@
 pragma solidity ^0.8.23;
 
 import "./ReservableTokenEnumerable.sol";
-import "../libraries/LibAppStorage.sol";
+import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
+import {LibAppStorage, AppStorage, UserActiveReservation} from "../libraries/LibAppStorage.sol";
 
 /// @title InstitutionalReservableTokenEnumerable
 /// @author
@@ -15,6 +16,7 @@ import "../libraries/LibAppStorage.sol";
 ///      no pending abstract functions. It extends wallet reservation logic with institutional features.
 ///      Should only be inherited by facets like InstitutionalReservationFacet.
 abstract contract InstitutionalReservableTokenEnumerable is ReservableTokenEnumerable {
+    using EnumerableSet for EnumerableSet.Bytes32Set;
 
     function _isInstitutionalReservation(Reservation storage reservation) internal view returns (bool) {
         return bytes(reservation.puc).length > 0;
@@ -88,14 +90,27 @@ abstract contract InstitutionalReservableTokenEnumerable is ReservableTokenEnume
         s.renters[trackingKey].remove(_reservationKey);
         _invalidateInstitutionalActiveReservation(s, labId, reservation, _reservationKey);
     }
+
+    /// @dev Override to track past reservations using institutional tracking key
+    function _recordPastOnCancel(
+        AppStorage storage s,
+        Reservation storage reservation,
+        bytes32 reservationKey
+    ) internal virtual override {
+        if (_isInstitutionalReservation(reservation)) {
+            _recordPast(s, reservation.labId, _computeTrackingKey(reservation), reservationKey, uint32(block.timestamp));
+            return;
+        }
+        super._recordPastOnCancel(s, reservation, reservationKey);
+    }
     function _peekActiveReservation(
         AppStorage storage s,
         uint256 labId,
         address trackingKey
     ) internal returns (bytes32) {
-        LibAppStorage.UserActiveReservation[] storage heap = s.activeReservationHeaps[labId][trackingKey];
+        UserActiveReservation[] storage heap = s.activeReservationHeaps[labId][trackingKey];
         while (heap.length > 0) {
-            LibAppStorage.UserActiveReservation storage root = heap[0];
+            UserActiveReservation storage root = heap[0];
             bytes32 key = root.key;
 
             if (!s.activeReservationHeapContains[key]) {
@@ -141,8 +156,8 @@ abstract contract InstitutionalReservableTokenEnumerable is ReservableTokenEnume
         if (trackingKey == address(0) || s.activeReservationHeapContains[reservationKey]) {
             return;
         }
-        LibAppStorage.UserActiveReservation[] storage heap = s.activeReservationHeaps[labId][trackingKey];
-        heap.push(LibAppStorage.UserActiveReservation({start: start, key: reservationKey}));
+        UserActiveReservation[] storage heap = s.activeReservationHeaps[labId][trackingKey];
+        heap.push(UserActiveReservation({start: start, key: reservationKey}));
         s.activeReservationHeapContains[reservationKey] = true;
         _activeHeapifyUp(heap, heap.length - 1);
     }
@@ -160,14 +175,14 @@ abstract contract InstitutionalReservableTokenEnumerable is ReservableTokenEnume
             return;
         }
         s.activeReservationHeapContains[reservationKey] = false;
-        LibAppStorage.UserActiveReservation[] storage heap = s.activeReservationHeaps[labId][trackingKey];
+        UserActiveReservation[] storage heap = s.activeReservationHeaps[labId][trackingKey];
         if (heap.length > 0 && heap[0].key == reservationKey) {
             _removeActiveReservationRoot(heap);
         }
     }
 
     function _removeActiveReservationRoot(
-        LibAppStorage.UserActiveReservation[] storage heap
+        UserActiveReservation[] storage heap
     ) internal {
         uint256 lastIndex = heap.length - 1;
         if (lastIndex == 0) {
@@ -180,7 +195,7 @@ abstract contract InstitutionalReservableTokenEnumerable is ReservableTokenEnume
     }
 
     function _activeHeapifyUp(
-        LibAppStorage.UserActiveReservation[] storage heap,
+        UserActiveReservation[] storage heap,
         uint256 index
     ) internal {
         while (index > 0) {
@@ -188,13 +203,15 @@ abstract contract InstitutionalReservableTokenEnumerable is ReservableTokenEnume
             if (heap[index].start >= heap[parent].start) {
                 break;
             }
-            (heap[index], heap[parent]) = (heap[parent], heap[index]);
+            UserActiveReservation memory temp = heap[index];
+            heap[index] = heap[parent];
+            heap[parent] = temp;
             index = parent;
         }
     }
 
     function _activeHeapifyDown(
-        LibAppStorage.UserActiveReservation[] storage heap,
+        UserActiveReservation[] storage heap,
         uint256 index
     ) internal {
         uint256 length = heap.length;
@@ -211,7 +228,9 @@ abstract contract InstitutionalReservableTokenEnumerable is ReservableTokenEnume
             if (heap[index].start <= heap[smallest].start) {
                 break;
             }
-            (heap[index], heap[smallest]) = (heap[smallest], heap[index]);
+            UserActiveReservation memory temp = heap[index];
+            heap[index] = heap[smallest];
+            heap[smallest] = temp;
             index = smallest;
         }
     }

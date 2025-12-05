@@ -177,7 +177,7 @@ library RivalIntervalTreeLibrary {
             }
         } else {
             uint nextCursor = next(self, cursor);
-            overlap = (key < referencedNode.end) || ((nextCursor != EMPTY) && (end > nextCursor));
+            overlap = (key < self.nodes[cursor].end) || ((nextCursor != EMPTY) && (end > nextCursor));
             
             if (!overlap) {
                 self.nodes[key] = node;

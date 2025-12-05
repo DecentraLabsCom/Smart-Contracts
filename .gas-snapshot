@@ -1,0 +1,4 @@
+GasReservationsTest:testGas_CancelBooking() (gas: 1041612)
+GasReservationsTest:testGas_ConfirmReservationRequest() (gas: 1026036)
+GasReservationsTest:testGas_DenyReservationRequest() (gas: 630782)
+GasReservationsTest:testGas_ReservationRequest() (gas: 642845)

@@ -3,16 +3,26 @@ pragma solidity ^0.8.23;
 
 import {IntentMeta, ReservationIntentPayload, ActionIntentPayload} from "../libraries/IntentTypes.sol";
 import {LibIntent} from "../libraries/LibIntent.sol";
+import {LibAppStorage, AppStorage} from "../libraries/LibAppStorage.sol";
+import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 
 /// @title IntentRegistryFacet
 /// @notice Registers, cancels and exposes intents used by *WithIntent flows
 contract IntentRegistryFacet {
+    using EnumerableSet for EnumerableSet.AddressSet;
+
+    modifier onlyDefaultAdmin() {
+        AppStorage storage s = _s();
+        require(s.roleMembers[s.DEFAULT_ADMIN_ROLE].contains(msg.sender), "Only default admin");
+        _;
+    }
+
     /// @notice Register a reservation intent (request / cancel request)
     function registerReservationIntent(
         IntentMeta calldata meta,
         ReservationIntentPayload calldata payload,
         bytes calldata signature
-    ) external {
+    ) external onlyDefaultAdmin {
         LibIntent.registerReservationIntent(meta, payload, signature);
     }
 
@@ -21,7 +31,7 @@ contract IntentRegistryFacet {
         IntentMeta calldata meta,
         ActionIntentPayload calldata payload,
         bytes calldata signature
-    ) external {
+    ) external onlyDefaultAdmin {
         LibIntent.registerActionIntent(meta, payload, signature);
     }
 
@@ -38,5 +48,9 @@ contract IntentRegistryFacet {
     /// @notice Next nonce expected for a signer
     function nextIntentNonce(address signer) external view returns (uint256) {
         return LibIntent.nextNonce(signer);
+    }
+
+    function _s() internal pure returns (AppStorage storage s) {
+        return LibAppStorage.diamondStorage();
     }
 }

@@ -20,8 +20,8 @@ contract InstitutionalOrgRegistryFacet {
         LibInstitutionalOrg.registerOrganization(_s(), msg.sender, normalized);
     }
 
-    /// @notice Admin helper to register a schacHomeOrganization on behalf of a provider
-    /// @param provider The provider wallet that owns the institution
+    /// @notice Admin helper to register a schacHomeOrganization on behalf of an institution
+    /// @param institution The institution wallet that owns the organization
     /// @param schacHomeOrganization The organization identifier (will be normalized to lowercase)
     function adminRegisterSchacHomeOrganization(
         address institution,
@@ -38,8 +38,8 @@ contract InstitutionalOrgRegistryFacet {
         LibInstitutionalOrg.unregisterOrganization(_s(), msg.sender, normalized);
     }
 
-    /// @notice Admin helper to remove a schacHomeOrganization from a provider
-    /// @param provider The provider wallet that owns the organization
+    /// @notice Admin helper to remove a schacHomeOrganization from an institution
+    /// @param institution The institution wallet that owns the organization
     /// @param schacHomeOrganization The organization identifier to remove
     function adminUnregisterSchacHomeOrganization(
         address institution,
@@ -72,6 +72,28 @@ contract InstitutionalOrgRegistryFacet {
         }
     }
 
+    /// @notice Paginated schacHomeOrganization identifiers registered by an institution
+    function getRegisteredSchacHomeOrganizationsPaginated(
+        address institution,
+        uint256 offset,
+        uint256 limit
+    ) external view returns (string[] memory organizations, uint256 total) {
+        AppStorage storage s = _s();
+        total = s.institutionSchacHomeOrganizations[institution].length();
+        require(limit > 0 && limit <= 200, "Invalid limit");
+        if (offset >= total) {
+            return (new string[](0), total);
+        }
+        uint256 end = offset + limit;
+        if (end > total) end = total;
+        uint256 size = end - offset;
+        organizations = new string[](size);
+        for (uint256 i; i < size; i++) {
+            bytes32 orgHash = s.institutionSchacHomeOrganizations[institution].at(offset + i);
+            organizations[i] = s.schacHomeOrganizationNames[orgHash];
+        }
+    }
+
     /// @notice View helper that returns both the provider and the normalized identifier for a hash
     /// @param organizationHash keccak256 hash of the normalized schacHomeOrganization
     /// @return institution The institution wallet that owns the identifier
@@ -94,6 +116,27 @@ contract InstitutionalOrgRegistryFacet {
         organizationHashes = new bytes32[](total);
         for (uint256 i = 0; i < total; i++) {
             organizationHashes[i] = s.institutionSchacHomeOrganizations[institution].at(i);
+        }
+    }
+
+    /// @notice Paginated organization hashes registered by an institution wallet
+    function getOrganizationHashesByInstitutionPaginated(
+        address institution,
+        uint256 offset,
+        uint256 limit
+    ) external view returns (bytes32[] memory organizationHashes, uint256 total) {
+        AppStorage storage s = _s();
+        total = s.institutionSchacHomeOrganizations[institution].length();
+        require(limit > 0 && limit <= 200, "Invalid limit");
+        if (offset >= total) {
+            return (new bytes32[](0), total);
+        }
+        uint256 end = offset + limit;
+        if (end > total) end = total;
+        uint256 size = end - offset;
+        organizationHashes = new bytes32[](size);
+        for (uint256 i; i < size; i++) {
+            organizationHashes[i] = s.institutionSchacHomeOrganizations[institution].at(offset + i);
         }
     }
 

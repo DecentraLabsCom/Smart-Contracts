@@ -59,6 +59,29 @@ contract InstitutionalReservationFacet is BaseReservationFacet, ReentrancyGuard 
         LibIntent.consumeIntent(requestId, action, payloadHash, msg.sender);
     }
 
+    function _consumeInstitutionalRequestIntent(
+        bytes32 requestId,
+        string calldata puc,
+        uint256 labId,
+        uint32 start,
+        uint32 end
+    ) internal returns (bytes32 reservationKey) {
+        reservationKey = _getReservationKey(labId, start);
+        uint96 price = _s().labs[labId].price;
+
+        ReservationIntentPayload memory payload;
+        payload.executor = msg.sender;
+        payload.schacHomeOrganization = "";
+        payload.puc = puc;
+        payload.assertionHash = bytes32(0);
+        payload.labId = labId;
+        payload.start = start;
+        payload.end = end;
+        payload.price = price;
+        payload.reservationKey = reservationKey;
+        _consumeReservationIntent(requestId, LibIntent.ACTION_REQUEST_BOOKING, payload);
+    }
+
     /// @notice Institutional reservation request via intent (emits ReservationIntentProcessed)
     function institutionalReservationRequestWithIntent(
         bytes32 requestId,
@@ -69,21 +92,13 @@ contract InstitutionalReservationFacet is BaseReservationFacet, ReentrancyGuard 
         uint32 _end
     ) external exists(_labId) onlyInstitution(institutionalProvider) {
         require(institutionalProvider == msg.sender, "Institution must be caller");
-        AppStorage storage s = _s();
-        bytes32 reservationKey = _getReservationKey(_labId, _start);
-
-        ReservationIntentPayload memory payload = ReservationIntentPayload({
-            executor: msg.sender,
-            schacHomeOrganization: "",
-            puc: puc,
-            assertionHash: bytes32(0),
-            labId: _labId,
-            start: _start,
-            end: _end,
-            price: s.labs[_labId].price,
-            reservationKey: reservationKey
-        });
-        _consumeReservationIntent(requestId, LibIntent.ACTION_REQUEST_BOOKING, payload);
+        bytes32 reservationKey = _consumeInstitutionalRequestIntent(
+            requestId,
+            puc,
+            _labId,
+            _start,
+            _end
+        );
 
         _institutionalReservationRequest(institutionalProvider, puc, _labId, _start, _end);
         emit ReservationIntentProcessed(requestId, reservationKey, "RESERVATION_REQUEST", puc, institutionalProvider, true, "");

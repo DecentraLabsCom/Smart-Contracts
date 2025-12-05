@@ -646,87 +646,93 @@ contract LabFacet is ERC721EnumerableUpgradeable, ReservableToken {
         AppStorage storage s = _s();
         require(batchSize == 1, "Batch transfers not supported");
         
-        // If not a burn operation (to != address(0)), require recipient to be a provider
         if (to != address(0)) {
+            // If not a burn operation, require recipient to be a provider
             require(s._isLabProvider(to), "Only one Lab owner can receive Lab");
         }
-        
-        // Handle listedLabsCount for TRANSFERS (not mints or burns)
+
         // from != address(0) means it's not a mint
-        // _to != address(0) means it's not a burn
+        // to != address(0) means it's not a burn
         if (from != address(0) && to != address(0)) {
-            bool isListed = s.tokenStatus[tokenId];
-            
-            if (isListed) {
-                // Lab is currently listed - unlist it and decrement old owner's count
-                s.tokenStatus[tokenId] = false;
-                
-                if (s.providerStakes[from].listedLabsCount > 0) {
-                    s.providerStakes[from].listedLabsCount--;
-                }
-                
-                emit LabUnlisted(tokenId, from);
-            }
-            
-            // Validate new owner has sufficient stake for their current listings
-            // This prevents transferring labs to providers who can't afford them
-            uint256 recipientListedCount = s.providerStakes[to].listedLabsCount;
-            if (recipientListedCount > 0) {
-                uint256 requiredStake = calculateRequiredStake(to, recipientListedCount);
-                uint256 currentStake = s.providerStakes[to].stakedAmount;
-                
-                require(
-                    currentStake >= requiredStake,
-                    "Recipient lacks sufficient stake for their current listings"
-                );
-            }
-            
-            // Clean up reservation indices when NFT is transferred.
-            // Transfer CONFIRMED/IN_USE/COMPLETED reservations from old owner's index to new owner's index
-            // This prevents memory leak in reservationsProvider[oldOwner] and ensures stake accounting
-            // remains accurate. Transfers are limited to MAX_CLEANUP_PER_TRANSFER active reservations
-            // to keep the loop bounded and avoid DoS vectors.
-            EnumerableSet.Bytes32Set storage labReservations = s.reservationKeysByToken[tokenId];
-            uint256 reservationCount = labReservations.length();
-            require(
-                reservationCount <= MAX_CLEANUP_PER_TRANSFER,
-                "Too many active reservations to transfer"
-            );
-            
-            for (uint256 i = 0; i < reservationCount;) {
-                bytes32 key = labReservations.at(i);
-                
-                // Cache status in memory to save SLOAD
-                uint8 status = s.reservations[key].status;
-                
-                // Migrate CONFIRMED, IN_USE and COMPLETED reservations to new lab owner.
-                // The new owner inherits the right to collect pending funds earned by the lab.
-                // PENDING reservations don't have provider assigned yet.
-                // COLLECTED/CANCELLED are terminal states and don't need migration.
-                if (status == CONFIRMED || status == IN_USE || status == COMPLETED) {
-                    // Update labProvider to new owner
-                    s.reservations[key].labProvider = to;
-                    s.reservations[key].collectorInstitution =
-                        s.institutionalBackends[to] != address(0) ? to : address(0);
-                    
-                    // Move from old provider's index to new provider's index
-                    s.reservationsProvider[from].remove(key);
-                    s.reservationsProvider[to].add(key);
-
-                    if (s.providerActiveReservationCount[from] > 0) {
-                        s.providerActiveReservationCount[from]--;
-                    }
-                    s.providerActiveReservationCount[to]++;
-                    
-                    // Emit event for off-chain tracking
-                    emit ReservationProviderUpdated(key, tokenId, from, to);
-                }
-                
-                unchecked { ++i; }
-            }
-
+            _handleListingOnTransfer(s, from, to, tokenId);
+            _migrateReservationsOnTransfer(s, from, to, tokenId);
         }
 
         super._beforeTokenTransfer(from, to, tokenId, batchSize);
+    }
+
+    function _handleListingOnTransfer(
+        AppStorage storage s,
+        address from,
+        address to,
+        uint256 tokenId
+    ) internal {
+        if (!s.tokenStatus[tokenId]) {
+            return;
+        }
+
+        s.tokenStatus[tokenId] = false;
+
+        if (s.providerStakes[from].listedLabsCount > 0) {
+            s.providerStakes[from].listedLabsCount--;
+        }
+
+        emit LabUnlisted(tokenId, from);
+
+        uint256 recipientListedCount = s.providerStakes[to].listedLabsCount;
+        if (recipientListedCount == 0) {
+            return;
+        }
+
+        uint256 requiredStake = calculateRequiredStake(to, recipientListedCount);
+        uint256 currentStake = s.providerStakes[to].stakedAmount;
+
+        require(
+            currentStake >= requiredStake,
+            "Recipient lacks sufficient stake for their current listings"
+        );
+    }
+
+    function _migrateReservationsOnTransfer(
+        AppStorage storage s,
+        address from,
+        address to,
+        uint256 tokenId
+    ) internal {
+        EnumerableSet.Bytes32Set storage labReservations = s.reservationKeysByToken[tokenId];
+        uint256 reservationCount = labReservations.length();
+        require(
+            reservationCount <= MAX_CLEANUP_PER_TRANSFER,
+            "Too many active reservations to transfer"
+        );
+
+        for (uint256 i = 0; i < reservationCount;) {
+            bytes32 key = labReservations.at(i);
+
+            // Cache status in memory to save SLOAD
+            uint8 status = s.reservations[key].status;
+
+            // Migrate CONFIRMED, IN_USE and COMPLETED reservations to new lab owner.
+            // The new owner inherits the right to collect pending funds earned by the lab.
+            // PENDING reservations don't have provider assigned yet.
+            // COLLECTED/CANCELLED are terminal states and don't need migration.
+            if (status == CONFIRMED || status == IN_USE || status == COMPLETED) {
+                s.reservations[key].labProvider = to;
+                s.reservations[key].collectorInstitution =
+                    s.institutionalBackends[to] != address(0) ? to : address(0);
+
+                s.reservationsProvider[from].remove(key);
+                s.reservationsProvider[to].add(key);
+
+                if (s.providerActiveReservationCount[from] > 0) {
+                    s.providerActiveReservationCount[from]--;
+                }
+                s.providerActiveReservationCount[to]++;
+
+                emit ReservationProviderUpdated(key, tokenId, from, to);
+            }
+
+            unchecked { ++i; }
+        }
     }
 }

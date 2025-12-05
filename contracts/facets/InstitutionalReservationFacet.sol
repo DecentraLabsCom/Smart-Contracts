@@ -175,6 +175,7 @@ contract InstitutionalReservationFacet is BaseReservationFacet, ReentrancyGuard 
             reservationKey: _reservationKey,
             uri: "",
             price: reservation.price,
+            maxBatch: 0,
             auth: "",
             accessURI: "",
             accessKey: "",

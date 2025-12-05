@@ -8,6 +8,8 @@ import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet
 import {ReentrancyGuard} from "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import "./ReservationFacet.sol";
 import "../libraries/RivalIntervalTreeLibrary.sol";
+import {ActionIntentPayload} from "../libraries/IntentTypes.sol";
+import {LibIntent} from "../libraries/LibIntent.sol";
 
 /// @title WalletReservationFacet
 /// @author
@@ -27,6 +29,9 @@ contract WalletReservationFacet is BaseReservationFacet, ReentrancyGuard {
     using RivalIntervalTreeLibrary for Tree;
 
     error InsufficientFunds(address user, uint256 funds, uint256 price);
+
+    /// @notice Event emitted when a lab intent is processed (mirrors LabFacet)
+    event LabIntentProcessed(bytes32 indexed requestId, uint256 labId, string action, address provider, bool success, string reason);
 
     function reservationRequest(uint256 _labId, uint32 _start, uint32 _end)
         external
@@ -70,6 +75,41 @@ contract WalletReservationFacet is BaseReservationFacet, ReentrancyGuard {
         nonReentrant
     {
         _requestFunds(_labId, maxBatch);
+    }
+
+    /// @notice Collects funds via intent (institutional flow) while keeping direct call available
+    function requestFundsWithIntent(
+        bytes32 requestId,
+        uint256 _labId,
+        uint256 maxBatch
+    )
+        external
+        isLabProvider
+        nonReentrant
+    {
+        if (maxBatch == 0 || maxBatch > 100) revert("Invalid batch size");
+
+        ActionIntentPayload memory payload = ActionIntentPayload({
+            executor: msg.sender,
+            schacHomeOrganization: "",
+            puc: "",
+            assertionHash: bytes32(0),
+            labId: _labId,
+            reservationKey: bytes32(0),
+            uri: "",
+            price: 0,
+            maxBatch: uint96(maxBatch),
+            auth: "",
+            accessURI: "",
+            accessKey: "",
+            tokenURI: ""
+        });
+
+        bytes32 payloadHash = LibIntent.hashActionPayload(payload);
+        LibIntent.consumeIntent(requestId, LibIntent.ACTION_REQUEST_FUNDS, payloadHash, msg.sender);
+
+        _requestFunds(_labId, maxBatch);
+        emit LabIntentProcessed(requestId, _labId, "REQUEST_FUNDS", msg.sender, true, "");
     }
 
     function getLabTokenAddress() external view returns (address) {

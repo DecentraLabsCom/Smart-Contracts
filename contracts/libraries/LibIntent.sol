@@ -23,7 +23,7 @@ library LibIntent {
         );
     bytes32 internal constant ACTION_PAYLOAD_TYPEHASH =
         keccak256(
-            "ActionIntentPayload(address executor,string schacHomeOrganization,string puc,bytes32 assertionHash,uint256 labId,bytes32 reservationKey,string uri,uint96 price,string auth,string accessURI,string accessKey,string tokenURI)"
+            "ActionIntentPayload(address executor,string schacHomeOrganization,string puc,bytes32 assertionHash,uint256 labId,bytes32 reservationKey,string uri,uint96 price,uint96 maxBatch,string auth,string accessURI,string accessKey,string tokenURI)"
         );
     bytes32 internal constant NAME_HASH = keccak256("DecentraLabsIntent");
     bytes32 internal constant VERSION_HASH = keccak256("1");
@@ -40,6 +40,7 @@ library LibIntent {
     uint8 internal constant ACTION_REQUEST_BOOKING = 8;
     uint8 internal constant ACTION_CANCEL_REQUEST_BOOKING = 9;
     uint8 internal constant ACTION_CANCEL_BOOKING = 10;
+    uint8 internal constant ACTION_REQUEST_FUNDS = 11;
 
     event IntentRegistered(bytes32 indexed requestId, address indexed signer, uint8 action, bytes32 payloadHash);
     event IntentCancelled(bytes32 indexed requestId, address indexed signer);
@@ -110,6 +111,7 @@ library LibIntent {
                     payload.reservationKey,
                     keccak256(bytes(payload.uri)),
                     payload.price,
+                    payload.maxBatch,
                     keccak256(bytes(payload.auth)),
                     keccak256(bytes(payload.accessURI)),
                     keccak256(bytes(payload.accessKey)),
@@ -148,7 +150,8 @@ library LibIntent {
                 meta.action == ACTION_LAB_DELETE ||
                 meta.action == ACTION_LAB_LIST ||
                 meta.action == ACTION_LAB_UNLIST ||
-                meta.action == ACTION_CANCEL_BOOKING,
+                meta.action == ACTION_CANCEL_BOOKING ||
+                meta.action == ACTION_REQUEST_FUNDS,
             "Invalid action intent"
         );
         bytes32 payloadHash = hashActionPayload(payload);

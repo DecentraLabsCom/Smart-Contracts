@@ -35,15 +35,7 @@ contract InstitutionalReservationFacet is BaseReservationFacet, ReentrancyGuard 
     }
 
     /// @notice Event of institutional intents (creation/cancellation)
-    event ReservationIntentProcessed(
-        bytes32 indexed requestId,
-        bytes32 reservationKey,
-        string action,
-        address institution,
-        string puc,
-        bool success,
-        string reason
-    );
+    event ReservationIntentProcessed(bytes32 indexed requestId, bytes32 reservationKey, string action, string puc, address institution, bool success, string reason);
 
     /// @dev Consumes a reservation intent ensuring caller matches signer/executor
     function _consumeReservationIntent(
@@ -94,7 +86,7 @@ contract InstitutionalReservationFacet is BaseReservationFacet, ReentrancyGuard 
         _consumeReservationIntent(requestId, LibIntent.ACTION_REQUEST_BOOKING, payload);
 
         _institutionalReservationRequest(institutionalProvider, puc, _labId, _start, _end);
-        emit ReservationIntentProcessed(requestId, reservationKey, "RESERVATION_REQUEST", institutionalProvider, puc, true, "");
+        emit ReservationIntentProcessed(requestId, reservationKey, "RESERVATION_REQUEST", puc, institutionalProvider, true, "");
     }
     
     function institutionalReservationRequest(
@@ -152,7 +144,7 @@ contract InstitutionalReservationFacet is BaseReservationFacet, ReentrancyGuard 
         _consumeReservationIntent(requestId, LibIntent.ACTION_CANCEL_REQUEST_BOOKING, payload);
 
         _cancelInstitutionalReservationRequest(institutionalProvider, puc, _reservationKey);
-        emit ReservationIntentProcessed(requestId, _reservationKey, "CANCEL_RESERVATION_REQUEST", institutionalProvider, puc, true, "");
+        emit ReservationIntentProcessed(requestId, _reservationKey, "CANCEL_RESERVATION_REQUEST", puc, institutionalProvider, true, "");
     }
 
     function cancelInstitutionalReservationRequest(
@@ -191,7 +183,7 @@ contract InstitutionalReservationFacet is BaseReservationFacet, ReentrancyGuard 
         _consumeActionIntent(requestId, LibIntent.ACTION_CANCEL_BOOKING, payload);
 
         _cancelInstitutionalBooking(institutionalProvider, _reservationKey);
-        emit ReservationIntentProcessed(requestId, _reservationKey, "CANCEL_BOOKING", institutionalProvider, reservation.puc, true, "");
+        emit ReservationIntentProcessed(requestId, _reservationKey, "CANCEL_BOOKING", reservation.puc, institutionalProvider, true, "");
     }
 
     function cancelInstitutionalBooking(

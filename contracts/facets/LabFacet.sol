@@ -102,7 +102,7 @@ contract LabFacet is ERC721EnumerableUpgradeable, ReservableToken {
     ) internal {
         require(payload.executor == msg.sender, "Executor must be caller");
         bytes32 payloadHash = LibIntent.hashActionPayload(payload);
-        LibIntent.consumeIntent(requestId, action, payloadHash, msg.sender, msg.sender);
+        LibIntent.consumeIntent(requestId, action, payloadHash, msg.sender);
     }
 
     /// @dev Modifier to restrict access to functions that can only be executed by the LabProvider.

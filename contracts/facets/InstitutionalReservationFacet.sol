@@ -45,7 +45,7 @@ contract InstitutionalReservationFacet is BaseReservationFacet, ReentrancyGuard 
     ) internal {
         require(payload.executor == msg.sender, "Executor must be caller");
         bytes32 payloadHash = LibIntent.hashReservationPayload(payload);
-        LibIntent.consumeIntent(requestId, action, payloadHash, msg.sender, msg.sender);
+        LibIntent.consumeIntent(requestId, action, payloadHash, msg.sender);
     }
 
     /// @dev Consumes an action intent (for booking cancellations)
@@ -56,7 +56,7 @@ contract InstitutionalReservationFacet is BaseReservationFacet, ReentrancyGuard 
     ) internal {
         require(payload.executor == msg.sender, "Executor must be caller");
         bytes32 payloadHash = LibIntent.hashActionPayload(payload);
-        LibIntent.consumeIntent(requestId, action, payloadHash, msg.sender, msg.sender);
+        LibIntent.consumeIntent(requestId, action, payloadHash, msg.sender);
     }
 
     /// @notice Institutional reservation request via intent (emits ReservationIntentProcessed)

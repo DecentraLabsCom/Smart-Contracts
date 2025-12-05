@@ -23,6 +23,7 @@ contract IntentRegistryFacet {
         ReservationIntentPayload calldata payload,
         bytes calldata signature
     ) external onlyDefaultAdmin {
+        require(meta.signer == msg.sender, "Signer must be admin caller");
         LibIntent.registerReservationIntent(meta, payload, signature);
     }
 
@@ -32,6 +33,7 @@ contract IntentRegistryFacet {
         ActionIntentPayload calldata payload,
         bytes calldata signature
     ) external onlyDefaultAdmin {
+        require(meta.signer == msg.sender, "Signer must be admin caller");
         LibIntent.registerActionIntent(meta, payload, signature);
     }
 

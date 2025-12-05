@@ -163,7 +163,6 @@ library LibIntent {
         bytes32 requestId,
         uint8 expectedAction,
         bytes32 expectedPayloadHash,
-        address expectedSigner,
         address expectedExecutor
     ) internal {
         AppStorage storage s = LibAppStorage.diamondStorage();
@@ -180,7 +179,6 @@ library LibIntent {
 
         require(meta.action == expectedAction, "Action mismatch");
         require(meta.payloadHash == expectedPayloadHash, "Payload hash mismatch");
-        require(meta.signer == expectedSigner, "Signer mismatch");
         require(meta.executor == expectedExecutor, "Executor mismatch");
 
         meta.state = IntentState.Executed;
@@ -216,7 +214,6 @@ library LibIntent {
 
         require(meta.requestId != bytes32(0), "requestId required");
         require(meta.signer != address(0) && meta.executor != address(0), "Invalid signer/executor");
-        require(meta.executor == meta.signer, "Executor must equal signer");
         require(meta.nonce == s.intentNonces[meta.signer], "Invalid nonce");
         require(meta.payloadHash == calculatedPayloadHash, "Payload hash mismatch");
         require(meta.expiresAt > block.timestamp, "Intent expired");

@@ -706,17 +706,25 @@ contract LabFacet is ERC721EnumerableUpgradeable, ReservableToken {
             "Too many active reservations to transfer"
         );
 
+        bool hasActiveReservation;
+
         for (uint256 i = 0; i < reservationCount;) {
             bytes32 key = labReservations.at(i);
 
             // Cache status in memory to save SLOAD
             uint8 status = s.reservations[key].status;
 
+            // Prevent transferring labs with pending reservations to avoid owner ambush
+            if (status == PENDING) {
+                revert("Pending reservations block transfer");
+            }
+
             // Migrate CONFIRMED, IN_USE and COMPLETED reservations to new lab owner.
             // The new owner inherits the right to collect pending funds earned by the lab.
             // PENDING reservations don't have provider assigned yet.
             // COLLECTED/CANCELLED are terminal states and don't need migration.
             if (status == CONFIRMED || status == IN_USE || status == COMPLETED) {
+                hasActiveReservation = true;
                 s.reservations[key].labProvider = to;
                 s.reservations[key].collectorInstitution =
                     s.institutionalBackends[to] != address(0) ? to : address(0);
@@ -733,6 +741,17 @@ contract LabFacet is ERC721EnumerableUpgradeable, ReservableToken {
             }
 
             unchecked { ++i; }
+        }
+
+        // Preserve or extend unstake lock on new owner to prevent lock-bypass via transfer
+        uint256 fromLast = s.providerStakes[from].lastReservationTimestamp;
+        uint256 toLast = s.providerStakes[to].lastReservationTimestamp;
+        uint256 newLast = fromLast > toLast ? fromLast : toLast;
+        if (hasActiveReservation && block.timestamp > newLast) {
+            newLast = block.timestamp;
+        }
+        if (newLast > toLast) {
+            s.providerStakes[to].lastReservationTimestamp = newLast;
         }
     }
 }

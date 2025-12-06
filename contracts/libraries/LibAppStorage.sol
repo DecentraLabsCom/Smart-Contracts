@@ -169,6 +169,12 @@ struct ProviderStake {
     bool receivedInitialTokens;
 }
 
+struct PendingSlash {
+    uint256 amount;
+    uint256 executeAfter;
+    string reason;
+}
+
 /// @notice Struct representing institutional user spending in a period
 /// @dev Tracks spending with automatic period reset
 /// @param amount Amount spent in the current period (for limit enforcement)
@@ -270,7 +276,6 @@ struct AppStorage {
     uint256 pendingProjectTreasury; // global pending amount for project treasury
     uint256 pendingSubsidies; // global pending amount for student subsidies
     uint256 pendingGovernance; // global pending amount for governance incentives
-
     // Tokenomics accounting
     uint256 providerPoolMinted;
     uint256 treasuryPoolMinted;
@@ -284,6 +289,12 @@ struct AppStorage {
     // Intent registry
     mapping(bytes32 => IntentMeta) intents; // requestId -> intent meta
     mapping(address => uint256) intentNonces; // per-signer nonce
+
+    // Admin recovery helpers
+    mapping(uint256 => uint256) pendingProviderLastUpdated; // labId -> last accrual timestamp for pending provider payout
+
+    // Slashing timelock queue
+    mapping(address => PendingSlash) pendingSlashes; // provider => pending slash data
 }
 
 /// @title LibAppStorage

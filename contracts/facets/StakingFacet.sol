@@ -2,7 +2,7 @@
 pragma solidity ^0.8.23;
 
 import "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
-import {LibAppStorage, AppStorage, PROVIDER_ROLE} from "../libraries/LibAppStorage.sol";
+import {LibAppStorage, AppStorage, PROVIDER_ROLE, PendingSlash} from "../libraries/LibAppStorage.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "../libraries/LibDiamond.sol";
@@ -18,12 +18,18 @@ using SafeERC20 for IERC20;
 /// @dev Implements staking, slashing, and unstaking mechanisms for providers
 /// @custom:security Providers must stake tokens to offer services, stakes can be slashed for misconduct
 contract StakingFacet is AccessControlUpgradeable {
-    
+
     /// @notice Lock period after last reservation (30 days)
     uint256 public constant LOCK_PERIOD = 30 days;
-    
+
     /// @notice Initial stake lock period (180 days from auto-stake)
     uint256 public constant INITIAL_STAKE_LOCK_PERIOD = 180 days;
+
+    /// @notice Maximum slash amount per queued action (20 tokens with 6 decimals)
+    uint256 public constant MAX_SLASH_AMOUNT = 20_000_000;
+
+    /// @notice Delay before an admin slash can be executed
+    uint256 public constant SLASH_TIMELOCK = 48 hours;
     
     /// @notice Emitted when a provider stakes tokens
     /// @param provider The address of the provider
@@ -92,10 +98,16 @@ contract StakingFacet is AccessControlUpgradeable {
     /// @param newTotalStake The current staked amount after the operation
     /// @param requiredStake The minimum required stake (800 tokens)
     event ProviderStakeSufficient(
-        address indexed provider, 
-        uint256 newTotalStake, 
+        address indexed provider,
+        uint256 newTotalStake,
         uint256 requiredStake
     );
+
+    /// @notice Emitted when a slash is queued and waiting for timelock
+    event SlashQueued(address indexed provider, uint256 amount, uint256 executeAfter, string reason);
+
+    /// @notice Emitted when a queued slash is cancelled
+    event SlashCancelled(address indexed provider, address indexed cancelledBy);
 
     /// @dev Modifier to restrict access to functions that can only be executed by accounts
     ///      with the `DEFAULT_ADMIN_ROLE`.
@@ -213,40 +225,79 @@ contract StakingFacet is AccessControlUpgradeable {
         }
     }
 
-    /// @notice Admin slashes a provider's stake for misconduct
-    /// @dev Burns the slashed tokens
-    /// @param provider The address of the provider to slash
-    /// @param amount The amount of tokens to slash
-    /// @param reason The reason for the slash (fraud, abandonment, etc.)
+    /// @notice Queue a slash against a provider; executable after timelock
     function slashProvider(
-        address provider, 
-        uint256 amount, 
+        address provider,
+        uint256 amount,
         string calldata reason
     ) external defaultAdminRole {
         require(provider != address(0), "StakingFacet: invalid provider address");
-        
+
         AppStorage storage s = _s();
-        
         require(amount > 0, "StakingFacet: amount must be greater than 0");
+        require(amount <= MAX_SLASH_AMOUNT, "StakingFacet: exceeds slash cap");
+        require(s.pendingSlashes[provider].executeAfter == 0, "StakingFacet: slash pending");
         require(
-            s.providerStakes[provider].stakedAmount >= amount, 
+            s.providerStakes[provider].stakedAmount >= amount,
             "StakingFacet: insufficient stake to slash"
         );
-        
+
+        uint256 executeAfter = block.timestamp + SLASH_TIMELOCK;
+        s.pendingSlashes[provider] = PendingSlash({
+            amount: amount,
+            executeAfter: executeAfter,
+            reason: reason
+        });
+
+        emit SlashQueued(provider, amount, executeAfter, reason);
+    }
+
+    /// @notice Cancel a queued slash (provider self-defense or admin override)
+    function cancelQueuedSlash(address provider) external {
+        AppStorage storage s = _s();
+        PendingSlash storage pending = s.pendingSlashes[provider];
+        require(pending.executeAfter != 0, "StakingFacet: no queued slash");
+        require(
+            msg.sender == provider || hasRole(DEFAULT_ADMIN_ROLE, msg.sender),
+            "StakingFacet: not authorized to cancel"
+        );
+
+        delete s.pendingSlashes[provider];
+        emit SlashCancelled(provider, msg.sender);
+    }
+
+    /// @notice Execute a queued slash after the timelock has expired
+    function executeQueuedSlash(address provider) external defaultAdminRole {
+        AppStorage storage s = _s();
+        PendingSlash storage pending = s.pendingSlashes[provider];
+        require(pending.executeAfter != 0, "StakingFacet: no queued slash");
+        require(block.timestamp >= pending.executeAfter, "StakingFacet: timelock active");
+
+        uint256 amount = pending.amount;
+        require(amount > 0, "StakingFacet: invalid slash amount");
+        require(amount <= MAX_SLASH_AMOUNT, "StakingFacet: exceeds slash cap");
+        require(
+            s.providerStakes[provider].stakedAmount >= amount,
+            "StakingFacet: insufficient stake to slash"
+        );
+
+        string memory reason = pending.reason;
+        delete s.pendingSlashes[provider];
+
         uint256 remainingStake = s.providerStakes[provider].stakedAmount - amount;
         s.providerStakes[provider].stakedAmount = remainingStake;
         s.providerStakes[provider].slashedAmount += amount;
-        
+
         // Burn the slashed tokens
         LabERC20(s.labTokenAddress).burn(amount);
-        
+
         emit ProviderSlashed(
-            provider, 
-            amount, 
-            reason, 
+            provider,
+            amount,
+            reason,
             remainingStake
         );
-        
+
         // If stake falls below required minimum, emit warning event
         uint256 requiredStake = getRequiredStake(provider);
         if (remainingStake > 0 && remainingStake < requiredStake) {

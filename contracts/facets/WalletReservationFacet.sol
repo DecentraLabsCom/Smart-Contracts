@@ -29,9 +29,13 @@ contract WalletReservationFacet is BaseReservationFacet, ReentrancyGuard {
     using RivalIntervalTreeLibrary for Tree;
 
     error InsufficientFunds(address user, uint256 funds, uint256 price);
+    uint256 internal constant PENDING_REQUEST_TTL = 1 hours;
 
     /// @notice Event emitted when a lab intent is processed (mirrors LabFacet)
     event LabIntentProcessed(bytes32 indexed requestId, uint256 labId, string action, address provider, bool success, string reason);
+
+    /// @notice Emitted when default admin recovers stale payouts for a lab
+    event OrphanedLabPayoutRecovered(uint256 indexed labId, address indexed recipient, uint256 providerPayout, uint256 reservationsProcessed);
 
     function reservationRequest(uint256 _labId, uint32 _start, uint32 _end)
         external
@@ -203,9 +207,15 @@ contract WalletReservationFacet is BaseReservationFacet, ReentrancyGuard {
         // Check availability: block reuse if an active reservation already exists for this slot
         Reservation storage existing = s.reservations[reservationKey];
         if (existing.renter != address(0) && existing.status != CANCELLED && existing.status != COLLECTED) {
-            revert("Not available");
+            bool isStalePending = existing.status == PENDING
+                && (existing.requestPeriodStart == 0 || block.timestamp >= existing.requestPeriodStart + PENDING_REQUEST_TTL);
+            if (isStalePending) {
+                _cancelReservation(reservationKey);
+            } else {
+                revert("Not available");
+            }
         }
-        
+
         // Add to enumerable set (maintains count internally)
         s.reservationKeysByToken[_labId].add(reservationKey);
         
@@ -219,7 +229,7 @@ contract WalletReservationFacet is BaseReservationFacet, ReentrancyGuard {
             end: _end,
             status: PENDING,
             puc: "", // Empty for wallet reservations
-            requestPeriodStart: 0, // 0 for wallet reservations (only used for institutional)
+            requestPeriodStart: uint64(block.timestamp), // track creation to expire stale PENDING
             requestPeriodDuration: 0,
             payerInstitution: address(0),
             collectorInstitution: s.institutionalBackends[labOwner] != address(0) ? labOwner : address(0),
@@ -514,6 +524,58 @@ contract WalletReservationFacet is BaseReservationFacet, ReentrancyGuard {
         require(amount > 0, "No funds");
         s.pendingGovernance = 0;
         IERC20(s.labTokenAddress).safeTransfer(msg.sender, amount);
+    }
+
+    /// @notice Admin path to recover stale lab payouts when the provider is inactive or lost access
+    /// @dev Processes only reservations whose end time passed the timelock and withdraws matured provider bucket
+    /// @param _labId Lab whose payouts should be recovered
+    /// @param maxBatch Maximum reservations to process in this call (1-100)
+    /// @param recipient Address that will receive the provider share once unlocked
+    function adminRecoverOrphanedPayouts(
+        uint256 _labId,
+        uint256 maxBatch,
+        address recipient
+    )
+        external
+        defaultAdminRole
+        nonReentrant
+    {
+        if (recipient == address(0)) revert("Invalid recipient");
+        if (maxBatch == 0 || maxBatch > 100) revert("Invalid batch size");
+
+        AppStorage storage s = _s();
+        uint256 processed;
+        uint256 cutoffTime = block.timestamp - ORPHAN_PAYOUT_DELAY;
+
+        // Only finalize reservations that ended before cutoffTime
+        while (processed < maxBatch) {
+            bytes32 key = _popEligiblePayoutCandidate(s, _labId, cutoffTime);
+            if (key == bytes32(0)) {
+                break;
+            }
+            Reservation storage reservation = s.reservations[key];
+            if (_finalizeReservationForPayout(s, key, reservation, _labId)) {
+                unchecked {
+                    ++processed;
+                }
+            }
+        }
+
+        uint256 providerPayout = s.pendingProviderPayout[_labId];
+        bool payoutUnlocked = providerPayout > 0
+            && s.pendingProviderLastUpdated[_labId] > 0
+            && block.timestamp >= s.pendingProviderLastUpdated[_labId] + ORPHAN_PAYOUT_DELAY;
+
+        if (payoutUnlocked) {
+            s.pendingProviderPayout[_labId] = 0;
+            IERC20(s.labTokenAddress).safeTransfer(recipient, providerPayout);
+        } else {
+            providerPayout = 0;
+        }
+
+        if (providerPayout == 0 && processed == 0) revert("Nothing to recover");
+
+        emit OrphanedLabPayoutRecovered(_labId, recipient, providerPayout, processed);
     }
 
     // Institutional-only hooks required by BaseReservationFacet but unused here

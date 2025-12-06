@@ -46,6 +46,8 @@ abstract contract BaseReservationFacet is InstitutionalReservableTokenEnumerable
     uint256 internal constant CANCEL_FEE_PROVIDER = 1;
     uint256 internal constant CANCEL_FEE_TREASURY = 1;
     uint256 internal constant CANCEL_FEE_GOVERNANCE = 1;
+    uint256 internal constant MIN_CANCELLATION_FEE = 10_000; // 0.01 tokens assuming 6 decimals
+    uint256 internal constant ORPHAN_PAYOUT_DELAY = 90 days;
 
     /// @dev Modifier to restrict access to functions callable only by accounts with DEFAULT_ADMIN_ROLE
     modifier defaultAdminRole() {
@@ -265,6 +267,12 @@ abstract contract BaseReservationFacet is InstitutionalReservableTokenEnumerable
         return true;
     }
 
+    function _updatePendingProviderTimestamp(AppStorage storage s, uint256 labId, uint256 timestamp) internal {
+        if (timestamp > s.pendingProviderLastUpdated[labId]) {
+            s.pendingProviderLastUpdated[labId] = timestamp;
+        }
+    }
+
     function _creditRevenueBuckets(AppStorage storage s, Reservation storage reservation) internal {
         uint96 providerShare = reservation.providerShare;
         uint96 treasuryShare = reservation.projectTreasuryShare;
@@ -273,6 +281,7 @@ abstract contract BaseReservationFacet is InstitutionalReservableTokenEnumerable
 
         if (providerShare > 0) {
             s.pendingProviderPayout[reservation.labId] += providerShare;
+            _updatePendingProviderTimestamp(s, reservation.labId, reservation.end);
         }
         if (treasuryShare > 0) {
             s.pendingProjectTreasury += treasuryShare;
@@ -328,14 +337,24 @@ abstract contract BaseReservationFacet is InstitutionalReservableTokenEnumerable
         }
 
         uint96 totalFee = uint96((uint256(price) * CANCEL_FEE_TOTAL) / REVENUE_DENOMINATOR);
-        providerFee = uint96((uint256(price) * CANCEL_FEE_PROVIDER) / REVENUE_DENOMINATOR);
-        treasuryFee = uint96((uint256(price) * CANCEL_FEE_TREASURY) / REVENUE_DENOMINATOR);
-        governanceFee = uint96((uint256(price) * CANCEL_FEE_GOVERNANCE) / REVENUE_DENOMINATOR);
 
-        uint96 allocated = providerFee + treasuryFee + governanceFee;
-        if (allocated < totalFee) {
-            uint96 remainder = totalFee - allocated;
-            treasuryFee += remainder; // round fee remainder to treasury bucket
+        // Enforce minimum fee of 0.01 tokens (6 decimals) but never exceed the price
+        uint96 minFee = price < MIN_CANCELLATION_FEE ? price : uint96(MIN_CANCELLATION_FEE);
+        if (totalFee < minFee) {
+            totalFee = minFee;
+            providerFee = uint96((uint256(totalFee) * CANCEL_FEE_PROVIDER) / CANCEL_FEE_TOTAL);
+            treasuryFee = uint96((uint256(totalFee) * CANCEL_FEE_TREASURY) / CANCEL_FEE_TOTAL);
+            governanceFee = totalFee - providerFee - treasuryFee; // assign any remainder
+        } else {
+            providerFee = uint96((uint256(price) * CANCEL_FEE_PROVIDER) / REVENUE_DENOMINATOR);
+            treasuryFee = uint96((uint256(price) * CANCEL_FEE_TREASURY) / REVENUE_DENOMINATOR);
+            governanceFee = uint96((uint256(price) * CANCEL_FEE_GOVERNANCE) / REVENUE_DENOMINATOR);
+
+            uint96 allocated = providerFee + treasuryFee + governanceFee;
+            if (allocated < totalFee) {
+                uint96 remainder = totalFee - allocated;
+                treasuryFee += remainder; // round fee remainder to treasury bucket
+            }
         }
 
         refundAmount = price - totalFee;
@@ -350,6 +369,7 @@ abstract contract BaseReservationFacet is InstitutionalReservableTokenEnumerable
     ) internal {
         if (providerFee > 0) {
             s.pendingProviderPayout[labId] += providerFee;
+            _updatePendingProviderTimestamp(s, labId, block.timestamp);
         }
         if (treasuryFee > 0) {
             s.pendingProjectTreasury += treasuryFee;

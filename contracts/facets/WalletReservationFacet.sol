@@ -350,7 +350,6 @@ contract WalletReservationFacet is BaseReservationFacet, ReentrancyGuard {
         address renter = reservation.renter;
         uint96 price = reservation.price;
         uint256 labId = reservation.labId;
-        address cachedLabProvider = reservation.labProvider;
         string memory puc = reservation.puc;
         bool isInstitutional = bytes(puc).length > 0;
         uint96 providerFee;

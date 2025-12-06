@@ -218,7 +218,6 @@ abstract contract BaseReservationFacet is InstitutionalReservableTokenEnumerable
         }
 
         address trackingKey = _computeTrackingKey(reservation);
-        address labProvider = reservation.labProvider;
         uint256 reservationPrice = reservation.price;
 
         if (reservation.status == CONFIRMED || reservation.status == IN_USE) {

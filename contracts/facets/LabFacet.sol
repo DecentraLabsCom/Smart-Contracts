@@ -729,9 +729,6 @@ contract LabFacet is ERC721EnumerableUpgradeable, ReservableToken {
                 s.reservations[key].collectorInstitution =
                     s.institutionalBackends[to] != address(0) ? to : address(0);
 
-                s.reservationsProvider[from].remove(key);
-                s.reservationsProvider[to].add(key);
-
                 if (s.providerActiveReservationCount[from] > 0) {
                     s.providerActiveReservationCount[from]--;
                 }

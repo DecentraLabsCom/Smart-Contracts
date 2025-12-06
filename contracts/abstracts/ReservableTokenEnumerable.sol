@@ -99,7 +99,6 @@ abstract contract ReservableTokenEnumerable is ReservableToken {
         }
         
         reservation.status = CONFIRMED;
-        s.reservationsProvider[reservation.labProvider].add(_reservationKey);
         
         // Increment active reservation count for this (token, user)
         s.activeReservationCountByTokenAndUser[reservation.labId][reservation.renter]++;
@@ -145,14 +144,14 @@ abstract contract ReservableTokenEnumerable is ReservableToken {
         
         if (renter != msg.sender && labProvider != msg.sender) revert Unauthorized();
 
-        s.reservationsProvider[labProvider].remove(_reservationKey);
         _cancelReservation(_reservationKey);
 
         emit BookingCanceled(_reservationKey, tokenId);
     }
 
-    /// @notice Returns the total number of existing reservations
-    /// @dev Uses a simple counter of active reservations
+    /// @notice Returns the total number of existing reservations across all labs
+    /// @dev This is a global counter metric. There is no global enumerator to iterate all reservations.
+    ///      To enumerate reservations, use per-token or per-user getters instead.
     /// @return The total count of reservations as a uint256
     function totalReservations() external view returns (uint256) {
         return _s().totalReservationsCount;
@@ -169,11 +168,13 @@ abstract contract ReservableTokenEnumerable is ReservableToken {
     }
 
     /// @notice Retrieves the reservation key at a specific index for a given user
-    /// @dev Returns the reservation key stored in the user's array of reservations at the specified index
+    /// @dev Returns the reservation key from an EnumerableSet. Order is NOT guaranteed to be stable
+    ///      across mutations (add/remove). Use for snapshot iteration only, not for persistent pagination.
     /// @param _user The address of the user whose reservation key is being queried
-    /// @param _index The index position in the user's reservation array
+    /// @param _index The index position in the user's reservation set (0-based)
     /// @return bytes32 The reservation key at the specified index
-    /// @custom:revert If the index is greater than or equal to the length of the user's reservation array
+    /// @custom:warning Order may change between calls if set is modified
+    /// @custom:revert If the index is greater than or equal to the length of the user's reservation set
     function reservationKeyOfUserByIndex(address _user, uint256 _index) external view returns (bytes32) {
         AppStorage storage s = _s();
         if (_index >= s.renters[_user].length()) revert IndexOutOfBounds();
@@ -189,10 +190,12 @@ abstract contract ReservableTokenEnumerable is ReservableToken {
     }
 
     /// @notice Retrieves a specific reservation key for a token by its index
-    /// @dev Requires the token to exist. The index must be within bounds of existing reservations
+    /// @dev Returns from EnumerableSet. Order is NOT guaranteed to be stable across mutations.
+    ///      Use for snapshot iteration only, not for persistent pagination.
     /// @param _tokenId The ID of the token to query
-    /// @param _index The index position of the reservation to retrieve
+    /// @param _index The index position of the reservation to retrieve (0-based)
     /// @return bytes32 The reservation key at the specified index
+    /// @custom:warning Order may change between calls if set is modified
     /// @custom:throws If token doesn't exist or if index is out of bounds
     function getReservationOfTokenByIndex(uint256 _tokenId, uint256 _index) external view exists(_tokenId) returns (bytes32) {
         AppStorage storage s = _s();
@@ -200,7 +203,16 @@ abstract contract ReservableTokenEnumerable is ReservableToken {
         return s.reservationKeysByToken[_tokenId].at(_index);
     }
 
-    /// @notice Paginated access to reservation keys of a token (unordered set order)
+    /// @notice Paginated access to reservation keys of a token
+    /// @dev Iterates over EnumerableSet which has NO guaranteed order. Order may shift when elements
+    ///      are added/removed. Suitable for snapshot iteration within a single view call, NOT for
+    ///      stateful cursor-based pagination across multiple transactions.
+    /// @param _tokenId The ID of the token to query
+    /// @param offset Starting index (0-based)
+    /// @param limit Maximum number of keys to return (1-100)
+    /// @return keys Array of reservation keys for the requested page
+    /// @return total Total number of reservations for this token
+    /// @custom:warning Order may change between calls if set is modified
     function getReservationsOfTokenPaginated(
         uint256 _tokenId,
         uint256 offset,
@@ -278,7 +290,16 @@ abstract contract ReservableTokenEnumerable is ReservableToken {
         }
     }
 
-    /// @notice Paginated access to reservation keys for a token/user pair (unordered set order)
+    /// @notice Paginated access to reservation keys for a token/user pair
+    /// @dev Iterates over EnumerableSet which has NO guaranteed order. Order may shift when elements
+    ///      are added/removed. Suitable for snapshot iteration within a single view call.
+    /// @param _tokenId The ID of the token to query
+    /// @param _user The address of the user
+    /// @param offset Starting index (0-based)
+    /// @param limit Maximum number of keys to return (1-100)
+    /// @return keys Array of reservation keys for the requested page
+    /// @return total Total number of reservations for this token/user pair
+    /// @custom:warning Order may change between calls if set is modified
     function getReservationsOfTokenByUserPaginated(
         uint256 _tokenId,
         address _user,

@@ -200,7 +200,6 @@ struct InstitutionalUserSpending {
 /// @custom:member reservations Mapping of reservation hashes to reservation details
 /// @custom:member renters Mapping of renter addresses to their reservation hashes
 /// @custom:member reservationKeysByToken Mapping of token IDs to their reservation hashes (use .length() for count)
-/// @custom:member reservationsProvider Mapping of provider addresses to their pending reservation hashes
 /// @custom:member activeReservationByTokenAndUser Mapping of token IDs and user addresses to their active reservation hashes
 /// @custom:member activeReservationCountByTokenAndUser Mapping of token IDs and user addresses to their active reservation count
 /// @custom:member reservationKeysByTokenAndUser Mapping of token IDs and user addresses to their reservation keys (for efficient per-lab queries)
@@ -237,7 +236,6 @@ struct AppStorage {
     mapping(address => EnumerableSet.Bytes32Set) renters; 
     uint256 totalReservationsCount;
     mapping (uint256 => EnumerableSet.Bytes32Set) reservationKeysByToken;
-    mapping (address => EnumerableSet.Bytes32Set) reservationsProvider; 
     mapping (uint256 => mapping(address => bytes32)) activeReservationByTokenAndUser;
     mapping (uint256 => mapping(address => uint8)) activeReservationCountByTokenAndUser;
     mapping (uint256 => mapping(address => EnumerableSet.Bytes32Set)) reservationKeysByTokenAndUser;
@@ -252,12 +250,9 @@ struct AppStorage {
     mapping (uint256 => bool) tokenStatus;
     mapping (uint256 => uint256) labActiveReservationCount;
     mapping (address => uint256) providerActiveReservationCount;
-    mapping (uint256 => uint256) pendingLabPayout;
     mapping (uint256 => PayoutCandidate[]) payoutHeaps;
     mapping (bytes32 => bool) payoutHeapContains;
     mapping (uint256 => uint256) payoutHeapInvalidCount;
-    mapping (uint256 => mapping(address => uint256)) pendingInstitutionalLabPayout; // labId -> collector -> amount
-    mapping (uint256 => EnumerableSet.AddressSet) pendingInstitutionalCollectors;    // labId -> collectors set
     
     mapping (address => ProviderStake) providerStakes;
 

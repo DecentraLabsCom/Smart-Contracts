@@ -349,7 +349,6 @@ contract InstitutionalReservationFacet is BaseReservationFacet, ReentrancyGuard 
             s.calendars[reservation.labId].insert(reservation.start, reservation.end);
 
             reservation.status = CONFIRMED;
-            s.reservationsProvider[labProvider].add(_reservationKey);
             _incrementActiveReservationCounters(reservation);
             _enqueuePayoutCandidate(s, reservation.labId, _reservationKey, reservation.end);
             _enqueueInstitutionalActiveReservation(s, reservation.labId, reservation, _reservationKey);
@@ -378,7 +377,6 @@ contract InstitutionalReservationFacet is BaseReservationFacet, ReentrancyGuard 
             _setReservationSplit(reservation);
             s.calendars[reservation.labId].insert(reservation.start, reservation.end);
             reservation.status = CONFIRMED;
-            s.reservationsProvider[labProvider].add(_reservationKey);
             _incrementActiveReservationCounters(reservation);
             _enqueuePayoutCandidate(s, reservation.labId, _reservationKey, reservation.end);
             _enqueueInstitutionalActiveReservation(s, reservation.labId, reservation, _reservationKey);
@@ -459,8 +457,6 @@ contract InstitutionalReservationFacet is BaseReservationFacet, ReentrancyGuard 
             (providerFee, treasuryFee, governanceFee, refundAmount) = _computeCancellationFee(price);
         }
 
-        address labProvider = reservation.labProvider;
-        s.reservationsProvider[labProvider].remove(_reservationKey);
         _cancelReservation(_reservationKey);
 
         if (price > 0) {
@@ -593,6 +589,7 @@ contract InstitutionalReservationFacet is BaseReservationFacet, ReentrancyGuard 
         emit ReservationRequested(input.provider, input.labId, input.startTime, input.endTime, input.reservationKey);
     }
 
+    /// @dev Get count of reservations for an institutional user (internal)
     function _getInstitutionalUserReservationCount(
         address institutionalProvider,
         string calldata puc
@@ -602,6 +599,8 @@ contract InstitutionalReservationFacet is BaseReservationFacet, ReentrancyGuard 
         return s.renters[userTrackingKey].length();
     }
 
+    /// @dev Get reservation key by index for an institutional user (internal)
+    /// @notice Order is NOT guaranteed stable across mutations. Use for snapshot iteration only.
     function _getInstitutionalUserReservationByIndex(
         address institutionalProvider,
         string calldata puc,

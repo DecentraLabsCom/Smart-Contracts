@@ -238,7 +238,6 @@ abstract contract BaseReservationFacet is InstitutionalReservableTokenEnumerable
         // Track as past reservation using scheduled end time for ordering
         _recordPast(s, labId, trackingKey, key, reservation.end);
 
-        s.reservationsProvider[labProvider].remove(key);
         s.reservationKeysByToken[labId].remove(key);
         s.renters[reservation.renter].remove(key);
         if (s.totalReservationsCount > 0) {

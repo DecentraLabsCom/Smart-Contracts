@@ -296,7 +296,6 @@ contract WalletReservationFacet is BaseReservationFacet, ReentrancyGuard {
         
         // Update status to CONFIRMED (payment received, slot blocked)
         reservation.status = CONFIRMED;
-        s.reservationsProvider[labProvider].add(_reservationKey);
         _incrementActiveReservationCounters(reservation);
         _enqueuePayoutCandidate(s, reservation.labId, _reservationKey, reservation.end);
         
@@ -367,8 +366,6 @@ contract WalletReservationFacet is BaseReservationFacet, ReentrancyGuard {
         address currentOwner = IERC721(address(this)).ownerOf(labId);
         if (renter != msg.sender && currentOwner != msg.sender) revert("Unauthorized");
     
-        // Cancel the booking - use cached provider for storage cleanup
-        s.reservationsProvider[cachedLabProvider].remove(_reservationKey);
         _cancelReservation(_reservationKey);
 
         if (price > 0) {

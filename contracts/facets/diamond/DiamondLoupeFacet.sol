@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.0;
+pragma solidity ^0.8.31;
 //******************************************************************************\
 //* Author: Nick Mudge <nick@perfectabstractions.com> (https://twitter.com/mudgen)
 //* EIP-2535 Diamonds: https://eips.ethereum.org/EIPS/eip-2535
@@ -8,9 +8,9 @@ pragma solidity ^0.8.0;
 // The functions in DiamondLoupeFacet MUST be added to a diamond.
 // The EIP-2535 Diamond standard requires these functions.
 
-import { LibDiamond } from  "../libraries/LibDiamond.sol";
-import { IDiamondLoupe } from "../interfaces/IDiamondLoupe.sol";
-import { IERC165 } from "../interfaces/IERC165.sol";
+import { LibDiamond } from  "../../libraries/LibDiamond.sol";
+import { IDiamondLoupe } from "../../interfaces/IDiamondLoupe.sol";
+import { IERC165 } from "../../interfaces/IERC165.sol";
 
 contract DiamondLoupeFacet is IDiamondLoupe, IERC165 {
     // Diamond Loupe Functions

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-pragma solidity ^0.8.23;
+pragma solidity ^0.8.31;
 
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import {IntentMeta} from "./IntentTypes.sol";
@@ -75,7 +75,7 @@ struct Lab {
 /// @param renter Address of the user making the reservation
 /// @param price Cost of the reservation in wei
 /// @param labProvider Address of the lab provider (owner at reservation time)
-/// @param status Current state of the reservation (0=PENDING, 1=CONFIRMED, 2=IN_USE, 3=COMPLETED, 4=COLLECTED, 5=CANCELLED)
+/// @param status Current state of the reservation (0=_PENDING, 1=_CONFIRMED, 2=_IN_USE, 3=_COMPLETED, 4=_COLLECTED, 5=_CANCELLED)
 /// @param start Starting timestamp of the reservation (as uint32)
 /// @param end Ending timestamp of the reservation (as uint32)
 /// @param puc schacPersonalUniqueCode for institutional reservations (empty for wallet reservations)

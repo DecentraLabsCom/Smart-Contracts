@@ -1,8 +1,18 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-pragma solidity ^0.8.23;
+pragma solidity ^0.8.31;
 
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import {AppStorage, INSTITUTION_ROLE} from "./LibAppStorage.sol";
+
+// Custom errors for gas-efficient reverts (Solidity 0.8.26+)
+error InvalidOrgLength();
+error InvalidOrgCharacter();
+error InvalidInstitutionAddress();
+error UnknownInstitution();
+error OrganizationAlreadyRegistered();
+error OrganizationAlreadyTracked();
+error OrganizationNotRegisteredByWallet();
+error OrganizationNotTracked();
 
 /// @title LibInstitutionalOrg
 /// @notice Shared helpers to normalize and manage schacHomeOrganization registrations
@@ -27,7 +37,7 @@ library LibInstitutionalOrg {
     /// @notice Normalizes schacHomeOrganization identifiers to lowercase and validates characters
     function normalizeOrganization(string memory organization) internal pure returns (string memory) {
         bytes memory input = bytes(organization);
-        require(input.length >= 3 && input.length <= 255, "Invalid org length");
+        require(input.length >= 3 && input.length <= 255, InvalidOrgLength());
 
         bytes memory normalized = new bytes(input.length);
         for (uint256 i = 0; i < input.length; i++) {
@@ -42,7 +52,7 @@ library LibInstitutionalOrg {
                 (char >= 0x30 && char <= 0x39) ||
                 char == 0x2D ||
                 char == 0x2E,
-                "Invalid org character"
+                InvalidOrgCharacter()
             );
 
             normalized[i] = char;
@@ -57,21 +67,21 @@ library LibInstitutionalOrg {
         address institution,
         string memory normalizedOrganization
     ) internal {
-        require(institution != address(0), "Invalid institution");
-        require(s.roleMembers[INSTITUTION_ROLE].contains(institution), "Unknown institution");
+        require(institution != address(0), InvalidInstitutionAddress());
+        require(s.roleMembers[INSTITUTION_ROLE].contains(institution), UnknownInstitution());
 
         // forge-lint: disable-next-line(asm-keccak256)
         bytes32 orgHash = keccak256(bytes(normalizedOrganization));
         require(
             s.organizationInstitutionWallet[orgHash] == address(0),
-            "Organization already registered"
+            OrganizationAlreadyRegistered()
         );
 
         s.organizationInstitutionWallet[orgHash] = institution;
         s.schacHomeOrganizationNames[orgHash] = normalizedOrganization;
 
         bool added = s.institutionSchacHomeOrganizations[institution].add(orgHash);
-        require(added, "Organization already tracked");
+        require(added, OrganizationAlreadyTracked());
 
         emit SchacHomeOrganizationRegistered(institution, normalizedOrganization, orgHash);
     }
@@ -86,14 +96,14 @@ library LibInstitutionalOrg {
         bytes32 orgHash = keccak256(bytes(normalizedOrganization));
         require(
             s.organizationInstitutionWallet[orgHash] == institution,
-            "Organization not registered by wallet"
+            OrganizationNotRegisteredByWallet()
         );
 
         delete s.organizationInstitutionWallet[orgHash];
         delete s.schacHomeOrganizationNames[orgHash];
 
         bool removed = s.institutionSchacHomeOrganizations[institution].remove(orgHash);
-        require(removed, "Organization not tracked");
+        require(removed, OrganizationNotTracked());
 
         emit SchacHomeOrganizationRemoved(institution, normalizedOrganization, orgHash);
     }

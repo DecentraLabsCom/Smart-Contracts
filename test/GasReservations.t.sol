@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.23;
+pragma solidity ^0.8.31;
 
 import {Test} from "forge-std/Test.sol";
-import {WalletReservationFacet} from "../contracts/facets/WalletReservationFacet.sol";
+import {WalletReservationFacet} from "../contracts/facets/reservation/wallet/WalletReservationFacet.sol";
 import {AppStorage, LabBase} from "../contracts/libraries/LibAppStorage.sol";
 import {LibAccessControlEnumerable} from "../contracts/libraries/LibAccessControlEnumerable.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";

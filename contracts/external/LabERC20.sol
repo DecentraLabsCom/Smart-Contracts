@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.23;
+pragma solidity ^0.8.31;
 
 import {ERC20Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
 import {ERC20BurnableUpgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC20BurnableUpgradeable.sol";
@@ -36,7 +36,7 @@ contract LabERC20 is
     
     /// @notice Maximum supply cap for the token (1,000,000 tokens = 1,000,000,000,000 base units)
     /// @dev This cap prevents infinite inflation and limits total supply
-    uint256 private constant MAX_SUPPLY = 1_000_000_000_000; // 1M tokens with 6 decimals
+    uint256 private constant _MAX_SUPPLY = 1_000_000_000_000; // 1M tokens with 6 decimals
     
     /// @notice Emitted when tokens are minted by an authorized minter
     /// @param to The address that received the minted tokens
@@ -90,7 +90,7 @@ contract LabERC20 is
         __ERC20_init(string.concat("$", _symbol), _symbol);
         __ERC20Burnable_init();
         __ERC20Pausable_init();
-        __ERC20Capped_init(MAX_SUPPLY);
+        __ERC20Capped_init(_MAX_SUPPLY);
         __AccessControl_init();
         
         // Grant admin role to the deployer

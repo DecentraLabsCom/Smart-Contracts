@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-pragma solidity ^0.8.23;
+pragma solidity ^0.8.31;
 
 import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
@@ -43,32 +43,32 @@ abstract contract ReservableToken {
     }
     
     /// @notice The status of a reservation follows this lifecycle:
-    /// - PENDING: Reservation requested but not yet confirmed. Does NOT block calendar slot.
-    /// - CONFIRMED: Reservation confirmed and paid. Blocks calendar slot. Actively reserving the lab.
-    /// - IN_USE: User is actively using the lab (optional state for analytics/check-in systems).
-    /// - COMPLETED: Reservation time expired, waiting for the system to finalize payout.
-    /// - COLLECTED: Funds have been credited to the provider's pending balance (withdrawn later via requestFunds()).
-    /// - CANCELLED: Reservation cancelled by user, admin, or provider.
+    /// - _PENDING: Reservation requested but not yet confirmed. Does NOT block calendar slot.
+    /// - _CONFIRMED: Reservation confirmed and paid. Blocks calendar slot. Actively reserving the lab.
+    /// - _IN_USE: User is actively using the lab (optional state for analytics/check-in systems).
+    /// - _COMPLETED: Reservation time expired, waiting for the system to finalize payout.
+    /// - _COLLECTED: Funds have been credited to the provider's pending balance (withdrawn later via requestFunds()).
+    /// - _CANCELLED: Reservation cancelled by user, admin, or provider.
     /// @dev The status is represented as an 8-bit unsigned integer for gas efficiency.
     /// @dev State transition rules:
-    ///      PENDING → CONFIRMED (on admin confirmation with payment)
-    ///      PENDING → CANCELLED (on denial or user cancellation)
-    ///      CONFIRMED → IN_USE (optional, on check-in)
-    ///      CONFIRMED → COMPLETED (when expired, via releaseExpiredReservations)
-    ///      CONFIRMED → COLLECTED (when provider collects before expiry release)
-    ///      CONFIRMED → CANCELLED (on cancellation with refund)
-    ///      IN_USE → COMPLETED (when expired)
-    ///      IN_USE → CANCELLED (on cancellation with refund)
-    ///      COMPLETED → COLLECTED (when provider finally collects)
-    ///      COLLECTED, CANCELLED are terminal states
+    ///      _PENDING → _CONFIRMED (on admin confirmation with payment)
+    ///      _PENDING → _CANCELLED (on denial or user cancellation)
+    ///      _CONFIRMED → _IN_USE (optional, on check-in)
+    ///      _CONFIRMED → _COMPLETED (when expired, via releaseExpiredReservations)
+    ///      _CONFIRMED → _COLLECTED (when provider collects before expiry release)
+    ///      _CONFIRMED → _CANCELLED (on cancellation with refund)
+    ///      _IN_USE → _COMPLETED (when expired)
+    ///      _IN_USE → _CANCELLED (on cancellation with refund)
+    ///      _COMPLETED → _COLLECTED (when provider finally collects)
+    ///      _COLLECTED, _CANCELLED are terminal states
   
-    uint8 internal constant PENDING = 0;
-    uint8 internal constant CONFIRMED = 1;
-    uint8 internal constant IN_USE = 2;
-    uint8 internal constant COMPLETED = 3;
-    uint8 internal constant COLLECTED = 4;
-    uint8 internal constant CANCELLED = 5;
-    uint32 internal constant RESERVATION_MARGIN = 0;
+    uint8 internal constant _PENDING = 0;
+    uint8 internal constant _CONFIRMED = 1;
+    uint8 internal constant _IN_USE = 2;
+    uint8 internal constant _COMPLETED = 3;
+    uint8 internal constant _COLLECTED = 4;
+    uint8 internal constant _CANCELLED = 5;
+    uint32 internal constant _RESERVATION_MARGIN = 0;
 
     /// @notice Emitted when a reservation is requested for a token.
     /// @param renter The address of the user requesting the reservation.
@@ -101,7 +101,7 @@ abstract contract ReservableToken {
     /// @notice Emitted when expired reservations are released by user or provider
     /// @param user The user address (or tracking key) whose reservations were released
     /// @param tokenId The ID of the lab/token associated with the reservations
-    /// @param count The number of reservations that were marked as COMPLETED
+    /// @param count The number of reservations that were marked as _COMPLETED
     event ReservationsReleased(address indexed user, uint256 indexed tokenId, uint256 count);
 
     /// @notice Emitted when a token is listed for reservations.
@@ -171,7 +171,7 @@ abstract contract ReservableToken {
     function _reservationPending(bytes32 _reservationKey) internal view {
         Reservation storage reservation = _s().reservations[_reservationKey];
         if (reservation.renter == address(0)) revert ReservationNotFound();
-        if (reservation.status != PENDING) revert ReservationNotPending();
+        if (reservation.status != _PENDING) revert ReservationNotPending();
     }
 
     /// @notice Marks a token as listed by updating its status so it's possible to reserve.
@@ -249,24 +249,24 @@ abstract contract ReservableToken {
     /// @notice Request a reservation for a specific token during a time period
     /// @dev Creates a new reservation request if the time slot is available
     /// @param _tokenId The ID of the token to be reserved
-    /// @param _start The start timestamp of the reservation (must be after RESERVATION_MARGIN)
+    /// @param _start The start timestamp of the reservation (must be after _RESERVATION_MARGIN)
     /// @param _end The end timestamp of the reservation (must be after start)
     /// @custom:throws "Invalid time range" if start/end times are invalid
     /// @custom:throws "Not available" if the slot is already reserved
     /// @custom:emits ReservationRequested when the reservation is successfully created
-    /// @dev Reservation will be created with PENDING status
+    /// @dev Reservation will be created with _PENDING status
     function reservationRequest(uint256 _tokenId, uint32 _start, uint32 _end) external virtual exists(_tokenId) {
         AppStorage storage s = _s();
         
         // Combined validation
-        if (_start >= _end || _start <= block.timestamp + RESERVATION_MARGIN) revert InvalidTimeRange();
+        if (_start >= _end || _start <= block.timestamp + _RESERVATION_MARGIN) revert InvalidTimeRange();
 
         bytes32 reservationKey = _getReservationKey(_tokenId, _start);
         
         // Optimized availability check
         Reservation storage existingReservation = s.reservations[reservationKey];
         bool keyExists = existingReservation.renter != address(0);
-        if (keyExists && existingReservation.status != CANCELLED) revert NotAvailable();
+        if (keyExists && existingReservation.status != _CANCELLED) revert NotAvailable();
 
         s.calendars[_tokenId].insert(_start, _end);
         
@@ -276,19 +276,19 @@ abstract contract ReservableToken {
         existingReservation.price = 0;
         existingReservation.start = _start;
         existingReservation.end = _end;
-        existingReservation.status = PENDING;
+        existingReservation.status = _PENDING;
         
         emit ReservationRequested(msg.sender, _tokenId, _start, _end, reservationKey);
     }
 
     /// @notice Confirms a reservation request for the given reservation key
-    /// @dev Changes the status of the reservation from PENDING to CONFIRMED
+    /// @dev Changes the status of the reservation from _PENDING to _CONFIRMED
     /// @param _reservationKey The unique key identifying the reservation to be confirmed
     /// @dev The reservation must be in a pending state, enforced by the `reservationPending` modifier
     /// @dev Emits a `ReservationConfirmed` event upon successful confirmation
     function confirmReservationRequest(bytes32 _reservationKey) external virtual reservationPending(_reservationKey) {
         Reservation storage reservation = _s().reservations[_reservationKey];
-        reservation.status = CONFIRMED;           
+        reservation.status = _CONFIRMED;           
         emit ReservationConfirmed(_reservationKey, reservation.labId);          
     }
 
@@ -304,11 +304,11 @@ abstract contract ReservableToken {
 
     /// @notice Cancels a reservation request associated with the given reservation key.
     /// @dev This function can only be called by the renter who created the reservation request.
-    ///      The reservation must exist and its status must be `PENDING` to be canceled.
+    ///      The reservation must exist and its status must be `_PENDING` to be canceled.
     /// @param _reservationKey The unique key identifying the reservation to be canceled.
     /// @dev The reservation must exist (`renter` address is not zero).
     /// @dev The caller must be the renter who created the reservation.
-    /// @dev The reservation status must be `PENDING`.
+    /// @dev The reservation status must be `_PENDING`.
     /// @dev Emits a `ReservationRequestCanceled` event upon successful cancellation.
     function cancelReservationRequest(bytes32 _reservationKey) external virtual {
         Reservation storage reservation = _s().reservations[_reservationKey];
@@ -316,7 +316,7 @@ abstract contract ReservableToken {
         // Combined checks
         if (reservation.renter == address(0)) revert ReservationNotFound();
         if (reservation.renter != msg.sender) revert OnlyRenter();
-        if (reservation.status != PENDING) revert ReservationNotPending();
+        if (reservation.status != _PENDING) revert ReservationNotPending();
 
         uint256 tokenId = reservation.labId;
         _cancelReservation(_reservationKey);
@@ -326,15 +326,15 @@ abstract contract ReservableToken {
     /// @notice Cancels a booking associated with the given reservation key.
     /// @dev This function allows either the renter or the lab provider to cancel a booking.
     /// @param _reservationKey The unique key identifying the reservation to be canceled.
-    /// @dev The reservation must exist and its status must be `CONFIRMED` or `IN_USE`.
+    /// @dev The reservation must exist and its status must be `_CONFIRMED` or `_IN_USE`.
     /// @dev The caller must be either the renter or the lab provider.
     /// @dev BookingCanceled Emitted when a booking is successfully canceled.
    function cancelBooking(bytes32 _reservationKey) external virtual {
         Reservation storage reservation = _s().reservations[_reservationKey];
         
-        // Combined validation - check for CONFIRMED or IN_USE
+        // Combined validation - check for _CONFIRMED or _IN_USE
         if (reservation.renter == address(0) || 
-            (reservation.status != CONFIRMED && reservation.status != IN_USE)) revert InvalidBooking();
+            (reservation.status != _CONFIRMED && reservation.status != _IN_USE)) revert InvalidBooking();
 
         address renter = reservation.renter;
         uint256 tokenId = reservation.labId;
@@ -373,9 +373,9 @@ abstract contract ReservableToken {
         Reservation memory reservation = _s().reservations[_reservationKey];
         uint32 time = uint32(block.timestamp);
         
-        // Check for CONFIRMED or IN_USE (both are active bookings)
+        // Check for _CONFIRMED or _IN_USE (both are active bookings)
         return (reservation.renter == _user && 
-                (reservation.status == CONFIRMED || reservation.status == IN_USE) && 
+                (reservation.status == _CONFIRMED || reservation.status == _IN_USE) && 
                 reservation.start <= time && 
                 reservation.end >= time);
     }
@@ -842,17 +842,17 @@ abstract contract ReservableToken {
     }
 
     /// @dev Cancels a reservation identified by the given reservation key.
-    ///      Updates the reservation status to CANCELLED and removes the reservation
-    ///      from the associated lab's calendar (only if it was inserted, i.e., CONFIRMED or IN_USE).
+    ///      Updates the reservation status to _CANCELLED and removes the reservation
+    ///      from the associated lab's calendar (only if it was inserted, i.e., _CONFIRMED or _IN_USE).
     /// @param _reservationKey The unique key identifying the reservation to be cancelled.
     function _cancelReservation(bytes32 _reservationKey) internal virtual {
         AppStorage storage s = _s();
         Reservation storage reservation = s.reservations[_reservationKey];
         
         bool wasActive = _isActiveReservationStatus(reservation.status);
-        // Only remove from calendar if reservation was actually inserted (CONFIRMED or IN_USE)
-        // PENDING reservations are never inserted in calendar, so no need to remove
-        if (reservation.status == CONFIRMED || reservation.status == IN_USE) {
+        // Only remove from calendar if reservation was actually inserted (_CONFIRMED or _IN_USE)
+        // _PENDING reservations are never inserted in calendar, so no need to remove
+        if (reservation.status == _CONFIRMED || reservation.status == _IN_USE) {
             _removeReservationFromCalendar(reservation.labId, reservation.start);
         }
 
@@ -860,7 +860,7 @@ abstract contract ReservableToken {
             _decrementActiveReservationCounters(reservation);
         }
         
-        reservation.status = CANCELLED;
+        reservation.status = _CANCELLED;
         
         // Mark heap entry as invalid for lazy cleanup
         // When counter reaches threshold, _popEligiblePayoutCandidate will prune all invalid entries
@@ -875,7 +875,7 @@ abstract contract ReservableToken {
 
     /// @notice Returns true when reservation status should keep lab/provider locked
     function _isActiveReservationStatus(uint8 status) internal pure returns (bool) {
-        return status == CONFIRMED || status == IN_USE || status == COMPLETED;
+        return status == _CONFIRMED || status == _IN_USE || status == _COMPLETED;
     }
 
     function _incrementActiveReservationCounters(Reservation storage reservation) internal {

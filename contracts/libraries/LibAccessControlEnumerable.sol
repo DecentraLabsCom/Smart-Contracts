@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-pragma solidity ^0.8.23;
+pragma solidity ^0.8.31;
+
+// Custom error for gas-efficient reverts (Solidity 0.8.26+)
+error InvalidPaginationLimit();
 
 /**
  * @title LibAccessControlEnumerable
@@ -117,7 +120,7 @@ library LibAccessControlEnumerable {
     function _getLabProvidersPaginated(AppStorage storage _self, uint256 offset, uint256 limit) 
         internal view returns (Provider[] memory providers, uint256 total) 
     {
-        require(limit > 0 && limit <= 100, "Limit must be between 1 and 100");
+        require(limit > 0 && limit <= 100, InvalidPaginationLimit());
         
         total = _self.roleMembers[PROVIDER_ROLE].length();
         

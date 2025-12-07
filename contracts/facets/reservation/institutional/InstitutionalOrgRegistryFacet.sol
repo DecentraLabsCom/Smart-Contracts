@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-pragma solidity ^0.8.23;
+pragma solidity ^0.8.31;
 
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
-import {LibAppStorage, AppStorage, INSTITUTION_ROLE} from "../libraries/LibAppStorage.sol";
-import {LibInstitutionalOrg} from "../libraries/LibInstitutionalOrg.sol";
+import {LibAppStorage, AppStorage, INSTITUTION_ROLE} from "../../../libraries/LibAppStorage.sol";
+import {LibInstitutionalOrg} from "../../../libraries/LibInstitutionalOrg.sol";
 
 /// @title InstitutionalOrgRegistryFacet
 /// @notice On-chain registry that maps schacHomeOrganization identifiers to provider wallets

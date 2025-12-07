@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-pragma solidity ^0.8.23;
+pragma solidity ^0.8.31;
 
-import {LibAppStorage, AppStorage, INSTITUTION_ROLE, InstitutionalUserSpending} from "../libraries/LibAppStorage.sol";
+import {LibAppStorage, AppStorage, INSTITUTION_ROLE, InstitutionalUserSpending} from "../../../libraries/LibAppStorage.sol";
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {ReentrancyGuard} from "@openzeppelin/contracts/security/ReentrancyGuard.sol";
+import {ReentrancyGuardTransient} from "@openzeppelin/contracts/utils/ReentrancyGuardTransient.sol";
 
 using SafeERC20 for IERC20;
 
@@ -14,7 +14,7 @@ using SafeERC20 for IERC20;
 /// @author Juan Luis Ramos Villalón
 /// @notice Allows institutions to assign and manage token balances for institutional users (SAML2 schacPersonalUniqueCode)
 /// @dev Uses LabERC20 token for deposits and spending. Implements backend authorization pattern for institutional users.
-contract InstitutionalTreasuryFacet is ReentrancyGuard {
+contract InstitutionalTreasuryFacet is ReentrancyGuardTransient {
     using EnumerableSet for EnumerableSet.AddressSet;
     
     /// @notice Emitted when an institution authorizes a backend address

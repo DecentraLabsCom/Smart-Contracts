@@ -9,6 +9,7 @@ artifacts
 out/
 cache_forge/
 broadcast/
+build.output
 
 # Libraries (managed by forge)
 lib/

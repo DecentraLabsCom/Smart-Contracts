@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-pragma solidity ^0.8.23;
+pragma solidity ^0.8.31;
 
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
-import {InstitutionalReservableTokenEnumerable} from "../abstracts/InstitutionalReservableTokenEnumerable.sol";
-import {ProviderFacet} from "./ProviderFacet.sol";
-import {AppStorage, Reservation, PayoutCandidate} from "../libraries/LibAppStorage.sol";
-import {LibAccessControlEnumerable} from "../libraries/LibAccessControlEnumerable.sol";
+import {InstitutionalReservableTokenEnumerable} from "../../abstracts/InstitutionalReservableTokenEnumerable.sol";
+import {ProviderFacet} from "../ProviderFacet.sol";
+import {AppStorage, Reservation, PayoutCandidate} from "../../libraries/LibAppStorage.sol";
+import {LibAccessControlEnumerable} from "../../libraries/LibAccessControlEnumerable.sol";
 
 /// @dev Interface for StakingFacet to update reservation timestamps
 interface IStakingFacet {
@@ -29,6 +29,8 @@ abstract contract BaseReservationFacet is InstitutionalReservableTokenEnumerable
     using EnumerableSet for EnumerableSet.Bytes32Set;
     using EnumerableSet for EnumerableSet.AddressSet;
 
+    error NotImplemented();
+
     /// @notice Emitted when a provider successfully collects funds from completed reservations
     /// @param provider The address of the lab provider
     /// @param labId The ID of the lab from which funds were collected
@@ -36,27 +38,27 @@ abstract contract BaseReservationFacet is InstitutionalReservableTokenEnumerable
     /// @param reservationsProcessed Number of reservations that were processed
     event FundsCollected(address indexed provider, uint256 indexed labId, uint256 amount, uint256 reservationsProcessed);
 
-    uint256 internal constant REVENUE_DENOMINATOR = 100;
-    uint256 internal constant REVENUE_PROVIDER = 70;
-    uint256 internal constant REVENUE_TREASURY = 15;
-    uint256 internal constant REVENUE_SUBSIDIES = 10;
-    uint256 internal constant REVENUE_GOVERNANCE = 5;
-    uint256 internal constant MAX_COMPACTION_SIZE = 500;
+    uint256 internal constant _REVENUE_DENOMINATOR = 100;
+    uint256 internal constant _REVENUE_PROVIDER = 70;
+    uint256 internal constant _REVENUE_TREASURY = 15;
+    uint256 internal constant _REVENUE_SUBSIDIES = 10;
+    uint256 internal constant _REVENUE_GOVERNANCE = 5;
+    uint256 internal constant _MAX_COMPACTION_SIZE = 500;
 
-    uint256 internal constant CANCEL_FEE_TOTAL = 3;
-    uint256 internal constant CANCEL_FEE_PROVIDER = 1;
-    uint256 internal constant CANCEL_FEE_TREASURY = 1;
-    uint256 internal constant CANCEL_FEE_GOVERNANCE = 1;
-    uint256 internal constant MIN_CANCELLATION_FEE = 10_000; // 0.01 tokens assuming 6 decimals
-    uint256 internal constant ORPHAN_PAYOUT_DELAY = 90 days;
+    uint256 internal constant _CANCEL_FEE_TOTAL = 3;
+    uint256 internal constant _CANCEL_FEE_PROVIDER = 1;
+    uint256 internal constant _CANCEL_FEE_TREASURY = 1;
+    uint256 internal constant _CANCEL_FEE_GOVERNANCE = 1;
+    uint256 internal constant _MIN_CANCELLATION_FEE = 10_000; // 0.01 tokens assuming 6 decimals
+    uint256 internal constant _ORPHAN_PAYOUT_DELAY = 90 days;
 
     /// @dev Modifier to restrict access to functions callable only by accounts with DEFAULT_ADMIN_ROLE
-    modifier defaultAdminRole() {
-        _defaultAdminRole();
+    modifier onlyDefaultAdminRole() {
+        _onlyDefaultAdminRole();
         _;
     }
 
-    function _defaultAdminRole() internal view {
+    function _onlyDefaultAdminRole() internal view {
         if (!ProviderFacet(address(this)).hasRole(_s().DEFAULT_ADMIN_ROLE, msg.sender)) {
             revert("Only default admin");
         }
@@ -77,87 +79,125 @@ abstract contract BaseReservationFacet is InstitutionalReservableTokenEnumerable
     // ---------------------------------------------------------------------
 
     function _reservationRequest(
-        uint256 _labId,
-        uint32 _start,
-        uint32 _end
-    ) internal virtual;
+        uint256, /* _labId */
+        uint32, /* _start */
+        uint32 /* _end */
+    ) internal virtual {
+        revert NotImplemented();
+    }
 
     function _institutionalReservationRequest(
-        address institutionalProvider,
-        string calldata puc,
-        uint256 _labId,
-        uint32 _start,
-        uint32 _end
-    ) internal virtual;
+        address, /* institutionalProvider */
+        string calldata, /* puc */
+        uint256, /* _labId */
+        uint32, /* _start */
+        uint32 /* _end */
+    ) internal virtual {
+        revert NotImplemented();
+    }
 
-    function _confirmReservationRequest(bytes32 _reservationKey) internal virtual;
+    function _confirmReservationRequest(bytes32 /* _reservationKey */) internal virtual {
+        revert NotImplemented();
+    }
 
     function _confirmInstitutionalReservationRequest(
-        address institutionalProvider,
-        bytes32 _reservationKey
-    ) internal virtual;
+        address, /* institutionalProvider */
+        bytes32 /* _reservationKey */
+    ) internal virtual {
+        revert NotImplemented();
+    }
 
-    function _denyReservationRequest(bytes32 _reservationKey) internal virtual;
+    function _denyReservationRequest(bytes32 /* _reservationKey */) internal virtual {
+        revert NotImplemented();
+    }
 
     function _denyInstitutionalReservationRequest(
-        address institutionalProvider,
-        string calldata puc,
-        bytes32 _reservationKey
-    ) internal virtual;
+        address, /* institutionalProvider */
+        string calldata, /* puc */
+        bytes32 /* _reservationKey */
+    ) internal virtual {
+        revert NotImplemented();
+    }
 
-    function _cancelReservationRequest(bytes32 _reservationKey) internal virtual;
+    function _cancelReservationRequest(bytes32 /* _reservationKey */) internal virtual {
+        revert NotImplemented();
+    }
 
-    function _cancelBooking(bytes32 _reservationKey) internal virtual;
+    function _cancelBooking(bytes32 /* _reservationKey */) internal virtual {
+        revert NotImplemented();
+    }
 
     function _cancelInstitutionalReservationRequest(
-        address institutionalProvider,
-        string calldata puc,
-        bytes32 _reservationKey
-    ) internal virtual;
+        address, /* institutionalProvider */
+        string calldata, /* puc */
+        bytes32 /* _reservationKey */
+    ) internal virtual {
+        revert NotImplemented();
+    }
 
-    function _cancelInstitutionalBooking(address institutionalProvider, bytes32 _reservationKey) internal virtual;
+    function _cancelInstitutionalBooking(address, /* institutionalProvider */ bytes32 /* _reservationKey */) internal virtual {
+        revert NotImplemented();
+    }
 
-    function _requestFunds(uint256 _labId, uint256 maxBatch) internal virtual;
+    function _requestFunds(uint256, /* _labId */ uint256 /* maxBatch */) internal virtual {
+        revert NotImplemented();
+    }
 
-    function _getLabTokenAddress() internal view virtual returns (address);
+    function _getLabTokenAddress() internal view virtual returns (address) {
+        revert NotImplemented();
+    }
 
-    function _getSafeBalance() internal view virtual returns (uint256);
+    function _getSafeBalance() internal view virtual returns (uint256) {
+        revert NotImplemented();
+    }
 
     function _releaseExpiredReservations(
-        uint256 _labId,
-        address _user,
-        uint256 maxBatch
-    ) internal virtual returns (uint256);
+        uint256, /* _labId */
+        address, /* _user */
+        uint256 /* maxBatch */
+    ) internal virtual returns (uint256) {
+        revert NotImplemented();
+    }
 
     function _releaseInstitutionalExpiredReservations(
-        address institutionalProvider,
-        string calldata puc,
-        uint256 _labId,
-        uint256 maxBatch
-    ) internal virtual returns (uint256);
+        address, /* institutionalProvider */
+        string calldata, /* puc */
+        uint256, /* _labId */
+        uint256 /* maxBatch */
+    ) internal virtual returns (uint256) {
+        revert NotImplemented();
+    }
 
     function _getInstitutionalUserReservationCount(
-        address institutionalProvider,
-        string calldata puc
-    ) internal view virtual returns (uint256);
+        address, /* institutionalProvider */
+        string calldata /* puc */
+    ) internal view virtual returns (uint256) {
+        revert NotImplemented();
+    }
 
     function _getInstitutionalUserReservationByIndex(
-        address institutionalProvider,
-        string calldata puc,
-        uint256 index
-    ) internal view virtual returns (bytes32);
+        address, /* institutionalProvider */
+        string calldata, /* puc */
+        uint256 /* index */
+    ) internal view virtual returns (bytes32) {
+        revert NotImplemented();
+    }
 
     function _hasInstitutionalUserActiveBooking(
-        address institutionalProvider,
-        string calldata puc,
-        uint256 labId
-    ) internal virtual returns (bool);
+        address, /* institutionalProvider */
+        string calldata, /* puc */
+        uint256 /* labId */
+    ) internal virtual returns (bool) {
+        revert NotImplemented();
+    }
 
     function _getInstitutionalUserActiveReservationKey(
-        address institutionalProvider,
-        string calldata puc,
-        uint256 labId
-    ) internal virtual returns (bytes32);
+        address, /* institutionalProvider */
+        string calldata, /* puc */
+        uint256 /* labId */
+    ) internal virtual returns (bytes32) {
+        revert NotImplemented();
+    }
 
     // ---------------------------------------------------------------------
     // Shared helpers
@@ -178,8 +218,8 @@ abstract contract BaseReservationFacet is InstitutionalReservableTokenEnumerable
             bytes32 key = userReservations.at(i);
             Reservation storage reservation = s.reservations[key];
 
-            // Only process expired reservations that are still CONFIRMED
-            if (reservation.end < currentTime && reservation.status == CONFIRMED) {
+            // Only process expired reservations that are still _CONFIRMED
+            if (reservation.end < currentTime && reservation.status == _CONFIRMED) {
                 _finalizeReservationForPayout(s, key, reservation, _labId);
                 len = userReservations.length();
                 unchecked {
@@ -222,14 +262,14 @@ abstract contract BaseReservationFacet is InstitutionalReservableTokenEnumerable
         Reservation storage reservation,
         uint256 labId
     ) internal returns (bool) {
-        if (reservation.status == COLLECTED || reservation.status == CANCELLED) {
+        if (reservation.status == _COLLECTED || reservation.status == _CANCELLED) {
             return false;
         }
 
         address trackingKey = _computeTrackingKey(reservation);
         uint256 reservationPrice = reservation.price;
 
-        if (reservation.status == CONFIRMED || reservation.status == IN_USE) {
+        if (reservation.status == _CONFIRMED || reservation.status == _IN_USE) {
             _removeReservationFromCalendar(labId, reservation.start);
         }
 
@@ -237,7 +277,7 @@ abstract contract BaseReservationFacet is InstitutionalReservableTokenEnumerable
             _decrementActiveReservationCounters(reservation);
         }
 
-        reservation.status = COLLECTED;
+        reservation.status = _COLLECTED;
 
         if (reservationPrice > 0) {
             _creditRevenueBuckets(s, reservation);
@@ -310,15 +350,15 @@ abstract contract BaseReservationFacet is InstitutionalReservableTokenEnumerable
             return (0, 0, 0, 0);
         }
 
-        // casting to uint96 is safe because price is already uint96 and multipliers are bounded by REVENUE_DENOMINATOR
+        // casting to uint96 is safe because price is already uint96 and multipliers are bounded by _REVENUE_DENOMINATOR
         // forge-lint: disable-next-line(unsafe-typecast)
-        providerShare = uint96((uint256(price) * REVENUE_PROVIDER) / REVENUE_DENOMINATOR);
+        providerShare = uint96((uint256(price) * _REVENUE_PROVIDER) / _REVENUE_DENOMINATOR);
         // forge-lint: disable-next-line(unsafe-typecast)
-        treasuryShare = uint96((uint256(price) * REVENUE_TREASURY) / REVENUE_DENOMINATOR);
+        treasuryShare = uint96((uint256(price) * _REVENUE_TREASURY) / _REVENUE_DENOMINATOR);
         // forge-lint: disable-next-line(unsafe-typecast)
-        subsidiesShare = uint96((uint256(price) * REVENUE_SUBSIDIES) / REVENUE_DENOMINATOR);
+        subsidiesShare = uint96((uint256(price) * _REVENUE_SUBSIDIES) / _REVENUE_DENOMINATOR);
         // forge-lint: disable-next-line(unsafe-typecast)
-        governanceShare = uint96((uint256(price) * REVENUE_GOVERNANCE) / REVENUE_DENOMINATOR);
+        governanceShare = uint96((uint256(price) * _REVENUE_GOVERNANCE) / _REVENUE_DENOMINATOR);
 
         uint96 allocated = providerShare + treasuryShare + subsidiesShare + governanceShare;
         uint96 remainder = price - allocated;
@@ -349,25 +389,25 @@ abstract contract BaseReservationFacet is InstitutionalReservableTokenEnumerable
         }
 
         // forge-lint: disable-next-line(unsafe-typecast)
-        uint96 totalFee = uint96((uint256(price) * CANCEL_FEE_TOTAL) / REVENUE_DENOMINATOR);
+        uint96 totalFee = uint96((uint256(price) * _CANCEL_FEE_TOTAL) / _REVENUE_DENOMINATOR);
 
         // Enforce minimum fee of 0.01 tokens (6 decimals) but never exceed the price
         // forge-lint: disable-next-line(unsafe-typecast)
-        uint96 minFee = price < MIN_CANCELLATION_FEE ? price : uint96(MIN_CANCELLATION_FEE);
+        uint96 minFee = price < _MIN_CANCELLATION_FEE ? price : uint96(_MIN_CANCELLATION_FEE);
         if (totalFee < minFee) {
             totalFee = minFee;
             // forge-lint: disable-next-line(unsafe-typecast)
-            providerFee = uint96((uint256(totalFee) * CANCEL_FEE_PROVIDER) / CANCEL_FEE_TOTAL);
+            providerFee = uint96((uint256(totalFee) * _CANCEL_FEE_PROVIDER) / _CANCEL_FEE_TOTAL);
             // forge-lint: disable-next-line(unsafe-typecast)
-            treasuryFee = uint96((uint256(totalFee) * CANCEL_FEE_TREASURY) / CANCEL_FEE_TOTAL);
+            treasuryFee = uint96((uint256(totalFee) * _CANCEL_FEE_TREASURY) / _CANCEL_FEE_TOTAL);
             governanceFee = totalFee - providerFee - treasuryFee; // assign any remainder
         } else {
             // forge-lint: disable-next-line(unsafe-typecast)
-            providerFee = uint96((uint256(price) * CANCEL_FEE_PROVIDER) / REVENUE_DENOMINATOR);
+            providerFee = uint96((uint256(price) * _CANCEL_FEE_PROVIDER) / _REVENUE_DENOMINATOR);
             // forge-lint: disable-next-line(unsafe-typecast)
-            treasuryFee = uint96((uint256(price) * CANCEL_FEE_TREASURY) / REVENUE_DENOMINATOR);
+            treasuryFee = uint96((uint256(price) * _CANCEL_FEE_TREASURY) / _REVENUE_DENOMINATOR);
             // forge-lint: disable-next-line(unsafe-typecast)
-            governanceFee = uint96((uint256(price) * CANCEL_FEE_GOVERNANCE) / REVENUE_DENOMINATOR);
+            governanceFee = uint96((uint256(price) * _CANCEL_FEE_GOVERNANCE) / _REVENUE_DENOMINATOR);
 
             uint96 allocated = providerFee + treasuryFee + governanceFee;
             if (allocated < totalFee) {
@@ -438,7 +478,7 @@ abstract contract BaseReservationFacet is InstitutionalReservableTokenEnumerable
             Reservation storage reservation = s.reservations[root.key];
             if (
                 reservation.labId == labId
-                    && (reservation.status == CONFIRMED || reservation.status == IN_USE || reservation.status == COMPLETED)
+                    && (reservation.status == _CONFIRMED || reservation.status == _IN_USE || reservation.status == _COMPLETED)
             ) {
                 return root.key;
             }
@@ -508,7 +548,7 @@ abstract contract BaseReservationFacet is InstitutionalReservableTokenEnumerable
     function _compactHeap(AppStorage storage s, uint256 labId) internal {
         PayoutCandidate[] storage heap = s.payoutHeaps[labId];
         uint256 originalLength = heap.length; // Preserve original length for safe iteration
-        if (originalLength > MAX_COMPACTION_SIZE) {
+        if (originalLength > _MAX_COMPACTION_SIZE) {
             // Too large to safely compact in one go; try again in a later call
             return;
         }
@@ -521,7 +561,7 @@ abstract contract BaseReservationFacet is InstitutionalReservableTokenEnumerable
 
             if (
                 reservation.labId == labId
-                    && (reservation.status == CONFIRMED || reservation.status == IN_USE || reservation.status == COMPLETED)
+                    && (reservation.status == _CONFIRMED || reservation.status == _IN_USE || reservation.status == _COMPLETED)
             ) {
                 // Keep valid entry: move to write position if different from read position
                 if (writeIndex != readIndex) {

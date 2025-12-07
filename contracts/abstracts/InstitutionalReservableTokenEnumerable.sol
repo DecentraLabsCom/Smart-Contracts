@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-pragma solidity ^0.8.23;
+pragma solidity ^0.8.31;
 
 import {ReservableTokenEnumerable} from "./ReservableTokenEnumerable.sol";
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
@@ -129,7 +129,7 @@ abstract contract InstitutionalReservableTokenEnumerable is ReservableTokenEnume
                 continue;
             }
 
-            if (reservation.status == CANCELLED || reservation.status == COLLECTED || reservation.status == COMPLETED) {
+            if (reservation.status == _CANCELLED || reservation.status == _COLLECTED || reservation.status == _COMPLETED) {
                 s.activeReservationHeapContains[key] = false;
                 _removeActiveReservationRoot(heap);
                 continue;

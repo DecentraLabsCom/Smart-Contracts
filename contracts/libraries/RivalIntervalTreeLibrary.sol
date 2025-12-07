@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.23;
+pragma solidity ^0.8.31;
 
 // ----------------------------------------------------------------------------
 // Rival Interval Tree Library v1.0-pre-release-a - Optimized for bytecode size

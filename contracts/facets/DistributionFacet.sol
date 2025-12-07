@@ -1,11 +1,22 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-pragma solidity ^0.8.23;
+pragma solidity ^0.8.31;
 
 import {AccessControlUpgradeable} from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
 import {TimelockController} from "@openzeppelin/contracts/governance/TimelockController.sol";
 import {VestingWallet} from "@openzeppelin/contracts/finance/VestingWallet.sol";
 import {LabERC20} from "../external/LabERC20.sol";
 import {LibAppStorage, AppStorage} from "../libraries/LibAppStorage.sol";
+
+// Custom errors for gas-efficient reverts (Solidity 0.8.26+)
+error DistributionNotAdmin();
+error DistributionAlreadyInitialized();
+error DistributionNotInitialized();
+error DistributionZeroAddress();
+error DistributionZeroAmount();
+error DistributionSubsidiesCapReached();
+error DistributionEcosystemCapReached();
+error DistributionReserveCapReached();
+error DistributionBalanceAboveThreshold();
 
 /// @title DistributionFacet
 /// @notice Handles one-time initial tokenomics mint and controlled top-ups for subsidies and ecosystem growth.
@@ -30,13 +41,13 @@ contract DistributionFacet is AccessControlUpgradeable {
     /// @dev Emitted when reserve tokens are minted via governance.
     event ReserveMinted(address indexed to, uint256 amount, uint256 totalMinted);
 
-    modifier defaultAdminRole() {
-        _defaultAdminRole();
+    modifier onlyDefaultAdminRole() {
+        _onlyDefaultAdminRole();
         _;
     }
 
-    function _defaultAdminRole() internal view {
-        require(hasRole(DEFAULT_ADMIN_ROLE, msg.sender), "Distribution: caller is not admin");
+    function _onlyDefaultAdminRole() internal view {
+        require(hasRole(DEFAULT_ADMIN_ROLE, msg.sender), DistributionNotAdmin());
     }
 
     constructor() {}
@@ -57,15 +68,15 @@ contract DistributionFacet is AccessControlUpgradeable {
         address ecosystemGrowth,
         address teamBeneficiary,
         uint256 timelockDelay
-    ) external defaultAdminRole {
+    ) external onlyDefaultAdminRole {
         AppStorage storage s = _s();
-        require(!s.tokenPoolsInitialized, "Distribution: already initialized");
-        require(projectTreasury != address(0), "Distribution: treasury zero");
-        require(subsidies != address(0), "Distribution: subsidies zero");
-        require(governance != address(0), "Distribution: governance zero");
-        require(liquidity != address(0), "Distribution: liquidity zero");
-        require(ecosystemGrowth != address(0), "Distribution: ecosystem zero");
-        require(teamBeneficiary != address(0), "Distribution: team zero");
+        require(!s.tokenPoolsInitialized, DistributionAlreadyInitialized());
+        require(projectTreasury != address(0), DistributionZeroAddress());
+        require(subsidies != address(0), DistributionZeroAddress());
+        require(governance != address(0), DistributionZeroAddress());
+        require(liquidity != address(0), DistributionZeroAddress());
+        require(ecosystemGrowth != address(0), DistributionZeroAddress());
+        require(teamBeneficiary != address(0), DistributionZeroAddress());
 
         s.projectTreasuryWallet = projectTreasury;
         s.subsidiesWallet = subsidies;
@@ -99,13 +110,13 @@ contract DistributionFacet is AccessControlUpgradeable {
     }
 
     /// @notice Admin-only top-up for subsidies in 3% tranches when balance is low.
-    function topUpSubsidies() external defaultAdminRole {
+    function topUpSubsidies() external onlyDefaultAdminRole {
         AppStorage storage s = _s();
-        require(s.tokenPoolsInitialized, "Distribution: not initialized");
-        require(s.subsidiesPoolMinted < LibAppStorage.SUBSIDIES_POOL_CAP, "Distribution: subsidies cap reached");
+        require(s.tokenPoolsInitialized, DistributionNotInitialized());
+        require(s.subsidiesPoolMinted < LibAppStorage.SUBSIDIES_POOL_CAP, DistributionSubsidiesCapReached());
 
         uint256 currentBalance = LabERC20(s.labTokenAddress).balanceOf(s.subsidiesWallet);
-        require(currentBalance < LibAppStorage.SUBSIDIES_TOPUP_THRESHOLD, "Distribution: balance above threshold");
+        require(currentBalance < LibAppStorage.SUBSIDIES_TOPUP_THRESHOLD, DistributionBalanceAboveThreshold());
 
         uint256 remaining = LibAppStorage.SUBSIDIES_POOL_CAP - s.subsidiesPoolMinted;
         uint256 tranche = LibAppStorage.SUBSIDIES_TOPUP_TRANCHE;
@@ -117,13 +128,13 @@ contract DistributionFacet is AccessControlUpgradeable {
     }
 
     /// @notice Admin-only top-up for ecosystem growth in 2% tranches when balance is low.
-    function topUpEcosystemGrowth() external defaultAdminRole {
+    function topUpEcosystemGrowth() external onlyDefaultAdminRole {
         AppStorage storage s = _s();
-        require(s.tokenPoolsInitialized, "Distribution: not initialized");
-        require(s.ecosystemPoolMinted < LibAppStorage.ECOSYSTEM_POOL_CAP, "Distribution: ecosystem cap reached");
+        require(s.tokenPoolsInitialized, DistributionNotInitialized());
+        require(s.ecosystemPoolMinted < LibAppStorage.ECOSYSTEM_POOL_CAP, DistributionEcosystemCapReached());
 
         uint256 currentBalance = LabERC20(s.labTokenAddress).balanceOf(s.ecosystemGrowthWallet);
-        require(currentBalance < LibAppStorage.ECOSYSTEM_TOPUP_THRESHOLD, "Distribution: balance above threshold");
+        require(currentBalance < LibAppStorage.ECOSYSTEM_TOPUP_THRESHOLD, DistributionBalanceAboveThreshold());
 
         uint256 remaining = LibAppStorage.ECOSYSTEM_POOL_CAP - s.ecosystemPoolMinted;
         uint256 tranche = LibAppStorage.ECOSYSTEM_TOPUP_TRANCHE;
@@ -138,13 +149,13 @@ contract DistributionFacet is AccessControlUpgradeable {
     /// @dev Should be governed (e.g., via timelock/multisig) to avoid abuse.
     /// @param to Recipient address
     /// @param amount Amount to mint (base units, 6 decimals)
-    function mintFromReserve(address to, uint256 amount) external defaultAdminRole {
-        require(to != address(0), "Distribution: zero address");
-        require(amount > 0, "Distribution: zero amount");
+    function mintFromReserve(address to, uint256 amount) external onlyDefaultAdminRole {
+        require(to != address(0), DistributionZeroAddress());
+        require(amount > 0, DistributionZeroAmount());
 
         AppStorage storage s = _s();
-        require(s.tokenPoolsInitialized, "Distribution: not initialized");
-        require(s.reservePoolMinted + amount <= LibAppStorage.RESERVE_POOL_CAP, "Distribution: reserve cap reached");
+        require(s.tokenPoolsInitialized, DistributionNotInitialized());
+        require(s.reservePoolMinted + amount <= LibAppStorage.RESERVE_POOL_CAP, DistributionReserveCapReached());
 
         LabERC20 token = LabERC20(s.labTokenAddress);
         // ERC20Capped enforces total cap; we also guard reserve portion.
@@ -156,10 +167,10 @@ contract DistributionFacet is AccessControlUpgradeable {
 
     /// @notice After initialization, hand over mint authority to governance (e.g., timelock/multisig) and remove it from the Diamond.
     /// @param newMinter Address that will hold MINTER_ROLE (governance/Timelock/DAO)
-    function finalizeMinterGovernance(address newMinter) external defaultAdminRole {
-        require(newMinter != address(0), "Distribution: new minter zero");
+    function finalizeMinterGovernance(address newMinter) external onlyDefaultAdminRole {
+        require(newMinter != address(0), DistributionZeroAddress());
         AppStorage storage s = _s();
-        require(s.tokenPoolsInitialized, "Distribution: not initialized");
+        require(s.tokenPoolsInitialized, DistributionNotInitialized());
 
         LabERC20 token = LabERC20(s.labTokenAddress);
         token.grantRole(token.MINTER_ROLE(), newMinter);

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-pragma solidity ^0.8.23;
+pragma solidity ^0.8.31;
 
 import {IntentMeta, ReservationIntentPayload, ActionIntentPayload} from "../libraries/IntentTypes.sol";
 import {LibIntent} from "../libraries/LibIntent.sol";

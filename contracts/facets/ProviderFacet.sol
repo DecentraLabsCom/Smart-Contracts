@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-pragma solidity ^0.8.23;
+pragma solidity ^0.8.31;
 
 import {AccessControlUpgradeable} from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
 import {LibAppStorage, AppStorage, PROVIDER_ROLE, INSTITUTION_ROLE, Provider, ProviderBase} from "../libraries/LibAppStorage.sol";
@@ -81,12 +81,12 @@ contract ProviderFacet is AccessControlUpgradeable {
     ///      with the `DEFAULT_ADMIN_ROLE`. Ensures that the caller of the function has the
     ///      required role before proceeding with the execution of the function.
     /// @notice Reverts if the caller does not have the `DEFAULT_ADMIN_ROLE`.
-    modifier defaultAdminRole() {
-        _defaultAdminRole();
+    modifier onlyDefaultAdminRole() {
+        _onlyDefaultAdminRole();
         _;
     }
 
-    function _defaultAdminRole() internal view {
+    function _onlyDefaultAdminRole() internal view {
         require(
             hasRole(DEFAULT_ADMIN_ROLE, msg.sender),
             "Only the default admin can perform this action"
@@ -138,7 +138,7 @@ contract ProviderFacet is AccessControlUpgradeable {
         address _account,
         string calldata _email,
         string calldata _country
-    ) external defaultAdminRole {
+    ) external onlyDefaultAdminRole {
         require(_account != address(0), "Invalid provider address");
         
         // Validate string lengths to prevent DoS attacks

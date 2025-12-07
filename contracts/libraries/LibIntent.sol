@@ -1,10 +1,26 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-pragma solidity ^0.8.23;
+pragma solidity ^0.8.31;
 
 import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import {IERC1271} from "@openzeppelin/contracts/interfaces/IERC1271.sol";
 import {IntentMeta, IntentState, ReservationIntentPayload, ActionIntentPayload} from "./IntentTypes.sol";
 import {LibAppStorage, AppStorage} from "./LibAppStorage.sol";
+
+// Custom errors for gas-efficient reverts (Solidity 0.8.26+)
+error IntentNotRegistered();
+error IntentNotPending();
+error IntentExpiredError();
+error ActionMismatch();
+error PayloadHashMismatch();
+error ExecutorMismatch();
+error OnlySigner();
+error RequestIdRequired();
+error InvalidSignerOrExecutor();
+error InvalidNonce();
+error RequestedAtRequired();
+error RequestedAtInFuture();
+error IntentAlreadyExists();
+error InvalidSignature();
 
 /// @notice Shared helpers to register and consume intents with EIP-712 verification
 library LibIntent {
@@ -182,18 +198,18 @@ library LibIntent {
         AppStorage storage s = LibAppStorage.diamondStorage();
         IntentMeta storage meta = s.intents[requestId];
 
-        if (meta.state == IntentState.None) revert("Intent not registered");
-        if (meta.state != IntentState.Pending) revert("Intent not pending");
+        if (meta.state == IntentState.None) revert IntentNotRegistered();
+        if (meta.state != IntentState.Pending) revert IntentNotPending();
 
         if (block.timestamp > meta.expiresAt) {
             meta.state = IntentState.Expired;
             emit IntentExpired(requestId, meta.signer);
-            revert("Intent expired");
+            revert IntentExpiredError();
         }
 
-        require(meta.action == expectedAction, "Action mismatch");
-        require(meta.payloadHash == expectedPayloadHash, "Payload hash mismatch");
-        require(meta.executor == expectedExecutor, "Executor mismatch");
+        require(meta.action == expectedAction, ActionMismatch());
+        require(meta.payloadHash == expectedPayloadHash, PayloadHashMismatch());
+        require(meta.executor == expectedExecutor, ExecutorMismatch());
 
         meta.state = IntentState.Executed;
     }
@@ -201,8 +217,8 @@ library LibIntent {
     function cancelIntent(bytes32 requestId, address caller) internal {
         AppStorage storage s = LibAppStorage.diamondStorage();
         IntentMeta storage meta = s.intents[requestId];
-        require(meta.state == IntentState.Pending, "Not pending");
-        require(meta.signer == caller, "Only signer");
+        require(meta.state == IntentState.Pending, IntentNotPending());
+        require(meta.signer == caller, OnlySigner());
         meta.state = IntentState.Cancelled;
         emit IntentCancelled(requestId, caller);
     }
@@ -226,21 +242,21 @@ library LibIntent {
     ) private {
         AppStorage storage s = LibAppStorage.diamondStorage();
 
-        require(meta.requestId != bytes32(0), "requestId required");
-        require(meta.signer != address(0) && meta.executor != address(0), "Invalid signer/executor");
-        require(meta.nonce == s.intentNonces[meta.signer], "Invalid nonce");
-        require(meta.payloadHash == calculatedPayloadHash, "Payload hash mismatch");
-        require(meta.expiresAt > block.timestamp, "Intent expired");
-        require(meta.requestedAt != 0, "requestedAt required");
-        require(meta.requestedAt <= block.timestamp, "requestedAt in future");
+        require(meta.requestId != bytes32(0), RequestIdRequired());
+        require(meta.signer != address(0) && meta.executor != address(0), InvalidSignerOrExecutor());
+        require(meta.nonce == s.intentNonces[meta.signer], InvalidNonce());
+        require(meta.payloadHash == calculatedPayloadHash, PayloadHashMismatch());
+        require(meta.expiresAt > block.timestamp, IntentExpiredError());
+        require(meta.requestedAt != 0, RequestedAtRequired());
+        require(meta.requestedAt <= block.timestamp, RequestedAtInFuture());
 
         IntentMeta storage existing = s.intents[meta.requestId];
-        require(existing.state == IntentState.None, "Intent already exists");
+        require(existing.state == IntentState.None, IntentAlreadyExists());
 
         bytes32 structHash = hashIntentMeta(meta);
         // forge-lint: disable-next-line(asm-keccak256)
         bytes32 digest = keccak256(abi.encodePacked("\x19\x01", _domainSeparator(), structHash));
-        require(_isValidSignature(meta.signer, digest, signature), "Invalid signature");
+        require(_isValidSignature(meta.signer, digest, signature), InvalidSignature());
 
         s.intentNonces[meta.signer] = meta.nonce + 1;
 

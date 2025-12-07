@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-pragma solidity ^0.8.23;
+pragma solidity ^0.8.31;
 
 import {AccessControlUpgradeable} from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
 import {LibAppStorage, AppStorage, PROVIDER_ROLE, PendingSlash} from "../libraries/LibAppStorage.sol";
@@ -110,12 +110,12 @@ contract StakingFacet is AccessControlUpgradeable {
 
     /// @dev Modifier to restrict access to functions that can only be executed by accounts
     ///      with the `DEFAULT_ADMIN_ROLE`.
-    modifier defaultAdminRole() {
-        _defaultAdminRole();
+    modifier onlyDefaultAdminRole() {
+        _onlyDefaultAdminRole();
         _;
     }
 
-    function _defaultAdminRole() internal view {
+    function _onlyDefaultAdminRole() internal view {
         require(
             hasRole(DEFAULT_ADMIN_ROLE, msg.sender),
             "StakingFacet: caller is not admin"
@@ -233,7 +233,7 @@ contract StakingFacet is AccessControlUpgradeable {
         address provider,
         uint256 amount,
         string calldata reason
-    ) external defaultAdminRole {
+    ) external onlyDefaultAdminRole {
         require(provider != address(0), "StakingFacet: invalid provider address");
 
         AppStorage storage s = _s();
@@ -270,7 +270,7 @@ contract StakingFacet is AccessControlUpgradeable {
     }
 
     /// @notice Execute a queued slash after the timelock has expired
-    function executeQueuedSlash(address provider) external defaultAdminRole {
+    function executeQueuedSlash(address provider) external onlyDefaultAdminRole {
         AppStorage storage s = _s();
         PendingSlash storage pending = s.pendingSlashes[provider];
         require(pending.executeAfter != 0, "StakingFacet: no queued slash");
@@ -311,7 +311,7 @@ contract StakingFacet is AccessControlUpgradeable {
     /// @notice Burns entire stake when a provider is removed from the system
     /// @dev Called by ProviderFacet when removeProvider is executed
     /// @param provider The address of the provider being removed
-    function burnStakeOnRemoval(address provider) external defaultAdminRole {
+    function burnStakeOnRemoval(address provider) external onlyDefaultAdminRole {
         require(provider != address(0), "StakingFacet: invalid provider address");
         
         AppStorage storage s = _s();

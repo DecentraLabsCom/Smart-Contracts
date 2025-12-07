@@ -8,15 +8,16 @@ script = "script"
 cache_path = "cache"
 
 # Configuración del compilador Solidity
-solc_version = "0.8.23"
+solc_version = "0.8.31"
+solc = "C:/Users/ldela/.foundry/bin/solc-0.8.31.exe"
 optimizer = true
 optimizer_runs = 1
 via_ir = true
 cbor_metadata = false
 bytecode_hash = "none"
 
-# Configuración de EVM
-evm_version = "paris"
+# Configuración de EVM (cancun habilita MCOPY, TLOAD/TSTORE transient storage)
+evm_version = "cancun"
 
 # Remappings para dependencias
 remappings = [

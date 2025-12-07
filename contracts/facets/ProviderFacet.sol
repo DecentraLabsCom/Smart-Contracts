@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 pragma solidity ^0.8.23;
 
-import "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
+import {AccessControlUpgradeable} from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
 import {LibAppStorage, AppStorage, PROVIDER_ROLE, INSTITUTION_ROLE, Provider, ProviderBase} from "../libraries/LibAppStorage.sol";
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
-import "../libraries/LibDiamond.sol";
+import {LibDiamond} from "../libraries/LibDiamond.sol";
 import {LibAccessControlEnumerable} from "../libraries/LibAccessControlEnumerable.sol";
-import "../external/LabERC20.sol"; // Import the LabERC20 contract, no yet implemented
+import {LabERC20} from "../external/LabERC20.sol"; // Import the LabERC20 contract, no yet implemented
 
 /// @title ProviderFacet Contract
 /// @author Juan Luis Ramos Villalón
@@ -82,11 +82,15 @@ contract ProviderFacet is AccessControlUpgradeable {
     ///      required role before proceeding with the execution of the function.
     /// @notice Reverts if the caller does not have the `DEFAULT_ADMIN_ROLE`.
     modifier defaultAdminRole() {
+        _defaultAdminRole();
+        _;
+    }
+
+    function _defaultAdminRole() internal view {
         require(
             hasRole(DEFAULT_ADMIN_ROLE, msg.sender),
             "Only the default admin can perform this action"
         );
-        _;
     }
 
     /// @dev Constructor for the `ProviderFacet` contract.
@@ -98,12 +102,12 @@ contract ProviderFacet is AccessControlUpgradeable {
     /// @param _name The name of the initial admin.
     /// @param _email The email of the initial admin.
     /// @param _country The country of the initial admin.
-    /// @param _labERC20 The address of the LabERC20 token contract.
+    /// @param _labErc20 The address of the LabERC20 token contract.
     function initialize(
         string memory _name,
         string memory _email,
         string memory _country,
-        address _labERC20
+        address _labErc20
     ) public initializer {
         LibDiamond.enforceIsContractOwner();
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
@@ -112,7 +116,7 @@ contract ProviderFacet is AccessControlUpgradeable {
         _s()._addProviderRole(msg.sender, _name, _email, _country);
 
         _s().DEFAULT_ADMIN_ROLE = DEFAULT_ADMIN_ROLE;
-        _s().labTokenAddress = _labERC20;
+        _s().labTokenAddress = _labErc20;
         _s().labId=0;
     }
 
@@ -305,7 +309,7 @@ contract ProviderFacet is AccessControlUpgradeable {
         string calldata _email,
         string calldata _country
     ) external onlyRole(PROVIDER_ROLE) {
-        _s().providers[msg.sender] = ProviderBase(_name, _email, _country);
+        _s().providers[msg.sender] = ProviderBase({name: _name, email: _email, country: _country});
         emit ProviderUpdated(msg.sender, _name, _email, _country);
     }
 

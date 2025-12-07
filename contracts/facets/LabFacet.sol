@@ -1,14 +1,15 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 pragma solidity ^0.8.23;
 
-import "@openzeppelin/contracts-upgradeable/token/ERC721/extensions/ERC721EnumerableUpgradeable.sol";
-import "@openzeppelin/contracts-upgradeable/token/ERC721/IERC721Upgradeable.sol";
-import "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
-import {LibAppStorage, AppStorage, Lab, LabBase} from "../libraries/LibAppStorage.sol";
+import {ERC721Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC721/ERC721Upgradeable.sol";
+import {ERC721EnumerableUpgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC721/extensions/ERC721EnumerableUpgradeable.sol";
+import {IERC721Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC721/IERC721Upgradeable.sol";
+import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
+import {AppStorage, Lab, LabBase} from "../libraries/LibAppStorage.sol";
 import {LibAccessControlEnumerable} from "../libraries/LibAccessControlEnumerable.sol";
 import {LibIntent} from "../libraries/LibIntent.sol";
 import {ActionIntentPayload} from "../libraries/IntentTypes.sol";
-import "../abstracts/ReservableToken.sol";
+import {ReservableToken} from "../abstracts/ReservableToken.sol";
 
 using EnumerableSet for EnumerableSet.Bytes32Set;
 using EnumerableSet for EnumerableSet.AddressSet;
@@ -42,7 +43,7 @@ contract LabFacet is ERC721EnumerableUpgradeable, ReservableToken {
     /// @param _uri The URI containing metadata or details about the lab.
     /// @param _price The price associated with the lab, represented as a uint96.
     /// @param _auth The authorization details for the lab.
-    /// @param _accessURI The URI used to access the lab's services.
+    /// @param _accessUri The URI used to access the lab's services.
     /// @param _accessKey The access key required to interact with the lab.
     event LabAdded(
         uint256 indexed _labId,
@@ -50,7 +51,7 @@ contract LabFacet is ERC721EnumerableUpgradeable, ReservableToken {
         string _uri,
         uint96 _price,
         string _auth,
-        string _accessURI,
+        string _accessUri,
         string _accessKey
     );
 
@@ -59,14 +60,14 @@ contract LabFacet is ERC721EnumerableUpgradeable, ReservableToken {
     /// @param _uri The updated URI of the lab.
     /// @param _price The updated price of the lab.
     /// @param _auth The updated authorization details for the lab.
-    /// @param _accessURI The updated URI for accessing the lab.
+    /// @param _accessUri The updated URI for accessing the lab.
     /// @param _accessKey The updated access key required to interact with the lab.
     event LabUpdated(
         uint256 indexed _labId,
         string _uri,
         uint96 _price,
         string _auth,
-        string _accessURI,
+        string _accessUri,
         string _accessKey
     );
 
@@ -109,11 +110,15 @@ contract LabFacet is ERC721EnumerableUpgradeable, ReservableToken {
     ///      Ensures that the caller is authorized as the LabProvider before proceeding.
     /// @notice Throws an error if the caller is not the designated LabProvider.
     modifier isLabProvider() {
+        _isLabProvider();
+        _;
+    }
+
+    function _isLabProvider() internal view {
         require(
             _s()._isLabProvider(msg.sender),
             "Only one LabProvider can perform this action"
         );
-        _;
     }
 
     /// @dev Constructor for the LabFacet contract.
@@ -139,7 +144,7 @@ contract LabFacet is ERC721EnumerableUpgradeable, ReservableToken {
     /// @param _uri The URI of the Lab, providing metadata or additional information.
     /// @param _price The price of the Lab in the smallest unit of the currency.
     /// @param _auth The URI to the authentication service that issues session tokens for lab access
-    /// @param _accessURI The URI used to access the laboratory's services.
+    /// @param _accessUri The URI used to access the laboratory's services.
     /// @param _accessKey TA public (non-sensitive) key or ID used for routing/access to the laboratory.
     /// @dev The caller of this function must have the role of a Lab provider.
     /// @dev Emits a {LabAdded} event upon successful execution.
@@ -148,13 +153,13 @@ contract LabFacet is ERC721EnumerableUpgradeable, ReservableToken {
         string calldata _uri,
         uint96 _price,
         string calldata _auth,
-        string calldata _accessURI,
+        string calldata _accessUri,
         string calldata _accessKey
     ) public isLabProvider {
         // Validate string lengths to prevent DoS attacks
         require(bytes(_uri).length > 0 && bytes(_uri).length <= 500, "Invalid URI length");
         require(bytes(_auth).length > 0 && bytes(_auth).length <= 500, "Invalid auth length");
-        require(bytes(_accessURI).length > 0 && bytes(_accessURI).length <= 500, "Invalid accessURI length");
+        require(bytes(_accessUri).length > 0 && bytes(_accessUri).length <= 500, "Invalid accessURI length");
         require(bytes(_accessKey).length > 0 && bytes(_accessKey).length <= 200, "Invalid accessKey length");
         
         AppStorage storage s = _s();
@@ -169,13 +174,13 @@ contract LabFacet is ERC721EnumerableUpgradeable, ReservableToken {
         s.labId = nextLabId;
         
         // Store lab metadata
-        s.labs[nextLabId] = LabBase(
-            _uri,
-            _price,
-            _auth,
-            _accessURI,
-            _accessKey
-        );
+        s.labs[nextLabId] = LabBase({
+            uri: _uri,
+            price: _price,
+            auth: _auth,
+            accessURI: _accessUri,
+            accessKey: _accessKey
+        });
         
         emit LabAdded(
             nextLabId,
@@ -183,7 +188,7 @@ contract LabFacet is ERC721EnumerableUpgradeable, ReservableToken {
             _uri,
             _price,
             _auth,
-            _accessURI,
+            _accessUri,
             _accessKey
         );
     }
@@ -194,7 +199,7 @@ contract LabFacet is ERC721EnumerableUpgradeable, ReservableToken {
         string calldata _uri,
         uint96 _price,
         string calldata _auth,
-        string calldata _accessURI,
+        string calldata _accessUri,
         string calldata _accessKey
     ) external isLabProvider {
         AppStorage storage s = _s();
@@ -210,13 +215,13 @@ contract LabFacet is ERC721EnumerableUpgradeable, ReservableToken {
             price: _price,
             maxBatch: 0,
             auth: _auth,
-            accessURI: _accessURI,
+            accessURI: _accessUri,
             accessKey: _accessKey,
             tokenURI: ""
         });
         _consumeLabIntent(requestId, LibIntent.ACTION_LAB_ADD, payload);
 
-        addLab(_uri, _price, _auth, _accessURI, _accessKey);
+        addLab(_uri, _price, _auth, _accessUri, _accessKey);
         uint256 newLabId = s.labId;
         emit LabIntentProcessed(requestId, newLabId, "LAB_ADD", msg.sender, true, "");
     }
@@ -229,7 +234,7 @@ contract LabFacet is ERC721EnumerableUpgradeable, ReservableToken {
     /// @param _uri The URI of the Lab, providing metadata or additional information.
     /// @param _price The price of the Lab in the smallest unit of the currency.
     /// @param _auth The URI to the authentication service that issues session tokens for lab access
-    /// @param _accessURI The URI used to access the laboratory's services.
+    /// @param _accessUri The URI used to access the laboratory's services.
     /// @param _accessKey TA public (non-sensitive) key or ID used for routing/access to the laboratory.
     /// @dev The caller of this function must have the role of a Lab provider.
     /// @dev Emits both {LabAdded} and {LabListed} events upon successful execution.
@@ -238,13 +243,13 @@ contract LabFacet is ERC721EnumerableUpgradeable, ReservableToken {
         string calldata _uri,
         uint96 _price,
         string calldata _auth,
-        string calldata _accessURI,
+        string calldata _accessUri,
         string calldata _accessKey
     ) public isLabProvider {
         // Validate string lengths to prevent DoS attacks
         require(bytes(_uri).length > 0 && bytes(_uri).length <= 500, "Invalid URI length");
         require(bytes(_auth).length > 0 && bytes(_auth).length <= 500, "Invalid auth length");
-        require(bytes(_accessURI).length > 0 && bytes(_accessURI).length <= 500, "Invalid accessURI length");
+        require(bytes(_accessUri).length > 0 && bytes(_accessUri).length <= 500, "Invalid accessURI length");
         require(bytes(_accessKey).length > 0 && bytes(_accessKey).length <= 200, "Invalid accessKey length");
         
         AppStorage storage s = _s();
@@ -267,13 +272,13 @@ contract LabFacet is ERC721EnumerableUpgradeable, ReservableToken {
         s.labId = nextLabId;
         
         // Store lab metadata
-        s.labs[nextLabId] = LabBase(
-            _uri,
-            _price,
-            _auth,
-            _accessURI,
-            _accessKey
-        );
+        s.labs[nextLabId] = LabBase({
+            uri: _uri,
+            price: _price,
+            auth: _auth,
+            accessURI: _accessUri,
+            accessKey: _accessKey
+        });
         
         // Update listed count and list the lab
         s.providerStakes[msg.sender].listedLabsCount = newListedCount;
@@ -285,7 +290,7 @@ contract LabFacet is ERC721EnumerableUpgradeable, ReservableToken {
             _uri,
             _price,
             _auth,
-            _accessURI,
+            _accessUri,
             _accessKey
         );
         emit LabListed(nextLabId, msg.sender);
@@ -297,7 +302,7 @@ contract LabFacet is ERC721EnumerableUpgradeable, ReservableToken {
         string calldata _uri,
         uint96 _price,
         string calldata _auth,
-        string calldata _accessURI,
+        string calldata _accessUri,
         string calldata _accessKey
     ) external isLabProvider {
         AppStorage storage s = _s();
@@ -313,13 +318,13 @@ contract LabFacet is ERC721EnumerableUpgradeable, ReservableToken {
             price: _price,
             maxBatch: 0,
             auth: _auth,
-            accessURI: _accessURI,
+            accessURI: _accessUri,
             accessKey: _accessKey,
             tokenURI: ""
         });
         _consumeLabIntent(requestId, LibIntent.ACTION_LAB_ADD_AND_LIST, payload);
 
-        addAndListLab(_uri, _price, _auth, _accessURI, _accessKey);
+        addAndListLab(_uri, _price, _auth, _accessUri, _accessKey);
         uint256 newLabId = s.labId;
         emit LabIntentProcessed(requestId, newLabId, "LAB_LIST", msg.sender, true, "");
     }
@@ -328,27 +333,27 @@ contract LabFacet is ERC721EnumerableUpgradeable, ReservableToken {
     /// @dev This function allows a lab provider to update the URI of a lab.
     ///      The lab must already exist, and the new URI cannot be empty.
     /// @param _labId The ID of the lab whose URI is being updated.
-    /// @param _tokenURI The new URI to be set for the lab.
+    /// @param _tokenUri The new URI to be set for the lab.
     /// @dev  LabURISet Emitted when the URI of a lab is successfully updated.
     function setTokenURI(
         uint256 _labId,
-        string memory _tokenURI
+        string memory _tokenUri
     ) public exists(_labId) onlyTokenOwner(_labId) {
-        require(bytes(_tokenURI).length > 0, "Token URI cannot be empty");
+        require(bytes(_tokenUri).length > 0, "Token URI cannot be empty");
 
         LabBase memory lab = _s().labs[_labId];
        
-        lab.uri = _tokenURI;
+        lab.uri = _tokenUri;
         _s().labs[_labId] = lab;
 
-        emit LabURISet(_labId, _tokenURI);
+        emit LabURISet(_labId, _tokenUri);
     }
 
     /// @notice Updates URI via intent and emits LabIntentProcessed
     function setTokenURIWithIntent(
         bytes32 requestId,
         uint256 _labId,
-        string calldata _tokenURI
+        string calldata _tokenUri
     ) external exists(_labId) onlyTokenOwner(_labId) {
         ActionIntentPayload memory payload = ActionIntentPayload({
             executor: msg.sender,
@@ -363,11 +368,11 @@ contract LabFacet is ERC721EnumerableUpgradeable, ReservableToken {
             auth: "",
             accessURI: "",
             accessKey: "",
-            tokenURI: _tokenURI
+            tokenURI: _tokenUri
         });
         _consumeLabIntent(requestId, LibIntent.ACTION_LAB_SET_URI, payload);
 
-        setTokenURI(_labId, _tokenURI);
+        setTokenURI(_labId, _tokenUri);
         emit LabIntentProcessed(requestId, _labId, "LAB_SET_URI", msg.sender, true, "");
     }
 
@@ -390,7 +395,7 @@ contract LabFacet is ERC721EnumerableUpgradeable, ReservableToken {
     /// @param _uri The new URI for the Lab.
     /// @param _price The new price for the Lab.
     /// @param _auth The new authentication URI for the Lab.
-    /// @param _accessURI The new access URI for the Lab.
+    /// @param _accessUri The new access URI for the Lab.
     /// @param _accessKey The new access key for the Lab.
     /// @dev Emits a {LabUpdated} event upon successful execution
     function updateLab(
@@ -398,23 +403,23 @@ contract LabFacet is ERC721EnumerableUpgradeable, ReservableToken {
         string calldata _uri,
         uint96 _price,
         string calldata _auth,
-        string calldata _accessURI,
+        string calldata _accessUri,
         string calldata _accessKey
     ) public onlyTokenOwner(_labId) {
         // Validate string lengths to prevent DoS attacks
         require(bytes(_uri).length > 0 && bytes(_uri).length <= 500, "Invalid URI length");
         require(bytes(_auth).length > 0 && bytes(_auth).length <= 500, "Invalid auth length");
-        require(bytes(_accessURI).length > 0 && bytes(_accessURI).length <= 500, "Invalid accessURI length");
+        require(bytes(_accessUri).length > 0 && bytes(_accessUri).length <= 500, "Invalid accessURI length");
         require(bytes(_accessKey).length > 0 && bytes(_accessKey).length <= 200, "Invalid accessKey length");
        
-        _s().labs[_labId] = LabBase(
-            _uri,
-            _price,
-            _auth,
-            _accessURI,
-            _accessKey
-        );
-        emit LabUpdated(_labId, _uri, _price, _auth, _accessURI, _accessKey);
+        _s().labs[_labId] = LabBase({
+            uri: _uri,
+            price: _price,
+            auth: _auth,
+            accessURI: _accessUri,
+            accessKey: _accessKey
+        });
+        emit LabUpdated(_labId, _uri, _price, _auth, _accessUri, _accessKey);
     }
 
     /// @notice Updates a lab via intent
@@ -424,7 +429,7 @@ contract LabFacet is ERC721EnumerableUpgradeable, ReservableToken {
         string calldata _uri,
         uint96 _price,
         string calldata _auth,
-        string calldata _accessURI,
+        string calldata _accessUri,
         string calldata _accessKey
     ) external onlyTokenOwner(_labId) {
         ActionIntentPayload memory payload = ActionIntentPayload({
@@ -438,13 +443,13 @@ contract LabFacet is ERC721EnumerableUpgradeable, ReservableToken {
             price: _price,
             maxBatch: 0,
             auth: _auth,
-            accessURI: _accessURI,
+            accessURI: _accessUri,
             accessKey: _accessKey,
             tokenURI: ""
         });
         _consumeLabIntent(requestId, LibIntent.ACTION_LAB_UPDATE, payload);
 
-        updateLab(_labId, _uri, _price, _auth, _accessURI, _accessKey);
+        updateLab(_labId, _uri, _price, _auth, _accessUri, _accessKey);
         emit LabIntentProcessed(requestId, _labId, "LAB_UPDATE", msg.sender, true, "");
     }
 
@@ -568,7 +573,7 @@ contract LabFacet is ERC721EnumerableUpgradeable, ReservableToken {
     /// @param _labId The ID of the Lab to retrieve.
     /// @return A Lab structure containing the details of the specified Lab.
     function getLab(uint _labId) external view exists(_labId) returns (Lab memory) {
-        return Lab(_labId, _s().labs[_labId]);
+        return Lab({labId: _labId, base: _s().labs[_labId]});
     }
 
     /// @notice Retrieves a paginated list of lab token IDs

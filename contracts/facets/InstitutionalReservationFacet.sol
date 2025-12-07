@@ -4,11 +4,12 @@ pragma solidity ^0.8.23;
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/security/ReentrancyGuard.sol";
-import "./ReservationFacet.sol";
-import "../libraries/LibAppStorage.sol";
-import "../libraries/RivalIntervalTreeLibrary.sol";
+import {BaseReservationFacet, IStakingFacet, IInstitutionalTreasuryFacet} from "./ReservationFacet.sol";
+import {LibAppStorage, AppStorage, Reservation, INSTITUTION_ROLE} from "../libraries/LibAppStorage.sol";
+import {RivalIntervalTreeLibrary, Tree} from "../libraries/RivalIntervalTreeLibrary.sol";
 import {LibIntent} from "../libraries/LibIntent.sol";
 import {ReservationIntentPayload, ActionIntentPayload} from "../libraries/IntentTypes.sol";
+import {ReservableToken} from "../abstracts/ReservableToken.sol";
 
 /// @title InstitutionalReservationFacet
 /// @author
@@ -260,11 +261,15 @@ contract InstitutionalReservationFacet is BaseReservationFacet, ReentrancyGuard 
     // ---------------------------------------------------------------------
 
     modifier onlyInstitution(address institution) {
+        _onlyInstitution(institution);
+        _;
+    }
+
+    function _onlyInstitution(address institution) internal view {
         AppStorage storage s = _s();
         require(s.roleMembers[INSTITUTION_ROLE].contains(institution), "Unknown institution");
         address backend = s.institutionalBackends[institution];
         require(msg.sender == institution || (backend != address(0) && msg.sender == backend), "Not authorized institution");
-        _;
     }
 
     /// @dev Verifies that caller is the lab owner or authorized backend for institutional labs
@@ -490,8 +495,12 @@ contract InstitutionalReservationFacet is BaseReservationFacet, ReentrancyGuard 
         returns (uint64 start, uint64 duration)
     {
         uint256 rawDuration = _resolveSpendingPeriod(s, provider);
+        // forge-lint: disable-next-line(unsafe-typecast)
         duration = uint64(rawDuration);
-        start = uint64((block.timestamp / rawDuration) * rawDuration);
+        // forge-lint: disable-next-line(divide-before-multiply)
+        uint256 computedStart = (block.timestamp / rawDuration) * rawDuration;
+        // forge-lint: disable-next-line(unsafe-typecast)
+        start = uint64(computedStart);
     }
 
     function _validateInstitutionalRequest(

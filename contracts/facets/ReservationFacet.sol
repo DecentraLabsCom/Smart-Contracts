@@ -2,9 +2,10 @@
 pragma solidity ^0.8.23;
 
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
-import "../abstracts/InstitutionalReservableTokenEnumerable.sol";
-import "./ProviderFacet.sol";
-import {LibAppStorage, AppStorage, PayoutCandidate} from "../libraries/LibAppStorage.sol";
+import {InstitutionalReservableTokenEnumerable} from "../abstracts/InstitutionalReservableTokenEnumerable.sol";
+import {ProviderFacet} from "./ProviderFacet.sol";
+import {AppStorage, Reservation, PayoutCandidate} from "../libraries/LibAppStorage.sol";
+import {LibAccessControlEnumerable} from "../libraries/LibAccessControlEnumerable.sol";
 
 /// @dev Interface for StakingFacet to update reservation timestamps
 interface IStakingFacet {
@@ -51,16 +52,24 @@ abstract contract BaseReservationFacet is InstitutionalReservableTokenEnumerable
 
     /// @dev Modifier to restrict access to functions callable only by accounts with DEFAULT_ADMIN_ROLE
     modifier defaultAdminRole() {
+        _defaultAdminRole();
+        _;
+    }
+
+    function _defaultAdminRole() internal view {
         if (!ProviderFacet(address(this)).hasRole(_s().DEFAULT_ADMIN_ROLE, msg.sender)) {
             revert("Only default admin");
         }
-        _;
     }
 
     /// @dev Modifier that restricts function access to registered lab providers
     modifier isLabProvider() {
-        if (!_s()._isLabProvider(msg.sender)) revert("Only LabProvider");
+        _isLabProvider();
         _;
+    }
+
+    function _isLabProvider() internal view {
+        if (!_s()._isLabProvider(msg.sender)) revert("Only LabProvider");
     }
 
     // ---------------------------------------------------------------------
@@ -301,9 +310,14 @@ abstract contract BaseReservationFacet is InstitutionalReservableTokenEnumerable
             return (0, 0, 0, 0);
         }
 
+        // casting to uint96 is safe because price is already uint96 and multipliers are bounded by REVENUE_DENOMINATOR
+        // forge-lint: disable-next-line(unsafe-typecast)
         providerShare = uint96((uint256(price) * REVENUE_PROVIDER) / REVENUE_DENOMINATOR);
+        // forge-lint: disable-next-line(unsafe-typecast)
         treasuryShare = uint96((uint256(price) * REVENUE_TREASURY) / REVENUE_DENOMINATOR);
+        // forge-lint: disable-next-line(unsafe-typecast)
         subsidiesShare = uint96((uint256(price) * REVENUE_SUBSIDIES) / REVENUE_DENOMINATOR);
+        // forge-lint: disable-next-line(unsafe-typecast)
         governanceShare = uint96((uint256(price) * REVENUE_GOVERNANCE) / REVENUE_DENOMINATOR);
 
         uint96 allocated = providerShare + treasuryShare + subsidiesShare + governanceShare;
@@ -334,18 +348,25 @@ abstract contract BaseReservationFacet is InstitutionalReservableTokenEnumerable
             return (0, 0, 0, 0);
         }
 
+        // forge-lint: disable-next-line(unsafe-typecast)
         uint96 totalFee = uint96((uint256(price) * CANCEL_FEE_TOTAL) / REVENUE_DENOMINATOR);
 
         // Enforce minimum fee of 0.01 tokens (6 decimals) but never exceed the price
+        // forge-lint: disable-next-line(unsafe-typecast)
         uint96 minFee = price < MIN_CANCELLATION_FEE ? price : uint96(MIN_CANCELLATION_FEE);
         if (totalFee < minFee) {
             totalFee = minFee;
+            // forge-lint: disable-next-line(unsafe-typecast)
             providerFee = uint96((uint256(totalFee) * CANCEL_FEE_PROVIDER) / CANCEL_FEE_TOTAL);
+            // forge-lint: disable-next-line(unsafe-typecast)
             treasuryFee = uint96((uint256(totalFee) * CANCEL_FEE_TREASURY) / CANCEL_FEE_TOTAL);
             governanceFee = totalFee - providerFee - treasuryFee; // assign any remainder
         } else {
+            // forge-lint: disable-next-line(unsafe-typecast)
             providerFee = uint96((uint256(price) * CANCEL_FEE_PROVIDER) / REVENUE_DENOMINATOR);
+            // forge-lint: disable-next-line(unsafe-typecast)
             treasuryFee = uint96((uint256(price) * CANCEL_FEE_TREASURY) / REVENUE_DENOMINATOR);
+            // forge-lint: disable-next-line(unsafe-typecast)
             governanceFee = uint96((uint256(price) * CANCEL_FEE_GOVERNANCE) / REVENUE_DENOMINATOR);
 
             uint96 allocated = providerFee + treasuryFee + governanceFee;
@@ -387,7 +408,7 @@ abstract contract BaseReservationFacet is InstitutionalReservableTokenEnumerable
         if (s.payoutHeapContains[key]) {
             return;
         }
-        heap.push(PayoutCandidate(end, key));
+        heap.push(PayoutCandidate({end: end, key: key}));
         s.payoutHeapContains[key] = true;
         _heapifyUp(heap, heap.length - 1);
     }

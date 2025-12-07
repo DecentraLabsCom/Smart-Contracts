@@ -4,9 +4,8 @@ pragma solidity ^0.8.23;
 import {AccessControlUpgradeable} from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
 import {TimelockController} from "@openzeppelin/contracts/governance/TimelockController.sol";
 import {VestingWallet} from "@openzeppelin/contracts/finance/VestingWallet.sol";
-import "../external/LabERC20.sol";
+import {LabERC20} from "../external/LabERC20.sol";
 import {LibAppStorage, AppStorage} from "../libraries/LibAppStorage.sol";
-import "../libraries/LibDiamond.sol";
 
 /// @title DistributionFacet
 /// @notice Handles one-time initial tokenomics mint and controlled top-ups for subsidies and ecosystem growth.
@@ -32,8 +31,12 @@ contract DistributionFacet is AccessControlUpgradeable {
     event ReserveMinted(address indexed to, uint256 amount, uint256 totalMinted);
 
     modifier defaultAdminRole() {
-        require(hasRole(DEFAULT_ADMIN_ROLE, msg.sender), "Distribution: caller is not admin");
+        _defaultAdminRole();
         _;
+    }
+
+    function _defaultAdminRole() internal view {
+        require(hasRole(DEFAULT_ADMIN_ROLE, msg.sender), "Distribution: caller is not admin");
     }
 
     constructor() {}

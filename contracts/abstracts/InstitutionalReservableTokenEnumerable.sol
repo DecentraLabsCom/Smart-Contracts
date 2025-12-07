@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 pragma solidity ^0.8.23;
 
-import "./ReservableTokenEnumerable.sol";
+import {ReservableTokenEnumerable} from "./ReservableTokenEnumerable.sol";
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
-import {LibAppStorage, AppStorage, UserActiveReservation} from "../libraries/LibAppStorage.sol";
+import {AppStorage, Reservation, UserActiveReservation} from "../libraries/LibAppStorage.sol";
 
 /// @title InstitutionalReservableTokenEnumerable
 /// @author

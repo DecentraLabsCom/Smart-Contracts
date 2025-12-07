@@ -54,6 +54,7 @@ contract InstitutionalOrgRegistryFacet {
     /// @return institution The institution wallet associated with the normalized identifier
     function resolveSchacHomeOrganization(string calldata schacHomeOrganization) external view returns (address institution) {
         string memory normalized = LibInstitutionalOrg.normalizeOrganization(schacHomeOrganization);
+        // forge-lint: disable-next-line(asm-keccak256)
         bytes32 orgHash = keccak256(bytes(normalized));
         return _s().organizationInstitutionWallet[orgHash];
     }
@@ -142,16 +143,24 @@ contract InstitutionalOrgRegistryFacet {
 
     /// @dev Ensures the caller owns an institution role
     modifier onlyInstitution() {
-        AppStorage storage s = _s();
-        require(s.roleMembers[INSTITUTION_ROLE].contains(msg.sender), "Only institution");
+        _onlyInstitution();
         _;
     }
 
     /// @dev Ensures the caller has the DEFAULT_ADMIN_ROLE
     modifier onlyDefaultAdmin() {
+        _onlyDefaultAdmin();
+        _;
+    }
+
+    function _onlyInstitution() internal view {
+        AppStorage storage s = _s();
+        require(s.roleMembers[INSTITUTION_ROLE].contains(msg.sender), "Only institution");
+    }
+
+    function _onlyDefaultAdmin() internal view {
         AppStorage storage s = _s();
         require(s.roleMembers[s.DEFAULT_ADMIN_ROLE].contains(msg.sender), "Only admin");
-        _;
     }
 
     function _s() internal pure returns (AppStorage storage s) {

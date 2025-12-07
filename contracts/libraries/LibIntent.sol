@@ -50,74 +50,85 @@ library LibIntent {
     // Hash helpers
     // ---------------------------------------------------------------------
 
+    function _keccak(bytes memory data) private pure returns (bytes32 result) {
+        assembly {
+            result := keccak256(add(data, 0x20), mload(data))
+        }
+    }
+
     function _domainSeparator() internal view returns (bytes32) {
-        return
-            keccak256(
-                abi.encode(
-                    EIP712_DOMAIN_TYPEHASH,
-                    NAME_HASH,
-                    VERSION_HASH,
-                    block.chainid,
-                    address(this)
-                )
-            );
+        return _keccak(
+            abi.encode(
+                EIP712_DOMAIN_TYPEHASH,
+                NAME_HASH,
+                VERSION_HASH,
+                block.chainid,
+                address(this)
+            )
+        );
     }
 
     function hashIntentMeta(IntentMeta memory meta) internal pure returns (bytes32) {
-        return
-            keccak256(
-                abi.encode(
-                    INTENT_META_TYPEHASH,
-                    meta.requestId,
-                    meta.signer,
-                    meta.executor,
-                    meta.action,
-                    meta.payloadHash,
-                    meta.nonce,
-                    meta.requestedAt,
-                    meta.expiresAt
-                )
-            );
+        return _keccak(
+            abi.encode(
+                INTENT_META_TYPEHASH,
+                meta.requestId,
+                meta.signer,
+                meta.executor,
+                meta.action,
+                meta.payloadHash,
+                meta.nonce,
+                meta.requestedAt,
+                meta.expiresAt
+            )
+        );
     }
 
     function hashReservationPayload(ReservationIntentPayload memory payload) internal pure returns (bytes32) {
-        return
-            keccak256(
-                abi.encode(
-                    RESERVATION_PAYLOAD_TYPEHASH,
-                    payload.executor,
-                    keccak256(bytes(payload.schacHomeOrganization)),
-                    keccak256(bytes(payload.puc)),
-                    payload.assertionHash,
-                    payload.labId,
-                    payload.start,
-                    payload.end,
-                    payload.price,
-                    payload.reservationKey
-                )
-            );
+        return _keccak(
+            abi.encode(
+                RESERVATION_PAYLOAD_TYPEHASH,
+                payload.executor,
+                // forge-lint: disable-next-line(asm-keccak256)
+                keccak256(bytes(payload.schacHomeOrganization)),
+                // forge-lint: disable-next-line(asm-keccak256)
+                keccak256(bytes(payload.puc)),
+                payload.assertionHash,
+                payload.labId,
+                payload.start,
+                payload.end,
+                payload.price,
+                payload.reservationKey
+            )
+        );
     }
 
     function hashActionPayload(ActionIntentPayload memory payload) internal pure returns (bytes32) {
-        return
-            keccak256(
-                abi.encode(
-                    ACTION_PAYLOAD_TYPEHASH,
-                    payload.executor,
+        return _keccak(
+            abi.encode(
+                ACTION_PAYLOAD_TYPEHASH,
+                payload.executor,
+                    // forge-lint: disable-next-line(asm-keccak256)
                     keccak256(bytes(payload.schacHomeOrganization)),
+                    // forge-lint: disable-next-line(asm-keccak256)
                     keccak256(bytes(payload.puc)),
-                    payload.assertionHash,
-                    payload.labId,
-                    payload.reservationKey,
+                payload.assertionHash,
+                payload.labId,
+                payload.reservationKey,
+                    // forge-lint: disable-next-line(asm-keccak256)
                     keccak256(bytes(payload.uri)),
-                    payload.price,
-                    payload.maxBatch,
+                payload.price,
+                payload.maxBatch,
+                    // forge-lint: disable-next-line(asm-keccak256)
                     keccak256(bytes(payload.auth)),
+                    // forge-lint: disable-next-line(asm-keccak256)
                     keccak256(bytes(payload.accessURI)),
+                    // forge-lint: disable-next-line(asm-keccak256)
                     keccak256(bytes(payload.accessKey)),
+                    // forge-lint: disable-next-line(asm-keccak256)
                     keccak256(bytes(payload.tokenURI))
-                )
-            );
+            )
+        );
     }
 
     // ---------------------------------------------------------------------
@@ -227,6 +238,7 @@ library LibIntent {
         require(existing.state == IntentState.None, "Intent already exists");
 
         bytes32 structHash = hashIntentMeta(meta);
+        // forge-lint: disable-next-line(asm-keccak256)
         bytes32 digest = keccak256(abi.encodePacked("\x19\x01", _domainSeparator(), structHash));
         require(_isValidSignature(meta.signer, digest, signature), "Invalid signature");
 

@@ -112,7 +112,10 @@ library LibDiamond {
             if(oldFacetAddress != address(0)) {
                 revert CannotAddFunctionToDiamondThatAlreadyExists(selector);
             }            
-            ds.facetAddressAndSelectorPosition[selector] = FacetAddressAndSelectorPosition(_facetAddress, selectorCount);
+            ds.facetAddressAndSelectorPosition[selector] = FacetAddressAndSelectorPosition({
+                facetAddress: _facetAddress,
+                selectorPosition: selectorCount
+            });
             ds.selectors.push(selector);
             selectorCount++;
         }

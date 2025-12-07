@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 pragma solidity ^0.8.23;
 
-import "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
+import {AccessControlUpgradeable} from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
-import {LibAppStorage, AppStorage, INSTITUTION_ROLE, PROVIDER_ROLE} from "../libraries/LibAppStorage.sol";
+import {LibAppStorage, AppStorage, INSTITUTION_ROLE} from "../libraries/LibAppStorage.sol";
 import {LibInstitutionalOrg} from "../libraries/LibInstitutionalOrg.sol";
 
 /// @title InstitutionFacet
@@ -19,8 +19,12 @@ contract InstitutionFacet is AccessControlUpgradeable {
     event InstitutionRoleRevoked(address indexed institution);
 
     modifier onlyDefaultAdmin() {
-        require(hasRole(DEFAULT_ADMIN_ROLE, msg.sender), "Only admin");
+        _onlyDefaultAdmin();
         _;
+    }
+
+    function _onlyDefaultAdmin() internal view {
+        require(hasRole(DEFAULT_ADMIN_ROLE, msg.sender), "Only admin");
     }
 
     /// @notice Grants the INSTITUTION_ROLE to `institution` and registers its schacHomeOrganization

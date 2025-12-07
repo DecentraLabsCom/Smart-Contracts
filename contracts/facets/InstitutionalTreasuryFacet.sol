@@ -6,7 +6,6 @@ import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/security/ReentrancyGuard.sol";
-import "../external/LabERC20.sol";
 
 using SafeERC20 for IERC20;
 
@@ -49,6 +48,11 @@ contract InstitutionalTreasuryFacet is ReentrancyGuard {
     ///   1. The authorized backend (for external calls from backend)
     ///   2. The Diamond contract itself (for internal calls from other facets like WalletReservationFacet or InstitutionalReservationFacet)
     modifier onlyAuthorizedBackendOrInternal(address institution) {
+        _onlyAuthorizedBackendOrInternal(institution);
+        _;
+    }
+
+    function _onlyAuthorizedBackendOrInternal(address institution) internal view {
         AppStorage storage s = LibAppStorage.diamondStorage();
         
         // Allow internal Diamond calls without requiring a backend
@@ -60,7 +64,6 @@ contract InstitutionalTreasuryFacet is ReentrancyGuard {
                 "Not authorized: must be backend"
             );
         }
-        _;
     }
 
     modifier onlyInstitutionCaller() {
@@ -79,6 +82,7 @@ contract InstitutionalTreasuryFacet is ReentrancyGuard {
 
     function _calculatePeriodStart(uint256 timestamp, uint256 periodDuration, uint256 anchor) internal pure returns (uint256) {
         if (anchor == 0) {
+            // forge-lint: disable-next-line(divide-before-multiply)
             return (timestamp / periodDuration) * periodDuration;
         }
 
@@ -86,6 +90,7 @@ contract InstitutionalTreasuryFacet is ReentrancyGuard {
             anchor = timestamp;
         }
 
+        // forge-lint: disable-next-line(divide-before-multiply)
         return anchor + ((timestamp - anchor) / periodDuration) * periodDuration;
     }
 

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.23;
 
-import "forge-std/Test.sol";
+import {Test} from "forge-std/Test.sol";
 
 /// @title Base test contract for DecentraLabs Diamond
 /// @notice Provides common setup and utilities for all tests

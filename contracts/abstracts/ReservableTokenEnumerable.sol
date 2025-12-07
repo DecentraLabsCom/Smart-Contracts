@@ -3,8 +3,9 @@ pragma solidity ^0.8.23;
 
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
-import "./ReservableToken.sol";
-import {RecentReservationBuffer, UpcomingReservationBuffer, PastReservationBuffer, AppStorage} from "../libraries/LibAppStorage.sol";
+import {ReservableToken} from "./ReservableToken.sol";
+import {RecentReservationBuffer, UpcomingReservationBuffer, PastReservationBuffer, Reservation, AppStorage} from "../libraries/LibAppStorage.sol";
+import {RivalIntervalTreeLibrary, Tree} from "../libraries/RivalIntervalTreeLibrary.sol";
 
 /// @title ReservableTokenEnumerable
 /// @author

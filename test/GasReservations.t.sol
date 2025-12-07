@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.23;
 
-import "forge-std/Test.sol";
-import "../contracts/facets/WalletReservationFacet.sol";
-import "../contracts/libraries/LibAppStorage.sol";
-import "../contracts/libraries/LibAccessControlEnumerable.sol";
-import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
-import "@openzeppelin/contracts/token/ERC721/extensions/ERC721Enumerable.sol";
+import {Test} from "forge-std/Test.sol";
+import {WalletReservationFacet} from "../contracts/facets/WalletReservationFacet.sol";
+import {AppStorage, LabBase} from "../contracts/libraries/LibAppStorage.sol";
+import {LibAccessControlEnumerable} from "../contracts/libraries/LibAccessControlEnumerable.sol";
+import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import {ERC721} from "@openzeppelin/contracts/token/ERC721/ERC721.sol";
+import {ERC721Enumerable} from "@openzeppelin/contracts/token/ERC721/extensions/ERC721Enumerable.sol";
 
 contract MockERC20 is ERC20 {
     constructor() ERC20("MockLabToken", "MLAB") {}

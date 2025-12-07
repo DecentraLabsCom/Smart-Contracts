@@ -3,8 +3,8 @@ pragma solidity ^0.8.23;
 
 import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
-import {LibAppStorage, AppStorage, Reservation}  from "../libraries/LibAppStorage.sol";
-import "../libraries/RivalIntervalTreeLibrary.sol";
+import {LibAppStorage, AppStorage, Reservation} from "../libraries/LibAppStorage.sol";
+import {RivalIntervalTreeLibrary, Tree} from "../libraries/RivalIntervalTreeLibrary.sol";
 
 using EnumerableSet for EnumerableSet.AddressSet;
 using EnumerableSet for EnumerableSet.Bytes32Set;
@@ -130,32 +130,48 @@ abstract contract ReservableToken {
     /// @param _tokenId The ID of the token to check.
     /// @notice Reverts if the token does not exist (i.e., its owner is the zero address).
     modifier exists(uint256 _tokenId) {
-        if (IERC721(address(this)).ownerOf(_tokenId) == address(0)) revert TokenNotFound();
+        _checkExists(_tokenId);
         _;
+    }
+
+    function _checkExists(uint256 _tokenId) internal view {
+        if (IERC721(address(this)).ownerOf(_tokenId) == address(0)) revert TokenNotFound();
     }
 
     /// @dev Modifier to check if the caller is the owner of a specific token.
     /// @param _tokenId The ID of the token to check.
     /// @notice Reverts if the caller is not the owner of the token. 
     modifier onlyTokenOwner(uint256 _tokenId) {
-        if (IERC721(address(this)).ownerOf(_tokenId) != msg.sender) revert OnlyTokenOwner();
+        _onlyTokenOwner(_tokenId);
         _;
+    }
+
+    function _onlyTokenOwner(uint256 _tokenId) internal view {
+        if (IERC721(address(this)).ownerOf(_tokenId) != msg.sender) revert OnlyTokenOwner();
     }
 
     /// @dev Modifier to restrict access to functions callable only by accounts with DEFAULT_ADMIN_ROLE
     modifier onlyAdmin() {
-        require(_s().roleMembers[_s().DEFAULT_ADMIN_ROLE].contains(msg.sender), "Only admin can call this function");
+        _onlyAdmin();
         _;
+    }
+
+    function _onlyAdmin() internal view {
+        require(_s().roleMembers[_s().DEFAULT_ADMIN_ROLE].contains(msg.sender), "Only admin can call this function");
     }
 
     /// @dev Modifier to ensure that a reservation exists and is in a pending state.
     /// @param _reservationKey The unique key identifying the reservation.
     /// @notice Reverts if the reservation does not exist or if its status is not pending.
     modifier reservationPending(bytes32 _reservationKey) {
+        _reservationPending(_reservationKey);
+        _;
+    }
+
+    function _reservationPending(bytes32 _reservationKey) internal view {
         Reservation storage reservation = _s().reservations[_reservationKey];
         if (reservation.renter == address(0)) revert ReservationNotFound();
         if (reservation.status != PENDING) revert ReservationNotPending();
-        _;
     }
 
     /// @notice Marks a token as listed by updating its status so it's possible to reserve.
@@ -423,6 +439,7 @@ abstract contract ReservableToken {
         
         // Found a reservation at/after the requested time
         // Return when it starts and when it ends
+        // forge-lint: disable-next-line(unsafe-typecast)
         return (uint32(candidate), uint32(calendar.nodes[candidate].end));
     }
 
@@ -488,7 +505,9 @@ abstract contract ReservableToken {
         
         // Check limit before adding current node
         if (index < maxResults) {
+            // forge-lint: disable-next-line(unsafe-typecast)
             starts[index] = uint32(cursor);
+            // forge-lint: disable-next-line(unsafe-typecast)
             ends[index] = uint32(calendar.nodes[cursor].end);
             index++;
         }
@@ -558,7 +577,9 @@ abstract contract ReservableToken {
             return res;
         }
         
+        // forge-lint: disable-next-line(unsafe-typecast)
         uint32 currentStart = uint32(cursor);
+        // forge-lint: disable-next-line(unsafe-typecast)
         uint32 currentEnd = uint32(calendar.nodes[cursor].end);
         
         // Check if current reservation overlaps with the requested range
@@ -646,7 +667,9 @@ abstract contract ReservableToken {
         uint cursor = calendar.root;
         
         while (cursor != 0) {
+            // forge-lint: disable-next-line(unsafe-typecast)
             uint32 nodeStart = uint32(cursor);
+            // forge-lint: disable-next-line(unsafe-typecast)
             uint32 nodeEnd = uint32(calendar.nodes[cursor].end);
             
             // Check if this node covers the timestamp
@@ -877,6 +900,7 @@ abstract contract ReservableToken {
     /// @param _time The timestamp for the reservation
     /// @return bytes32 A unique hash representing the reservation
     function _getReservationKey(uint256 _tokenId, uint32 _time) internal pure returns (bytes32) {  
+        // forge-lint: disable-next-line(asm-keccak256)
         return keccak256(abi.encodePacked(_tokenId, _time));
     }
 

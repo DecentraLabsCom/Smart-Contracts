@@ -215,6 +215,7 @@ struct InstitutionalUserSpending {
 /// @custom:member organizationInstitutionWallet Mapping of normalized organization hashes to institution wallets
 /// @custom:member institutionSchacHomeOrganizations Enumerable set of organization hashes registered by each institution wallet
 struct AppStorage {
+    // forge-lint: disable-next-line(mixed-case-variable)
     bytes32 DEFAULT_ADMIN_ROLE;
     address labTokenAddress;
     address projectTreasuryWallet;

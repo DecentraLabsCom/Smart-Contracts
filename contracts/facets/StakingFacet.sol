@@ -1,13 +1,12 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 pragma solidity ^0.8.23;
 
-import "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
+import {AccessControlUpgradeable} from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
 import {LibAppStorage, AppStorage, PROVIDER_ROLE, PendingSlash} from "../libraries/LibAppStorage.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import "../libraries/LibDiamond.sol";
-import "../external/LabERC20.sol";
-import "../abstracts/ReservableToken.sol";
+import {LabERC20} from "../external/LabERC20.sol";
+import {ReservableToken} from "../abstracts/ReservableToken.sol";
 
 using SafeERC20 for IERC20;
 
@@ -112,11 +111,15 @@ contract StakingFacet is AccessControlUpgradeable {
     /// @dev Modifier to restrict access to functions that can only be executed by accounts
     ///      with the `DEFAULT_ADMIN_ROLE`.
     modifier defaultAdminRole() {
+        _defaultAdminRole();
+        _;
+    }
+
+    function _defaultAdminRole() internal view {
         require(
             hasRole(DEFAULT_ADMIN_ROLE, msg.sender),
             "StakingFacet: caller is not admin"
         );
-        _;
     }
 
     /// @dev Constructor for the StakingFacet contract.

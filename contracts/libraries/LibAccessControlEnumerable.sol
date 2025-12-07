@@ -56,7 +56,7 @@ library LibAccessControlEnumerable {
     function _addProviderRole(AppStorage storage _self, address _account, string memory _name, string memory _email, string memory _country) internal returns (bool) {
      
         _self.roleMembers[PROVIDER_ROLE].add(_account);
-        _self.providers[_account] = ProviderBase(_name, _email, _country);
+        _self.providers[_account] = ProviderBase({name: _name, email: _email, country: _country});
         return true;
     }
 
@@ -102,7 +102,7 @@ library LibAccessControlEnumerable {
         providers = new Provider[](count);
         for (uint256 i; i < count; i++) {
             address account = _self.roleMembers[PROVIDER_ROLE].at(i);
-            providers[i] = Provider(account, _self.providers[account]);
+            providers[i] = Provider({account: account, base: _self.providers[account]});
         }
         return providers;
     }
@@ -128,7 +128,7 @@ library LibAccessControlEnumerable {
         providers = new Provider[](count);
         for (uint256 i = 0; i < count; i++) {
             address account = _self.roleMembers[PROVIDER_ROLE].at(offset + i);
-            providers[i] = Provider(account, _self.providers[account]);
+            providers[i] = Provider({account: account, base: _self.providers[account]});
         }
         
         return (providers, total);
@@ -144,7 +144,7 @@ library LibAccessControlEnumerable {
         Provider[] memory providers = new Provider[](totalLabProviders);
         for (uint256 i; i < totalLabProviders; i++) {
             address account = _self.roleMembers[PROVIDER_ROLE].at(i);
-            providers[i] = Provider(account, _self.providers[account]);
+            providers[i] = Provider({account: account, base: _self.providers[account]});
         }
         return providers;
     }

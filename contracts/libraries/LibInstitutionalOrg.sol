@@ -60,6 +60,7 @@ library LibInstitutionalOrg {
         require(institution != address(0), "Invalid institution");
         require(s.roleMembers[INSTITUTION_ROLE].contains(institution), "Unknown institution");
 
+        // forge-lint: disable-next-line(asm-keccak256)
         bytes32 orgHash = keccak256(bytes(normalizedOrganization));
         require(
             s.organizationInstitutionWallet[orgHash] == address(0),
@@ -81,6 +82,7 @@ library LibInstitutionalOrg {
         address institution,
         string memory normalizedOrganization
     ) internal {
+        // forge-lint: disable-next-line(asm-keccak256)
         bytes32 orgHash = keccak256(bytes(normalizedOrganization));
         require(
             s.organizationInstitutionWallet[orgHash] == institution,

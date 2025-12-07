@@ -12,9 +12,13 @@ contract IntentRegistryFacet {
     using EnumerableSet for EnumerableSet.AddressSet;
 
     modifier onlyDefaultAdmin() {
+        _onlyDefaultAdmin();
+        _;
+    }
+
+    function _onlyDefaultAdmin() internal view {
         AppStorage storage s = _s();
         require(s.roleMembers[s.DEFAULT_ADMIN_ROLE].contains(msg.sender), "Only default admin");
-        _;
     }
 
     /// @notice Register a reservation intent (request / cancel request)

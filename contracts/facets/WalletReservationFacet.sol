@@ -6,10 +6,12 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
 import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/security/ReentrancyGuard.sol";
-import "./ReservationFacet.sol";
-import "../libraries/RivalIntervalTreeLibrary.sol";
+import {BaseReservationFacet, IStakingFacet, IInstitutionalTreasuryFacet} from "./ReservationFacet.sol";
+import {RivalIntervalTreeLibrary, Tree} from "../libraries/RivalIntervalTreeLibrary.sol";
+import {AppStorage, Reservation} from "../libraries/LibAppStorage.sol";
 import {ActionIntentPayload} from "../libraries/IntentTypes.sol";
 import {LibIntent} from "../libraries/LibIntent.sol";
+import {ReservableToken} from "../abstracts/ReservableToken.sol";
 
 /// @title WalletReservationFacet
 /// @author
@@ -102,6 +104,7 @@ contract WalletReservationFacet is BaseReservationFacet, ReentrancyGuard {
             reservationKey: bytes32(0),
             uri: "",
             price: 0,
+            // forge-lint: disable-next-line(unsafe-typecast)
             maxBatch: uint96(maxBatch),
             auth: "",
             accessURI: "",

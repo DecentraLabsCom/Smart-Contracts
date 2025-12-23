@@ -13,7 +13,7 @@ solc = "C:/Users/ldela/.foundry/bin/solc-0.8.31.exe"
 optimizer = true
 optimizer_runs = 1
 via_ir = true
-cbor_metadata = false
+cbor_metadata = true
 bytecode_hash = "none"
 
 # Configuración de EVM (cancun habilita MCOPY, TLOAD/TSTORE transient storage)
@@ -41,3 +41,6 @@ multiline_func_header = "params_first"
 quote_style = "double"
 number_underscore = "thousands"
 single_line_statement_blocks = "preserve"
+
+[profile.verify]
+offline = true

@@ -1,9 +1,12 @@
 node_modules
+hh-cache/
+hh-artifacts/
 
-#Hardhat files
+#Development files
 cache
 artifacts
 .env
+deployments/
 
 # Foundry files
 out/
@@ -16,3 +19,6 @@ lib/
 
 #Developer documentation
 dev/
+
+#Scripts
+scripts/

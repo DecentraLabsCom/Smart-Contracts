@@ -25,11 +25,15 @@ contract ReservationCheckInFacet {
     event ReservationCheckedIn(bytes32 indexed reservationKey, uint256 indexed labId, address indexed checker);
 
     modifier onlyDefaultAdminRole() {
+        _onlyDefaultAdminRole();
+        _;
+    }
+
+    function _onlyDefaultAdminRole() internal view {
         AppStorage storage s = LibAppStorage.diamondStorage();
         if (!s.roleMembers[s.DEFAULT_ADMIN_ROLE].contains(msg.sender)) {
             revert("Only default admin");
         }
-        _;
     }
 
     function checkInReservation(bytes32 reservationKey) external onlyDefaultAdminRole {

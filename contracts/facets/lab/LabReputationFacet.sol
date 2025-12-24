@@ -13,11 +13,15 @@ contract LabReputationFacet {
     using EnumerableSet for EnumerableSet.AddressSet;
 
     modifier onlyDefaultAdminRole() {
+        _onlyDefaultAdminRole();
+        _;
+    }
+
+    function _onlyDefaultAdminRole() internal view {
         AppStorage storage s = LibAppStorage.diamondStorage();
         if (!s.roleMembers[s.DEFAULT_ADMIN_ROLE].contains(msg.sender)) {
             revert("Only default admin");
         }
-        _;
     }
 
     function getLabReputation(uint256 labId)
@@ -52,14 +56,7 @@ contract LabReputationFacet {
     /// @return rating The weighted reputation score
     function getLabRating(uint256 labId) external view returns (int32 rating) {
         LabReputation storage rep = LibAppStorage.diamondStorage().labReputation[labId];
-        if (rep.totalEvents == 0) return 0;
-        // Calculate rating as (score * 1000) / totalEvents to get precision
-        // score is total points (completions - cancellations)
-        // This gives a percentage-like rating
-        rating = int32( (int256(rep.score) * 1000) / int256(uint256(rep.totalEvents)) );
-        // Clamp to reasonable bounds
-        if (rating > 1000) rating = 1000;
-        if (rating < -1000) rating = -1000;
+        return _computeRating(rep.score, rep.totalEvents);
     }
 
     function adjustLabReputation(uint256 labId, int32 delta, string calldata reason)
@@ -80,7 +77,7 @@ contract LabReputationFacet {
         IERC721(address(this)).ownerOf(labId);
         AppStorage storage s = LibAppStorage.diamondStorage();
         LabReputation storage rep = s.labReputation[labId];
-        int32 rating = this.getLabRating(labId);
+        int32 rating = _computeRating(rep.score, rep.totalEvents);
         string memory ratingStr = _intToString(rating);
         string memory scoreStr = _intToString(rep.score);
         return string(
@@ -109,5 +106,13 @@ contract LabReputationFacet {
         int256 signed = int256(value);
         uint256 abs = uint256(-signed);
         return string(abi.encodePacked("-", Strings.toString(abs)));
+    }
+
+    function _computeRating(int32 score, uint32 totalEvents) private pure returns (int32 rating) {
+        if (totalEvents == 0) return 0;
+        rating = int32((int256(score) * 1000) / int256(uint256(totalEvents)));
+        if (rating > 1000) return 1000;
+        if (rating < -1000) return -1000;
+        return rating;
     }
 }

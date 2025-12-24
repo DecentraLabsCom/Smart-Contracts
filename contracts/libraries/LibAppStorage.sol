@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-pragma solidity ^0.8.31;
+pragma solidity ^0.8.33;
 
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import {IntentMeta} from "./IntentTypes.sol";
@@ -44,12 +44,14 @@ struct Provider {
 /// @param auth URI to the authentication service that issues session tokens for lab access
 /// @param accessURI The URI used to access the laboratory's services.
 /// @param accessKey A public (non-sensitive) key or ID used for routing/access to the laboratory.
+/// @param createdAt Timestamp when the lab was registered, stored as uint32.
 struct LabBase {
     string uri;
     uint96 price;
     string auth;
     string accessURI;
     string accessKey;
+    uint32 createdAt;
 }
 
 /// @dev Represents a laboratory structure with a unique identifier and associated base information. This structure is used exclusively
@@ -175,6 +177,20 @@ struct PendingSlash {
     string reason;
 }
 
+/// @notice Struct representing reputation stats for a lab (by labId)
+/// @dev score: total points (completions - cancellations)
+///      totalEvents: number of reputation events
+///      ownerCancellations: cancellations by lab owner
+///      institutionalCancellations: cancellations by institutions
+///      lastUpdated: timestamp of last update
+struct LabReputation {
+    int32 score; // Total reputation points
+    uint32 totalEvents;
+    uint32 ownerCancellations;
+    uint32 institutionalCancellations;
+    uint64 lastUpdated;
+}
+
 /// @notice Struct representing institutional user spending in a period
 /// @dev Tracks spending with automatic period reset
 /// @param amount Amount spent in the current period (for limit enforcement)
@@ -291,6 +307,9 @@ struct AppStorage {
 
     // Slashing timelock queue
     mapping(address => PendingSlash) pendingSlashes; // provider => pending slash data
+
+    // Lab reputation
+    mapping(uint256 => LabReputation) labReputation; // labId -> reputation stats
 }
 
 /// @title LibAppStorage

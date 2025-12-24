@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-pragma solidity ^0.8.31;
+pragma solidity ^0.8.33;
 
 /// @notice Lifecycle state for an intent
 enum IntentState {

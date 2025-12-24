@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-pragma solidity ^0.8.31;
+pragma solidity ^0.8.33;
 
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import {AppStorage, INSTITUTION_ROLE} from "./LibAppStorage.sol";

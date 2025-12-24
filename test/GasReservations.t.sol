@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.31;
+pragma solidity ^0.8.33;
 
 import {Test} from "forge-std/Test.sol";
 import {WalletReservationFacet} from "../contracts/facets/reservation/wallet/WalletReservationFacet.sol";
@@ -40,7 +40,8 @@ contract ReservationHarness is ERC721Enumerable, WalletReservationFacet {
             price: price,
             auth: "auth",
             accessURI: "accessURI",
-            accessKey: "accessKey"
+            accessKey: "accessKey",
+            createdAt: uint32(block.timestamp)
         });
         s.providerStakes[msg.sender].listedLabsCount += 1;
         s.tokenStatus[id] = true;

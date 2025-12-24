@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-pragma solidity ^0.8.31;
+pragma solidity ^0.8.33;
 
 import {AppStorage, Lab, LibAppStorage} from "../../libraries/LibAppStorage.sol";
 
@@ -102,5 +102,12 @@ contract LabQueryFacet {
     /// @return The public access key for routing
     function getLabAccessKey(uint256 _labId) external view exists(_labId) returns (string memory) {
         return _s().labs[_labId].accessKey;
+    }
+
+    /// @notice Returns the age of a lab in seconds since registration
+    /// @param _labId The ID of the lab
+    /// @return The age in seconds
+    function getLabAge(uint256 _labId) external view exists(_labId) returns (uint256) {
+        return block.timestamp - _s().labs[_labId].createdAt;
     }
 }

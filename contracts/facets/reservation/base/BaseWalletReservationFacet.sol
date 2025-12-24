@@ -8,6 +8,7 @@ import {LibAccessControlEnumerable} from "../../../libraries/LibAccessControlEnu
 import {AppStorage, Reservation} from "../../../libraries/LibAppStorage.sol";
 import {LibRevenue} from "../../../libraries/LibRevenue.sol";
 import {LibHeap} from "../../../libraries/LibHeap.sol";
+import {LibReputation} from "../../../libraries/LibReputation.sol";
 
 /// @dev Interface for StakingFacet to update reservation timestamps
 interface IStakingFacetW {
@@ -157,7 +158,11 @@ abstract contract BaseWalletReservationFacet is InstitutionalReservableTokenEnum
             _decrementActiveReservationCounters(reservation);
         }
 
+        uint8 previousStatus = reservation.status;
         reservation.status = _COLLECTED;
+        if (previousStatus == _IN_USE) {
+            LibReputation.recordCompletion(labId);
+        }
 
         if (reservationPrice > 0) {
             _creditRevenueBuckets(s, reservation);

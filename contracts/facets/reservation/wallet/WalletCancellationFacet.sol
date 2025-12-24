@@ -8,6 +8,7 @@ import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet
 import {ReentrancyGuardTransient} from "@openzeppelin/contracts/utils/ReentrancyGuardTransient.sol";
 import {BaseWalletReservationFacet, IInstitutionalTreasuryFacetW} from "../base/BaseWalletReservationFacet.sol";
 import {AppStorage, Reservation} from "../../../libraries/LibAppStorage.sol";
+import {LibReputation} from "../../../libraries/LibReputation.sol";
 
 /// @title WalletCancellationFacet
 /// @author Luis de la Torre Cubillo, Juan Luis Ramos Villalón
@@ -59,12 +60,17 @@ contract WalletCancellationFacet is BaseWalletReservationFacet, ReentrancyGuardT
         }
         
         address currentOwner = IERC721(address(this)).ownerOf(labId);
-        if (renter != msg.sender && currentOwner != msg.sender) revert("Unauthorized");
+        bool cancelledByOwner = msg.sender == currentOwner;
+        if (renter != msg.sender && !cancelledByOwner) revert("Unauthorized");
     
         _cancelReservation(_reservationKey);
 
         if (price > 0) {
             _applyCancellationFees(s, labId, providerFee, treasuryFee, governanceFee);
+        }
+
+        if (cancelledByOwner) {
+            LibReputation.recordOwnerCancellation(labId);
         }
         
         if (isInstitutional && reservation.payerInstitution != address(0)) {

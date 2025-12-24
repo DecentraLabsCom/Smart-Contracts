@@ -10,6 +10,7 @@ import {AppStorage, Reservation, PayoutCandidate, LibAppStorage} from "../../../
 import {LibAccessControlEnumerable} from "../../../libraries/LibAccessControlEnumerable.sol";
 import {ActionIntentPayload} from "../../../libraries/IntentTypes.sol";
 import {LibIntent} from "../../../libraries/LibIntent.sol";
+import {LibReputation} from "../../../libraries/LibReputation.sol";
 
 interface IStakingFacet {
     function updateLastReservation(address provider) external;
@@ -435,7 +436,11 @@ contract WalletPayoutFacet is ReentrancyGuardTransient {
         }
 
         // Mark as collected
+        uint8 previousStatus = reservation.status;
         reservation.status = _COLLECTED;
+        if (previousStatus == _IN_USE) {
+            LibReputation.recordCompletion(labId);
+        }
 
         // Decrement active reservation counter
         if (s.labActiveReservationCount[labId] > 0) {

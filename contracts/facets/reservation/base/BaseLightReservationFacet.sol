@@ -7,6 +7,7 @@ import {AppStorage, Reservation, UserActiveReservation, INSTITUTION_ROLE} from "
 import {LibTracking} from "../../../libraries/LibTracking.sol";
 import {LibRevenue} from "../../../libraries/LibRevenue.sol";
 import {LibHeap} from "../../../libraries/LibHeap.sol";
+import {LibReputation} from "../../../libraries/LibReputation.sol";
 
 /// @title BaseLightReservationFacet - Minimal base for size-constrained facets
 /// @notice Provides only essential functionality without heavy helpers
@@ -75,7 +76,11 @@ abstract contract BaseLightReservationFacet is ReservableTokenEnumerable {
         uint256 labId,
         address trackingKey
     ) internal {
+        uint8 previousStatus = reservation.status;
         reservation.status = _COLLECTED;
+        if (previousStatus == _IN_USE) {
+            LibReputation.recordCompletion(labId);
+        }
         s.reservationKeysByToken[labId].remove(key);
         s.renters[reservation.renter].remove(key);
         if (s.totalReservationsCount > 0) s.totalReservationsCount--;

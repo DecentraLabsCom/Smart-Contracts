@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-pragma solidity ^0.8.31;
+pragma solidity ^0.8.33;
 
 import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
@@ -99,13 +99,12 @@ contract LabAdminFacet {
         ILabFacetMint(address(this)).safeMintTo(msg.sender, nextLabId);
         s.labId = nextLabId;
         
-        s.labs[nextLabId] = LabBase({
-            uri: _uri,
-            price: _price,
-            auth: _auth,
-            accessURI: _accessUri,
-            accessKey: _accessKey
-        });
+        s.labs[nextLabId].uri = _uri;
+        s.labs[nextLabId].price = _price;
+        s.labs[nextLabId].auth = _auth;
+        s.labs[nextLabId].accessURI = _accessUri;
+        s.labs[nextLabId].accessKey = _accessKey;
+        s.labs[nextLabId].createdAt = uint32(block.timestamp);
         
         emit LabAdded(nextLabId, msg.sender, _uri, _price, _auth, _accessUri, _accessKey);
     }
@@ -132,13 +131,12 @@ contract LabAdminFacet {
         ILabFacetMint(address(this)).safeMintTo(msg.sender, nextLabId);
         s.labId = nextLabId;
         
-        s.labs[nextLabId] = LabBase({
-            uri: _uri,
-            price: _price,
-            auth: _auth,
-            accessURI: _accessUri,
-            accessKey: _accessKey
-        });
+        s.labs[nextLabId].uri = _uri;
+        s.labs[nextLabId].price = _price;
+        s.labs[nextLabId].auth = _auth;
+        s.labs[nextLabId].accessURI = _accessUri;
+        s.labs[nextLabId].accessKey = _accessKey;
+        s.labs[nextLabId].createdAt = uint32(block.timestamp);
         
         s.providerStakes[msg.sender].listedLabsCount = newListedCount;
         s.tokenStatus[nextLabId] = true;
@@ -163,7 +161,8 @@ contract LabAdminFacet {
             price: _price,
             auth: _auth,
             accessURI: _accessUri,
-            accessKey: _accessKey
+            accessKey: _accessKey,
+            createdAt: _s().labs[_labId].createdAt
         });
         emit LabUpdated(_labId, _uri, _price, _auth, _accessUri, _accessKey);
     }

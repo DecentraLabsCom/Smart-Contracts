@@ -1,10 +1,10 @@
 # DecentraLabs Smart Contracts
 
-A comprehensive blockchain-based solution for managing access to worldwide laboratory equipment (Cyber-Physical Systems) through a decentralized platform. Built on Ethereum using the Diamond proxy pattern for maximum upgradeability and modularity.
+A comprehensive blockchain-based solution for managing access to worldwide server-based simulations, laboratory equipment, and other Cyber-Physical Systems through a decentralized platform. Built on Ethereum using the Diamond proxy pattern for maximum upgradeability and modularity.
 
 ## 🌟 Overview
 
-DecentraLabs provides a blockchain infrastructure for managing remote laboratory access, reservations, and payments. The system enables:
+DecentraLabs provides a blockchain infrastructure for managing access, reservations, and payments to lab resources and services. The system enables:
 
 - **Lab Providers** to register and manage their laboratory equipment as NFTs
 - **Users** to discover, reserve, and access laboratory equipment worldwide
@@ -216,31 +216,6 @@ This solution is built upon the following Ethereum standards and implementations
 
 5. **EIP-173** - Contract ownership standard
 
-## 🚀 Use Cases
-
-### For Lab Providers
-1. Register as a provider through the admin
-2. Receive initial $LAB token allocation
-3. Add laboratory equipment as NFTs
-4. Set pricing and access credentials
-5. Manage reservations and collect payments
-6. Update lab information as needed
-
-### For Users
-1. Browse available laboratories
-2. Check availability using the calendar system
-3. Request reservations with $LAB tokens
-4. Wait for admin confirmation
-5. Access laboratories during booked time
-6. Cancel if needed (with automatic refunds)
-
-### For Administrators
-1. Manage provider registrations
-2. Confirm or deny reservation requests
-3. Monitor platform activity
-4. Handle disputes
-5. Emergency pause if needed
-
 ## 📊 Data Structures
 
 ### Provider Structure
@@ -319,16 +294,6 @@ struct IntentMeta {
     IntentState state;
 }
 ```
-
-## 🔐 Security Considerations
-
-- All contracts use OpenZeppelin's audited implementations
-- Role-based access control prevents unauthorized actions
-- Token transfers use safe transfer patterns
-- Calendar system prevents double-booking
-- Emergency pause capability for critical situations
-- Comprehensive input validation throughout
-- Supply cap prevents infinite token inflation
 
 ## 📝 License
 

@@ -243,37 +243,80 @@ This solution is built upon the following Ethereum standards and implementations
 
 ## 📊 Data Structures
 
+### Provider Structure
+```solidity
+struct ProviderBase {
+    string name;
+    string email;
+    string country;
+}
+
+struct Provider {
+    address account;
+    ProviderBase base;
+}
+```
+
 ### Lab Structure
 ```solidity
+struct LabBase {
+    string uri;
+    uint96 price;
+    string auth;
+    string accessURI;
+    string accessKey;
+    uint32 createdAt;
+}
+
 struct Lab {
-    uint labId;              // Unique identifier
-    string uri;              // Metadata URI
-    uint96 price;            // Price per reservation
-    string auth;             // Authentication service URI
-    string accessURI;        // Lab access endpoint
-    string accessKey;        // Public routing key
+    uint labId;
+    LabBase base;
 }
 ```
 
 ### Reservation Structure
 ```solidity
 struct Reservation {
-    uint256 labId;           // Lab identifier
-    address renter;          // User address
-    uint96 price;            // Reservation price
-    uint32 start;            // Start timestamp
-    uint32 end;              // End timestamp
-    uint8 status;            // Reservation status (0=PENDING, 1=CONFIRMED, 2=IN_USE, 3=COMPLETED, 4=COLLECTED, 5=CANCELLED)
+    uint256 labId;
+    address renter;
+    uint96 price;
+    address labProvider;
+    uint8 status;  // 0=PENDING, 1=CONFIRMED, 2=IN_USE, 3=COMPLETED, 4=COLLECTED, 5=CANCELLED
+    uint32 start;
+    uint32 end;
+    string puc;  // schacPersonalUniqueCode for institutional
+    uint64 requestPeriodStart;
+    uint64 requestPeriodDuration;
+    address payerInstitution;
+    address collectorInstitution;
+    uint96 providerShare;
+    uint96 projectTreasuryShare;
+    uint96 subsidiesShare;
+    uint96 governanceShare;
 }
 ```
 
-### Provider Structure
+### Pending Slash Structure
 ```solidity
-struct Provider {
-    address account;         // Provider address
-    string name;             // Provider name
-    string email;            // Contact email
-    string country;          // Location
+struct PendingSlash {
+    uint256 amount;
+    uint256 executeAfter;
+    string reason;
+}
+```
+
+### Intent Meta Structure
+```solidity
+struct IntentMeta {
+    bytes32 requestId;
+    address signer;
+    address executor;
+    uint8 action;
+    bytes32 payloadHash;
+    uint256 nonce;
+    uint64 requestedAt;
+    uint64 expiresAt;
+    IntentState state;
 }
 ```
 

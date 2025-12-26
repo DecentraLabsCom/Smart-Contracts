@@ -77,6 +77,14 @@ contract ProviderFacet is AccessControlUpgradeable {
         string _country
     );
 
+    /// @dev Emitted when a provider's authentication URI is set or updated.
+    /// @param _provider The address of the provider.
+    /// @param _authURI The authentication service base URL.
+    event ProviderAuthURIUpdated(
+        address indexed _provider,
+        string _authURI
+    );
+
     /// @dev Modifier to restrict access to functions that can only be executed by accounts
     ///      with the `DEFAULT_ADMIN_ROLE`. Ensures that the caller of the function has the
     ///      required role before proceeding with the execution of the function.
@@ -113,7 +121,7 @@ contract ProviderFacet is AccessControlUpgradeable {
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
         _grantRole(PROVIDER_ROLE, msg.sender);
         _grantRole(INSTITUTION_ROLE, msg.sender);
-        _s()._addProviderRole(msg.sender, _name, _email, _country);
+        _s()._addProviderRole(msg.sender, _name, _email, _country, "");
 
         _s().DEFAULT_ADMIN_ROLE = DEFAULT_ADMIN_ROLE;
         _s().labTokenAddress = _labErc20;
@@ -126,18 +134,22 @@ contract ProviderFacet is AccessControlUpgradeable {
     ///      Sets default institutional user spending limit (10 tokens).
     ///      If minting fails (e.g., supply cap reached), the provider is still added without tokens.
     ///      Marks whether the provider received initial tokens for staking requirements.
+    ///      Optionally sets the provider's authentication URI during registration.
     ///      Emits a `ProviderAdded` event upon successful addition with tokens.
     ///      Emits a `ProviderAddedWithoutTokens` event if tokens cannot be minted.
+    ///      Emits a `ProviderAuthURIUpdated` event if authURI is provided.
     ///      Reverts if the provider already exists.
     /// @param _name The name of the provider.
     /// @param _account The address of the provider's account.
     /// @param _email The email address of the provider.
     /// @param _country The country of the provider.
+    /// @param _authURI Optional authentication service base URL (can be empty and set later by provider)
     function addProvider(
         string calldata _name,
         address _account,
         string calldata _email,
-        string calldata _country
+        string calldata _country,
+        string calldata _authURI
     ) external onlyDefaultAdminRole {
         require(_account != address(0), "Invalid provider address");
         
@@ -149,9 +161,19 @@ contract ProviderFacet is AccessControlUpgradeable {
         // Check if provider already exists (prevents duplicate additions)
         require(!hasRole(PROVIDER_ROLE, _account), "Provider already exists");
         
+        // Validate authURI format if provided
+        if (bytes(_authURI).length > 0) {
+            _validateAuthURI(_authURI);
+        }
+        
         _grantRole(PROVIDER_ROLE, _account);
         _grantRole(INSTITUTION_ROLE, _account);
-        _s()._addProviderRole(_account, _name, _email, _country);
+        _s()._addProviderRole(_account, _name, _email, _country, _authURI);
+        
+        // Emit authURI event if provided
+        if (bytes(_authURI).length > 0) {
+            emit ProviderAuthURIUpdated(_account, _authURI);
+        }
         
         // Try to mint initial tokens (1000 total), but don't revert if it fails (e.g., cap reached)
         uint256 treasuryAmount = 200_000_000; // 200 tokens to institutional treasury
@@ -309,8 +331,50 @@ contract ProviderFacet is AccessControlUpgradeable {
         string calldata _email,
         string calldata _country
     ) external onlyRole(PROVIDER_ROLE) {
-        _s().providers[msg.sender] = ProviderBase({name: _name, email: _email, country: _country});
+        ProviderBase storage provider = _s().providers[msg.sender];
+        provider.name = _name;
+        provider.email = _email;
+        provider.country = _country;
         emit ProviderUpdated(msg.sender, _name, _email, _country);
+    }
+
+    /// @notice Sets or updates the authentication service URI for the caller provider.
+    /// @dev This function allows a provider to set their authentication service base URL.
+    ///      The authURI is validated to ensure it starts with https:// and has no trailing slash.
+    ///      Only accounts with the `PROVIDER_ROLE` can call this function.
+    ///      Emits a `ProviderAuthURIUpdated` event upon successful update.
+    /// @param _authURI The base URL of the authentication service (e.g., https://provider.example.com/auth)
+    function setProviderAuthURI(string calldata _authURI) external onlyRole(PROVIDER_ROLE) {
+        require(bytes(_authURI).length > 0, "AuthURI cannot be empty");
+        _validateAuthURI(_authURI);
+        
+        _s().providers[msg.sender].authURI = _authURI;
+        emit ProviderAuthURIUpdated(msg.sender, _authURI);
+    }
+
+    /// @notice Retrieves the authentication URI for a specific provider.
+    /// @param _provider The address of the provider.
+    /// @return The authentication service base URL.
+    function getProviderAuthURI(address _provider) external view returns (string memory) {
+        return _s().providers[_provider].authURI;
+    }
+
+    /// @dev Internal function to validate authURI format.
+    ///      Ensures the URI starts with https:// and doesn't have a trailing slash.
+    /// @param _authURI The authentication URI to validate.
+    function _validateAuthURI(string calldata _authURI) internal pure {
+        bytes memory uri = bytes(_authURI);
+        
+        // Must start with "https://"
+        require(
+            uri.length >= 8 &&
+            uri[0] == 'h' && uri[1] == 't' && uri[2] == 't' && uri[3] == 'p' &&
+            uri[4] == 's' && uri[5] == ':' && uri[6] == '/' && uri[7] == '/',
+            "AuthURI must start with https://"
+        );
+        
+        // Must not end with '/'
+        require(uri[uri.length - 1] != '/', "AuthURI must not end with a slash");
     }
 
     /// @notice Checks if the given account is a Lab provider.
@@ -340,14 +404,20 @@ contract ProviderFacet is AccessControlUpgradeable {
         return _s()._getLabProvidersPaginated(offset, limit);
     }
 
-    function _grantRole(bytes32 role, address account) internal virtual override {
-        super._grantRole(role, account);
-        _s().roleMembers[role].add(account);
+    function _grantRole(bytes32 role, address account) internal virtual override returns (bool) {
+        bool granted = super._grantRole(role, account);
+        if (granted) {
+            _s().roleMembers[role].add(account);
+        }
+        return granted;
     }
 
-    function _revokeRole(bytes32 role, address account) internal virtual override {
-        super._revokeRole(role, account);
-        _s().roleMembers[role].remove(account);
+    function _revokeRole(bytes32 role, address account) internal virtual override returns (bool) {
+        bool revoked = super._revokeRole(role, account);
+        if (revoked) {
+            _s().roleMembers[role].remove(account);
+        }
+        return revoked;
     }
 
     /// @dev Internal pure function to retrieve the application storage structure.

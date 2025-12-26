@@ -39,7 +39,7 @@ library LibIntent {
         );
     bytes32 internal constant ACTION_PAYLOAD_TYPEHASH =
         keccak256(
-            "ActionIntentPayload(address executor,string schacHomeOrganization,string puc,bytes32 assertionHash,uint256 labId,bytes32 reservationKey,string uri,uint96 price,uint96 maxBatch,string auth,string accessURI,string accessKey,string tokenURI)"
+            "ActionIntentPayload(address executor,string schacHomeOrganization,string puc,bytes32 assertionHash,uint256 labId,bytes32 reservationKey,string uri,uint96 price,uint96 maxBatch,string accessURI,string accessKey,string tokenURI)"
         );
     bytes32 internal constant NAME_HASH = keccak256("DecentraLabsIntent");
     bytes32 internal constant VERSION_HASH = keccak256("1");
@@ -135,8 +135,6 @@ library LibIntent {
                     keccak256(bytes(payload.uri)),
                 payload.price,
                 payload.maxBatch,
-                    // forge-lint: disable-next-line(asm-keccak256)
-                    keccak256(bytes(payload.auth)),
                     // forge-lint: disable-next-line(asm-keccak256)
                     keccak256(bytes(payload.accessURI)),
                     // forge-lint: disable-next-line(asm-keccak256)

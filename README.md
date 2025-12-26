@@ -224,6 +224,7 @@ struct ProviderBase {
     string name;
     string email;
     string country;
+    string authURI;
 }
 
 struct Provider {
@@ -237,7 +238,6 @@ struct Provider {
 struct LabBase {
     string uri;
     uint96 price;
-    string auth;
     string accessURI;
     string accessKey;
     uint32 createdAt;

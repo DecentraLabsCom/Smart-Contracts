@@ -47,7 +47,6 @@ struct ActionIntentPayload {
     string uri;                     // lab URI (for add/update)
     uint96 price;                   // lab price (for add/update)
     uint96 maxBatch;                // batch size for requestFunds intent (reuses action payload)
-    string auth;                    // auth URI (for add/update)
     string accessURI;               // access URI (for add/update)
     string accessKey;               // access key (for add/update)
     string tokenURI;                // token URI (for setTokenURI)

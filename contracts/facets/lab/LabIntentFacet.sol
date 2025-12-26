@@ -8,9 +8,9 @@ import {ActionIntentPayload} from "../../libraries/IntentTypes.sol";
 
 /// @dev Interface to call LabFacet functions
 interface ILabFacet {
-    function addLab(string calldata _uri, uint96 _price, string calldata _auth, string calldata _accessUri, string calldata _accessKey) external;
-    function addAndListLab(string calldata _uri, uint96 _price, string calldata _auth, string calldata _accessUri, string calldata _accessKey) external;
-    function updateLab(uint256 _labId, string calldata _uri, uint96 _price, string calldata _auth, string calldata _accessUri, string calldata _accessKey) external;
+    function addLab(string calldata _uri, uint96 _price, string calldata _accessUri, string calldata _accessKey) external;
+    function addAndListLab(string calldata _uri, uint96 _price, string calldata _accessUri, string calldata _accessKey) external;
+    function updateLab(uint256 _labId, string calldata _uri, uint96 _price, string calldata _accessUri, string calldata _accessKey) external;
     function setTokenURI(uint256 _labId, string calldata _tokenUri) external;
     function deleteLab(uint256 _labId) external;
     function listToken(uint256 tokenId) external;
@@ -63,7 +63,6 @@ contract LabIntentFacet {
         bytes32 requestId,
         string calldata _uri,
         uint96 _price,
-        string calldata _auth,
         string calldata _accessUri,
         string calldata _accessKey
     ) external isLabProvider {
@@ -79,7 +78,6 @@ contract LabIntentFacet {
             uri: _uri,
             price: _price,
             maxBatch: 0,
-            auth: _auth,
             accessURI: _accessUri,
             accessKey: _accessKey,
             tokenURI: ""
@@ -87,7 +85,7 @@ contract LabIntentFacet {
         _consumeLabIntent(requestId, LibIntent.ACTION_LAB_ADD, payload);
 
         // Delegate to LabFacet
-        ILabFacet(address(this)).addLab(_uri, _price, _auth, _accessUri, _accessKey);
+        ILabFacet(address(this)).addLab(_uri, _price, _accessUri, _accessKey);
         uint256 newLabId = s.labId;
         emit LabIntentProcessed(requestId, newLabId, "LAB_ADD", msg.sender, true, "");
     }
@@ -98,7 +96,6 @@ contract LabIntentFacet {
         uint256 _labId,
         string calldata _uri,
         uint96 _price,
-        string calldata _auth,
         string calldata _accessUri,
         string calldata _accessKey
     ) external {
@@ -112,14 +109,13 @@ contract LabIntentFacet {
             uri: _uri,
             price: _price,
             maxBatch: 0,
-            auth: _auth,
             accessURI: _accessUri,
             accessKey: _accessKey,
             tokenURI: ""
         });
         _consumeLabIntent(requestId, LibIntent.ACTION_LAB_UPDATE, payload);
 
-        ILabFacet(address(this)).updateLab(_labId, _uri, _price, _auth, _accessUri, _accessKey);
+        ILabFacet(address(this)).updateLab(_labId, _uri, _price, _accessUri, _accessKey);
         emit LabIntentProcessed(requestId, _labId, "LAB_UPDATE", msg.sender, true, "");
     }
 
@@ -139,7 +135,6 @@ contract LabIntentFacet {
             uri: "",
             price: 0,
             maxBatch: 0,
-            auth: "",
             accessURI: "",
             accessKey: "",
             tokenURI: _tokenUri
@@ -162,7 +157,6 @@ contract LabIntentFacet {
             uri: "",
             price: 0,
             maxBatch: 0,
-            auth: "",
             accessURI: "",
             accessKey: "",
             tokenURI: ""
@@ -185,7 +179,6 @@ contract LabIntentFacet {
             uri: "",
             price: 0,
             maxBatch: 0,
-            auth: "",
             accessURI: "",
             accessKey: "",
             tokenURI: ""

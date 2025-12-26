@@ -10,11 +10,11 @@ module.exports = {
   solidity: {
     compilers: [
       {
-        version: "0.8.31",
+        version: "0.8.33",
         settings: {
           optimizer: {
             enabled: true,
-            runs: 1
+            runs: 200
           },
           viaIR: true,
           evmVersion: "cancun",

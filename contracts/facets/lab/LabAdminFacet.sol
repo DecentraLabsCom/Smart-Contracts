@@ -33,7 +33,6 @@ contract LabAdminFacet {
         address indexed _provider,
         string _uri,
         uint96 _price,
-        string _auth,
         string _accessUri,
         string _accessKey
     );
@@ -42,7 +41,6 @@ contract LabAdminFacet {
         uint256 indexed _labId,
         string _uri,
         uint96 _price,
-        string _auth,
         string _accessUri,
         string _accessKey
     );
@@ -87,11 +85,10 @@ contract LabAdminFacet {
     function addLab(
         string calldata _uri,
         uint96 _price,
-        string calldata _auth,
         string calldata _accessUri,
         string calldata _accessKey
     ) external isLabProvider {
-        _validateLabParams(_uri, _auth, _accessUri, _accessKey);
+        _validateLabParams(_uri, _accessUri, _accessKey);
         
         AppStorage storage s = _s();
         uint256 nextLabId = s.labId + 1;
@@ -101,23 +98,21 @@ contract LabAdminFacet {
         
         s.labs[nextLabId].uri = _uri;
         s.labs[nextLabId].price = _price;
-        s.labs[nextLabId].auth = _auth;
         s.labs[nextLabId].accessURI = _accessUri;
         s.labs[nextLabId].accessKey = _accessKey;
         s.labs[nextLabId].createdAt = uint32(block.timestamp);
         
-        emit LabAdded(nextLabId, msg.sender, _uri, _price, _auth, _accessUri, _accessKey);
+        emit LabAdded(nextLabId, msg.sender, _uri, _price, _accessUri, _accessKey);
     }
 
     /// @notice Adds a new Lab and immediately lists it for reservations
     function addAndListLab(
         string calldata _uri,
         uint96 _price,
-        string calldata _auth,
         string calldata _accessUri,
         string calldata _accessKey
     ) external isLabProvider {
-        _validateLabParams(_uri, _auth, _accessUri, _accessKey);
+        _validateLabParams(_uri, _accessUri, _accessKey);
         
         AppStorage storage s = _s();
         
@@ -133,7 +128,6 @@ contract LabAdminFacet {
         
         s.labs[nextLabId].uri = _uri;
         s.labs[nextLabId].price = _price;
-        s.labs[nextLabId].auth = _auth;
         s.labs[nextLabId].accessURI = _accessUri;
         s.labs[nextLabId].accessKey = _accessKey;
         s.labs[nextLabId].createdAt = uint32(block.timestamp);
@@ -141,7 +135,7 @@ contract LabAdminFacet {
         s.providerStakes[msg.sender].listedLabsCount = newListedCount;
         s.tokenStatus[nextLabId] = true;
         
-        emit LabAdded(nextLabId, msg.sender, _uri, _price, _auth, _accessUri, _accessKey);
+        emit LabAdded(nextLabId, msg.sender, _uri, _price, _accessUri, _accessKey);
         emit LabListed(nextLabId, msg.sender);
     }
 
@@ -150,21 +144,19 @@ contract LabAdminFacet {
         uint256 _labId,
         string calldata _uri,
         uint96 _price,
-        string calldata _auth,
         string calldata _accessUri,
         string calldata _accessKey
     ) external exists(_labId) onlyTokenOwner(_labId) {
-        _validateLabParams(_uri, _auth, _accessUri, _accessKey);
+        _validateLabParams(_uri, _accessUri, _accessKey);
        
         _s().labs[_labId] = LabBase({
             uri: _uri,
             price: _price,
-            auth: _auth,
             accessURI: _accessUri,
             accessKey: _accessKey,
             createdAt: _s().labs[_labId].createdAt
         });
-        emit LabUpdated(_labId, _uri, _price, _auth, _accessUri, _accessKey);
+        emit LabUpdated(_labId, _uri, _price, _accessUri, _accessKey);
     }
 
     /// @notice Sets the token URI for a specific lab
@@ -232,12 +224,10 @@ contract LabAdminFacet {
 
     function _validateLabParams(
         string calldata _uri,
-        string calldata _auth,
         string calldata _accessUri,
         string calldata _accessKey
     ) internal pure {
         require(bytes(_uri).length > 0 && bytes(_uri).length <= 500, "Invalid URI length");
-        require(bytes(_auth).length > 0 && bytes(_auth).length <= 500, "Invalid auth length");
         require(bytes(_accessUri).length > 0 && bytes(_accessUri).length <= 500, "Invalid accessURI length");
         require(bytes(_accessKey).length > 0 && bytes(_accessKey).length <= 200, "Invalid accessKey length");
     }

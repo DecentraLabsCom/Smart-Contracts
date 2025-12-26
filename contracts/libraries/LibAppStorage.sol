@@ -22,10 +22,12 @@ bytes32 constant INSTITUTION_ROLE = keccak256("INSTITUTION_ROLE");
 /// @param name The name of the Lab Provider.
 /// @param email The email address of the Lab Provider.
 /// @param country The country of the Lab Provider.
+/// @param authURI The base URL of the provider's authentication service (e.g., https://provider.example.com/auth)
 struct ProviderBase {
     string name;
     string email;
     string country;
+    string authURI;
 }
 
 /// @dev Struct representing an extended Lab provider.This structure is used exclusively
@@ -41,14 +43,12 @@ struct Provider {
 /// @dev Represents the base structure for a laboratory entity and is the part of the metadata associated with the laboratory stored on-chain.
 /// @param uri The URI pointing to the laboratory's metadata or information.
 /// @param price The price associated with the laboratory, stored as a uint96.
-/// @param auth URI to the authentication service that issues session tokens for lab access
 /// @param accessURI The URI used to access the laboratory's services.
 /// @param accessKey A public (non-sensitive) key or ID used for routing/access to the laboratory.
 /// @param createdAt Timestamp when the lab was registered, stored as uint32.
 struct LabBase {
     string uri;
     uint96 price;
-    string auth;
     string accessURI;
     string accessKey;
     uint32 createdAt;

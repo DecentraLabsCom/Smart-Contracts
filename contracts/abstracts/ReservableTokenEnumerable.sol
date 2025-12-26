@@ -229,8 +229,11 @@ abstract contract ReservableTokenEnumerable is ReservableToken {
         if (end > total) end = total;
         uint256 size = end - offset;
         keys = new bytes32[](size);
-        for (uint256 i; i < size; i++) {
+        for (uint256 i; i < size; ) {
             keys[i] = s.reservationKeysByToken[_tokenId].at(offset + i);
+            unchecked {
+                ++i;
+            }
         }
     }
 
@@ -251,8 +254,11 @@ abstract contract ReservableTokenEnumerable is ReservableToken {
         if (size > _TOKEN_BUFFER_CAP) size = _TOKEN_BUFFER_CAP;
         uint256 take = size < maxCount ? size : maxCount;
         keys = new bytes32[](take);
-        for (uint256 i; i < take; i++) {
+        for (uint256 i; i < take; ) {
             keys[i] = buf.keys[i];
+            unchecked {
+                ++i;
+            }
         }
     }
 
@@ -273,21 +279,30 @@ abstract contract ReservableTokenEnumerable is ReservableToken {
         bytes32[] memory tmp = new bytes32[](take);
         uint256 found;
         uint32 currentTime = uint32(block.timestamp);
-        for (uint256 i; i < size && found < maxCount; i++) {
+        for (uint256 i; i < size && found < maxCount; ) {
             bytes32 key = buf.keys[i];
             Reservation storage r = s.reservations[key];
             if (r.end < currentTime || r.status == _CANCELLED) {
+                unchecked {
+                    ++i;
+                }
                 continue;
             }
             tmp[found] = key;
-            found++;
+            unchecked {
+                ++found;
+                ++i;
+            }
         }
         if (found == take) {
             return tmp;
         }
         keys = new bytes32[](found);
-        for (uint256 j; j < found; j++) {
+        for (uint256 j; j < found; ) {
             keys[j] = tmp[j];
+            unchecked {
+                ++j;
+            }
         }
     }
 
@@ -318,8 +333,11 @@ abstract contract ReservableTokenEnumerable is ReservableToken {
         if (end > total) end = total;
         uint256 size = end - offset;
         keys = new bytes32[](size);
-        for (uint256 i; i < size; i++) {
+        for (uint256 i; i < size; ) {
             keys[i] = set.at(offset + i);
+            unchecked {
+                ++i;
+            }
         }
     }
 
@@ -340,8 +358,11 @@ abstract contract ReservableTokenEnumerable is ReservableToken {
         if (size > _USER_BUFFER_CAP) size = _USER_BUFFER_CAP;
         uint256 take = size < maxCount ? size : maxCount;
         keys = new bytes32[](take);
-        for (uint256 i; i < take; i++) {
+        for (uint256 i; i < take; ) {
             keys[i] = buf.keys[i];
+            unchecked {
+                ++i;
+            }
         }
     }
 
@@ -363,21 +384,30 @@ abstract contract ReservableTokenEnumerable is ReservableToken {
         bytes32[] memory tmp = new bytes32[](take);
         uint256 found;
         uint32 currentTime = uint32(block.timestamp);
-        for (uint256 i; i < size && found < maxCount; i++) {
+        for (uint256 i; i < size && found < maxCount; ) {
             bytes32 key = buf.keys[i];
             Reservation storage r = s.reservations[key];
             if (r.end < currentTime || r.status == _CANCELLED) {
+                unchecked {
+                    ++i;
+                }
                 continue;
             }
             tmp[found] = key;
-            found++;
+            unchecked {
+                ++found;
+                ++i;
+            }
         }
         if (found == take) {
             return tmp;
         }
         keys = new bytes32[](found);
-        for (uint256 j; j < found; j++) {
+        for (uint256 j; j < found; ) {
             keys[j] = tmp[j];
+            unchecked {
+                ++j;
+            }
         }
     }
 
@@ -545,15 +575,19 @@ abstract contract ReservableTokenEnumerable is ReservableToken {
         AppStorage storage s = _s();
         EnumerableSet.Bytes32Set storage tokenUserReservations = s.reservationKeysByTokenAndUser[_tokenId][_user];
         
-        for (uint i = 0; i < tokenUserReservations.length(); i++) {
+        uint256 length = tokenUserReservations.length();
+        for (uint256 i; i < length; ) {
             bytes32 key = tokenUserReservations.at(i);
-            Reservation memory res = s.reservations[key];
+            Reservation storage res = s.reservations[key];
             
             // Check for _CONFIRMED or _IN_USE (both are active paid reservations)
             if ((res.status == _CONFIRMED || res.status == _IN_USE) && 
                 res.start <= time && 
                 res.end >= time) {
                 return true;
+            }
+            unchecked {
+                ++i;
             }
         }
         
@@ -602,15 +636,19 @@ abstract contract ReservableTokenEnumerable is ReservableToken {
         AppStorage storage s = _s();
         EnumerableSet.Bytes32Set storage tokenUserReservations = s.reservationKeysByTokenAndUser[_tokenId][_user];
         
-        for (uint i = 0; i < tokenUserReservations.length(); i++) {
+        uint256 length = tokenUserReservations.length();
+        for (uint256 i; i < length; ) {
             bytes32 key = tokenUserReservations.at(i);
-            Reservation memory res = s.reservations[key];
+            Reservation storage res = s.reservations[key];
             
             // Check for _CONFIRMED or _IN_USE (both are active paid reservations)
             if ((res.status == _CONFIRMED || res.status == _IN_USE) && 
                 res.start <= time && 
                 res.end >= time) {
                 return key;
+            }
+            unchecked {
+                ++i;
             }
         }
         
@@ -670,9 +708,10 @@ abstract contract ReservableTokenEnumerable is ReservableToken {
         bytes32 earliestKey = bytes32(0);
         uint32 earliestStart = type(uint32).max;
         
-        for (uint256 i = 0; i < tokenUserReservations.length(); i++) {
+        uint256 length = tokenUserReservations.length();
+        for (uint256 i; i < length; ) {
             bytes32 key = tokenUserReservations.at(i);
-            Reservation memory res = s.reservations[key];
+            Reservation storage res = s.reservations[key];
             
             // Only consider _CONFIRMED or _IN_USE reservations that haven't ended yet
             if ((res.status == _CONFIRMED || res.status == _IN_USE) && 
@@ -680,6 +719,9 @@ abstract contract ReservableTokenEnumerable is ReservableToken {
                 res.start < earliestStart) {
                 earliestKey = key;
                 earliestStart = res.start;
+            }
+            unchecked {
+                ++i;
             }
         }
         

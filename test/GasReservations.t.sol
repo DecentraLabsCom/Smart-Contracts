@@ -26,7 +26,7 @@ contract ReservationHarness is ERC721Enumerable, WalletReservationFacet {
         AppStorage storage s = _s();
         s.labTokenAddress = labToken;
         s.DEFAULT_ADMIN_ROLE = keccak256("DEFAULT_ADMIN_ROLE");
-        s._addProviderRole(msg.sender, "provider", "provider@example.com", "ES");
+        s._addProviderRole(msg.sender, "provider", "provider@example.com", "ES", "");
         s.providerStakes[msg.sender].stakedAmount = type(uint256).max;
     }
 
@@ -38,7 +38,6 @@ contract ReservationHarness is ERC721Enumerable, WalletReservationFacet {
         s.labs[id] = LabBase({
             uri: "uri",
             price: price,
-            auth: "auth",
             accessURI: "accessURI",
             accessKey: "accessKey",
             createdAt: uint32(block.timestamp)

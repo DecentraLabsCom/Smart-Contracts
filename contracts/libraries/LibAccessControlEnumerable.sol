@@ -45,7 +45,7 @@ library LibAccessControlEnumerable {
      * @dev Internal function to add a provider role to a specified account.
      * 
      * This function assigns the `PROVIDER_ROLE` to the given `_account` and stores
-     * additional provider information such as `_name`, `_email`, and `_country` 
+     * additional provider information such as `_name`, `_email`, `_country`, and `_authURI` 
      * in the `AppStorage` structure.
      *
      * @param _self The storage reference to the `AppStorage` structure.
@@ -53,13 +53,14 @@ library LibAccessControlEnumerable {
      * @param _name The name of the provider.
      * @param _email The email address of the provider.
      * @param _country The country of the provider.
+     * @param _authURI The authentication service base URL (can be empty).
      * 
      * @return bool Returns `true` if the provider role was successfully added.
      */
-    function _addProviderRole(AppStorage storage _self, address _account, string memory _name, string memory _email, string memory _country) internal returns (bool) {
+    function _addProviderRole(AppStorage storage _self, address _account, string memory _name, string memory _email, string memory _country, string memory _authURI) internal returns (bool) {
      
         _self.roleMembers[PROVIDER_ROLE].add(_account);
-        _self.providers[_account] = ProviderBase({name: _name, email: _email, country: _country});
+        _self.providers[_account] = ProviderBase({name: _name, email: _email, country: _country, authURI: _authURI});
         return true;
     }
 

@@ -3,7 +3,7 @@ pragma solidity ^0.8.31;
 
 import {ERC721Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC721/ERC721Upgradeable.sol";
 import {ERC721EnumerableUpgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC721/extensions/ERC721EnumerableUpgradeable.sol";
-import {IERC721Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC721/IERC721Upgradeable.sol";
+import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import {AppStorage} from "../../libraries/LibAppStorage.sol";
 import {LibAccessControlEnumerable} from "../../libraries/LibAccessControlEnumerable.sol";
@@ -40,7 +40,6 @@ contract LabFacet is ERC721EnumerableUpgradeable, ReservableToken {
     /// @param _provider The address of the provider adding the lab.
     /// @param _uri The URI containing metadata or details about the lab.
     /// @param _price The price associated with the lab, represented as a uint96.
-    /// @param _auth The authorization details for the lab.
     /// @param _accessUri The URI used to access the lab's services.
     /// @param _accessKey The access key required to interact with the lab.
     event LabAdded(
@@ -48,7 +47,6 @@ contract LabFacet is ERC721EnumerableUpgradeable, ReservableToken {
         address indexed _provider,
         string _uri,
         uint96 _price,
-        string _auth,
         string _accessUri,
         string _accessKey
     );
@@ -57,14 +55,12 @@ contract LabFacet is ERC721EnumerableUpgradeable, ReservableToken {
     /// @param _labId The unique identifier of the lab.
     /// @param _uri The updated URI of the lab.
     /// @param _price The updated price of the lab.
-    /// @param _auth The updated authorization details for the lab.
     /// @param _accessUri The updated URI for accessing the lab.
     /// @param _accessKey The updated access key required to interact with the lab.
     event LabUpdated(
         uint256 indexed _labId,
         string _uri,
         uint96 _price,
-        string _auth,
         string _accessUri,
         string _accessKey
     );
@@ -168,7 +164,7 @@ contract LabFacet is ERC721EnumerableUpgradeable, ReservableToken {
     }
 
     /// @notice Approves a specific address to manage the given token ID.
-    /// @dev Overrides the `approve` function from both IERC721Upgradeable and ERC721Upgradeable.
+    /// @dev Overrides the `approve` function from both IERC721 and ERC721Upgradeable.
     ///      Ensures that only a LabProvider can be approved for the token.
     /// @param _to The address to be approved.
     /// @param _tokenId The ID of the token to approve.
@@ -177,7 +173,7 @@ contract LabFacet is ERC721EnumerableUpgradeable, ReservableToken {
     function approve(
         address _to,
         uint256 _tokenId
-    ) public virtual override(IERC721Upgradeable, ERC721Upgradeable) {
+    ) public virtual override(IERC721, ERC721Upgradeable) {
         require(
             _s()._isLabProvider(_to),
             "Only one LabProvider can be approved"
@@ -191,11 +187,11 @@ contract LabFacet is ERC721EnumerableUpgradeable, ReservableToken {
     /// @param _operator The address of the operator to be approved or disapproved.
     /// @param _approved A boolean indicating whether the operator is approved (`true`) or disapproved (`false`).
     /// @custom:require `_operator` must be a LabProvider as determined by `_s()._isLabProvider`.
-    /// @custom:override Overrides the `setApprovalForAll` function from both `IERC721Upgradeable` and `ERC721Upgradeable`.
+    /// @custom:override Overrides the `setApprovalForAll` function from both `IERC721` and `ERC721Upgradeable`.
     function setApprovalForAll(
         address _operator,
         bool _approved
-    ) public virtual override(IERC721Upgradeable, ERC721Upgradeable) {
+    ) public virtual override(IERC721, ERC721Upgradeable) {
         require(
             _s()._isLabProvider(_operator),
             "Only one LabProvider can be approved"
@@ -204,17 +200,16 @@ contract LabFacet is ERC721EnumerableUpgradeable, ReservableToken {
         super.setApprovalForAll(_operator, _approved);
     }
 
-    /// @dev Internal hook executed before transfers/mints/burns to enforce provider/stake rules
+    /// @dev Internal hook executed on transfers/mints/burns to enforce provider/stake rules
     ///      and migrate reservation bookkeeping on ownership changes.
-    function _beforeTokenTransfer(
-        address from,
+    function _update(
         address to,
         uint256 tokenId,
-        uint256 batchSize
-    ) internal virtual override(ERC721EnumerableUpgradeable) {
+        address auth
+    ) internal virtual override(ERC721EnumerableUpgradeable) returns (address) {
         AppStorage storage s = _s();
-        require(batchSize == 1, "Batch transfers not supported");
-        
+        address from = _ownerOf(tokenId);
+
         if (to != address(0)) {
             // If not a burn operation, require recipient to be a provider
             require(s._isLabProvider(to), "Only one Lab owner can receive Lab");
@@ -227,7 +222,7 @@ contract LabFacet is ERC721EnumerableUpgradeable, ReservableToken {
             _migrateReservationsOnTransfer(s, from, to, tokenId);
         }
 
-        super._beforeTokenTransfer(from, to, tokenId, batchSize);
+        return super._update(to, tokenId, auth);
     }
 
     function _handleListingOnTransfer(

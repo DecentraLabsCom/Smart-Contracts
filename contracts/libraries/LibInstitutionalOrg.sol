@@ -37,10 +37,11 @@ library LibInstitutionalOrg {
     /// @notice Normalizes schacHomeOrganization identifiers to lowercase and validates characters
     function normalizeOrganization(string memory organization) internal pure returns (string memory) {
         bytes memory input = bytes(organization);
-        require(input.length >= 3 && input.length <= 255, InvalidOrgLength());
+        uint256 length = input.length;
+        require(length >= 3 && length <= 255, InvalidOrgLength());
 
-        bytes memory normalized = new bytes(input.length);
-        for (uint256 i = 0; i < input.length; i++) {
+        bytes memory normalized = new bytes(length);
+        for (uint256 i; i < length; ) {
             bytes1 char = input[i];
 
             if (char >= 0x41 && char <= 0x5A) {
@@ -56,6 +57,9 @@ library LibInstitutionalOrg {
             );
 
             normalized[i] = char;
+            unchecked {
+                ++i;
+            }
         }
 
         return string(normalized);

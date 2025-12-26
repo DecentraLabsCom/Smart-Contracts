@@ -114,7 +114,6 @@ contract WalletPayoutFacet is ReentrancyGuardTransient {
             price: 0,
             // forge-lint: disable-next-line(unsafe-typecast)
             maxBatch: uint96(maxBatch),
-            auth: "",
             accessURI: "",
             accessKey: "",
             tokenURI: ""

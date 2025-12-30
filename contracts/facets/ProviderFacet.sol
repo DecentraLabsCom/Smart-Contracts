@@ -360,7 +360,7 @@ contract ProviderFacet is AccessControlUpgradeable {
     }
 
     /// @dev Internal function to validate authURI format.
-    ///      Ensures the URI starts with https:// and doesn't have a trailing slash.
+    ///      Ensures the URI starts with https://, ends with /auth, and doesn't have a trailing slash.
     /// @param _authURI The authentication URI to validate.
     function _validateAuthURI(string calldata _authURI) internal pure {
         bytes memory uri = bytes(_authURI);
@@ -375,6 +375,17 @@ contract ProviderFacet is AccessControlUpgradeable {
         
         // Must not end with '/'
         require(uri[uri.length - 1] != '/', "AuthURI must not end with a slash");
+
+        // Must end with "/auth"
+        require(
+            uri.length >= 5 &&
+            uri[uri.length - 5] == '/' &&
+            uri[uri.length - 4] == 'a' &&
+            uri[uri.length - 3] == 'u' &&
+            uri[uri.length - 2] == 't' &&
+            uri[uri.length - 1] == 'h',
+            "AuthURI must end with /auth"
+        );
     }
 
     /// @notice Checks if the given account is a Lab provider.

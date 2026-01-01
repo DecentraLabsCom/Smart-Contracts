@@ -38,6 +38,17 @@ contract InstitutionalOrgRegistryFacet {
         LibInstitutionalOrg.unregisterOrganization(_s(), msg.sender, normalized);
     }
 
+    /// @notice Update the backend URL for a schacHomeOrganization owned by the caller
+    /// @param schacHomeOrganization The organization identifier to update
+    /// @param backendUrl The Institutional Backend base URL
+    function setSchacHomeOrganizationBackend(
+        string calldata schacHomeOrganization,
+        string calldata backendUrl
+    ) external onlyInstitution {
+        string memory normalized = LibInstitutionalOrg.normalizeOrganization(schacHomeOrganization);
+        LibInstitutionalOrg.setOrganizationBackend(_s(), msg.sender, normalized, backendUrl);
+    }
+
     /// @notice Admin helper to remove a schacHomeOrganization from an institution
     /// @param institution The institution wallet that owns the organization
     /// @param schacHomeOrganization The organization identifier to remove
@@ -49,6 +60,19 @@ contract InstitutionalOrgRegistryFacet {
         LibInstitutionalOrg.unregisterOrganization(_s(), institution, normalized);
     }
 
+    /// @notice Admin helper to update the backend URL for a schacHomeOrganization
+    /// @param institution The institution wallet that owns the organization
+    /// @param schacHomeOrganization The organization identifier to update
+    /// @param backendUrl The Institutional Backend base URL
+    function adminSetSchacHomeOrganizationBackend(
+        address institution,
+        string calldata schacHomeOrganization,
+        string calldata backendUrl
+    ) external onlyDefaultAdmin {
+        string memory normalized = LibInstitutionalOrg.normalizeOrganization(schacHomeOrganization);
+        LibInstitutionalOrg.setOrganizationBackend(_s(), institution, normalized, backendUrl);
+    }
+
     /// @notice Resolve a schacHomeOrganization to the provider wallet that registered it
     /// @param schacHomeOrganization The organization identifier to resolve (case-insensitive)
     /// @return institution The institution wallet associated with the normalized identifier
@@ -57,6 +81,15 @@ contract InstitutionalOrgRegistryFacet {
         // forge-lint: disable-next-line(asm-keccak256)
         bytes32 orgHash = keccak256(bytes(normalized));
         return _s().organizationInstitutionWallet[orgHash];
+    }
+
+    /// @notice Returns the backend URL registered for a schacHomeOrganization
+    /// @param schacHomeOrganization The organization identifier to resolve
+    function getSchacHomeOrganizationBackend(string calldata schacHomeOrganization) external view returns (string memory backendUrl) {
+        string memory normalized = LibInstitutionalOrg.normalizeOrganization(schacHomeOrganization);
+        // forge-lint: disable-next-line(asm-keccak256)
+        bytes32 orgHash = keccak256(bytes(normalized));
+        return _s().organizationBackendUrls[orgHash];
     }
 
     /// @notice Returns all schacHomeOrganization identifiers registered by a provider

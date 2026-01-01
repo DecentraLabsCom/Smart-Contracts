@@ -34,6 +34,14 @@ library LibInstitutionalOrg {
         bytes32 indexed organizationHash
     );
 
+    /// @notice Emitted when an institution updates its backend URL for a schacHomeOrganization
+    event SchacHomeOrganizationBackendUpdated(
+        address indexed institution,
+        string organization,
+        bytes32 indexed organizationHash,
+        string backendUrl
+    );
+
     /// @notice Normalizes schacHomeOrganization identifiers to lowercase and validates characters
     function normalizeOrganization(string memory organization) internal pure returns (string memory) {
         bytes memory input = bytes(organization);
@@ -105,10 +113,29 @@ library LibInstitutionalOrg {
 
         delete s.organizationInstitutionWallet[orgHash];
         delete s.schacHomeOrganizationNames[orgHash];
+        delete s.organizationBackendUrls[orgHash];
 
         bool removed = s.institutionSchacHomeOrganizations[institution].remove(orgHash);
         require(removed, OrganizationNotTracked());
 
         emit SchacHomeOrganizationRemoved(institution, normalizedOrganization, orgHash);
+    }
+
+    /// @notice Updates the backend URL for a normalized organization
+    function setOrganizationBackend(
+        AppStorage storage s,
+        address institution,
+        string memory normalizedOrganization,
+        string memory backendUrl
+    ) internal {
+        // forge-lint: disable-next-line(asm-keccak256)
+        bytes32 orgHash = keccak256(bytes(normalizedOrganization));
+        require(
+            s.organizationInstitutionWallet[orgHash] == institution,
+            OrganizationNotRegisteredByWallet()
+        );
+
+        s.organizationBackendUrls[orgHash] = backendUrl;
+        emit SchacHomeOrganizationBackendUpdated(institution, normalizedOrganization, orgHash, backendUrl);
     }
 }

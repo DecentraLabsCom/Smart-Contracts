@@ -230,6 +230,7 @@ struct InstitutionalUserSpending {
 /// @custom:member schacHomeOrganizationNames Canonical lower-case schacHomeOrganization string stored per hash
 /// @custom:member organizationInstitutionWallet Mapping of normalized organization hashes to institution wallets
 /// @custom:member institutionSchacHomeOrganizations Enumerable set of organization hashes registered by each institution wallet
+/// @custom:member organizationBackendUrls Backend URL per schacHomeOrganization hash
 struct AppStorage {
     // forge-lint: disable-next-line(mixed-case-variable)
     bytes32 DEFAULT_ADMIN_ROLE;
@@ -310,6 +311,9 @@ struct AppStorage {
 
     // Lab reputation
     mapping(uint256 => LabReputation) labReputation; // labId -> reputation stats
+
+    // Institutional org backend registry (appended to preserve storage layout)
+    mapping(bytes32 orgHash => string backendUrl) organizationBackendUrls;
 }
 
 /// @title LibAppStorage

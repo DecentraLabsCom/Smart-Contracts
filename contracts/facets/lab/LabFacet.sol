@@ -118,7 +118,7 @@ contract LabFacet is ERC721EnumerableUpgradeable, ReservableToken {
     function initialize(
         string memory _name,
         string memory _symbol
-    ) public initializer {
+    ) public onlyInitializing {
         __ERC721_init(_name, _symbol);
     }
 

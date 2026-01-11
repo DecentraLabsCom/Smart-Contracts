@@ -116,7 +116,7 @@ contract ProviderFacet is AccessControlUpgradeable {
         string memory _email,
         string memory _country,
         address _labErc20
-    ) public initializer {
+    ) public onlyInitializing {
         LibDiamond.enforceIsContractOwner();
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
         _grantRole(PROVIDER_ROLE, msg.sender);

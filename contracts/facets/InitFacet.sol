@@ -4,19 +4,6 @@ pragma solidity ^0.8.31;
 import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import {LibDiamond} from "../libraries/LibDiamond.sol";
 
-interface IProviderFacetInit {
-    function initialize(
-        string calldata name,
-        string calldata email,
-        string calldata country,
-        address labErc20
-    ) external;
-}
-
-interface ILabFacetInit {
-    function initialize(string calldata name, string calldata symbol) external;
-}
-
 /// @notice Single entrypoint to initialize diamond state across facets.
 contract InitFacet is Initializable {
     function initializeDiamond(
@@ -28,7 +15,34 @@ contract InitFacet is Initializable {
         string calldata labSymbol
     ) external reinitializer(2) {
         LibDiamond.enforceIsContractOwner();
-        IProviderFacetInit(address(this)).initialize(adminName, adminEmail, adminCountry, labToken);
-        ILabFacetInit(address(this)).initialize(labName, labSymbol);
+        _delegateInit(
+            abi.encodeWithSignature(
+                "initialize(string,string,string,address)",
+                adminName,
+                adminEmail,
+                adminCountry,
+                labToken
+            )
+        );
+        _delegateInit(
+            abi.encodeWithSignature(
+                "initialize(string,string)",
+                labName,
+                labSymbol
+            )
+        );
+    }
+
+    function _delegateInit(bytes memory data) private {
+        // Delegate to the diamond so msg.sender stays the external caller (owner).
+        (bool success, bytes memory error) = address(this).delegatecall(data);
+        if (!success) {
+            if (error.length > 0) {
+                assembly {
+                    revert(add(32, error), mload(error))
+                }
+            }
+            revert("InitFacet: delegatecall failed");
+        }
     }
 }

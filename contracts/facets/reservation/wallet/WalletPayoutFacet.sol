@@ -94,36 +94,22 @@ contract WalletPayoutFacet is ReentrancyGuardTransient {
     /// @notice Collects funds via intent (institutional flow) while keeping direct call available
     function requestFundsWithIntent(
         bytes32 requestId,
-        uint256 _labId,
-        uint256 maxBatch
+        ActionIntentPayload calldata payload
     )
         external
         isLabProvider
         nonReentrant
     {
+        require(payload.labId != 0, "REQUEST_FUNDS: labId required");
+        require(payload.executor == msg.sender, "Executor must be caller");
+        uint256 maxBatch = uint256(payload.maxBatch);
         if (maxBatch == 0 || maxBatch > 100) revert("Invalid batch size");
-
-        ActionIntentPayload memory payload = ActionIntentPayload({
-            executor: msg.sender,
-            schacHomeOrganization: "",
-            puc: "",
-            assertionHash: bytes32(0),
-            labId: _labId,
-            reservationKey: bytes32(0),
-            uri: "",
-            price: 0,
-            // forge-lint: disable-next-line(unsafe-typecast)
-            maxBatch: uint96(maxBatch),
-            accessURI: "",
-            accessKey: "",
-            tokenURI: ""
-        });
 
         bytes32 payloadHash = LibIntent.hashActionPayload(payload);
         LibIntent.consumeIntent(requestId, LibIntent.ACTION_REQUEST_FUNDS, payloadHash, msg.sender);
 
-        _requestFunds(_labId, maxBatch);
-        emit LabIntentProcessed(requestId, _labId, "REQUEST_FUNDS", msg.sender, true, "");
+        _requestFunds(payload.labId, maxBatch);
+        emit LabIntentProcessed(requestId, payload.labId, "REQUEST_FUNDS", msg.sender, true, "");
     }
 
     function getLabTokenAddress() external view returns (address) {

@@ -98,92 +98,88 @@ contract InstitutionalIntentFacet {
     /// @notice Institutional reservation request via intent
     function institutionalReservationRequestWithIntent(
         bytes32 requestId,
-        address institutionalProvider,
-        string calldata puc,
-        uint256 _labId,
-        uint32 _start,
-        uint32 _end
-    ) external exists(_labId) onlyInstitution(institutionalProvider) {
-        require(institutionalProvider == msg.sender, IntentInstitutionMustBeCaller());
+        ReservationIntentPayload calldata payload
+    ) external exists(payload.labId) onlyInstitution(msg.sender) {
         AppStorage storage s = _s();
-        
-        bytes32 reservationKey = _getReservationKey(_labId, _start);
-        uint96 price = s.labs[_labId].price;
-
-        ReservationIntentPayload memory payload = ReservationIntentPayload({
-            executor: msg.sender,
-            schacHomeOrganization: "",
-            puc: puc,
-            assertionHash: bytes32(0),
-            labId: _labId,
-            start: _start,
-            end: _end,
-            price: price,
-            reservationKey: reservationKey
-        });
+        bytes32 expectedKey = _getReservationKey(payload.labId, payload.start);
+        require(payload.reservationKey == expectedKey, "RESERVATION_KEY_MISMATCH");
+        require(payload.price == s.labs[payload.labId].price, "LAB_PRICE_MISMATCH");
         _consumeReservationIntent(requestId, LibIntent.ACTION_REQUEST_BOOKING, payload);
 
-        IInstitutionalReservationFacet(address(this)).institutionalReservationRequest(institutionalProvider, puc, _labId, _start, _end);
-        emit ReservationIntentProcessed(requestId, reservationKey, "RESERVATION_REQUEST", puc, institutionalProvider, true, "");
+        IInstitutionalReservationFacet(address(this)).institutionalReservationRequest(
+            msg.sender,
+            payload.puc,
+            payload.labId,
+            payload.start,
+            payload.end
+        );
+        emit ReservationIntentProcessed(requestId, payload.reservationKey, "RESERVATION_REQUEST", payload.puc, msg.sender, true, "");
     }
 
     /// @notice Institutional cancellation of reservation request via intent
     function cancelInstitutionalReservationRequestWithIntent(
         bytes32 requestId,
-        address institutionalProvider,
-        string calldata puc,
-        bytes32 _reservationKey
-    ) external onlyInstitution(institutionalProvider) {
-        require(institutionalProvider == msg.sender, IntentInstitutionMustBeCaller());
+        ReservationIntentPayload calldata payload
+    ) external onlyInstitution(msg.sender) {
         AppStorage storage s = _s();
-        Reservation storage reservation = s.reservations[_reservationKey];
+        Reservation storage reservation = s.reservations[payload.reservationKey];
         require(reservation.labId != 0, IntentUnknownReservation());
+        require(payload.labId == reservation.labId, "LAB_ID_MISMATCH");
+        require(payload.start == reservation.start, "RESERVATION_START_MISMATCH");
+        require(payload.end == reservation.end, "RESERVATION_END_MISMATCH");
+        require(payload.price == reservation.price, "RESERVATION_PRICE_MISMATCH");
+        require(
+            keccak256(bytes(payload.puc)) == keccak256(bytes(reservation.puc)),
+            "RESERVATION_PUC_MISMATCH"
+        );
 
-        ReservationIntentPayload memory payload = ReservationIntentPayload({
-            executor: msg.sender,
-            schacHomeOrganization: "",
-            puc: puc,
-            assertionHash: bytes32(0),
-            labId: reservation.labId,
-            start: reservation.start,
-            end: reservation.end,
-            price: reservation.price,
-            reservationKey: _reservationKey
-        });
         _consumeReservationIntent(requestId, LibIntent.ACTION_CANCEL_REQUEST_BOOKING, payload);
 
-        IInstitutionalReservationFacet(address(this)).cancelInstitutionalReservationRequest(institutionalProvider, puc, _reservationKey);
-        emit ReservationIntentProcessed(requestId, _reservationKey, "CANCEL_RESERVATION_REQUEST", puc, institutionalProvider, true, "");
+        IInstitutionalReservationFacet(address(this)).cancelInstitutionalReservationRequest(
+            msg.sender,
+            payload.puc,
+            payload.reservationKey
+        );
+        emit ReservationIntentProcessed(
+            requestId,
+            payload.reservationKey,
+            "CANCEL_RESERVATION_REQUEST",
+            payload.puc,
+            msg.sender,
+            true,
+            ""
+        );
     }
 
     /// @notice Cancels a confirmed booking via intent
     function cancelInstitutionalBookingWithIntent(
         bytes32 requestId,
-        address institutionalProvider,
-        bytes32 _reservationKey
-    ) external onlyInstitution(institutionalProvider) {
-        require(institutionalProvider == msg.sender, IntentInstitutionMustBeCaller());
+        ActionIntentPayload calldata payload
+    ) external onlyInstitution(msg.sender) {
         AppStorage storage s = _s();
-        Reservation storage reservation = s.reservations[_reservationKey];
+        Reservation storage reservation = s.reservations[payload.reservationKey];
         require(reservation.labId != 0, IntentUnknownReservation());
+        require(payload.labId == reservation.labId, "LAB_ID_MISMATCH");
+        require(payload.price == reservation.price, "RESERVATION_PRICE_MISMATCH");
+        require(
+            keccak256(bytes(payload.puc)) == keccak256(bytes(reservation.puc)),
+            "RESERVATION_PUC_MISMATCH"
+        );
 
-        ActionIntentPayload memory payload = ActionIntentPayload({
-            executor: msg.sender,
-            schacHomeOrganization: "",
-            puc: reservation.puc,
-            assertionHash: bytes32(0),
-            labId: reservation.labId,
-            reservationKey: _reservationKey,
-            uri: "",
-            price: reservation.price,
-            maxBatch: 0,
-            accessURI: "",
-            accessKey: "",
-            tokenURI: ""
-        });
         _consumeActionIntent(requestId, LibIntent.ACTION_CANCEL_BOOKING, payload);
 
-        IInstitutionalReservationFacet(address(this)).cancelInstitutionalBooking(institutionalProvider, _reservationKey);
-        emit ReservationIntentProcessed(requestId, _reservationKey, "CANCEL_BOOKING", reservation.puc, institutionalProvider, true, "");
+        IInstitutionalReservationFacet(address(this)).cancelInstitutionalBooking(
+            msg.sender,
+            payload.reservationKey
+        );
+        emit ReservationIntentProcessed(
+            requestId,
+            payload.reservationKey,
+            "CANCEL_BOOKING",
+            payload.puc,
+            msg.sender,
+            true,
+            ""
+        );
     }
 }

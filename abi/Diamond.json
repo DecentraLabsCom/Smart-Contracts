@@ -4516,14 +4516,71 @@
         "type": "bytes32"
       },
       {
-        "internalType": "address",
-        "name": "institutionalProvider",
-        "type": "address"
-      },
-      {
-        "internalType": "bytes32",
-        "name": "_reservationKey",
-        "type": "bytes32"
+        "components": [
+          {
+            "internalType": "address",
+            "name": "executor",
+            "type": "address"
+          },
+          {
+            "internalType": "string",
+            "name": "schacHomeOrganization",
+            "type": "string"
+          },
+          {
+            "internalType": "string",
+            "name": "puc",
+            "type": "string"
+          },
+          {
+            "internalType": "bytes32",
+            "name": "assertionHash",
+            "type": "bytes32"
+          },
+          {
+            "internalType": "uint256",
+            "name": "labId",
+            "type": "uint256"
+          },
+          {
+            "internalType": "bytes32",
+            "name": "reservationKey",
+            "type": "bytes32"
+          },
+          {
+            "internalType": "string",
+            "name": "uri",
+            "type": "string"
+          },
+          {
+            "internalType": "uint96",
+            "name": "price",
+            "type": "uint96"
+          },
+          {
+            "internalType": "uint96",
+            "name": "maxBatch",
+            "type": "uint96"
+          },
+          {
+            "internalType": "string",
+            "name": "accessURI",
+            "type": "string"
+          },
+          {
+            "internalType": "string",
+            "name": "accessKey",
+            "type": "string"
+          },
+          {
+            "internalType": "string",
+            "name": "tokenURI",
+            "type": "string"
+          }
+        ],
+        "internalType": "struct ActionIntentPayload",
+        "name": "payload",
+        "type": "tuple"
       }
     ],
     "name": "cancelInstitutionalBookingWithIntent",
@@ -4539,19 +4596,56 @@
         "type": "bytes32"
       },
       {
-        "internalType": "address",
-        "name": "institutionalProvider",
-        "type": "address"
-      },
-      {
-        "internalType": "string",
-        "name": "puc",
-        "type": "string"
-      },
-      {
-        "internalType": "bytes32",
-        "name": "_reservationKey",
-        "type": "bytes32"
+        "components": [
+          {
+            "internalType": "address",
+            "name": "executor",
+            "type": "address"
+          },
+          {
+            "internalType": "string",
+            "name": "schacHomeOrganization",
+            "type": "string"
+          },
+          {
+            "internalType": "string",
+            "name": "puc",
+            "type": "string"
+          },
+          {
+            "internalType": "bytes32",
+            "name": "assertionHash",
+            "type": "bytes32"
+          },
+          {
+            "internalType": "uint256",
+            "name": "labId",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint32",
+            "name": "start",
+            "type": "uint32"
+          },
+          {
+            "internalType": "uint32",
+            "name": "end",
+            "type": "uint32"
+          },
+          {
+            "internalType": "uint96",
+            "name": "price",
+            "type": "uint96"
+          },
+          {
+            "internalType": "bytes32",
+            "name": "reservationKey",
+            "type": "bytes32"
+          }
+        ],
+        "internalType": "struct ReservationIntentPayload",
+        "name": "payload",
+        "type": "tuple"
       }
     ],
     "name": "cancelInstitutionalReservationRequestWithIntent",
@@ -4567,29 +4661,56 @@
         "type": "bytes32"
       },
       {
-        "internalType": "address",
-        "name": "institutionalProvider",
-        "type": "address"
-      },
-      {
-        "internalType": "string",
-        "name": "puc",
-        "type": "string"
-      },
-      {
-        "internalType": "uint256",
-        "name": "_labId",
-        "type": "uint256"
-      },
-      {
-        "internalType": "uint32",
-        "name": "_start",
-        "type": "uint32"
-      },
-      {
-        "internalType": "uint32",
-        "name": "_end",
-        "type": "uint32"
+        "components": [
+          {
+            "internalType": "address",
+            "name": "executor",
+            "type": "address"
+          },
+          {
+            "internalType": "string",
+            "name": "schacHomeOrganization",
+            "type": "string"
+          },
+          {
+            "internalType": "string",
+            "name": "puc",
+            "type": "string"
+          },
+          {
+            "internalType": "bytes32",
+            "name": "assertionHash",
+            "type": "bytes32"
+          },
+          {
+            "internalType": "uint256",
+            "name": "labId",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint32",
+            "name": "start",
+            "type": "uint32"
+          },
+          {
+            "internalType": "uint32",
+            "name": "end",
+            "type": "uint32"
+          },
+          {
+            "internalType": "uint96",
+            "name": "price",
+            "type": "uint96"
+          },
+          {
+            "internalType": "bytes32",
+            "name": "reservationKey",
+            "type": "bytes32"
+          }
+        ],
+        "internalType": "struct ReservationIntentPayload",
+        "name": "payload",
+        "type": "tuple"
       }
     ],
     "name": "institutionalReservationRequestWithIntent",
@@ -5791,14 +5912,71 @@
         "type": "bytes32"
       },
       {
-        "internalType": "uint256",
-        "name": "_labId",
-        "type": "uint256"
-      },
-      {
-        "internalType": "uint256",
-        "name": "maxBatch",
-        "type": "uint256"
+        "components": [
+          {
+            "internalType": "address",
+            "name": "executor",
+            "type": "address"
+          },
+          {
+            "internalType": "string",
+            "name": "schacHomeOrganization",
+            "type": "string"
+          },
+          {
+            "internalType": "string",
+            "name": "puc",
+            "type": "string"
+          },
+          {
+            "internalType": "bytes32",
+            "name": "assertionHash",
+            "type": "bytes32"
+          },
+          {
+            "internalType": "uint256",
+            "name": "labId",
+            "type": "uint256"
+          },
+          {
+            "internalType": "bytes32",
+            "name": "reservationKey",
+            "type": "bytes32"
+          },
+          {
+            "internalType": "string",
+            "name": "uri",
+            "type": "string"
+          },
+          {
+            "internalType": "uint96",
+            "name": "price",
+            "type": "uint96"
+          },
+          {
+            "internalType": "uint96",
+            "name": "maxBatch",
+            "type": "uint96"
+          },
+          {
+            "internalType": "string",
+            "name": "accessURI",
+            "type": "string"
+          },
+          {
+            "internalType": "string",
+            "name": "accessKey",
+            "type": "string"
+          },
+          {
+            "internalType": "string",
+            "name": "tokenURI",
+            "type": "string"
+          }
+        ],
+        "internalType": "struct ActionIntentPayload",
+        "name": "payload",
+        "type": "tuple"
       }
     ],
     "name": "requestFundsWithIntent",

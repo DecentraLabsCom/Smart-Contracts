@@ -128,13 +128,14 @@ contract LabFacet is ERC721EnumerableUpgradeable, ReservableToken {
     ///      labId is incremented AFTER successful mint to avoid ID gaps on mint failures.
     /// @param _uri The URI of the Lab, providing metadata or additional information.
     /// @param _price The price of the Lab in the smallest unit of the currency.
+
     // NOTE: addLab(), addAndListLab(), updateLab(), deleteLab(), setTokenURI(), listLab(), unlistLab()
-    // moved to LabAdminFacet for contract size optimization
+    // are located in LabAdminFacet for contract size optimization
 
     // NOTE: addLabWithIntent(), addAndListLabWithIntent(), updateLabWithIntent(), deleteLabWithIntent(),
-    // setTokenURIWithIntent(), listLabWithIntent(), unlistLabWithIntent() moved to LabIntentFacet
+    // setTokenURIWithIntent(), listLabWithIntent(), unlistLabWithIntent() are located in LabIntentFacet
 
-    // NOTE: getLab() and getLabsPaginated() moved to LabQueryFacet
+    // NOTE: getLab() and getLabsPaginated() are located in LabQueryFacet
 
     /// @notice Helper function called by LabAdminFacet to mint tokens
     /// @dev Only callable through diamond delegatecall from LabAdminFacet

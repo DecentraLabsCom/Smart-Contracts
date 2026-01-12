@@ -61,131 +61,87 @@ contract LabIntentFacet {
     /// @notice Adds a new Lab via intent and emits event with requestId.
     function addLabWithIntent(
         bytes32 requestId,
-        string calldata _uri,
-        uint96 _price,
-        string calldata _accessUri,
-        string calldata _accessKey
+        ActionIntentPayload calldata payload
     ) external isLabProvider {
-        AppStorage storage s = _s();
-        uint256 nextLabId = s.labId + 1;
-        ActionIntentPayload memory payload = ActionIntentPayload({
-            executor: msg.sender,
-            schacHomeOrganization: "",
-            puc: "",
-            assertionHash: bytes32(0),
-            labId: nextLabId,
-            reservationKey: bytes32(0),
-            uri: _uri,
-            price: _price,
-            maxBatch: 0,
-            accessURI: _accessUri,
-            accessKey: _accessKey,
-            tokenURI: ""
-        });
+        require(payload.labId == 0, "LAB_ADD: labId must be 0");
         _consumeLabIntent(requestId, LibIntent.ACTION_LAB_ADD, payload);
 
         // Delegate to LabFacet
-        ILabFacet(address(this)).addLab(_uri, _price, _accessUri, _accessKey);
-        uint256 newLabId = s.labId;
+        ILabFacet(address(this)).addLab(payload.uri, payload.price, payload.accessURI, payload.accessKey);
+        uint256 newLabId = _s().labId;
         emit LabIntentProcessed(requestId, newLabId, "LAB_ADD", msg.sender, true, "");
+    }
+
+    /// @notice Adds and lists a new Lab via intent and emits event with requestId.
+    function addAndListLabWithIntent(
+        bytes32 requestId,
+        ActionIntentPayload calldata payload
+    ) external isLabProvider {
+        require(payload.labId == 0, "LAB_ADD_AND_LIST: labId must be 0");
+        _consumeLabIntent(requestId, LibIntent.ACTION_LAB_ADD_AND_LIST, payload);
+
+        ILabFacet(address(this)).addAndListLab(payload.uri, payload.price, payload.accessURI, payload.accessKey);
+        uint256 newLabId = _s().labId;
+        emit LabIntentProcessed(requestId, newLabId, "LAB_ADD_AND_LIST", msg.sender, true, "");
     }
 
     /// @notice Updates a lab via intent
     function updateLabWithIntent(
         bytes32 requestId,
-        uint256 _labId,
-        string calldata _uri,
-        uint96 _price,
-        string calldata _accessUri,
-        string calldata _accessKey
+        ActionIntentPayload calldata payload
     ) external {
-        ActionIntentPayload memory payload = ActionIntentPayload({
-            executor: msg.sender,
-            schacHomeOrganization: "",
-            puc: "",
-            assertionHash: bytes32(0),
-            labId: _labId,
-            reservationKey: bytes32(0),
-            uri: _uri,
-            price: _price,
-            maxBatch: 0,
-            accessURI: _accessUri,
-            accessKey: _accessKey,
-            tokenURI: ""
-        });
+        require(payload.labId != 0, "LAB_UPDATE: labId required");
         _consumeLabIntent(requestId, LibIntent.ACTION_LAB_UPDATE, payload);
 
-        ILabFacet(address(this)).updateLab(_labId, _uri, _price, _accessUri, _accessKey);
-        emit LabIntentProcessed(requestId, _labId, "LAB_UPDATE", msg.sender, true, "");
+        ILabFacet(address(this)).updateLab(
+            payload.labId,
+            payload.uri,
+            payload.price,
+            payload.accessURI,
+            payload.accessKey
+        );
+        emit LabIntentProcessed(requestId, payload.labId, "LAB_UPDATE", msg.sender, true, "");
+    }
+
+    /// @notice Deletes a lab via intent
+    function deleteLabWithIntent(
+        bytes32 requestId,
+        ActionIntentPayload calldata payload
+    ) external {
+        require(payload.labId != 0, "LAB_DELETE: labId required");
+        _consumeLabIntent(requestId, LibIntent.ACTION_LAB_DELETE, payload);
+
+        ILabFacet(address(this)).deleteLab(payload.labId);
+        emit LabIntentProcessed(requestId, payload.labId, "LAB_DELETE", msg.sender, true, "");
     }
 
     /// @notice Updates URI via intent and emits LabIntentProcessed
     function setTokenURIWithIntent(
         bytes32 requestId,
-        uint256 _labId,
-        string calldata _tokenUri
+        ActionIntentPayload calldata payload
     ) external {
-        ActionIntentPayload memory payload = ActionIntentPayload({
-            executor: msg.sender,
-            schacHomeOrganization: "",
-            puc: "",
-            assertionHash: bytes32(0),
-            labId: _labId,
-            reservationKey: bytes32(0),
-            uri: "",
-            price: 0,
-            maxBatch: 0,
-            accessURI: "",
-            accessKey: "",
-            tokenURI: _tokenUri
-        });
+        require(payload.labId != 0, "LAB_SET_URI: labId required");
         _consumeLabIntent(requestId, LibIntent.ACTION_LAB_SET_URI, payload);
 
-        ILabFacet(address(this)).setTokenURI(_labId, _tokenUri);
-        emit LabIntentProcessed(requestId, _labId, "LAB_SET_URI", msg.sender, true, "");
+        ILabFacet(address(this)).setTokenURI(payload.labId, payload.tokenURI);
+        emit LabIntentProcessed(requestId, payload.labId, "LAB_SET_URI", msg.sender, true, "");
     }
 
     /// @notice Lists a lab via intent
-    function listLabWithIntent(bytes32 requestId, uint256 _labId) external {
-        ActionIntentPayload memory payload = ActionIntentPayload({
-            executor: msg.sender,
-            schacHomeOrganization: "",
-            puc: "",
-            assertionHash: bytes32(0),
-            labId: _labId,
-            reservationKey: bytes32(0),
-            uri: "",
-            price: 0,
-            maxBatch: 0,
-            accessURI: "",
-            accessKey: "",
-            tokenURI: ""
-        });
+    function listLabWithIntent(bytes32 requestId, ActionIntentPayload calldata payload) external {
+        require(payload.labId != 0, "LAB_LIST: labId required");
         _consumeLabIntent(requestId, LibIntent.ACTION_LAB_LIST, payload);
 
-        ILabFacet(address(this)).listToken(_labId);
-        emit LabIntentProcessed(requestId, _labId, "LAB_LIST", msg.sender, true, "");
+        ILabFacet(address(this)).listToken(payload.labId);
+        emit LabIntentProcessed(requestId, payload.labId, "LAB_LIST", msg.sender, true, "");
     }
 
     /// @notice Unlists a lab via intent
-    function unlistLabWithIntent(bytes32 requestId, uint256 _labId) external {
-        ActionIntentPayload memory payload = ActionIntentPayload({
-            executor: msg.sender,
-            schacHomeOrganization: "",
-            puc: "",
-            assertionHash: bytes32(0),
-            labId: _labId,
-            reservationKey: bytes32(0),
-            uri: "",
-            price: 0,
-            maxBatch: 0,
-            accessURI: "",
-            accessKey: "",
-            tokenURI: ""
-        });
+    function unlistLabWithIntent(bytes32 requestId, ActionIntentPayload calldata payload) external {
+        require(payload.labId != 0, "LAB_UNLIST: labId required");
         _consumeLabIntent(requestId, LibIntent.ACTION_LAB_UNLIST, payload);
 
-        ILabFacet(address(this)).unlistToken(_labId);
-        emit LabIntentProcessed(requestId, _labId, "LAB_UNLIST", msg.sender, true, "");
+        ILabFacet(address(this)).unlistToken(payload.labId);
+        emit LabIntentProcessed(requestId, payload.labId, "LAB_UNLIST", msg.sender, true, "");
     }
 }

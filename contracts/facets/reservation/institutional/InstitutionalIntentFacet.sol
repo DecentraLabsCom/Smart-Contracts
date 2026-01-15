@@ -106,13 +106,24 @@ contract InstitutionalIntentFacet {
         require(payload.price == s.labs[payload.labId].price, "LAB_PRICE_MISMATCH");
         _consumeReservationIntent(requestId, LibIntent.ACTION_REQUEST_BOOKING, payload);
 
-        IInstitutionalReservationFacet(address(this)).institutionalReservationRequest(
-            msg.sender,
-            payload.puc,
-            payload.labId,
-            payload.start,
-            payload.end
-        );
+        {
+            (bool ok, bytes memory ret) = address(this).delegatecall(
+                abi.encodeWithSignature(
+                    "institutionalReservationRequest(address,string,uint256,uint32,uint32)",
+                    msg.sender,
+                    payload.puc,
+                    payload.labId,
+                    payload.start,
+                    payload.end
+                )
+            );
+            if (!ok) {
+                if (ret.length > 0) {
+                    assembly { revert(add(ret, 32), mload(ret)) }
+                }
+                revert();
+            }
+        }
         emit ReservationIntentProcessed(requestId, payload.reservationKey, "RESERVATION_REQUEST", payload.puc, msg.sender, true, "");
     }
 
@@ -135,11 +146,22 @@ contract InstitutionalIntentFacet {
 
         _consumeReservationIntent(requestId, LibIntent.ACTION_CANCEL_REQUEST_BOOKING, payload);
 
-        IInstitutionalReservationFacet(address(this)).cancelInstitutionalReservationRequest(
-            msg.sender,
-            payload.puc,
-            payload.reservationKey
-        );
+        {
+            (bool ok, bytes memory ret) = address(this).delegatecall(
+                abi.encodeWithSignature(
+                    "cancelInstitutionalReservationRequest(address,string,bytes32)",
+                    msg.sender,
+                    payload.puc,
+                    payload.reservationKey
+                )
+            );
+            if (!ok) {
+                if (ret.length > 0) {
+                    assembly { revert(add(ret, 32), mload(ret)) }
+                }
+                revert();
+            }
+        }
         emit ReservationIntentProcessed(
             requestId,
             payload.reservationKey,
@@ -168,10 +190,21 @@ contract InstitutionalIntentFacet {
 
         _consumeActionIntent(requestId, LibIntent.ACTION_CANCEL_BOOKING, payload);
 
-        IInstitutionalReservationFacet(address(this)).cancelInstitutionalBooking(
-            msg.sender,
-            payload.reservationKey
-        );
+        {
+            (bool ok, bytes memory ret) = address(this).delegatecall(
+                abi.encodeWithSignature(
+                    "cancelInstitutionalBooking(address,bytes32)",
+                    msg.sender,
+                    payload.reservationKey
+                )
+            );
+            if (!ok) {
+                if (ret.length > 0) {
+                    assembly { revert(add(ret, 32), mload(ret)) }
+                }
+                revert();
+            }
+        }
         emit ReservationIntentProcessed(
             requestId,
             payload.reservationKey,

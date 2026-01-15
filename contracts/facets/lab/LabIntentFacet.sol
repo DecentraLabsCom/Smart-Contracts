@@ -66,8 +66,26 @@ contract LabIntentFacet {
         require(payload.labId == 0, "LAB_ADD: labId must be 0");
         _consumeLabIntent(requestId, LibIntent.ACTION_LAB_ADD, payload);
 
-        // Delegate to LabFacet
-        ILabFacet(address(this)).addLab(payload.uri, payload.price, payload.accessURI, payload.accessKey);
+        // Delegate to LabFacet via delegatecall so msg.sender stays the original executor
+        {
+            (bool ok, bytes memory ret) = address(this).delegatecall(
+                abi.encodeWithSignature(
+                    "addLab(string,uint96,string,string)",
+                    payload.uri,
+                    payload.price,
+                    payload.accessURI,
+                    payload.accessKey
+                )
+            );
+            if (!ok) {
+                if (ret.length > 0) {
+                    assembly {
+                        revert(add(ret, 32), mload(ret))
+                    }
+                }
+                revert();
+            }
+        }
         uint256 newLabId = _s().labId;
         emit LabIntentProcessed(requestId, newLabId, "LAB_ADD", msg.sender, true, "");
     }
@@ -80,7 +98,26 @@ contract LabIntentFacet {
         require(payload.labId == 0, "LAB_ADD_AND_LIST: labId must be 0");
         _consumeLabIntent(requestId, LibIntent.ACTION_LAB_ADD_AND_LIST, payload);
 
-        ILabFacet(address(this)).addAndListLab(payload.uri, payload.price, payload.accessURI, payload.accessKey);
+        // Delegate to LabFacet via delegatecall so msg.sender stays the original executor
+        {
+            (bool ok, bytes memory ret) = address(this).delegatecall(
+                abi.encodeWithSignature(
+                    "addAndListLab(string,uint96,string,string)",
+                    payload.uri,
+                    payload.price,
+                    payload.accessURI,
+                    payload.accessKey
+                )
+            );
+            if (!ok) {
+                if (ret.length > 0) {
+                    assembly {
+                        revert(add(ret, 32), mload(ret))
+                    }
+                }
+                revert();
+            }
+        }
         uint256 newLabId = _s().labId;
         emit LabIntentProcessed(requestId, newLabId, "LAB_ADD_AND_LIST", msg.sender, true, "");
     }
@@ -93,13 +130,27 @@ contract LabIntentFacet {
         require(payload.labId != 0, "LAB_UPDATE: labId required");
         _consumeLabIntent(requestId, LibIntent.ACTION_LAB_UPDATE, payload);
 
-        ILabFacet(address(this)).updateLab(
-            payload.labId,
-            payload.uri,
-            payload.price,
-            payload.accessURI,
-            payload.accessKey
-        );
+        // Delegate to LabFacet via delegatecall so msg.sender stays the original executor
+        {
+            (bool ok, bytes memory ret) = address(this).delegatecall(
+                abi.encodeWithSignature(
+                    "updateLab(uint256,string,uint96,string,string)",
+                    payload.labId,
+                    payload.uri,
+                    payload.price,
+                    payload.accessURI,
+                    payload.accessKey
+                )
+            );
+            if (!ok) {
+                if (ret.length > 0) {
+                    assembly {
+                        revert(add(ret, 32), mload(ret))
+                    }
+                }
+                revert();
+            }
+        }
         emit LabIntentProcessed(requestId, payload.labId, "LAB_UPDATE", msg.sender, true, "");
     }
 
@@ -111,7 +162,23 @@ contract LabIntentFacet {
         require(payload.labId != 0, "LAB_DELETE: labId required");
         _consumeLabIntent(requestId, LibIntent.ACTION_LAB_DELETE, payload);
 
-        ILabFacet(address(this)).deleteLab(payload.labId);
+        // Delegate to LabFacet via delegatecall so msg.sender stays the original executor
+        {
+            (bool ok, bytes memory ret) = address(this).delegatecall(
+                abi.encodeWithSignature(
+                    "deleteLab(uint256)",
+                    payload.labId
+                )
+            );
+            if (!ok) {
+                if (ret.length > 0) {
+                    assembly {
+                        revert(add(ret, 32), mload(ret))
+                    }
+                }
+                revert();
+            }
+        }
         emit LabIntentProcessed(requestId, payload.labId, "LAB_DELETE", msg.sender, true, "");
     }
 
@@ -123,7 +190,24 @@ contract LabIntentFacet {
         require(payload.labId != 0, "LAB_SET_URI: labId required");
         _consumeLabIntent(requestId, LibIntent.ACTION_LAB_SET_URI, payload);
 
-        ILabFacet(address(this)).setTokenURI(payload.labId, payload.tokenURI);
+        // Delegate to LabFacet via delegatecall so msg.sender stays the original executor
+        {
+            (bool ok, bytes memory ret) = address(this).delegatecall(
+                abi.encodeWithSignature(
+                    "setTokenURI(uint256,string)",
+                    payload.labId,
+                    payload.tokenURI
+                )
+            );
+            if (!ok) {
+                if (ret.length > 0) {
+                    assembly {
+                        revert(add(ret, 32), mload(ret))
+                    }
+                }
+                revert();
+            }
+        }
         emit LabIntentProcessed(requestId, payload.labId, "LAB_SET_URI", msg.sender, true, "");
     }
 
@@ -132,7 +216,23 @@ contract LabIntentFacet {
         require(payload.labId != 0, "LAB_LIST: labId required");
         _consumeLabIntent(requestId, LibIntent.ACTION_LAB_LIST, payload);
 
-        ILabFacet(address(this)).listToken(payload.labId);
+        // Delegate to LabFacet via delegatecall so msg.sender stays the original executor
+        {
+            (bool ok, bytes memory ret) = address(this).delegatecall(
+                abi.encodeWithSignature(
+                    "listToken(uint256)",
+                    payload.labId
+                )
+            );
+            if (!ok) {
+                if (ret.length > 0) {
+                    assembly {
+                        revert(add(ret, 32), mload(ret))
+                    }
+                }
+                revert();
+            }
+        }
         emit LabIntentProcessed(requestId, payload.labId, "LAB_LIST", msg.sender, true, "");
     }
 
@@ -141,7 +241,23 @@ contract LabIntentFacet {
         require(payload.labId != 0, "LAB_UNLIST: labId required");
         _consumeLabIntent(requestId, LibIntent.ACTION_LAB_UNLIST, payload);
 
-        ILabFacet(address(this)).unlistToken(payload.labId);
+        // Delegate to LabFacet via delegatecall so msg.sender stays the original executor
+        {
+            (bool ok, bytes memory ret) = address(this).delegatecall(
+                abi.encodeWithSignature(
+                    "unlistToken(uint256)",
+                    payload.labId
+                )
+            );
+            if (!ok) {
+                if (ret.length > 0) {
+                    assembly {
+                        revert(add(ret, 32), mload(ret))
+                    }
+                }
+                revert();
+            }
+        }
         emit LabIntentProcessed(requestId, payload.labId, "LAB_UNLIST", msg.sender, true, "");
     }
 }

@@ -726,11 +726,6 @@
   },
   {
     "inputs": [],
-    "name": "IntentInstitutionMustBeCaller",
-    "type": "error"
-  },
-  {
-    "inputs": [],
     "name": "IntentLabDoesNotExist",
     "type": "error"
   },
@@ -2405,6 +2400,44 @@
   {
     "inputs": [
       {
+        "internalType": "string",
+        "name": "adminName",
+        "type": "string"
+      },
+      {
+        "internalType": "string",
+        "name": "adminEmail",
+        "type": "string"
+      },
+      {
+        "internalType": "string",
+        "name": "adminCountry",
+        "type": "string"
+      },
+      {
+        "internalType": "address",
+        "name": "labToken",
+        "type": "address"
+      },
+      {
+        "internalType": "string",
+        "name": "labName",
+        "type": "string"
+      },
+      {
+        "internalType": "string",
+        "name": "labSymbol",
+        "type": "string"
+      }
+    ],
+    "name": "initializeDiamond",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
         "internalType": "bytes32",
         "name": "requestId",
         "type": "bytes32"
@@ -3212,6 +3245,86 @@
         "type": "tuple"
       }
     ],
+    "name": "addAndListLabWithIntent",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "bytes32",
+        "name": "requestId",
+        "type": "bytes32"
+      },
+      {
+        "components": [
+          {
+            "internalType": "address",
+            "name": "executor",
+            "type": "address"
+          },
+          {
+            "internalType": "string",
+            "name": "schacHomeOrganization",
+            "type": "string"
+          },
+          {
+            "internalType": "string",
+            "name": "puc",
+            "type": "string"
+          },
+          {
+            "internalType": "bytes32",
+            "name": "assertionHash",
+            "type": "bytes32"
+          },
+          {
+            "internalType": "uint256",
+            "name": "labId",
+            "type": "uint256"
+          },
+          {
+            "internalType": "bytes32",
+            "name": "reservationKey",
+            "type": "bytes32"
+          },
+          {
+            "internalType": "string",
+            "name": "uri",
+            "type": "string"
+          },
+          {
+            "internalType": "uint96",
+            "name": "price",
+            "type": "uint96"
+          },
+          {
+            "internalType": "uint96",
+            "name": "maxBatch",
+            "type": "uint96"
+          },
+          {
+            "internalType": "string",
+            "name": "accessURI",
+            "type": "string"
+          },
+          {
+            "internalType": "string",
+            "name": "accessKey",
+            "type": "string"
+          },
+          {
+            "internalType": "string",
+            "name": "tokenURI",
+            "type": "string"
+          }
+        ],
+        "internalType": "struct ActionIntentPayload",
+        "name": "payload",
+        "type": "tuple"
+      }
+    ],
     "name": "addLabWithIntent",
     "outputs": [],
     "stateMutability": "nonpayable",
@@ -3292,7 +3405,7 @@
         "type": "tuple"
       }
     ],
-    "name": "addAndListLabWithIntent",
+    "name": "deleteLabWithIntent",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"
@@ -3613,86 +3726,6 @@
       }
     ],
     "name": "updateLabWithIntent",
-    "outputs": [],
-    "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "bytes32",
-        "name": "requestId",
-        "type": "bytes32"
-      },
-      {
-        "components": [
-          {
-            "internalType": "address",
-            "name": "executor",
-            "type": "address"
-          },
-          {
-            "internalType": "string",
-            "name": "schacHomeOrganization",
-            "type": "string"
-          },
-          {
-            "internalType": "string",
-            "name": "puc",
-            "type": "string"
-          },
-          {
-            "internalType": "bytes32",
-            "name": "assertionHash",
-            "type": "bytes32"
-          },
-          {
-            "internalType": "uint256",
-            "name": "labId",
-            "type": "uint256"
-          },
-          {
-            "internalType": "bytes32",
-            "name": "reservationKey",
-            "type": "bytes32"
-          },
-          {
-            "internalType": "string",
-            "name": "uri",
-            "type": "string"
-          },
-          {
-            "internalType": "uint96",
-            "name": "price",
-            "type": "uint96"
-          },
-          {
-            "internalType": "uint96",
-            "name": "maxBatch",
-            "type": "uint96"
-          },
-          {
-            "internalType": "string",
-            "name": "accessURI",
-            "type": "string"
-          },
-          {
-            "internalType": "string",
-            "name": "accessKey",
-            "type": "string"
-          },
-          {
-            "internalType": "string",
-            "name": "tokenURI",
-            "type": "string"
-          }
-        ],
-        "internalType": "struct ActionIntentPayload",
-        "name": "payload",
-        "type": "tuple"
-      }
-    ],
-    "name": "deleteLabWithIntent",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"

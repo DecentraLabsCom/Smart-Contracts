@@ -2,9 +2,10 @@
 pragma solidity ^0.8.31;
 
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
-import {AppStorage, LibAppStorage, Reservation, INSTITUTION_ROLE} from "../../../libraries/LibAppStorage.sol";
-import {LibIntent} from "../../../libraries/LibIntent.sol";
-import {ReservationIntentPayload, ActionIntentPayload} from "../../../libraries/IntentTypes.sol";
+import {AppStorage, LibAppStorage, Reservation, INSTITUTION_ROLE} from "../../libraries/LibAppStorage.sol";
+import {LibIntent} from "../../libraries/LibIntent.sol";
+import {ReservationIntentPayload, ActionIntentPayload} from "../../libraries/IntentTypes.sol";
+import {LibInstitutionalReservation} from "../../libraries/LibInstitutionalReservation.sol";
 
 // Custom errors for gas-efficient reverts (Solidity 0.8.26+)
 error IntentUnknownInstitution();
@@ -14,32 +15,12 @@ error IntentExecutorMustBeCaller();
 error IntentInstitutionMustBeCaller();
 error IntentUnknownReservation();
 
-/// @dev Interface for calling InstitutionalReservationFacet
-interface IInstitutionalReservationFacet {
-    function institutionalReservationRequest(
-        address institutionalProvider,
-        string calldata puc,
-        uint256 _labId,
-        uint32 _start,
-        uint32 _end
-    ) external;
-    function cancelInstitutionalReservationRequest(
-        address institutionalProvider,
-        string calldata puc,
-        bytes32 _reservationKey
-    ) external;
-    function cancelInstitutionalBooking(
-        address institutionalProvider,
-        bytes32 _reservationKey
-    ) external;
-}
-
-/// @title InstitutionalIntentFacet
+/// @title ReservationIntentFacet
 /// @author
 /// - Luis de la Torre Cubillo
 /// - Juan Luis Ramos Villalón
 /// @notice Facet for intent-based institutional reservations. Split from InstitutionalReservationFacet to reduce contract size.
-contract InstitutionalIntentFacet {
+contract ReservationIntentFacet {
     using EnumerableSet for EnumerableSet.AddressSet;
 
     /// @notice Event of institutional intents
@@ -106,24 +87,13 @@ contract InstitutionalIntentFacet {
         require(payload.price == s.labs[payload.labId].price, "LAB_PRICE_MISMATCH");
         _consumeReservationIntent(requestId, LibIntent.ACTION_REQUEST_BOOKING, payload);
 
-        {
-            (bool ok, bytes memory ret) = address(this).delegatecall(
-                abi.encodeWithSignature(
-                    "institutionalReservationRequest(address,string,uint256,uint32,uint32)",
-                    msg.sender,
-                    payload.puc,
-                    payload.labId,
-                    payload.start,
-                    payload.end
-                )
-            );
-            if (!ok) {
-                if (ret.length > 0) {
-                    assembly { revert(add(ret, 32), mload(ret)) }
-                }
-                revert();
-            }
-        }
+        LibInstitutionalReservation.requestReservation(
+            msg.sender,
+            payload.puc,
+            payload.labId,
+            payload.start,
+            payload.end
+        );
         emit ReservationIntentProcessed(requestId, payload.reservationKey, "RESERVATION_REQUEST", payload.puc, msg.sender, true, "");
     }
 
@@ -146,22 +116,11 @@ contract InstitutionalIntentFacet {
 
         _consumeReservationIntent(requestId, LibIntent.ACTION_CANCEL_REQUEST_BOOKING, payload);
 
-        {
-            (bool ok, bytes memory ret) = address(this).delegatecall(
-                abi.encodeWithSignature(
-                    "cancelInstitutionalReservationRequest(address,string,bytes32)",
-                    msg.sender,
-                    payload.puc,
-                    payload.reservationKey
-                )
-            );
-            if (!ok) {
-                if (ret.length > 0) {
-                    assembly { revert(add(ret, 32), mload(ret)) }
-                }
-                revert();
-            }
-        }
+        LibInstitutionalReservation.cancelReservationRequest(
+            msg.sender,
+            payload.puc,
+            payload.reservationKey
+        );
         emit ReservationIntentProcessed(
             requestId,
             payload.reservationKey,
@@ -190,21 +149,7 @@ contract InstitutionalIntentFacet {
 
         _consumeActionIntent(requestId, LibIntent.ACTION_CANCEL_BOOKING, payload);
 
-        {
-            (bool ok, bytes memory ret) = address(this).delegatecall(
-                abi.encodeWithSignature(
-                    "cancelInstitutionalBooking(address,bytes32)",
-                    msg.sender,
-                    payload.reservationKey
-                )
-            );
-            if (!ok) {
-                if (ret.length > 0) {
-                    assembly { revert(add(ret, 32), mload(ret)) }
-                }
-                revert();
-            }
-        }
+        LibInstitutionalReservation.cancelBooking(msg.sender, payload.reservationKey);
         emit ReservationIntentProcessed(
             requestId,
             payload.reservationKey,

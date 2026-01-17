@@ -8,12 +8,12 @@ import {BaseWalletReservationFacet, IStakingFacetW} from "../base/BaseWalletRese
 import {RivalIntervalTreeLibrary, Tree} from "../../../libraries/RivalIntervalTreeLibrary.sol";
 import {AppStorage, Reservation} from "../../../libraries/LibAppStorage.sol";
 
-/// @title WalletConfirmationFacet
+/// @title WalletReservationConfirmationFacet
 /// @author Luis de la Torre Cubillo, Juan Luis Ramos Villalón
 /// @notice Confirmation and denial functions for wallet reservations
 /// @dev Extracted from WalletReservationCoreFacet to reduce contract size below EIP-170 limit
 
-contract WalletConfirmationFacet is BaseWalletReservationFacet {
+contract WalletReservationConfirmationFacet is BaseWalletReservationFacet {
     using EnumerableSet for EnumerableSet.Bytes32Set;
     using RivalIntervalTreeLibrary for Tree;
 

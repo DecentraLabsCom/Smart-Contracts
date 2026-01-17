@@ -10,12 +10,12 @@ import {BaseWalletReservationFacet, IInstitutionalTreasuryFacetW} from "../base/
 import {AppStorage, Reservation} from "../../../libraries/LibAppStorage.sol";
 import {LibReputation} from "../../../libraries/LibReputation.sol";
 
-/// @title WalletCancellationFacet
+/// @title WalletReservationCancellationFacet
 /// @author Luis de la Torre Cubillo, Juan Luis Ramos Villalón
 /// @notice Cancellation functions for wallet reservations
 /// @dev Extracted from WalletReservationFacet to reduce contract size below EIP-170 limit
 
-contract WalletCancellationFacet is BaseWalletReservationFacet, ReentrancyGuardTransient {
+contract WalletReservationCancellationFacet is BaseWalletReservationFacet, ReentrancyGuardTransient {
     using SafeERC20 for IERC20;
     using EnumerableSet for EnumerableSet.Bytes32Set;
 

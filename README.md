@@ -27,7 +27,7 @@ Diamond Proxy (Main Contract)
 ├── ProviderFacet         (Provider & institutional treasury management)
 ├── LabFacet              (Lab/NFT management)
 ├── StakingFacet          (Staking, slashing, and unstaking)
-├── ReservationFacet      (Booking & payments for labs)
+├── Reservation Facets    (Booking & payments for labs)
 └── LabERC20              (External: $LAB token)
 ```
 
@@ -46,7 +46,7 @@ Diamond Proxy (Main Contract)
 - **Paginated queries**: Efficient retrieval of lab listings
 - **Transfer restrictions**: Only lab providers can own lab NFTs
 
-### 3. Reservation System (ReservationFacet)
+### 3. Reservation System (Reservation Facets)
 - **Time-based booking**: Reserve labs for specific time periods
 - **Interval tree calendar**: Efficient O(log n) calendar conflict detection
 - **Multi-state workflow**: 
@@ -145,7 +145,7 @@ Implements provider staking mechanism for quality assurance:
 - Unstaking with lock periods
 - Reputation-based mechanisms
 
-#### ReservationFacet
+#### Reservation Facets
 Handles the complete reservation lifecycle for labs:
 - Reservation requests and admin confirmations
 - Calendar conflict detection using interval trees
@@ -155,9 +155,23 @@ Handles the complete reservation lifecycle for labs:
 
 **Sub-facets:**
 - **WalletReservationFacet**: Manages reservations paid from user wallets
-- **InstitutionalReservationFacet**: Handles reservations using institutional treasuries
-- **WalletCancellationFacet**: Cancellation logic for wallet-based reservations
-- **InstitutionalCancellationFacet**: Cancellation logic for institutional reservations
+- **WalletReservationCoreFacet**: Core reservation request stubs for wallet flow
+- **WalletReservationConfirmationFacet**: Confirms or denies wallet reservation requests
+- **WalletReservationCancellationFacet**: Cancellation logic for wallet reservations
+- **WalletPayoutFacet**: Provider payout collection for wallet reservations
+- **InstitutionalReservationFacet**: Releases expired institutional reservations
+- **InstitutionalReservationCoreFacet**: Stubs that redirect to specialized institutional facets
+- **InstitutionalReservationRequestFacet**: Entry point for institutional reservation requests
+- **InstitutionalReservationRequestValidationFacet**: Validates institutional reservation requests
+- **InstitutionalReservationRequestCreationFacet**: Creates institutional reservation records
+- **InstitutionalReservationConfirmationFacet**: Confirms institutional reservation requests
+- **InstitutionalReservationDenialFacet**: Denies institutional reservation requests
+- **InstitutionalReservationCancellationFacet**: Cancellation logic for institutional reservations
+- **InstitutionalReservationQueryFacet**: Read-only queries for institutional reservations
+- **InstitutionalTreasuryFacet**: Institutional treasury balances and transfers
+- **InstitutionalOrgRegistryFacet**: Institutional organization registry
+- **InstitutionFacet**: Institution role and organization management
+- **ReservationIntentFacet**: Intent-based institutional reservation actions
 - **ReservationCheckInFacet**: Check-in functionality for completed reservations
 
 ### External Contracts

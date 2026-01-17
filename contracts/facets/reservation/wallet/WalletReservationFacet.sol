@@ -26,7 +26,7 @@ contract WalletReservationFacet is BaseWalletReservationFacet, ReentrancyGuardTr
     // moved to WalletReservationCoreFacet for contract size optimization
 
     // NOTE: cancelReservationRequest(), cancelBooking()
-    // moved to WalletCancellationFacet for contract size optimization
+    // moved to WalletReservationCancellationFacet for contract size optimization
 
     // NOTE: requestFunds(), requestFundsWithIntent(), getLabTokenAddress(), getSafeBalance()
     // getPendingLabPayout(), initializeRevenueRecipients(), withdrawProjectTreasury(),

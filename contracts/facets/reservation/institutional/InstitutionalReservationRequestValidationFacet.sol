@@ -6,7 +6,7 @@ import {BaseLightReservationFacet} from "../base/BaseLightReservationFacet.sol";
 import {AppStorage, Reservation} from "../../../libraries/LibAppStorage.sol";
 import {ReservableToken} from "../../../abstracts/ReservableToken.sol";
 
-contract InstitutionalRequestValidationFacet is BaseLightReservationFacet {
+contract InstitutionalReservationRequestValidationFacet is BaseLightReservationFacet {
 
     error InstitutionalBackendMissing();
     error OnlyInstitutionalBackend();

@@ -31,7 +31,7 @@ contract WalletPayoutFacet is ReentrancyGuardTransient {
     using EnumerableSet for EnumerableSet.AddressSet;
     using LibAccessControlEnumerable for AppStorage;
 
-    /// @dev Reservation status constants (must match ReservationFacet)
+    /// @dev Reservation status constants (must match reservation facets)
     uint8 internal constant _PENDING = 0;
     uint8 internal constant _CONFIRMED = 1;
     uint8 internal constant _IN_USE = 2;

@@ -6,22 +6,22 @@ import {BaseInstitutionalReservationFacet} from "../base/BaseInstitutionalReserv
 /// @title InstitutionalReservationCoreFacet
 /// @author Luis de la Torre Cubillo, Juan Luis Ramos Villalón
 /// @notice Stub facet for institutional reservations - actual logic moved to specialized facets
-/// @dev All functions redirect to InstitutionalRequestFacet, InstitutionalConfirmationFacet
+/// @dev All functions redirect to InstitutionalReservationRequestFacet, InstitutionalReservationConfirmationFacet
 
 contract InstitutionalReservationCoreFacet is BaseInstitutionalReservationFacet {
 
-    /// @notice Create institutional reservation request - MOVED to InstitutionalRequestFacet
+    /// @notice Create institutional reservation request - MOVED to InstitutionalReservationRequestFacet
     function institutionalReservationRequest(address, string calldata, uint256, uint32, uint32) external pure {
-        revert("Use InstitutionalRequestFacet");
+        revert("Use InstitutionalReservationRequestFacet");
     }
 
-    /// @notice Confirm institutional reservation - MOVED to InstitutionalConfirmationFacet
+    /// @notice Confirm institutional reservation - MOVED to InstitutionalReservationConfirmationFacet
     function confirmInstitutionalReservationRequest(address, bytes32) external pure {
-        revert("Use InstitutionalConfirmationFacet");
+        revert("Use InstitutionalReservationConfirmationFacet");
     }
 
-    /// @notice Deny institutional reservation - MOVED to InstitutionalConfirmationFacet
+    /// @notice Deny institutional reservation - MOVED to InstitutionalReservationDenialFacet
     function denyInstitutionalReservationRequest(address, string calldata, bytes32) external pure {
-        revert("Use InstitutionalConfirmationFacet");
+        revert("Use InstitutionalReservationDenialFacet");
     }
 }

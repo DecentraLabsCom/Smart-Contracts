@@ -137,16 +137,15 @@ contract LabFacet is ERC721EnumerableUpgradeable, ReservableToken {
 
     // NOTE: getLab() and getLabsPaginated() are located in LabQueryFacet
 
-    /// @notice Helper function called by LabAdminFacet to mint tokens
-    /// @dev Only callable through diamond delegatecall from LabAdminFacet
+    /// @notice Helper function called by LabAdminFacet/LibLabAdmin to mint tokens
+    /// @dev Intended for internal diamond calls; access is enforced by the caller
     function safeMintTo(address to, uint256 tokenId) external {
-        // This will be called via delegatecall, so msg.sender is the original caller
-        // The LabAdminFacet already validates isLabProvider
+        // Caller is expected to be the diamond (invoked by admin facets/libraries)
         _safeMint(to, tokenId);
     }
 
-    /// @notice Helper function called by LabAdminFacet to burn tokens
-    /// @dev Only callable through diamond delegatecall from LabAdminFacet  
+    /// @notice Helper function called by LabAdminFacet/LibLabAdmin to burn tokens
+    /// @dev Intended for internal diamond calls; access is enforced by the caller
     function burnToken(uint256 tokenId) external {
         _burn(tokenId);
     }

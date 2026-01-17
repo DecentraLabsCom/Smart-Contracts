@@ -332,7 +332,7 @@ contract StakingFacet is AccessControlUpgradeable {
     }
 
     /// @notice Updates the last reservation timestamp for lock period calculation
-    /// @dev Should be called by ReservationFacet when a reservation is completed/cancelled
+    /// @dev Should be called by reservation facets when a reservation is completed/cancelled
     /// @param provider The address of the provider
     function updateLastReservation(address provider) external {
         // Only Diamond facets can call this

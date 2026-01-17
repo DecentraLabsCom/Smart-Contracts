@@ -9,7 +9,7 @@ interface IInstitutionalTreasuryFacetLight {
     function checkInstitutionalTreasuryAvailability(address provider, string calldata puc, uint256 amount) external view;
 }
 
-contract InstitutionalRequestCreationFacet is BaseMinimalReservationFacet {
+contract InstitutionalReservationRequestCreationFacet is BaseMinimalReservationFacet {
     using EnumerableSet for EnumerableSet.Bytes32Set;
 
     struct InstInput {

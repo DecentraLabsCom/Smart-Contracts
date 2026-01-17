@@ -6,10 +6,10 @@ import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import {BaseInstitutionalReservationFacet} from "../base/BaseInstitutionalReservationFacet.sol";
 import {AppStorage, Reservation, INSTITUTION_ROLE} from "../../../libraries/LibAppStorage.sol";
 
-/// @title InstitutionalDenialFacet
+/// @title InstitutionalReservationDenialFacet
 /// @notice Denial functions for institutional reservations
 
-contract InstitutionalDenialFacet is BaseInstitutionalReservationFacet {
+contract InstitutionalReservationDenialFacet is BaseInstitutionalReservationFacet {
     using EnumerableSet for EnumerableSet.AddressSet;
 
     function denyInstitutionalReservationRequest(address inst, string calldata puc, bytes32 key) external {

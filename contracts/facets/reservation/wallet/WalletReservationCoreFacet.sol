@@ -33,14 +33,14 @@ contract WalletReservationCoreFacet is BaseLightReservationFacet {
         _reservationRequest(_labId, _start, _end);
     }
 
-    /// @notice Confirm a reservation request - MOVED to WalletConfirmationFacet
+    /// @notice Confirm a reservation request - MOVED to WalletReservationConfirmationFacet
     function confirmReservationRequest(bytes32) external pure override {
-        revert("Use WalletConfirmationFacet");
+        revert("Use WalletReservationConfirmationFacet");
     }
 
-    /// @notice Deny a reservation request - MOVED to WalletConfirmationFacet  
+    /// @notice Deny a reservation request - MOVED to WalletReservationConfirmationFacet  
     function denyReservationRequest(bytes32) external pure override {
-        revert("Use WalletConfirmationFacet");
+        revert("Use WalletReservationConfirmationFacet");
     }
 
     function _reservationRequest(uint256 _labId, uint32 _start, uint32 _end) internal { 

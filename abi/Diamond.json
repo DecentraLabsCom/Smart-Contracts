@@ -5264,7 +5264,7 @@
             "type": "address"
           }
         ],
-        "internalType": "struct InstitutionalRequestCreationFacet.InstInput",
+        "internalType": "struct InstitutionalReservationRequestCreationFacet.InstInput",
         "name": "i",
         "type": "tuple"
       }

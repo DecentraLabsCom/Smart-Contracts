@@ -15,7 +15,7 @@ interface IInstitutionalTreasuryFacetConfirm {
     function spendFromInstitutionalTreasury(address institution, string calldata puc, uint256 amount) external;
 }
 
-contract InstitutionalConfirmationFacet is BaseLightReservationFacet {
+contract InstitutionalReservationConfirmationFacet is BaseLightReservationFacet {
     using RivalIntervalTreeLibrary for Tree;
 
     error InstitutionNotRegistered();

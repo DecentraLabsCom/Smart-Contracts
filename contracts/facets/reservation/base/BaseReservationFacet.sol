@@ -2,11 +2,11 @@
 pragma solidity ^0.8.31;
 
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
-import {InstitutionalReservableTokenEnumerable} from "../../abstracts/InstitutionalReservableTokenEnumerable.sol";
-import {ProviderFacet} from "../ProviderFacet.sol";
-import {AppStorage, Reservation, PayoutCandidate} from "../../libraries/LibAppStorage.sol";
-import {LibAccessControlEnumerable} from "../../libraries/LibAccessControlEnumerable.sol";
-import {LibReputation} from "../../libraries/LibReputation.sol";
+import {InstitutionalReservableTokenEnumerable} from "../../../abstracts/InstitutionalReservableTokenEnumerable.sol";
+import {ProviderFacet} from "../../ProviderFacet.sol";
+import {AppStorage, Reservation, PayoutCandidate} from "../../../libraries/LibAppStorage.sol";
+import {LibAccessControlEnumerable} from "../../../libraries/LibAccessControlEnumerable.sol";
+import {LibReputation} from "../../../libraries/LibReputation.sol";
 
 /// @dev Interface for StakingFacet to update reservation timestamps
 interface IStakingFacet {

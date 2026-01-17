@@ -4,7 +4,7 @@ pragma solidity ^0.8.31;
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import {AppStorage, Reservation, INSTITUTION_ROLE, LibAppStorage} from "../../../libraries/LibAppStorage.sol";
 
-/// @title InstitutionalQueryFacet
+/// @title InstitutionalReservationQueryFacet
 /// @author
 /// - Luis de la Torre Cubillo
 /// - Juan Luis Ramos Villalón
@@ -12,7 +12,7 @@ import {AppStorage, Reservation, INSTITUTION_ROLE, LibAppStorage} from "../../..
 /// @notice Split from InstitutionalReservationFacet to reduce contract size.
 /// Provides read-only functions for institutional users to query their reservations.
 
-contract InstitutionalQueryFacet {
+contract InstitutionalReservationQueryFacet {
     using EnumerableSet for EnumerableSet.Bytes32Set;
     using EnumerableSet for EnumerableSet.AddressSet;
 

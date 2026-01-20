@@ -30,6 +30,7 @@ contract InstitutionalReservationRequestCreationFacet is BaseMinimalReservationF
 
         if (pr > 0) IInstitutionalTreasuryFacetLight(address(this)).checkInstitutionalTreasuryAvailability(i.p, i.u, pr);
 
+        bytes32 pucHash = keccak256(bytes(i.u));
         uint256 d = s.institutionalSpendingPeriod[i.p];
         if (d == 0) d = LibAppStorage.DEFAULT_SPENDING_PERIOD;
         uint256 rsAligned = block.timestamp - (block.timestamp % d);
@@ -39,24 +40,24 @@ contract InstitutionalReservationRequestCreationFacet is BaseMinimalReservationF
         uint64 period = uint64(d);
 
         s.reservationKeysByToken[i.l].add(i.k);
-        s.reservations[i.k] = Reservation({
-            labId: i.l,
-            renter: i.p,
-            labProvider: i.o,
-            price: pr,
-            start: i.s,
-            end: i.e,
-            status: _PENDING,
-            puc: i.u,
-            requestPeriodStart: rs,
-            requestPeriodDuration: period,
-            payerInstitution: i.p,
-            collectorInstitution: hc != address(0) ? i.o : address(0),
-            providerShare: 0,
-            projectTreasuryShare: 0,
-            subsidiesShare: 0,
-            governanceShare: 0
-        });
+        Reservation storage r = s.reservations[i.k];
+        r.labId = i.l;
+        r.renter = i.p;
+        r.labProvider = i.o;
+        r.price = pr;
+        r.start = i.s;
+        r.end = i.e;
+        r.status = _PENDING;
+        r.puc = "";
+        r.requestPeriodStart = rs;
+        r.requestPeriodDuration = period;
+        r.payerInstitution = i.p;
+        r.collectorInstitution = hc != address(0) ? i.o : address(0);
+        r.providerShare = 0;
+        r.projectTreasuryShare = 0;
+        r.subsidiesShare = 0;
+        r.governanceShare = 0;
+        s.reservationPucHash[i.k] = pucHash;
 
         s.totalReservationsCount++;
         s.renters[i.p].add(i.k);

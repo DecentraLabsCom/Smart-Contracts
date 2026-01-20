@@ -37,13 +37,12 @@ contract InstitutionalReservationQueryFacet {
         require(msg.sender == institution || (backend != address(0) && msg.sender == backend), "Not authorized institution");
     }
 
-    /// @dev Derives a deterministic tracking key from institution + puc
-    function _trackingKeyFromInstitution(address institution, string memory puc)
+    function _trackingKeyFromInstitutionHash(address institution, bytes32 pucHash)
         internal
         pure
         returns (address)
     {
-        return address(uint160(uint256(keccak256(abi.encodePacked(institution, puc)))));
+        return address(uint160(uint256(keccak256(abi.encodePacked(institution, pucHash)))));
     }
 
     /// @notice Get the count of reservations for an institutional user
@@ -55,8 +54,9 @@ contract InstitutionalReservationQueryFacet {
         string calldata puc
     ) external view onlyInstitution(institutionalProvider) returns (uint256) {
         AppStorage storage s = _s();
-        address userTrackingKey = _trackingKeyFromInstitution(institutionalProvider, puc);
-        return s.renters[userTrackingKey].length();
+        bytes32 pucHash = keccak256(bytes(puc));
+        address hashKey = _trackingKeyFromInstitutionHash(institutionalProvider, pucHash);
+        return s.renters[hashKey].length();
     }
 
     /// @notice Get a reservation key by index for an institutional user
@@ -71,10 +71,11 @@ contract InstitutionalReservationQueryFacet {
         uint256 index
     ) external view onlyInstitution(institutionalProvider) returns (bytes32 key) {
         AppStorage storage s = _s();
-        address userTrackingKey = _trackingKeyFromInstitution(institutionalProvider, puc);
-        EnumerableSet.Bytes32Set storage userReservations = s.renters[userTrackingKey];
-        require(index < userReservations.length(), "Index out of bounds");
-        return userReservations.at(index);
+        bytes32 pucHash = keccak256(bytes(puc));
+        address hashKey = _trackingKeyFromInstitutionHash(institutionalProvider, pucHash);
+        EnumerableSet.Bytes32Set storage hashReservations = s.renters[hashKey];
+        require(index < hashReservations.length(), "Index out of bounds");
+        return hashReservations.at(index);
     }
 
     /// @notice Check if an institutional user has an active booking for a specific lab
@@ -91,9 +92,10 @@ contract InstitutionalReservationQueryFacet {
         require(bytes(puc).length > 0, "PUC cannot be empty");
 
         AppStorage storage s = _s();
-        address userTrackingKey = _trackingKeyFromInstitution(institutionalProvider, puc);
-        bytes32 reservationKey = s.activeReservationByTokenAndUser[labId][userTrackingKey];
-        
+        bytes32 pucHash = keccak256(bytes(puc));
+        address hashKey = _trackingKeyFromInstitutionHash(institutionalProvider, pucHash);
+        bytes32 reservationKey = s.activeReservationByTokenAndUser[labId][hashKey];
+
         if (reservationKey == bytes32(0)) {
             return false;
         }
@@ -119,9 +121,10 @@ contract InstitutionalReservationQueryFacet {
         require(bytes(puc).length > 0, "PUC cannot be empty");
 
         AppStorage storage s = _s();
-        address userTrackingKey = _trackingKeyFromInstitution(institutionalProvider, puc);
-        bytes32 activeKey = s.activeReservationByTokenAndUser[labId][userTrackingKey];
-        
+        bytes32 pucHash = keccak256(bytes(puc));
+        address hashKey = _trackingKeyFromInstitutionHash(institutionalProvider, pucHash);
+        bytes32 activeKey = s.activeReservationByTokenAndUser[labId][hashKey];
+
         if (activeKey == bytes32(0)) {
             return bytes32(0);
         }
@@ -150,8 +153,9 @@ contract InstitutionalReservationQueryFacet {
         uint256 labId
     ) external view onlyInstitution(institutionalProvider) returns (uint256 count) {
         AppStorage storage s = _s();
-        address userTrackingKey = _trackingKeyFromInstitution(institutionalProvider, puc);
-        return s.activeReservationCountByTokenAndUser[labId][userTrackingKey];
+        bytes32 pucHash = keccak256(bytes(puc));
+        address hashKey = _trackingKeyFromInstitutionHash(institutionalProvider, pucHash);
+        return s.activeReservationCountByTokenAndUser[labId][hashKey];
     }
 
     /// @notice Get reservation details by key
@@ -159,6 +163,10 @@ contract InstitutionalReservationQueryFacet {
     /// @return reservation The reservation data
     function getReservation(bytes32 _reservationKey) external view returns (Reservation memory reservation) {
         return _s().reservations[_reservationKey];
+    }
+
+    function getReservationPucHash(bytes32 _reservationKey) external view returns (bytes32) {
+        return _s().reservationPucHash[_reservationKey];
     }
 
     /// @notice Get the total reservations count for a lab

@@ -76,6 +76,16 @@ contract ReservationIntentFacet {
         LibIntent.consumeIntent(requestId, action, payloadHash, msg.sender);
     }
 
+    function _pucMatches(
+        AppStorage storage s,
+        Reservation storage,
+        bytes32 reservationKey,
+        string calldata puc
+    ) internal view returns (bool) {
+        bytes32 storedHash = s.reservationPucHash[reservationKey];
+        return storedHash != bytes32(0) && storedHash == keccak256(bytes(puc));
+    }
+
     /// @notice Institutional reservation request via intent
     function institutionalReservationRequestWithIntent(
         bytes32 requestId,
@@ -110,7 +120,7 @@ contract ReservationIntentFacet {
         require(payload.end == reservation.end, "RESERVATION_END_MISMATCH");
         require(payload.price == reservation.price, "RESERVATION_PRICE_MISMATCH");
         require(
-            keccak256(bytes(payload.puc)) == keccak256(bytes(reservation.puc)),
+            _pucMatches(s, reservation, payload.reservationKey, payload.puc),
             "RESERVATION_PUC_MISMATCH"
         );
 
@@ -143,13 +153,13 @@ contract ReservationIntentFacet {
         require(payload.labId == reservation.labId, "LAB_ID_MISMATCH");
         require(payload.price == reservation.price, "RESERVATION_PRICE_MISMATCH");
         require(
-            keccak256(bytes(payload.puc)) == keccak256(bytes(reservation.puc)),
+            _pucMatches(s, reservation, payload.reservationKey, payload.puc),
             "RESERVATION_PUC_MISMATCH"
         );
 
         _consumeActionIntent(requestId, LibIntent.ACTION_CANCEL_BOOKING, payload);
 
-        LibInstitutionalReservation.cancelBooking(msg.sender, payload.reservationKey);
+        LibInstitutionalReservation.cancelBooking(msg.sender, payload.puc, payload.reservationKey);
         emit ReservationIntentProcessed(
             requestId,
             payload.reservationKey,

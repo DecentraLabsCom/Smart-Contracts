@@ -23,9 +23,10 @@ library LibReservationCancellation {
     function cancelReservation(bytes32 reservationKey) internal {
         AppStorage storage s = LibAppStorage.diamondStorage();
         Reservation storage reservation = s.reservations[reservationKey];
-        bool isInstitutional = bytes(reservation.puc).length > 0;
+        bytes32 storedHash = s.reservationPucHash[reservationKey];
+        bool isInstitutional = storedHash != bytes32(0);
         address trackingKey = isInstitutional
-            ? LibTracking.trackingKeyFromInstitution(reservation.renter, reservation.puc)
+            ? LibTracking.trackingKeyFromInstitutionHash(reservation.renter, storedHash)
             : reservation.renter;
         uint256 labId = reservation.labId;
 
@@ -194,7 +195,11 @@ library LibReservationCancellation {
         Reservation storage reservation,
         bytes32 reservationKey
     ) private {
-        address trackingKey = LibTracking.trackingKeyFromInstitution(reservation.renter, reservation.puc);
+        bytes32 storedHash = s.reservationPucHash[reservationKey];
+        if (storedHash == bytes32(0)) {
+            return;
+        }
+        address trackingKey = LibTracking.trackingKeyFromInstitutionHash(reservation.renter, storedHash);
         _invalidateActiveReservationEntry(s, labId, trackingKey, reservationKey);
         if (s.activeReservationHeapContains[reservationKey]) {
             s.activeReservationHeapContains[reservationKey] = false;

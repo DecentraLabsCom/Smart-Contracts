@@ -20,8 +20,13 @@ contract InstitutionalReservationConfirmationFacet is BaseLightReservationFacet 
 
     error InstitutionNotRegistered();
     error UnauthorizedInstitutionCall();
+    error PucRequired();
 
-    function confirmInstitutionalReservationRequest(address i, bytes32 k) external reservationPending(k) {
+    function confirmInstitutionalReservationRequestWithPuc(
+        address i,
+        bytes32 k,
+        string calldata puc
+    ) external reservationPending(k) {
         AppStorage storage s = _s();
         if (!EnumerableSet.contains(s.roleMembers[INSTITUTION_ROLE], i)) revert InstitutionNotRegistered();
 
@@ -36,15 +41,24 @@ contract InstitutionalReservationConfirmationFacet is BaseLightReservationFacet 
 
         if (!institutionCaller && !providerCaller) revert UnauthorizedInstitutionCall();
 
-        _confirmInstitutionalReservationRequest(i, k);
+        _confirmInstitutionalReservationRequestWithPuc(i, k, puc);
     }
 
-    function _confirmInstitutionalReservationRequest(address ip, bytes32 key) internal override {
+    function _confirmInstitutionalReservationRequestWithPuc(
+        address ip,
+        bytes32 key,
+        string memory puc
+    ) internal {
         AppStorage storage s = _s();
         Reservation storage r = s.reservations[key];
-        if (r.payerInstitution != ip || bytes(r.puc).length == 0) revert();
+        if (r.payerInstitution != ip) revert();
 
-        address tr = _trackingKeyFromInstitution(ip, r.puc);
+        bytes32 storedHash = s.reservationPucHash[key];
+        if (storedHash == bytes32(0)) revert();
+        if (bytes(puc).length == 0) revert PucRequired();
+        if (storedHash != keccak256(bytes(puc))) revert();
+
+        address tr = _trackingKeyFromInstitutionHash(ip, storedHash);
         address lp = IERC721(address(this)).ownerOf(r.labId);
         r.labProvider = lp;
 
@@ -59,7 +73,7 @@ contract InstitutionalReservationConfirmationFacet is BaseLightReservationFacet 
 
         if (r.price == 0) { _fin(s, r, key, lp, tr); return; }
 
-        try IInstitutionalTreasuryFacetConfirm(address(this)).spendFromInstitutionalTreasury(r.payerInstitution, r.puc, r.price) {
+        try IInstitutionalTreasuryFacetConfirm(address(this)).spendFromInstitutionalTreasury(r.payerInstitution, puc, r.price) {
             _fin(s, r, key, lp, tr);
         } catch { _cancelReservation(key); emit ReservationRequestDenied(key, r.labId); }
     }

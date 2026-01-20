@@ -86,7 +86,7 @@ library LibInstitutionalReservation {
         if (reservation.renter == address(0)) revert InstReservationNotFound();
         if (reservation.payerInstitution != institutionalProvider) revert NotRenter();
         if (reservation.status != _PENDING) revert NotPending();
-        if (keccak256(bytes(puc)) != keccak256(bytes(reservation.puc))) revert PucMismatch();
+        if (!_pucMatches(s, reservation, reservationKey, puc)) revert PucMismatch();
 
         labId = reservation.labId;
         LibReservationCancellation.cancelReservation(reservationKey);
@@ -94,6 +94,7 @@ library LibInstitutionalReservation {
 
     function cancelBooking(
         address institutionalProvider,
+        string memory puc,
         bytes32 reservationKey
     ) internal returns (uint256 labId) {
         AppStorage storage s = LibAppStorage.diamondStorage();
@@ -105,6 +106,7 @@ library LibInstitutionalReservation {
             revert InvalidStatus();
         }
         if (reservation.payerInstitution != institutionalProvider) revert NotRenter();
+        if (!_pucMatches(s, reservation, reservationKey, puc)) revert PucMismatch();
 
         labId = reservation.labId;
 
@@ -126,8 +128,18 @@ library LibInstitutionalReservation {
 
         IInstitutionalTreasuryFacet(address(this)).refundToInstitutionalTreasury(
             reservation.payerInstitution,
-            reservation.puc,
+            puc,
             refundAmount
         );
+    }
+
+    function _pucMatches(
+        AppStorage storage s,
+        Reservation storage,
+        bytes32 reservationKey,
+        string memory puc
+    ) internal view returns (bool) {
+        bytes32 storedHash = s.reservationPucHash[reservationKey];
+        return storedHash != bytes32(0) && storedHash == keccak256(bytes(puc));
     }
 }

@@ -29,7 +29,8 @@ contract InstitutionalReservationFacet is BaseLightReservationFacet {
 
         if (maxBatch == 0 || maxBatch > 50) revert InvalidBatchSize();
         if (bytes(puc).length == 0) revert EmptyPuc();
-        address userTrackingKey = _trackingKeyFromInstitution(institutionalProvider, puc);
-        return _releaseExpiredReservationsInternal(_labId, userTrackingKey, maxBatch);
+        bytes32 pucHash = keccak256(bytes(puc));
+        address hashKey = _trackingKeyFromInstitutionHash(institutionalProvider, pucHash);
+        return _releaseExpiredReservationsInternal(_labId, hashKey, maxBatch);
     }
 }

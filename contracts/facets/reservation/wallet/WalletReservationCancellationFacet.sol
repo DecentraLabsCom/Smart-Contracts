@@ -48,8 +48,13 @@ contract WalletReservationCancellationFacet is BaseWalletReservationFacet, Reent
         address renter = reservation.renter;
         uint96 price = reservation.price;
         uint256 labId = reservation.labId;
-        string memory puc = reservation.puc;
-        bool isInstitutional = bytes(puc).length > 0;
+        
+        // Institutional reservations must use cancelInstitutionalBookingWithPuc
+        bytes32 storedHash = s.reservationPucHash[_reservationKey];
+        if (storedHash != bytes32(0)) {
+            revert("Use cancelInstitutionalBookingWithPuc");
+        }
+        
         uint96 providerFee;
         uint96 treasuryFee;
         uint96 governanceFee;
@@ -73,15 +78,7 @@ contract WalletReservationCancellationFacet is BaseWalletReservationFacet, Reent
             LibReputation.recordOwnerCancellation(labId);
         }
         
-        if (isInstitutional && reservation.payerInstitution != address(0)) {
-            IInstitutionalTreasuryFacetW(address(this)).refundToInstitutionalTreasury(
-                reservation.payerInstitution,
-                puc,
-                refundAmount
-            );
-        } else {
-            IERC20(s.labTokenAddress).safeTransfer(renter, refundAmount);
-        }
+        IERC20(s.labTokenAddress).safeTransfer(renter, refundAmount);
         
         emit BookingCanceled(_reservationKey, labId);
     }

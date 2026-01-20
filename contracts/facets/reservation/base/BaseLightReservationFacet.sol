@@ -29,19 +29,27 @@ abstract contract BaseLightReservationFacet is ReservableTokenEnumerable {
         }
     }
 
-    function _trackingKeyFromInstitution(address provider, string memory puc) internal pure returns (address) {
-        return LibTracking.trackingKeyFromInstitution(provider, puc);
+    function _trackingKeyFromInstitutionHash(address provider, bytes32 pucHash) internal pure returns (address) {
+        return LibTracking.trackingKeyFromInstitutionHash(provider, pucHash);
     }
 
-    function _isInstitutionalReservation(Reservation storage reservation) internal view returns (bool) {
-        return bytes(reservation.puc).length > 0;
+    function _pucHashForReservation(bytes32 reservationKey, Reservation storage)
+        internal
+        view
+        returns (bytes32)
+    {
+        return _s().reservationPucHash[reservationKey];
     }
 
-    function _computeTrackingKey(Reservation storage reservation) internal view returns (address) {
-        if (_isInstitutionalReservation(reservation)) {
-            return _trackingKeyFromInstitution(reservation.renter, reservation.puc);
-        }
-        return reservation.renter;
+    function _isInstitutionalReservation(bytes32 reservationKey, Reservation storage) internal view returns (bool) {
+        return _s().reservationPucHash[reservationKey] != bytes32(0);
+    }
+
+    function _computeTrackingKey(bytes32 reservationKey, Reservation storage reservation) internal view returns (address) {
+        bytes32 pucHash = _s().reservationPucHash[reservationKey];
+        return pucHash == bytes32(0)
+            ? reservation.renter
+            : _trackingKeyFromInstitutionHash(reservation.renter, pucHash);
     }
 
     function _releaseExpiredReservationsInternal(uint256 _labId, address _user, uint256 maxBatch)
@@ -121,8 +129,8 @@ abstract contract BaseLightReservationFacet is ReservableTokenEnumerable {
         Reservation storage reservation,
         bytes32 reservationKey
     ) internal {
-        if (!_isInstitutionalReservation(reservation)) return;
-        address trackingKey = _computeTrackingKey(reservation);
+        if (!_isInstitutionalReservation(reservationKey, reservation)) return;
+        address trackingKey = _computeTrackingKey(reservationKey, reservation);
         _enqueueActiveReservation(s, labId, trackingKey, reservationKey, reservation.start);
     }
 

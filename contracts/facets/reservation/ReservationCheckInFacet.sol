@@ -57,7 +57,7 @@ contract ReservationCheckInFacet {
         _validateReservationWindow(reservation);
         _validateTimestamp(timestamp);
 
-        bytes32 expectedPucHash = _expectedPucHash(reservation);
+        bytes32 expectedPucHash = _expectedPucHash(s, reservationKey, reservation);
         if (pucHash != expectedPucHash) revert("Puc hash mismatch");
 
         bytes32 digest = _hashCheckIn(signer, reservationKey, pucHash, timestamp);
@@ -102,11 +102,12 @@ contract ReservationCheckInFacet {
         }
     }
 
-    function _expectedPucHash(Reservation storage reservation) private view returns (bytes32) {
-        if (bytes(reservation.puc).length == 0) {
-            return bytes32(0);
-        }
-        return keccak256(bytes(reservation.puc));
+    function _expectedPucHash(
+        AppStorage storage s,
+        bytes32 reservationKey,
+        Reservation storage
+    ) private view returns (bytes32) {
+        return s.reservationPucHash[reservationKey];
     }
 
     function _hashCheckIn(

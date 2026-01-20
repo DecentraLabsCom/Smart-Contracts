@@ -21,11 +21,12 @@ contract InstitutionalReservationCancellationFacet is BaseInstitutionalReservati
         _cancelInstitutionalReservationRequest(institutionalProvider, puc, _reservationKey);
     }
 
-    function cancelInstitutionalBooking(
+    function cancelInstitutionalBookingWithPuc(
         address institutionalProvider,
-        bytes32 _reservationKey
+        bytes32 _reservationKey,
+        string calldata puc
     ) external onlyInstitution(institutionalProvider) {
-        _cancelInstitutionalBooking(institutionalProvider, _reservationKey);
+        _cancelInstitutionalBookingWithPuc(institutionalProvider, _reservationKey, puc);
     }
 
     function _cancelInstitutionalReservationRequest(
@@ -41,12 +42,14 @@ contract InstitutionalReservationCancellationFacet is BaseInstitutionalReservati
         emit ReservationRequestCanceled(_reservationKey, labId);
     }
 
-    function _cancelInstitutionalBooking(
+    function _cancelInstitutionalBookingWithPuc(
         address institutionalProvider,
-        bytes32 _reservationKey
-    ) internal override {
+        bytes32 _reservationKey,
+        string calldata puc
+    ) internal {
         uint256 labId = LibInstitutionalReservation.cancelBooking(
             institutionalProvider,
+            puc,
             _reservationKey
         );
         emit BookingCanceled(_reservationKey, labId);

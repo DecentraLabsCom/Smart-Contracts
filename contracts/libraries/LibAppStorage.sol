@@ -314,6 +314,9 @@ struct AppStorage {
 
     // Institutional org backend registry (appended to preserve storage layout)
     mapping(bytes32 orgHash => string backendUrl) organizationBackendUrls;
+
+    // Reservation PUC hashes (appended to preserve storage layout)
+    mapping(bytes32 reservationKey => bytes32 pucHash) reservationPucHash;
 }
 
 /// @title LibAppStorage

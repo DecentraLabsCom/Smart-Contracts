@@ -30,7 +30,8 @@ contract InstitutionalReservationDenialFacet is BaseInstitutionalReservationFace
         Reservation storage r = s.reservations[key];
         if (r.status != _PENDING) revert("!pnd");
         if (r.payerInstitution != inst) revert("!i");
-        if (keccak256(bytes(puc)) != keccak256(bytes(r.puc))) revert("!puc");
+        bytes32 storedHash = s.reservationPucHash[key];
+        if (storedHash == bytes32(0) || storedHash != keccak256(bytes(puc))) revert("!puc");
         _cancelReservation(key);
         emit ReservationRequestDenied(key, r.labId);
     }

@@ -34,7 +34,7 @@ contract InstitutionalReservationRequestValidationFacet is BaseLightReservationF
         if (st >= en || st <= block.timestamp + _RESERVATION_MARGIN) revert();
 
         k = _getReservationKey(l, st);
-        t = _trackingKeyFromInstitution(p, u);
+        t = _trackingKeyFromInstitutionHash(p, keccak256(bytes(u)));
 
         uint256 c = s.activeReservationCountByTokenAndUser[l][t];
         if (c >= _MAX_RESERVATIONS_PER_LAB_USER - 2) {

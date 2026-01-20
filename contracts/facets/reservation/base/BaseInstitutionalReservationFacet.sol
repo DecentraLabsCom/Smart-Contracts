@@ -201,7 +201,7 @@ abstract contract BaseInstitutionalReservationFacet is InstitutionalReservableTo
     ) internal returns (bool) {
         if (reservation.status == _COLLECTED || reservation.status == _CANCELLED) return false;
 
-        address trackingKey = _computeTrackingKey(reservation);
+        address trackingKey = _computeTrackingKey(key, reservation);
         uint256 reservationPrice = reservation.price;
 
         if (reservation.status == _CONFIRMED || reservation.status == _IN_USE) {
@@ -234,7 +234,7 @@ abstract contract BaseInstitutionalReservationFacet is InstitutionalReservableTo
             s.activeReservationByTokenAndUser[labId][trackingKey] = nextKey;
         }
 
-        if (_isInstitutionalReservation(reservation)) {
+        if (_isInstitutionalReservation(key, reservation)) {
             s.renters[trackingKey].remove(key);
             _invalidateInstitutionalActiveReservation(s, labId, reservation, key);
         }

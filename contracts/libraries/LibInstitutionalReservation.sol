@@ -5,6 +5,36 @@ import {LibAppStorage, AppStorage, Reservation} from "./LibAppStorage.sol";
 import {LibRevenue} from "./LibRevenue.sol";
 import {LibReservationCancellation} from "./LibReservationCancellation.sol";
 
+interface IInstValidation {
+    function validateInstRequest(
+        address p,
+        string calldata u,
+        uint256 l,
+        uint32 st,
+        uint32 en
+    ) external returns (address, bytes32, address);
+}
+
+struct InstInput {
+    address p;
+    address o;
+    uint256 l;
+    uint32 s;
+    uint32 e;
+    string u;
+    bytes32 k;
+    address t;
+}
+
+interface IInstCreation {
+    function createInstReservation(InstInput calldata i) external;
+    function recordRecentInstReservation(uint256 l, address t, bytes32 k, uint32 st) external;
+}
+
+interface IInstitutionalTreasuryFacet {
+    function refundToInstitutionalTreasury(address provider, string calldata puc, uint256 amount) external;
+}
+
 library LibInstitutionalReservation {
     error BackendMissing();
     error UnauthorizedInstitution();
@@ -17,35 +47,6 @@ library LibInstitutionalReservation {
     uint8 internal constant _PENDING = 0;
     uint8 internal constant _CONFIRMED = 1;
     uint8 internal constant _IN_USE = 2;
-    struct InstInput {
-        address p;
-        address o;
-        uint256 l;
-        uint32 s;
-        uint32 e;
-        string u;
-        bytes32 k;
-        address t;
-    }
-
-    interface IInstValidation {
-        function validateInstRequest(
-            address p,
-            string calldata u,
-            uint256 l,
-            uint32 st,
-            uint32 en
-        ) external returns (address, bytes32, address);
-    }
-
-    interface IInstCreation {
-        function createInstReservation(InstInput calldata i) external;
-        function recordRecentInstReservation(uint256 l, address t, bytes32 k, uint32 st) external;
-    }
-
-    interface IInstitutionalTreasuryFacet {
-        function refundToInstitutionalTreasury(address provider, string calldata puc, uint256 amount) external;
-    }
 
     function requestReservation(
         address institutionalProvider,

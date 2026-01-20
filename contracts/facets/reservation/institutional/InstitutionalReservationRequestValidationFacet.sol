@@ -21,7 +21,9 @@ contract InstitutionalReservationRequestValidationFacet is BaseLightReservationF
     ) external returns (address o, bytes32 k, address t) {
         AppStorage storage s = _s();
         if (s.institutionalBackends[p] == address(0)) revert InstitutionalBackendMissing();
-        if (msg.sender != s.institutionalBackends[p]) revert OnlyInstitutionalBackend();
+        if (msg.sender != s.institutionalBackends[p] && msg.sender != address(this)) {
+            revert OnlyInstitutionalBackend();
+        }
         if (bytes(u).length == 0 || bytes(u).length > 256) revert InvalidInstitutionalUserId();
         if (!s.tokenStatus[l]) revert();
 

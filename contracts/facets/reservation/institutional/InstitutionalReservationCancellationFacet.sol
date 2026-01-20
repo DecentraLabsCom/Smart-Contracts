@@ -2,7 +2,7 @@
 pragma solidity ^0.8.31;
 
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
-import {BaseInstitutionalReservationFacet} from "../base/BaseInstitutionalReservationFacet.sol";
+import {LibAppStorage, AppStorage, INSTITUTION_ROLE} from "../../../libraries/LibAppStorage.sol";
 import {LibInstitutionalReservation} from "../../../libraries/LibInstitutionalReservation.sol";
 
 /// @title InstitutionalReservationCancellationFacet
@@ -10,8 +10,29 @@ import {LibInstitutionalReservation} from "../../../libraries/LibInstitutionalRe
 /// @notice Cancellation functions for institutional reservations
 /// @dev Extracted from InstitutionalReservationFacet to reduce contract size below EIP-170 limit
 
-contract InstitutionalReservationCancellationFacet is BaseInstitutionalReservationFacet {
+contract InstitutionalReservationCancellationFacet {
     using EnumerableSet for EnumerableSet.AddressSet;
+
+    event ReservationRequestCanceled(bytes32 indexed reservationKey, uint256 indexed tokenId);
+    event BookingCanceled(bytes32 indexed reservationKey, uint256 indexed tokenId);
+
+    modifier onlyInstitution(address institution) {
+        _onlyInstitution(institution);
+        _;
+    }
+
+    function _onlyInstitution(address institution) internal view {
+        AppStorage storage s = _s();
+        if (!s.roleMembers[INSTITUTION_ROLE].contains(institution)) revert("Unknown institution");
+        address backend = s.institutionalBackends[institution];
+        if (!(msg.sender == institution || (backend != address(0) && msg.sender == backend))) {
+            revert("Unauthorized institution");
+        }
+    }
+
+    function _s() internal pure returns (AppStorage storage s) {
+        return LibAppStorage.diamondStorage();
+    }
 
     function cancelInstitutionalReservationRequest(
         address institutionalProvider,
@@ -33,7 +54,7 @@ contract InstitutionalReservationCancellationFacet is BaseInstitutionalReservati
         address institutionalProvider,
         string calldata puc,
         bytes32 _reservationKey
-    ) internal override {
+    ) internal {
         uint256 labId = LibInstitutionalReservation.cancelReservationRequest(
             institutionalProvider,
             puc,

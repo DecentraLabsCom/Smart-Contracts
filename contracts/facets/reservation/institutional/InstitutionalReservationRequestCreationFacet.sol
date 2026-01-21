@@ -6,7 +6,11 @@ import {BaseMinimalReservationFacet} from "../base/BaseMinimalReservationFacet.s
 import {LibAppStorage, AppStorage, Reservation} from "../../../libraries/LibAppStorage.sol";
 
 interface IInstitutionalTreasuryFacetLight {
-    function checkInstitutionalTreasuryAvailability(address provider, string calldata puc, uint256 amount) external view;
+    function checkInstitutionalTreasuryAvailability(
+        address provider,
+        string calldata puc,
+        uint256 amount
+    ) external view;
 }
 
 contract InstitutionalReservationRequestCreationFacet is BaseMinimalReservationFacet {
@@ -23,12 +27,16 @@ contract InstitutionalReservationRequestCreationFacet is BaseMinimalReservationF
         address t;
     }
 
-    function createInstReservation(InstInput calldata i) external {
+    function createInstReservation(
+        InstInput calldata i
+    ) external {
         AppStorage storage s = _s();
         address hc = s.institutionalBackends[i.o];
         uint96 pr = (hc != address(0) && i.p == i.o) ? 0 : s.labs[i.l].price;
 
-        if (pr > 0) IInstitutionalTreasuryFacetLight(address(this)).checkInstitutionalTreasuryAvailability(i.p, i.u, pr);
+        if (pr > 0) {
+            IInstitutionalTreasuryFacetLight(address(this)).checkInstitutionalTreasuryAvailability(i.p, i.u, pr);
+        }
 
         bytes32 pucHash = keccak256(bytes(i.u));
         uint256 d = s.institutionalSpendingPeriod[i.p];
@@ -68,7 +76,12 @@ contract InstitutionalReservationRequestCreationFacet is BaseMinimalReservationF
         emit ReservationRequested(i.p, i.l, i.s, i.e, i.k);
     }
 
-    function recordRecentInstReservation(uint256 l, address t, bytes32 k, uint32 st) external {
+    function recordRecentInstReservation(
+        uint256 l,
+        address t,
+        bytes32 k,
+        uint32 st
+    ) external {
         _recordRecent(_s(), l, t, k, st);
     }
 }

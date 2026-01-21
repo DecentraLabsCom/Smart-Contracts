@@ -106,7 +106,9 @@ contract DistributionFacet is AccessControlUpgradeable {
 
         s.tokenPoolsInitialized = true;
 
-        emit TokenPoolsInitialized(projectTreasury, address(timelock), subsidies, liquidity, ecosystemGrowth, address(vesting));
+        emit TokenPoolsInitialized(
+            projectTreasury, address(timelock), subsidies, liquidity, ecosystemGrowth, address(vesting)
+        );
     }
 
     /// @notice Admin-only top-up for subsidies in 3% tranches when balance is low.
@@ -149,7 +151,10 @@ contract DistributionFacet is AccessControlUpgradeable {
     /// @dev Should be governed (e.g., via timelock/multisig) to avoid abuse.
     /// @param to Recipient address
     /// @param amount Amount to mint (base units, 6 decimals)
-    function mintFromReserve(address to, uint256 amount) external onlyDefaultAdminRole {
+    function mintFromReserve(
+        address to,
+        uint256 amount
+    ) external onlyDefaultAdminRole {
         require(to != address(0), DistributionZeroAddress());
         require(amount > 0, DistributionZeroAmount());
 
@@ -167,7 +172,9 @@ contract DistributionFacet is AccessControlUpgradeable {
 
     /// @notice After initialization, hand over mint authority to governance (e.g., timelock/multisig) and remove it from the Diamond.
     /// @param newMinter Address that will hold MINTER_ROLE (governance/Timelock/DAO)
-    function finalizeMinterGovernance(address newMinter) external onlyDefaultAdminRole {
+    function finalizeMinterGovernance(
+        address newMinter
+    ) external onlyDefaultAdminRole {
         require(newMinter != address(0), DistributionZeroAddress());
         AppStorage storage s = _s();
         require(s.tokenPoolsInitialized, DistributionNotInitialized());

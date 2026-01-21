@@ -15,12 +15,16 @@ abstract contract BaseLightReservationFacet is ReservableTokenEnumerable {
     using EnumerableSet for EnumerableSet.Bytes32Set;
     using EnumerableSet for EnumerableSet.AddressSet;
 
-    modifier onlyInstitution(address institution) {
+    modifier onlyInstitution(
+        address institution
+    ) {
         _onlyInstitution(institution);
         _;
     }
 
-    function _onlyInstitution(address institution) internal view {
+    function _onlyInstitution(
+        address institution
+    ) internal view {
         AppStorage storage s = _s();
         if (!s.roleMembers[INSTITUTION_ROLE].contains(institution)) revert("Unknown institution");
         address backend = s.institutionalBackends[institution];
@@ -29,33 +33,40 @@ abstract contract BaseLightReservationFacet is ReservableTokenEnumerable {
         }
     }
 
-    function _trackingKeyFromInstitutionHash(address provider, bytes32 pucHash) internal pure returns (address) {
+    function _trackingKeyFromInstitutionHash(
+        address provider,
+        bytes32 pucHash
+    ) internal pure returns (address) {
         return LibTracking.trackingKeyFromInstitutionHash(provider, pucHash);
     }
 
-    function _pucHashForReservation(bytes32 reservationKey, Reservation storage)
-        internal
-        view
-        returns (bytes32)
-    {
+    function _pucHashForReservation(
+        bytes32 reservationKey,
+        Reservation storage
+    ) internal view returns (bytes32) {
         return _s().reservationPucHash[reservationKey];
     }
 
-    function _isInstitutionalReservation(bytes32 reservationKey, Reservation storage) internal view returns (bool) {
+    function _isInstitutionalReservation(
+        bytes32 reservationKey,
+        Reservation storage
+    ) internal view returns (bool) {
         return _s().reservationPucHash[reservationKey] != bytes32(0);
     }
 
-    function _computeTrackingKey(bytes32 reservationKey, Reservation storage reservation) internal view returns (address) {
+    function _computeTrackingKey(
+        bytes32 reservationKey,
+        Reservation storage reservation
+    ) internal view returns (address) {
         bytes32 pucHash = _s().reservationPucHash[reservationKey];
-        return pucHash == bytes32(0)
-            ? reservation.renter
-            : _trackingKeyFromInstitutionHash(reservation.renter, pucHash);
+        return pucHash == bytes32(0) ? reservation.renter : _trackingKeyFromInstitutionHash(reservation.renter, pucHash);
     }
 
-    function _releaseExpiredReservationsInternal(uint256 _labId, address _user, uint256 maxBatch)
-        internal
-        returns (uint256 processed)
-    {
+    function _releaseExpiredReservationsInternal(
+        uint256 _labId,
+        address _user,
+        uint256 maxBatch
+    ) internal returns (uint256 processed) {
         AppStorage storage s = _s();
         EnumerableSet.Bytes32Set storage userReservations = s.reservationKeysByTokenAndUser[_labId][_user];
         uint256 len = userReservations.length();
@@ -69,10 +80,14 @@ abstract contract BaseLightReservationFacet is ReservableTokenEnumerable {
             if (reservation.end < currentTime && reservation.status == _CONFIRMED) {
                 _simpleFinalizeReservation(s, key, reservation, _labId, _user);
                 len = userReservations.length();
-                unchecked { ++processed; }
+                unchecked {
+                    ++processed;
+                }
                 continue;
             }
-            unchecked { ++i; }
+            unchecked {
+                ++i;
+            }
         }
         return processed;
     }
@@ -99,9 +114,11 @@ abstract contract BaseLightReservationFacet is ReservableTokenEnumerable {
     }
 
     // === Provider / Staking check ===
-    function _providerCanFulfill(AppStorage storage s, address labProvider, uint256 labId)
-        internal view returns (bool)
-    {
+    function _providerCanFulfill(
+        AppStorage storage s,
+        address labProvider,
+        uint256 labId
+    ) internal view returns (bool) {
         if (!s.tokenStatus[labId]) return false;
         uint256 listedLabsCount = s.providerStakes[labProvider].listedLabsCount;
         uint256 requiredStake = calculateRequiredStake(labProvider, listedLabsCount);
@@ -109,7 +126,9 @@ abstract contract BaseLightReservationFacet is ReservableTokenEnumerable {
     }
 
     // === Revenue Split ===
-    function _setReservationSplit(Reservation storage reservation) internal {
+    function _setReservationSplit(
+        Reservation storage reservation
+    ) internal {
         (uint96 prov, uint96 treas, uint96 subs, uint96 gov) = LibRevenue.calculateRevenueSplit(reservation.price);
         reservation.providerShare = prov;
         reservation.projectTreasuryShare = treas;
@@ -118,7 +137,12 @@ abstract contract BaseLightReservationFacet is ReservableTokenEnumerable {
     }
 
     // === Payout Heap ===
-    function _enqueuePayoutCandidate(AppStorage storage s, uint256 labId, bytes32 key, uint32 end) internal {
+    function _enqueuePayoutCandidate(
+        AppStorage storage s,
+        uint256 labId,
+        bytes32 key,
+        uint32 end
+    ) internal {
         LibHeap.enqueuePayoutCandidate(s, labId, key, end);
     }
 
@@ -148,7 +172,10 @@ abstract contract BaseLightReservationFacet is ReservableTokenEnumerable {
         _activeHeapifyUp(heap, heap.length - 1);
     }
 
-    function _activeHeapifyUp(UserActiveReservation[] storage heap, uint256 index) internal {
+    function _activeHeapifyUp(
+        UserActiveReservation[] storage heap,
+        uint256 index
+    ) internal {
         while (index > 0) {
             uint256 parent = (index - 1) / 2;
             if (heap[index].start >= heap[parent].start) break;
@@ -160,5 +187,8 @@ abstract contract BaseLightReservationFacet is ReservableTokenEnumerable {
     }
 
     // === Virtual placeholder for override ===
-    function _confirmInstitutionalReservationRequest(address, bytes32) internal virtual {}
+    function _confirmInstitutionalReservationRequest(
+        address,
+        bytes32
+    ) internal virtual {}
 }

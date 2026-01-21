@@ -29,18 +29,15 @@ library LibIntent {
     // EIP-712 constants
     bytes32 internal constant EIP712_DOMAIN_TYPEHASH =
         keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)");
-    bytes32 internal constant INTENT_META_TYPEHASH =
-        keccak256(
-            "IntentMeta(bytes32 requestId,address signer,address executor,uint8 action,bytes32 payloadHash,uint256 nonce,uint64 requestedAt,uint64 expiresAt)"
-        );
-    bytes32 internal constant RESERVATION_PAYLOAD_TYPEHASH =
-        keccak256(
-            "ReservationIntentPayload(address executor,string schacHomeOrganization,string puc,bytes32 assertionHash,uint256 labId,uint32 start,uint32 end,uint96 price,bytes32 reservationKey)"
-        );
-    bytes32 internal constant ACTION_PAYLOAD_TYPEHASH =
-        keccak256(
-            "ActionIntentPayload(address executor,string schacHomeOrganization,string puc,bytes32 assertionHash,uint256 labId,bytes32 reservationKey,string uri,uint96 price,uint96 maxBatch,string accessURI,string accessKey,string tokenURI)"
-        );
+    bytes32 internal constant INTENT_META_TYPEHASH = keccak256(
+        "IntentMeta(bytes32 requestId,address signer,address executor,uint8 action,bytes32 payloadHash,uint256 nonce,uint64 requestedAt,uint64 expiresAt)"
+    );
+    bytes32 internal constant RESERVATION_PAYLOAD_TYPEHASH = keccak256(
+        "ReservationIntentPayload(address executor,string schacHomeOrganization,string puc,bytes32 assertionHash,uint256 labId,uint32 start,uint32 end,uint96 price,bytes32 reservationKey)"
+    );
+    bytes32 internal constant ACTION_PAYLOAD_TYPEHASH = keccak256(
+        "ActionIntentPayload(address executor,string schacHomeOrganization,string puc,bytes32 assertionHash,uint256 labId,bytes32 reservationKey,string uri,uint96 price,uint96 maxBatch,string accessURI,string accessKey,string tokenURI)"
+    );
     bytes32 internal constant NAME_HASH = keccak256("DecentraLabsIntent");
     bytes32 internal constant VERSION_HASH = keccak256("1");
     bytes4 internal constant EIP1271_MAGICVALUE = 0x1626ba7e;
@@ -66,25 +63,21 @@ library LibIntent {
     // Hash helpers
     // ---------------------------------------------------------------------
 
-    function _keccak(bytes memory data) private pure returns (bytes32 result) {
+    function _keccak(
+        bytes memory data
+    ) private pure returns (bytes32 result) {
         assembly {
             result := keccak256(add(data, 0x20), mload(data))
         }
     }
 
     function _domainSeparator() internal view returns (bytes32) {
-        return _keccak(
-            abi.encode(
-                EIP712_DOMAIN_TYPEHASH,
-                NAME_HASH,
-                VERSION_HASH,
-                block.chainid,
-                address(this)
-            )
-        );
+        return _keccak(abi.encode(EIP712_DOMAIN_TYPEHASH, NAME_HASH, VERSION_HASH, block.chainid, address(this)));
     }
 
-    function hashIntentMeta(IntentMeta memory meta) internal pure returns (bytes32) {
+    function hashIntentMeta(
+        IntentMeta memory meta
+    ) internal pure returns (bytes32) {
         return _keccak(
             abi.encode(
                 INTENT_META_TYPEHASH,
@@ -100,7 +93,9 @@ library LibIntent {
         );
     }
 
-    function hashReservationPayload(ReservationIntentPayload memory payload) internal pure returns (bytes32) {
+    function hashReservationPayload(
+        ReservationIntentPayload memory payload
+    ) internal pure returns (bytes32) {
         return _keccak(
             abi.encode(
                 RESERVATION_PAYLOAD_TYPEHASH,
@@ -119,28 +114,30 @@ library LibIntent {
         );
     }
 
-    function hashActionPayload(ActionIntentPayload memory payload) internal pure returns (bytes32) {
+    function hashActionPayload(
+        ActionIntentPayload memory payload
+    ) internal pure returns (bytes32) {
         return _keccak(
             abi.encode(
                 ACTION_PAYLOAD_TYPEHASH,
                 payload.executor,
-                    // forge-lint: disable-next-line(asm-keccak256)
-                    keccak256(bytes(payload.schacHomeOrganization)),
-                    // forge-lint: disable-next-line(asm-keccak256)
-                    keccak256(bytes(payload.puc)),
+                // forge-lint: disable-next-line(asm-keccak256)
+                keccak256(bytes(payload.schacHomeOrganization)),
+                // forge-lint: disable-next-line(asm-keccak256)
+                keccak256(bytes(payload.puc)),
                 payload.assertionHash,
                 payload.labId,
                 payload.reservationKey,
-                    // forge-lint: disable-next-line(asm-keccak256)
-                    keccak256(bytes(payload.uri)),
+                // forge-lint: disable-next-line(asm-keccak256)
+                keccak256(bytes(payload.uri)),
                 payload.price,
                 payload.maxBatch,
-                    // forge-lint: disable-next-line(asm-keccak256)
-                    keccak256(bytes(payload.accessURI)),
-                    // forge-lint: disable-next-line(asm-keccak256)
-                    keccak256(bytes(payload.accessKey)),
-                    // forge-lint: disable-next-line(asm-keccak256)
-                    keccak256(bytes(payload.tokenURI))
+                // forge-lint: disable-next-line(asm-keccak256)
+                keccak256(bytes(payload.accessURI)),
+                // forge-lint: disable-next-line(asm-keccak256)
+                keccak256(bytes(payload.accessKey)),
+                // forge-lint: disable-next-line(asm-keccak256)
+                keccak256(bytes(payload.tokenURI))
             )
         );
     }
@@ -168,15 +165,10 @@ library LibIntent {
         bytes calldata signature
     ) internal {
         require(
-            meta.action == ACTION_LAB_ADD ||
-                meta.action == ACTION_LAB_ADD_AND_LIST ||
-                meta.action == ACTION_LAB_SET_URI ||
-                meta.action == ACTION_LAB_UPDATE ||
-                meta.action == ACTION_LAB_DELETE ||
-                meta.action == ACTION_LAB_LIST ||
-                meta.action == ACTION_LAB_UNLIST ||
-                meta.action == ACTION_CANCEL_BOOKING ||
-                meta.action == ACTION_REQUEST_FUNDS,
+            meta.action == ACTION_LAB_ADD || meta.action == ACTION_LAB_ADD_AND_LIST || meta.action == ACTION_LAB_SET_URI
+                || meta.action == ACTION_LAB_UPDATE || meta.action == ACTION_LAB_DELETE
+                || meta.action == ACTION_LAB_LIST || meta.action == ACTION_LAB_UNLIST
+                || meta.action == ACTION_CANCEL_BOOKING || meta.action == ACTION_REQUEST_FUNDS,
             "Invalid action intent"
         );
         bytes32 payloadHash = hashActionPayload(payload);
@@ -212,7 +204,10 @@ library LibIntent {
         meta.state = IntentState.Executed;
     }
 
-    function cancelIntent(bytes32 requestId, address caller) internal {
+    function cancelIntent(
+        bytes32 requestId,
+        address caller
+    ) internal {
         AppStorage storage s = LibAppStorage.diamondStorage();
         IntentMeta storage meta = s.intents[requestId];
         require(meta.state == IntentState.Pending, IntentNotPending());
@@ -221,11 +216,15 @@ library LibIntent {
         emit IntentCancelled(requestId, caller);
     }
 
-    function getIntent(bytes32 requestId) internal view returns (IntentMeta memory) {
+    function getIntent(
+        bytes32 requestId
+    ) internal view returns (IntentMeta memory) {
         return LibAppStorage.diamondStorage().intents[requestId];
     }
 
-    function nextNonce(address signer) internal view returns (uint256) {
+    function nextNonce(
+        address signer
+    ) internal view returns (uint256) {
         return LibAppStorage.diamondStorage().intentNonces[signer];
     }
 
@@ -265,7 +264,11 @@ library LibIntent {
         emit IntentRegistered(meta.requestId, meta.signer, meta.action, calculatedPayloadHash);
     }
 
-    function _isValidSignature(address signer, bytes32 digest, bytes memory signature) private view returns (bool) {
+    function _isValidSignature(
+        address signer,
+        bytes32 digest,
+        bytes memory signature
+    ) private view returns (bool) {
         if (signer.code.length == 0) {
             return ECDSA.recover(digest, signature) == signer;
         }

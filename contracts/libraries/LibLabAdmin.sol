@@ -6,9 +6,17 @@ import {LibAccessControlEnumerable} from "./LibAccessControlEnumerable.sol";
 import {LibAppStorage, AppStorage, LabBase} from "./LibAppStorage.sol";
 
 interface ILabFacetMint {
-    function safeMintTo(address to, uint256 tokenId) external;
-    function burnToken(uint256 tokenId) external;
-    function calculateRequiredStake(address provider, uint256 labCount) external view returns (uint256);
+    function safeMintTo(
+        address to,
+        uint256 tokenId
+    ) external;
+    function burnToken(
+        uint256 tokenId
+    ) external;
+    function calculateRequiredStake(
+        address provider,
+        uint256 labCount
+    ) external view returns (uint256);
 }
 
 library LibLabAdmin {
@@ -23,13 +31,7 @@ library LibLabAdmin {
         string _accessKey
     );
 
-    event LabUpdated(
-        uint256 indexed _labId,
-        string _uri,
-        uint96 _price,
-        string _accessUri,
-        string _accessKey
-    );
+    event LabUpdated(uint256 indexed _labId, string _uri, uint96 _price, string _accessUri, string _accessKey);
 
     event LabDeleted(uint256 indexed _labId);
     event LabURISet(uint256 indexed _labId, string _uri);
@@ -105,11 +107,7 @@ library LibLabAdmin {
 
         AppStorage storage s = _s();
         s.labs[_labId] = LabBase({
-            uri: _uri,
-            price: _price,
-            accessURI: _accessUri,
-            accessKey: _accessKey,
-            createdAt: s.labs[_labId].createdAt
+            uri: _uri, price: _price, accessURI: _accessUri, accessKey: _accessKey, createdAt: s.labs[_labId].createdAt
         });
         emit LabUpdated(_labId, _uri, _price, _accessUri, _accessKey);
     }
@@ -126,7 +124,9 @@ library LibLabAdmin {
         emit LabURISet(_labId, _tokenUri);
     }
 
-    function deleteLab(uint256 _labId) internal {
+    function deleteLab(
+        uint256 _labId
+    ) internal {
         _requireExists(_labId);
         _requireOnlyTokenOwner(_labId);
 
@@ -146,7 +146,9 @@ library LibLabAdmin {
         emit LabDeleted(_labId);
     }
 
-    function listLab(uint256 _labId) internal {
+    function listLab(
+        uint256 _labId
+    ) internal {
         _requireExists(_labId);
         _requireOnlyTokenOwner(_labId);
 
@@ -164,7 +166,9 @@ library LibLabAdmin {
         emit LabListed(_labId, msg.sender);
     }
 
-    function unlistLab(uint256 _labId) internal {
+    function unlistLab(
+        uint256 _labId
+    ) internal {
         _requireExists(_labId);
         _requireOnlyTokenOwner(_labId);
 
@@ -184,11 +188,15 @@ library LibLabAdmin {
         require(_s()._isLabProvider(msg.sender), "Only one LabProvider can perform this action");
     }
 
-    function _requireExists(uint256 _labId) internal view {
+    function _requireExists(
+        uint256 _labId
+    ) internal view {
         require(_labId > 0 && _labId <= _s().labId, "Lab does not exist");
     }
 
-    function _requireOnlyTokenOwner(uint256 _labId) internal view {
+    function _requireOnlyTokenOwner(
+        uint256 _labId
+    ) internal view {
         require(IERC721(address(this)).ownerOf(_labId) == msg.sender, "Not the token owner");
     }
 
@@ -202,7 +210,9 @@ library LibLabAdmin {
         require(bytes(_accessKey).length > 0 && bytes(_accessKey).length <= 200, "Invalid accessKey length");
     }
 
-    function _hasActiveBookings(uint256 _labId) internal view returns (bool) {
+    function _hasActiveBookings(
+        uint256 _labId
+    ) internal view returns (bool) {
         AppStorage storage s = _s();
         return s.labActiveReservationCount[_labId] > 0 || s.pendingProviderPayout[_labId] > 0;
     }

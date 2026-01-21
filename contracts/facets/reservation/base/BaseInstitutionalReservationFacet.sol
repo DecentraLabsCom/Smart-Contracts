@@ -11,14 +11,28 @@ import {LibRevenue} from "../../../libraries/LibRevenue.sol";
 
 /// @dev Interface for StakingFacet to update reservation timestamps
 interface IStakingFacetI {
-    function updateLastReservation(address provider) external;
+    function updateLastReservation(
+        address provider
+    ) external;
 }
 
 /// @dev Interface for InstitutionalTreasuryFacet to spend from treasury
 interface IInstitutionalTreasuryFacetI {
-    function checkInstitutionalTreasuryAvailability(address provider, string calldata puc, uint256 amount) external view;
-    function spendFromInstitutionalTreasury(address provider, string calldata puc, uint256 amount) external;
-    function refundToInstitutionalTreasury(address provider, string calldata puc, uint256 amount) external;
+    function checkInstitutionalTreasuryAvailability(
+        address provider,
+        string calldata puc,
+        uint256 amount
+    ) external view;
+    function spendFromInstitutionalTreasury(
+        address provider,
+        string calldata puc,
+        uint256 amount
+    ) external;
+    function refundToInstitutionalTreasury(
+        address provider,
+        string calldata puc,
+        uint256 amount
+    ) external;
 }
 
 /// @title BaseInstitutionalReservationFacet - Institutional-only base for reservation facets (no wallet hooks)
@@ -30,7 +44,9 @@ abstract contract BaseInstitutionalReservationFacet is InstitutionalReservableTo
 
     error NotImplemented();
 
-    event FundsCollected(address indexed provider, uint256 indexed labId, uint256 amount, uint256 reservationsProcessed);
+    event FundsCollected(
+        address indexed provider, uint256 indexed labId, uint256 amount, uint256 reservationsProcessed
+    );
 
     uint256 internal constant _ORPHAN_PAYOUT_DELAY = 90 days;
 
@@ -54,12 +70,16 @@ abstract contract BaseInstitutionalReservationFacet is InstitutionalReservableTo
         if (!_s()._isLabProvider(msg.sender)) revert("Only LabProvider");
     }
 
-    modifier onlyInstitution(address institution) {
+    modifier onlyInstitution(
+        address institution
+    ) {
         _onlyInstitution(institution);
         _;
     }
 
-    function _onlyInstitution(address institution) internal view {
+    function _onlyInstitution(
+        address institution
+    ) internal view {
         AppStorage storage s = _s();
         if (!s.roleMembers[INSTITUTION_ROLE].contains(institution)) revert("Unknown institution");
         address backend = s.institutionalBackends[institution];
@@ -105,7 +125,11 @@ abstract contract BaseInstitutionalReservationFacet is InstitutionalReservableTo
         revert NotImplemented();
     }
 
-    function _cancelInstitutionalBooking(address, /* institutionalProvider */ bytes32 /* _reservationKey */) internal virtual {
+    function _cancelInstitutionalBooking(
+        address,
+        /* institutionalProvider */
+        bytes32 /* _reservationKey */
+    ) internal virtual {
         revert NotImplemented();
     }
 
@@ -153,10 +177,11 @@ abstract contract BaseInstitutionalReservationFacet is InstitutionalReservableTo
     // Shared helpers (copied from BaseReservationFacet)
     // ---------------------------------------------------------------------
 
-    function _releaseExpiredReservationsInternal(uint256 _labId, address _user, uint256 maxBatch)
-        internal
-        returns (uint256 processed)
-    {
+    function _releaseExpiredReservationsInternal(
+        uint256 _labId,
+        address _user,
+        uint256 maxBatch
+    ) internal returns (uint256 processed) {
         AppStorage storage s = _s();
         EnumerableSet.Bytes32Set storage userReservations = s.reservationKeysByTokenAndUser[_labId][_user];
         uint256 len = userReservations.length();
@@ -170,10 +195,14 @@ abstract contract BaseInstitutionalReservationFacet is InstitutionalReservableTo
             if (reservation.end < currentTime && reservation.status == _CONFIRMED) {
                 _finalizeReservationForPayout(s, key, reservation, _labId);
                 len = userReservations.length();
-                unchecked { ++processed; }
+                unchecked {
+                    ++processed;
+                }
                 continue;
             }
-            unchecked { ++i; }
+            unchecked {
+                ++i;
+            }
         }
 
         if (processed > 0) {
@@ -182,11 +211,11 @@ abstract contract BaseInstitutionalReservationFacet is InstitutionalReservableTo
         return processed;
     }
 
-    function _providerCanFulfill(AppStorage storage s, address labProvider, uint256 labId)
-        internal
-        view
-        returns (bool)
-    {
+    function _providerCanFulfill(
+        AppStorage storage s,
+        address labProvider,
+        uint256 labId
+    ) internal view returns (bool) {
         if (!s.tokenStatus[labId]) return false;
         uint256 listedLabsCount = s.providerStakes[labProvider].listedLabsCount;
         uint256 requiredStake = calculateRequiredStake(labProvider, listedLabsCount);
@@ -244,13 +273,20 @@ abstract contract BaseInstitutionalReservationFacet is InstitutionalReservableTo
         return true;
     }
 
-    function _updatePendingProviderTimestamp(AppStorage storage s, uint256 labId, uint256 timestamp) internal {
+    function _updatePendingProviderTimestamp(
+        AppStorage storage s,
+        uint256 labId,
+        uint256 timestamp
+    ) internal {
         if (timestamp > s.pendingProviderLastUpdated[labId]) {
             s.pendingProviderLastUpdated[labId] = timestamp;
         }
     }
 
-    function _creditRevenueBuckets(AppStorage storage s, Reservation storage reservation) internal {
+    function _creditRevenueBuckets(
+        AppStorage storage s,
+        Reservation storage reservation
+    ) internal {
         uint96 providerShare = reservation.providerShare;
         uint96 treasuryShare = reservation.projectTreasuryShare;
         uint96 subsidiesShare = reservation.subsidiesShare;
@@ -265,7 +301,9 @@ abstract contract BaseInstitutionalReservationFacet is InstitutionalReservableTo
         if (governanceShare > 0) s.pendingGovernance += governanceShare;
     }
 
-    function _calculateRevenueSplit(uint96 price)
+    function _calculateRevenueSplit(
+        uint96 price
+    )
         internal
         pure
         returns (uint96 providerShare, uint96 treasuryShare, uint96 subsidiesShare, uint96 governanceShare)
@@ -273,23 +311,30 @@ abstract contract BaseInstitutionalReservationFacet is InstitutionalReservableTo
         return LibRevenue.calculateRevenueSplit(price);
     }
 
-    function _setReservationSplit(Reservation storage reservation) internal {
-        (uint96 providerShare, uint96 treasuryShare, uint96 subsidiesShare, uint96 governanceShare) = LibRevenue.calculateRevenueSplit(reservation.price);
+    function _setReservationSplit(
+        Reservation storage reservation
+    ) internal {
+        (uint96 providerShare, uint96 treasuryShare, uint96 subsidiesShare, uint96 governanceShare) =
+            LibRevenue.calculateRevenueSplit(reservation.price);
         reservation.providerShare = providerShare;
         reservation.projectTreasuryShare = treasuryShare;
         reservation.subsidiesShare = subsidiesShare;
         reservation.governanceShare = governanceShare;
     }
 
-    function _computeCancellationFee(uint96 price)
-        internal
-        pure
-        returns (uint96 providerFee, uint96 treasuryFee, uint96 governanceFee, uint96 refundAmount)
-    {
+    function _computeCancellationFee(
+        uint96 price
+    ) internal pure returns (uint96 providerFee, uint96 treasuryFee, uint96 governanceFee, uint96 refundAmount) {
         return LibRevenue.computeCancellationFee(price);
     }
 
-    function _applyCancellationFees(AppStorage storage s, uint256 labId, uint96 providerFee, uint96 treasuryFee, uint96 governanceFee) internal {
+    function _applyCancellationFees(
+        AppStorage storage s,
+        uint256 labId,
+        uint96 providerFee,
+        uint96 treasuryFee,
+        uint96 governanceFee
+    ) internal {
         if (providerFee > 0) {
             s.pendingProviderPayout[labId] += providerFee;
             _updatePendingProviderTimestamp(s, labId, block.timestamp);
@@ -298,11 +343,20 @@ abstract contract BaseInstitutionalReservationFacet is InstitutionalReservableTo
         if (governanceFee > 0) s.pendingGovernance += governanceFee;
     }
 
-    function _enqueuePayoutCandidate(AppStorage storage s, uint256 labId, bytes32 key, uint32 end) internal {
+    function _enqueuePayoutCandidate(
+        AppStorage storage s,
+        uint256 labId,
+        bytes32 key,
+        uint32 end
+    ) internal {
         LibHeap.enqueuePayoutCandidate(s, labId, key, end);
     }
 
-    function _popEligiblePayoutCandidate(AppStorage storage s, uint256 labId, uint256 currentTime) internal returns (bytes32) {
+    function _popEligiblePayoutCandidate(
+        AppStorage storage s,
+        uint256 labId,
+        uint256 currentTime
+    ) internal returns (bytes32) {
         return LibHeap.popEligiblePayoutCandidate(s, labId, currentTime);
     }
 }

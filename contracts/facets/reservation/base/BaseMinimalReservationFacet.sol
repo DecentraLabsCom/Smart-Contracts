@@ -25,7 +25,12 @@ abstract contract BaseMinimalReservationFacet is ReservableToken {
         _insertRecentUserSimple(s, labId, userTrackingKey, reservationKey, startTime);
     }
 
-    function _insertRecentSimple(AppStorage storage s, uint256 labId, bytes32 key, uint32 startTime) private {
+    function _insertRecentSimple(
+        AppStorage storage s,
+        uint256 labId,
+        bytes32 key,
+        uint32 startTime
+    ) private {
         RecentReservationBuffer storage buf = s.recentReservationsByToken[labId];
         uint8 size = buf.size;
         if (size >= _TOKEN_BUFFER_CAP) {
@@ -40,7 +45,13 @@ abstract contract BaseMinimalReservationFacet is ReservableToken {
         buf.size = size + 1;
     }
 
-    function _insertRecentUserSimple(AppStorage storage s, uint256 labId, address user, bytes32 key, uint32 startTime) private {
+    function _insertRecentUserSimple(
+        AppStorage storage s,
+        uint256 labId,
+        address user,
+        bytes32 key,
+        uint32 startTime
+    ) private {
         RecentReservationBuffer storage buf = s.recentReservationsByTokenAndUser[labId][user];
         uint8 size = buf.size;
         if (size >= _USER_BUFFER_CAP) {

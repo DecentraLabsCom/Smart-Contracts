@@ -2,7 +2,13 @@
 pragma solidity ^0.8.33;
 
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
-import {LibAppStorage, AppStorage, Reservation, PastReservationBuffer, UserActiveReservation} from "./LibAppStorage.sol";
+import {
+    LibAppStorage,
+    AppStorage,
+    Reservation,
+    PastReservationBuffer,
+    UserActiveReservation
+} from "./LibAppStorage.sol";
 import {LibTracking} from "./LibTracking.sol";
 import {RivalIntervalTreeLibrary, Tree} from "./RivalIntervalTreeLibrary.sol";
 
@@ -20,7 +26,9 @@ library LibReservationCancellation {
     uint8 internal constant _TOKEN_BUFFER_CAP = 40;
     uint8 internal constant _USER_BUFFER_CAP = 20;
 
-    function cancelReservation(bytes32 reservationKey) internal {
+    function cancelReservation(
+        bytes32 reservationKey
+    ) internal {
         AppStorage storage s = LibAppStorage.diamondStorage();
         Reservation storage reservation = s.reservations[reservationKey];
         bytes32 storedHash = s.reservationPucHash[reservationKey];
@@ -36,8 +44,10 @@ library LibReservationCancellation {
             }
             s.reservationKeysByTokenAndUser[labId][reservation.renter].remove(reservationKey);
 
-            if ((reservation.status == _CONFIRMED || reservation.status == _IN_USE) &&
-                s.activeReservationByTokenAndUser[labId][reservation.renter] == reservationKey) {
+            if (
+                (reservation.status == _CONFIRMED || reservation.status == _IN_USE)
+                    && s.activeReservationByTokenAndUser[labId][reservation.renter] == reservationKey
+            ) {
                 bytes32 nextKey = _findNextEarliestReservation(s, labId, reservation.renter);
                 s.activeReservationByTokenAndUser[labId][reservation.renter] = nextKey;
             }
@@ -175,16 +185,19 @@ library LibReservationCancellation {
         bytes32 earliestKey = bytes32(0);
         uint32 earliestStart = type(uint32).max;
         uint256 length = tokenUserReservations.length();
-        for (uint256 i; i < length; ) {
+        for (uint256 i; i < length;) {
             bytes32 key = tokenUserReservations.at(i);
             Reservation storage res = s.reservations[key];
-            if ((res.status == _CONFIRMED || res.status == _IN_USE) &&
-                res.end >= block.timestamp &&
-                res.start < earliestStart) {
+            if (
+                (res.status == _CONFIRMED || res.status == _IN_USE) && res.end >= block.timestamp
+                    && res.start < earliestStart
+            ) {
                 earliestKey = key;
                 earliestStart = res.start;
             }
-            unchecked { ++i; }
+            unchecked {
+                ++i;
+            }
         }
         return earliestKey;
     }
@@ -225,7 +238,9 @@ library LibReservationCancellation {
         }
     }
 
-    function _removeActiveReservationRoot(UserActiveReservation[] storage heap) private {
+    function _removeActiveReservationRoot(
+        UserActiveReservation[] storage heap
+    ) private {
         uint256 lastIndex = heap.length - 1;
         if (lastIndex == 0) {
             heap.pop();
@@ -236,7 +251,10 @@ library LibReservationCancellation {
         _activeHeapifyDown(heap, 0);
     }
 
-    function _activeHeapifyDown(UserActiveReservation[] storage heap, uint256 index) private {
+    function _activeHeapifyDown(
+        UserActiveReservation[] storage heap,
+        uint256 index
+    ) private {
         uint256 length = heap.length;
         while (true) {
             uint256 left = index * 2 + 1;
@@ -258,7 +276,9 @@ library LibReservationCancellation {
         }
     }
 
-    function _isActiveReservationStatus(uint8 status) private pure returns (bool) {
+    function _isActiveReservationStatus(
+        uint8 status
+    ) private pure returns (bool) {
         return status == _CONFIRMED || status == _IN_USE || status == _COMPLETED;
     }
 

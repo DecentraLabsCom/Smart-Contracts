@@ -2,7 +2,9 @@
 pragma solidity ^0.8.31;
 
 import {ERC721Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC721/ERC721Upgradeable.sol";
-import {ERC721EnumerableUpgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC721/extensions/ERC721EnumerableUpgradeable.sol";
+import {
+    ERC721EnumerableUpgradeable
+} from "@openzeppelin/contracts-upgradeable/token/ERC721/extensions/ERC721EnumerableUpgradeable.sol";
 import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import {AppStorage} from "../../libraries/LibAppStorage.sol";
@@ -11,7 +13,6 @@ import {ReservableToken} from "../../abstracts/ReservableToken.sol";
 
 using EnumerableSet for EnumerableSet.Bytes32Set;
 using EnumerableSet for EnumerableSet.AddressSet;
-
 
 /// @title LabFacet Contract
 /// @author
@@ -34,7 +35,7 @@ contract LabFacet is ERC721EnumerableUpgradeable, ReservableToken {
     /// @dev Maximum number of reservation indices to clean up during NFT transfer
     /// @notice Higher values reduce memory leaks but increase gas cost
     uint256 private constant _MAX_CLEANUP_PER_TRANSFER = 100;
-    
+
     /// @dev Emitted when a new lab is added to the system.
     /// @param _labId The unique identifier of the lab.
     /// @param _provider The address of the provider adding the lab.
@@ -57,13 +58,7 @@ contract LabFacet is ERC721EnumerableUpgradeable, ReservableToken {
     /// @param _price The updated price of the lab.
     /// @param _accessUri The updated URI for accessing the lab.
     /// @param _accessKey The updated access key required to interact with the lab.
-    event LabUpdated(
-        uint256 indexed _labId,
-        string _uri,
-        uint96 _price,
-        string _accessUri,
-        string _accessKey
-    );
+    event LabUpdated(uint256 indexed _labId, string _uri, uint96 _price, string _accessUri, string _accessKey);
 
     /// @dev Emitted when a lab is deleted.
     /// @param _labId The unique identifier of the lab.
@@ -75,14 +70,13 @@ contract LabFacet is ERC721EnumerableUpgradeable, ReservableToken {
     /// @param oldProvider The previous provider address
     /// @param newProvider The new provider address
     event ReservationProviderUpdated(
-        bytes32 indexed reservationKey,
-        uint256 indexed labId,
-        address indexed oldProvider,
-        address newProvider
+        bytes32 indexed reservationKey, uint256 indexed labId, address indexed oldProvider, address newProvider
     );
 
     /// @notice Intent lifecycle event for lab operations
-    event LabIntentProcessed(bytes32 indexed requestId, uint256 labId, string action, address provider, bool success, string reason);
+    event LabIntentProcessed(
+        bytes32 indexed requestId, uint256 labId, string action, address provider, bool success, string reason
+    );
 
     /// @dev Emitted when the URI of a lab is set.
     /// @param _labId The unique identifier of the lab.
@@ -100,10 +94,7 @@ contract LabFacet is ERC721EnumerableUpgradeable, ReservableToken {
     }
 
     function _isLabProvider() internal view {
-        require(
-            _s()._isLabProvider(msg.sender),
-            "Only one LabProvider can perform this action"
-        );
+        require(_s()._isLabProvider(msg.sender), "Only one LabProvider can perform this action");
     }
 
     /// @dev Constructor for the LabFacet contract.
@@ -139,14 +130,19 @@ contract LabFacet is ERC721EnumerableUpgradeable, ReservableToken {
 
     /// @notice Helper function called by LabAdminFacet/LibLabAdmin to mint tokens
     /// @dev Intended for internal diamond calls; access is enforced by the caller
-    function safeMintTo(address to, uint256 tokenId) external {
+    function safeMintTo(
+        address to,
+        uint256 tokenId
+    ) external {
         // Caller is expected to be the diamond (invoked by admin facets/libraries)
         _safeMint(to, tokenId);
     }
 
     /// @notice Helper function called by LabAdminFacet/LibLabAdmin to burn tokens
     /// @dev Intended for internal diamond calls; access is enforced by the caller
-    function burnToken(uint256 tokenId) external {
+    function burnToken(
+        uint256 tokenId
+    ) external {
         _burn(tokenId);
     }
 
@@ -154,11 +150,13 @@ contract LabFacet is ERC721EnumerableUpgradeable, ReservableToken {
     function tokenURI(
         uint256 _labId
     ) public view override exists(_labId) returns (string memory) {
-         return _s().labs[_labId].uri;
+        return _s().labs[_labId].uri;
     }
 
     /// @notice Checks if a lab has any uncollected reservations
-    function _hasActiveBookings(uint256 _labId) internal view returns (bool) {
+    function _hasActiveBookings(
+        uint256 _labId
+    ) internal view returns (bool) {
         AppStorage storage s = _s();
         return s.labActiveReservationCount[_labId] > 0 || s.pendingProviderPayout[_labId] > 0;
     }
@@ -174,10 +172,7 @@ contract LabFacet is ERC721EnumerableUpgradeable, ReservableToken {
         address _to,
         uint256 _tokenId
     ) public virtual override(IERC721, ERC721Upgradeable) {
-        require(
-            _s()._isLabProvider(_to),
-            "Only one LabProvider can be approved"
-        );
+        require(_s()._isLabProvider(_to), "Only one LabProvider can be approved");
         // Proceed with the standard approval process
         super.approve(_to, _tokenId);
     }
@@ -192,10 +187,7 @@ contract LabFacet is ERC721EnumerableUpgradeable, ReservableToken {
         address _operator,
         bool _approved
     ) public virtual override(IERC721, ERC721Upgradeable) {
-        require(
-            _s()._isLabProvider(_operator),
-            "Only one LabProvider can be approved"
-        );
+        require(_s()._isLabProvider(_operator), "Only one LabProvider can be approved");
         // Proceed with the standard approval process
         super.setApprovalForAll(_operator, _approved);
     }
@@ -251,10 +243,7 @@ contract LabFacet is ERC721EnumerableUpgradeable, ReservableToken {
         uint256 requiredStake = calculateRequiredStake(to, recipientListedCount);
         uint256 currentStake = s.providerStakes[to].stakedAmount;
 
-        require(
-            currentStake >= requiredStake,
-            "Recipient lacks sufficient stake for their current listings"
-        );
+        require(currentStake >= requiredStake, "Recipient lacks sufficient stake for their current listings");
     }
 
     function _migrateReservationsOnTransfer(
@@ -265,10 +254,7 @@ contract LabFacet is ERC721EnumerableUpgradeable, ReservableToken {
     ) internal {
         EnumerableSet.Bytes32Set storage labReservations = s.reservationKeysByToken[tokenId];
         uint256 reservationCount = labReservations.length();
-        require(
-            reservationCount <= _MAX_CLEANUP_PER_TRANSFER,
-            "Too many active reservations to transfer"
-        );
+        require(reservationCount <= _MAX_CLEANUP_PER_TRANSFER, "Too many active reservations to transfer");
 
         bool hasActiveReservation;
 
@@ -290,8 +276,7 @@ contract LabFacet is ERC721EnumerableUpgradeable, ReservableToken {
             if (status == _CONFIRMED || status == _IN_USE || status == _COMPLETED) {
                 hasActiveReservation = true;
                 s.reservations[key].labProvider = to;
-                s.reservations[key].collectorInstitution =
-                    s.institutionalBackends[to] != address(0) ? to : address(0);
+                s.reservations[key].collectorInstitution = s.institutionalBackends[to] != address(0) ? to : address(0);
 
                 if (s.providerActiveReservationCount[from] > 0) {
                     s.providerActiveReservationCount[from]--;
@@ -301,7 +286,9 @@ contract LabFacet is ERC721EnumerableUpgradeable, ReservableToken {
                 emit ReservationProviderUpdated(key, tokenId, from, to);
             }
 
-            unchecked { ++i; }
+            unchecked {
+                ++i;
+            }
         }
 
         // Preserve or extend unstake lock on new owner to prevent lock-bypass via transfer

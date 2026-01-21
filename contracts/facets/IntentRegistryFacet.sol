@@ -42,17 +42,23 @@ contract IntentRegistryFacet {
     }
 
     /// @notice Cancel a pending intent (only signer)
-    function cancelIntent(bytes32 requestId) external {
+    function cancelIntent(
+        bytes32 requestId
+    ) external {
         LibIntent.cancelIntent(requestId, msg.sender);
     }
 
     /// @notice Read stored metadata for an intent
-    function getIntent(bytes32 requestId) external view returns (IntentMeta memory) {
+    function getIntent(
+        bytes32 requestId
+    ) external view returns (IntentMeta memory) {
         return LibIntent.getIntent(requestId);
     }
 
     /// @notice Next nonce expected for a signer
-    function nextIntentNonce(address signer) external view returns (uint256) {
+    function nextIntentNonce(
+        address signer
+    ) external view returns (uint256) {
         return LibIntent.nextNonce(signer);
     }
 

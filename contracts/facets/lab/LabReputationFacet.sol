@@ -24,7 +24,9 @@ contract LabReputationFacet {
         }
     }
 
-    function getLabReputation(uint256 labId)
+    function getLabReputation(
+        uint256 labId
+    )
         external
         view
         returns (
@@ -36,16 +38,12 @@ contract LabReputationFacet {
         )
     {
         LabReputation storage rep = LibAppStorage.diamondStorage().labReputation[labId];
-        return (
-            rep.score,
-            rep.totalEvents,
-            rep.ownerCancellations,
-            rep.institutionalCancellations,
-            rep.lastUpdated
-        );
+        return (rep.score, rep.totalEvents, rep.ownerCancellations, rep.institutionalCancellations, rep.lastUpdated);
     }
 
-    function getLabScore(uint256 labId) external view returns (int32 score) {
+    function getLabScore(
+        uint256 labId
+    ) external view returns (int32 score) {
         return LibAppStorage.diamondStorage().labReputation[labId].score;
     }
 
@@ -54,26 +52,32 @@ contract LabReputationFacet {
     ///      For new labs with no events, returns 0 (neutral)
     /// @param labId The lab ID to query
     /// @return rating The weighted reputation score
-    function getLabRating(uint256 labId) external view returns (int32 rating) {
+    function getLabRating(
+        uint256 labId
+    ) external view returns (int32 rating) {
         LabReputation storage rep = LibAppStorage.diamondStorage().labReputation[labId];
         return _computeRating(rep.score, rep.totalEvents);
     }
 
-    function adjustLabReputation(uint256 labId, int32 delta, string calldata reason)
-        external
-        onlyDefaultAdminRole
-    {
+    function adjustLabReputation(
+        uint256 labId,
+        int32 delta,
+        string calldata reason
+    ) external onlyDefaultAdminRole {
         LibReputation.adjustScore(labId, delta, reason);
     }
 
-    function setLabReputation(uint256 labId, int32 newScore, string calldata reason)
-        external
-        onlyDefaultAdminRole
-    {
+    function setLabReputation(
+        uint256 labId,
+        int32 newScore,
+        string calldata reason
+    ) external onlyDefaultAdminRole {
         LibReputation.setScore(labId, newScore, reason);
     }
 
-    function tokenURIWithReputation(uint256 labId) external view returns (string memory) {
+    function tokenURIWithReputation(
+        uint256 labId
+    ) external view returns (string memory) {
         IERC721(address(this)).ownerOf(labId);
         AppStorage storage s = LibAppStorage.diamondStorage();
         LabReputation storage rep = s.labReputation[labId];
@@ -96,10 +100,14 @@ contract LabReputationFacet {
                 Strings.toString(rep.ownerCancellations),
                 "},{\"trait_type\":\"institution_cancellations\",\"value\":",
                 Strings.toString(rep.institutionalCancellations),
-                "}]}"));
+                "}]}"
+            )
+        );
     }
 
-    function _intToString(int32 value) internal pure returns (string memory) {
+    function _intToString(
+        int32 value
+    ) internal pure returns (string memory) {
         if (value >= 0) {
             return Strings.toString(uint256(uint32(value)));
         }
@@ -108,7 +116,10 @@ contract LabReputationFacet {
         return string(abi.encodePacked("-", Strings.toString(abs)));
     }
 
-    function _computeRating(int32 score, uint32 totalEvents) private pure returns (int32 rating) {
+    function _computeRating(
+        int32 score,
+        uint32 totalEvents
+    ) private pure returns (int32 rating) {
         if (totalEvents == 0) return 0;
         rating = int32((int256(score) * 1000) / int256(uint256(totalEvents)));
         if (rating > 1000) return 1000;

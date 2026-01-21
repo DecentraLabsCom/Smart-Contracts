@@ -7,13 +7,18 @@ import {AppStorage, Reservation, PayoutCandidate} from "./LibAppStorage.sol";
 /// @dev Library to manage min-heap operations for reservation payout scheduling
 library LibHeap {
     uint256 internal constant MAX_COMPACTION_SIZE = 500;
-    
+
     // Reservation statuses (must match ReservableToken)
     uint8 internal constant _CONFIRMED = 1;
     uint8 internal constant _IN_USE = 2;
     uint8 internal constant _COMPLETED = 3;
 
-    function enqueuePayoutCandidate(AppStorage storage s, uint256 labId, bytes32 key, uint32 end) internal {
+    function enqueuePayoutCandidate(
+        AppStorage storage s,
+        uint256 labId,
+        bytes32 key,
+        uint32 end
+    ) internal {
         PayoutCandidate[] storage heap = s.payoutHeaps[labId];
         if (s.payoutHeapContains[key]) return;
         heap.push(PayoutCandidate({end: end, key: key}));
@@ -21,7 +26,11 @@ library LibHeap {
         _heapifyUp(heap, heap.length - 1);
     }
 
-    function popEligiblePayoutCandidate(AppStorage storage s, uint256 labId, uint256 currentTime) internal returns (bytes32) {
+    function popEligiblePayoutCandidate(
+        AppStorage storage s,
+        uint256 labId,
+        uint256 currentTime
+    ) internal returns (bytes32) {
         PayoutCandidate[] storage heap = s.payoutHeaps[labId];
         uint256 heapSize = heap.length;
         uint256 invalidCount = s.payoutHeapInvalidCount[labId];
@@ -36,7 +45,12 @@ library LibHeap {
             _removeHeapRoot(heap);
             s.payoutHeapContains[root.key] = false;
             Reservation storage reservation = s.reservations[root.key];
-            if (reservation.labId == labId && (reservation.status == _CONFIRMED || reservation.status == _IN_USE || reservation.status == _COMPLETED)) {
+            if (
+                reservation.labId == labId
+                    && (reservation.status == _CONFIRMED
+                        || reservation.status == _IN_USE
+                        || reservation.status == _COMPLETED)
+            ) {
                 return root.key;
             }
             if (invalidCount > 0) {
@@ -48,7 +62,10 @@ library LibHeap {
         return bytes32(0);
     }
 
-    function _heapifyUp(PayoutCandidate[] storage heap, uint256 index) private {
+    function _heapifyUp(
+        PayoutCandidate[] storage heap,
+        uint256 index
+    ) private {
         while (index > 0) {
             uint256 parent = (index - 1) / 2;
             if (heap[index].end >= heap[parent].end) break;
@@ -59,15 +76,21 @@ library LibHeap {
         }
     }
 
-    function _removeHeapRoot(PayoutCandidate[] storage heap) private {
+    function _removeHeapRoot(
+        PayoutCandidate[] storage heap
+    ) private {
         uint256 lastIndex = heap.length - 1;
-        if (lastIndex == 0) { heap.pop(); return; }
+        if (lastIndex == 0) heap.pop();
+        return;
         heap[0] = heap[lastIndex];
         heap.pop();
         _heapifyDown(heap, 0);
     }
 
-    function _heapifyDown(PayoutCandidate[] storage heap, uint256 index) private {
+    function _heapifyDown(
+        PayoutCandidate[] storage heap,
+        uint256 index
+    ) private {
         uint256 length = heap.length;
         while (true) {
             uint256 left = index * 2 + 1;
@@ -83,7 +106,10 @@ library LibHeap {
         }
     }
 
-    function _compactHeap(AppStorage storage s, uint256 labId) private {
+    function _compactHeap(
+        AppStorage storage s,
+        uint256 labId
+    ) private {
         PayoutCandidate[] storage heap = s.payoutHeaps[labId];
         uint256 originalLength = heap.length;
         if (originalLength > MAX_COMPACTION_SIZE) return;
@@ -92,8 +118,15 @@ library LibHeap {
         for (uint256 readIndex = 0; readIndex < originalLength; readIndex++) {
             bytes32 key = heap[readIndex].key;
             Reservation storage reservation = s.reservations[key];
-            if (reservation.labId == labId && (reservation.status == _CONFIRMED || reservation.status == _IN_USE || reservation.status == _COMPLETED)) {
-                if (writeIndex != readIndex) heap[writeIndex] = heap[readIndex];
+            if (
+                reservation.labId == labId
+                    && (reservation.status == _CONFIRMED
+                        || reservation.status == _IN_USE
+                        || reservation.status == _COMPLETED)
+            ) {
+                if (writeIndex != readIndex) {
+                    heap[writeIndex] = heap[readIndex];
+                }
                 writeIndex++;
             } else {
                 s.payoutHeapContains[key] = false;

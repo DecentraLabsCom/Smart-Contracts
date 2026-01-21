@@ -18,19 +18,26 @@ import {AppStorage, Reservation, UserActiveReservation} from "../libraries/LibAp
 abstract contract InstitutionalReservableTokenEnumerable is ReservableTokenEnumerable {
     using EnumerableSet for EnumerableSet.Bytes32Set;
 
-    function _trackingKeyFromInstitutionHash(address provider, bytes32 pucHash) internal pure returns (address) {
+    function _trackingKeyFromInstitutionHash(
+        address provider,
+        bytes32 pucHash
+    ) internal pure returns (address) {
         return address(uint160(uint256(keccak256(abi.encodePacked(provider, pucHash)))));
     }
 
-    function _isInstitutionalReservation(bytes32 reservationKey, Reservation storage) internal view returns (bool) {
+    function _isInstitutionalReservation(
+        bytes32 reservationKey,
+        Reservation storage
+    ) internal view returns (bool) {
         return _s().reservationPucHash[reservationKey] != bytes32(0);
     }
 
-    function _computeTrackingKey(bytes32 reservationKey, Reservation storage reservation) internal view returns (address) {
+    function _computeTrackingKey(
+        bytes32 reservationKey,
+        Reservation storage reservation
+    ) internal view returns (address) {
         bytes32 pucHash = _s().reservationPucHash[reservationKey];
-        return pucHash == bytes32(0)
-            ? reservation.renter
-            : _trackingKeyFromInstitutionHash(reservation.renter, pucHash);
+        return pucHash == bytes32(0) ? reservation.renter : _trackingKeyFromInstitutionHash(reservation.renter, pucHash);
     }
 
     function _enqueueInstitutionalActiveReservation(
@@ -62,8 +69,9 @@ abstract contract InstitutionalReservableTokenEnumerable is ReservableTokenEnume
         }
     }
 
-
-    function _cancelReservation(bytes32 _reservationKey) internal virtual override {
+    function _cancelReservation(
+        bytes32 _reservationKey
+    ) internal virtual override {
         AppStorage storage s = _s();
         Reservation storage reservation = s.reservations[_reservationKey];
 
@@ -98,11 +106,18 @@ abstract contract InstitutionalReservableTokenEnumerable is ReservableTokenEnume
         bytes32 reservationKey
     ) internal virtual override {
         if (_isInstitutionalReservation(reservationKey, reservation)) {
-            _recordPast(s, reservation.labId, _computeTrackingKey(reservationKey, reservation), reservationKey, uint32(block.timestamp));
+            _recordPast(
+                s,
+                reservation.labId,
+                _computeTrackingKey(reservationKey, reservation),
+                reservationKey,
+                uint32(block.timestamp)
+            );
             return;
         }
         super._recordPastOnCancel(s, reservation, reservationKey);
     }
+
     function _peekActiveReservation(
         AppStorage storage s,
         uint256 labId,
@@ -120,16 +135,17 @@ abstract contract InstitutionalReservableTokenEnumerable is ReservableTokenEnume
 
             Reservation storage reservation = s.reservations[key];
             if (
-                reservation.labId != labId ||
-                !_isInstitutionalReservation(key, reservation) ||
-                _computeTrackingKey(key, reservation) != trackingKey
+                reservation.labId != labId || !_isInstitutionalReservation(key, reservation)
+                    || _computeTrackingKey(key, reservation) != trackingKey
             ) {
                 s.activeReservationHeapContains[key] = false;
                 _removeActiveReservationRoot(heap);
                 continue;
             }
 
-            if (reservation.status == _CANCELLED || reservation.status == _COLLECTED || reservation.status == _COMPLETED) {
+            if (
+                reservation.status == _CANCELLED || reservation.status == _COLLECTED || reservation.status == _COMPLETED
+            ) {
                 s.activeReservationHeapContains[key] = false;
                 _removeActiveReservationRoot(heap);
                 continue;

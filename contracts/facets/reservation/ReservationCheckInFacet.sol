@@ -36,7 +36,9 @@ contract ReservationCheckInFacet {
         }
     }
 
-    function checkInReservation(bytes32 reservationKey) external onlyDefaultAdminRole {
+    function checkInReservation(
+        bytes32 reservationKey
+    ) external onlyDefaultAdminRole {
         AppStorage storage s = LibAppStorage.diamondStorage();
         Reservation storage reservation = s.reservations[reservationKey];
         _validateReservationWindow(reservation);
@@ -70,7 +72,9 @@ contract ReservationCheckInFacet {
         emit ReservationCheckedIn(reservationKey, reservation.labId, msg.sender);
     }
 
-    function _validateReservationWindow(Reservation storage reservation) private view {
+    function _validateReservationWindow(
+        Reservation storage reservation
+    ) private view {
         if (reservation.renter == address(0)) revert("Reservation not found");
         if (reservation.status != _CONFIRMED) revert("Not confirmed");
 
@@ -78,7 +82,9 @@ contract ReservationCheckInFacet {
         if (nowTs < reservation.start || nowTs > reservation.end) revert("Outside reservation window");
     }
 
-    function _validateTimestamp(uint64 timestamp) private view {
+    function _validateTimestamp(
+        uint64 timestamp
+    ) private view {
         uint256 nowTs = block.timestamp;
         if (timestamp > nowTs) revert("Timestamp in future");
         if (nowTs - timestamp > MAX_CHECKIN_DELAY) revert("Signature expired");
@@ -116,21 +122,11 @@ contract ReservationCheckInFacet {
         bytes32 pucHash,
         uint64 timestamp
     ) private view returns (bytes32) {
-        bytes32 structHash = keccak256(
-            abi.encode(CHECKIN_TYPEHASH, signer, reservationKey, pucHash, timestamp)
-        );
+        bytes32 structHash = keccak256(abi.encode(CHECKIN_TYPEHASH, signer, reservationKey, pucHash, timestamp));
         return keccak256(abi.encodePacked("\x19\x01", _domainSeparator(), structHash));
     }
 
     function _domainSeparator() private view returns (bytes32) {
-        return keccak256(
-            abi.encode(
-                EIP712_DOMAIN_TYPEHASH,
-                NAME_HASH,
-                VERSION_HASH,
-                block.chainid,
-                address(this)
-            )
-        );
+        return keccak256(abi.encode(EIP712_DOMAIN_TYPEHASH, NAME_HASH, VERSION_HASH, block.chainid, address(this)));
     }
 }

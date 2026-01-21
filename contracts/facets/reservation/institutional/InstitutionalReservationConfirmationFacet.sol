@@ -8,11 +8,17 @@ import {LibAppStorage, AppStorage, Reservation, INSTITUTION_ROLE} from "../../..
 import {RivalIntervalTreeLibrary, Tree} from "../../../libraries/RivalIntervalTreeLibrary.sol";
 
 interface IStakingFacetConfirm {
-    function updateLastReservation(address provider) external;
+    function updateLastReservation(
+        address provider
+    ) external;
 }
 
 interface IInstitutionalTreasuryFacetConfirm {
-    function spendFromInstitutionalTreasury(address institution, string calldata puc, uint256 amount) external;
+    function spendFromInstitutionalTreasury(
+        address institution,
+        string calldata puc,
+        uint256 amount
+    ) external;
 }
 
 contract InstitutionalReservationConfirmationFacet is BaseLightReservationFacet {
@@ -62,23 +68,42 @@ contract InstitutionalReservationConfirmationFacet is BaseLightReservationFacet 
         address lp = IERC721(address(this)).ownerOf(r.labId);
         r.labProvider = lp;
 
-        if (!_providerCanFulfill(s, lp, r.labId)) { _cancelReservation(key); emit ReservationRequestDenied(key, r.labId); return; }
+        if (!_providerCanFulfill(s, lp, r.labId)) {
+            _cancelReservation(key);
+            emit ReservationRequestDenied(key, r.labId);
+            return;
+        }
 
         r.collectorInstitution = s.institutionalBackends[lp] != address(0) ? lp : address(0);
 
         uint256 d = r.requestPeriodDuration;
         if (d == 0) d = s.institutionalSpendingPeriod[ip];
         if (d == 0) d = LibAppStorage.DEFAULT_SPENDING_PERIOD;
-        if (block.timestamp >= r.requestPeriodStart + d) { _cancelReservation(key); emit ReservationRequestDenied(key, r.labId); return; }
+        if (block.timestamp >= r.requestPeriodStart + d) {
+            _cancelReservation(key);
+            emit ReservationRequestDenied(key, r.labId);
+            return;
+        }
 
-        if (r.price == 0) { _fin(s, r, key, lp, tr); return; }
+        if (r.price == 0) _fin(s, r, key, lp, tr);
+        return;
 
-        try IInstitutionalTreasuryFacetConfirm(address(this)).spendFromInstitutionalTreasury(r.payerInstitution, puc, r.price) {
+        try IInstitutionalTreasuryFacetConfirm(address(this))
+            .spendFromInstitutionalTreasury(r.payerInstitution, puc, r.price) {
             _fin(s, r, key, lp, tr);
-        } catch { _cancelReservation(key); emit ReservationRequestDenied(key, r.labId); }
+        } catch {
+            _cancelReservation(key);
+            emit ReservationRequestDenied(key, r.labId);
+        }
     }
 
-    function _fin(AppStorage storage s, Reservation storage r, bytes32 k, address lp, address tr) internal {
+    function _fin(
+        AppStorage storage s,
+        Reservation storage r,
+        bytes32 k,
+        address lp,
+        address tr
+    ) internal {
         _setReservationSplit(r);
         s.calendars[r.labId].insert(r.start, r.end);
         r.status = _CONFIRMED;

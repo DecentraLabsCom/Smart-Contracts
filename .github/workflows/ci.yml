@@ -1,0 +1,32 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: checkout
+        uses: actions/checkout@v4
+
+      - name: setup foundry
+        run: |
+          curl -L https://foundry.paradigm.xyz | bash
+          source ~/.bashrc || true
+          foundryup
+          export PATH="$HOME/.foundry/bin:$PATH"
+
+      - name: install dependencies
+        run: |
+          forge install || true
+
+      - name: check formatting
+        run: forge fmt --check
+
+      - name: run tests
+        run: forge test --no-ansi --reporter=github-actions

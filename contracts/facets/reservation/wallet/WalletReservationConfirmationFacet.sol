@@ -17,37 +17,37 @@ contract WalletReservationConfirmationFacet is BaseWalletReservationFacet {
     using EnumerableSet for EnumerableSet.Bytes32Set;
     using RivalIntervalTreeLibrary for Tree;
 
-    function confirmReservationRequest(bytes32 _reservationKey)
-        external
-        override
-        reservationPending(_reservationKey)
-    {
+    function confirmReservationRequest(
+        bytes32 _reservationKey
+    ) external override reservationPending(_reservationKey) {
         _requireLabProviderOrBackend(_reservationKey);
         _confirmReservationRequest(_reservationKey);
     }
 
-    function denyReservationRequest(bytes32 _reservationKey)
-        external
-        override
-        reservationPending(_reservationKey)
-    {
+    function denyReservationRequest(
+        bytes32 _reservationKey
+    ) external override reservationPending(_reservationKey) {
         _requireLabProviderOrBackend(_reservationKey);
         _denyReservationRequest(_reservationKey);
     }
 
-    function _requireLabProviderOrBackend(bytes32 _reservationKey) internal view {
+    function _requireLabProviderOrBackend(
+        bytes32 _reservationKey
+    ) internal view {
         AppStorage storage s = _s();
         Reservation storage reservation = s.reservations[_reservationKey];
         address labOwner = IERC721(address(this)).ownerOf(reservation.labId);
         address authorizedBackend = s.institutionalBackends[labOwner];
-        
+
         require(
             msg.sender == labOwner || (authorizedBackend != address(0) && msg.sender == authorizedBackend),
             "Only lab provider or authorized backend"
         );
     }
 
-    function _confirmReservationRequest(bytes32 _reservationKey) internal override {
+    function _confirmReservationRequest(
+        bytes32 _reservationKey
+    ) internal override {
         AppStorage storage s = _s();
         Reservation storage reservation = s.reservations[_reservationKey];
 
@@ -62,9 +62,12 @@ contract WalletReservationConfirmationFacet is BaseWalletReservationFacet {
             return;
         }
 
-        (bool success, bytes memory data) = s.labTokenAddress.call(
-            abi.encodeWithSelector(IERC20.transferFrom.selector, reservation.renter, address(this), uint256(reservation.price))
-        );
+        (bool success, bytes memory data) = s.labTokenAddress
+            .call(
+                abi.encodeWithSelector(
+                    IERC20.transferFrom.selector, reservation.renter, address(this), uint256(reservation.price)
+                )
+            );
 
         if (!success || (data.length != 0 && !abi.decode(data, (bool)))) {
             _cancelReservation(_reservationKey);
@@ -74,15 +77,15 @@ contract WalletReservationConfirmationFacet is BaseWalletReservationFacet {
 
         _setReservationSplit(reservation);
         s.calendars[reservation.labId].insert(reservation.start, reservation.end);
-        
+
         reservation.status = _CONFIRMED;
         _incrementActiveReservationCounters(reservation);
         _enqueuePayoutCandidate(s, reservation.labId, _reservationKey, reservation.end);
-        
+
         IStakingFacetW(address(this)).updateLastReservation(labProvider);
-        
+
         bytes32 currentIndexKey = s.activeReservationByTokenAndUser[reservation.labId][reservation.renter];
-        
+
         if (currentIndexKey == bytes32(0)) {
             s.activeReservationByTokenAndUser[reservation.labId][reservation.renter] = _reservationKey;
         } else {
@@ -91,11 +94,13 @@ contract WalletReservationConfirmationFacet is BaseWalletReservationFacet {
                 s.activeReservationByTokenAndUser[reservation.labId][reservation.renter] = _reservationKey;
             }
         }
-        
+
         emit ReservationConfirmed(_reservationKey, reservation.labId);
     }
 
-    function _denyReservationRequest(bytes32 _reservationKey) internal override {
+    function _denyReservationRequest(
+        bytes32 _reservationKey
+    ) internal override {
         Reservation storage reservation = _s().reservations[_reservationKey];
         _cancelReservation(_reservationKey);
         emit ReservationRequestDenied(_reservationKey, reservation.labId);

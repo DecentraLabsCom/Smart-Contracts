@@ -10,14 +10,28 @@ import {LibReputation} from "../../../libraries/LibReputation.sol";
 
 /// @dev Interface for StakingFacet to update reservation timestamps
 interface IStakingFacet {
-    function updateLastReservation(address provider) external;
+    function updateLastReservation(
+        address provider
+    ) external;
 }
 
 /// @dev Interface for InstitutionalTreasuryFacet to spend from treasury
 interface IInstitutionalTreasuryFacet {
-    function checkInstitutionalTreasuryAvailability(address provider, string calldata puc, uint256 amount) external view;
-    function spendFromInstitutionalTreasury(address provider, string calldata puc, uint256 amount) external;
-    function refundToInstitutionalTreasury(address provider, string calldata puc, uint256 amount) external;
+    function checkInstitutionalTreasuryAvailability(
+        address provider,
+        string calldata puc,
+        uint256 amount
+    ) external view;
+    function spendFromInstitutionalTreasury(
+        address provider,
+        string calldata puc,
+        uint256 amount
+    ) external;
+    function refundToInstitutionalTreasury(
+        address provider,
+        string calldata puc,
+        uint256 amount
+    ) external;
 }
 
 /// @title BaseReservationFacet - Shared internal logic for wallet and institutional reservation facets
@@ -37,7 +51,9 @@ abstract contract BaseReservationFacet is InstitutionalReservableTokenEnumerable
     /// @param labId The ID of the lab from which funds were collected
     /// @param amount Total amount of tokens collected
     /// @param reservationsProcessed Number of reservations that were processed
-    event FundsCollected(address indexed provider, uint256 indexed labId, uint256 amount, uint256 reservationsProcessed);
+    event FundsCollected(
+        address indexed provider, uint256 indexed labId, uint256 amount, uint256 reservationsProcessed
+    );
 
     uint256 internal constant _REVENUE_DENOMINATOR = 100;
     uint256 internal constant _REVENUE_PROVIDER = 70;
@@ -97,7 +113,9 @@ abstract contract BaseReservationFacet is InstitutionalReservableTokenEnumerable
         revert NotImplemented();
     }
 
-    function _confirmReservationRequest(bytes32 /* _reservationKey */) internal virtual {
+    function _confirmReservationRequest(
+        bytes32 /* _reservationKey */
+    ) internal virtual {
         revert NotImplemented();
     }
 
@@ -108,7 +126,9 @@ abstract contract BaseReservationFacet is InstitutionalReservableTokenEnumerable
         revert NotImplemented();
     }
 
-    function _denyReservationRequest(bytes32 /* _reservationKey */) internal virtual {
+    function _denyReservationRequest(
+        bytes32 /* _reservationKey */
+    ) internal virtual {
         revert NotImplemented();
     }
 
@@ -120,11 +140,15 @@ abstract contract BaseReservationFacet is InstitutionalReservableTokenEnumerable
         revert NotImplemented();
     }
 
-    function _cancelReservationRequest(bytes32 /* _reservationKey */) internal virtual {
+    function _cancelReservationRequest(
+        bytes32 /* _reservationKey */
+    ) internal virtual {
         revert NotImplemented();
     }
 
-    function _cancelBooking(bytes32 /* _reservationKey */) internal virtual {
+    function _cancelBooking(
+        bytes32 /* _reservationKey */
+    ) internal virtual {
         revert NotImplemented();
     }
 
@@ -136,11 +160,19 @@ abstract contract BaseReservationFacet is InstitutionalReservableTokenEnumerable
         revert NotImplemented();
     }
 
-    function _cancelInstitutionalBooking(address, /* institutionalProvider */ bytes32 /* _reservationKey */) internal virtual {
+    function _cancelInstitutionalBooking(
+        address,
+        /* institutionalProvider */
+        bytes32 /* _reservationKey */
+    ) internal virtual {
         revert NotImplemented();
     }
 
-    function _requestFunds(uint256, /* _labId */ uint256 /* maxBatch */) internal virtual {
+    function _requestFunds(
+        uint256,
+        /* _labId */
+        uint256 /* maxBatch */
+    ) internal virtual {
         revert NotImplemented();
     }
 
@@ -205,10 +237,11 @@ abstract contract BaseReservationFacet is InstitutionalReservableTokenEnumerable
     // ---------------------------------------------------------------------
 
     /// @dev Internal helper to release expired reservations without access control checks
-    function _releaseExpiredReservationsInternal(uint256 _labId, address _user, uint256 maxBatch)
-        internal
-        returns (uint256 processed)
-    {
+    function _releaseExpiredReservationsInternal(
+        uint256 _labId,
+        address _user,
+        uint256 maxBatch
+    ) internal returns (uint256 processed) {
         AppStorage storage s = _s();
         EnumerableSet.Bytes32Set storage userReservations = s.reservationKeysByTokenAndUser[_labId][_user];
         uint256 len = userReservations.length();
@@ -242,11 +275,11 @@ abstract contract BaseReservationFacet is InstitutionalReservableTokenEnumerable
     }
 
     /// @dev Checks whether the current lab owner still satisfies stake and listing requirements.
-    function _providerCanFulfill(AppStorage storage s, address labProvider, uint256 labId)
-        internal
-        view
-        returns (bool)
-    {
+    function _providerCanFulfill(
+        AppStorage storage s,
+        address labProvider,
+        uint256 labId
+    ) internal view returns (bool) {
         if (!s.tokenStatus[labId]) {
             return false;
         }
@@ -319,13 +352,20 @@ abstract contract BaseReservationFacet is InstitutionalReservableTokenEnumerable
         return true;
     }
 
-    function _updatePendingProviderTimestamp(AppStorage storage s, uint256 labId, uint256 timestamp) internal {
+    function _updatePendingProviderTimestamp(
+        AppStorage storage s,
+        uint256 labId,
+        uint256 timestamp
+    ) internal {
         if (timestamp > s.pendingProviderLastUpdated[labId]) {
             s.pendingProviderLastUpdated[labId] = timestamp;
         }
     }
 
-    function _creditRevenueBuckets(AppStorage storage s, Reservation storage reservation) internal {
+    function _creditRevenueBuckets(
+        AppStorage storage s,
+        Reservation storage reservation
+    ) internal {
         uint96 providerShare = reservation.providerShare;
         uint96 treasuryShare = reservation.projectTreasuryShare;
         uint96 subsidiesShare = reservation.subsidiesShare;
@@ -346,7 +386,9 @@ abstract contract BaseReservationFacet is InstitutionalReservableTokenEnumerable
         }
     }
 
-    function _calculateRevenueSplit(uint96 price)
+    function _calculateRevenueSplit(
+        uint96 price
+    )
         internal
         pure
         returns (uint96 providerShare, uint96 treasuryShare, uint96 subsidiesShare, uint96 governanceShare)
@@ -370,13 +412,11 @@ abstract contract BaseReservationFacet is InstitutionalReservableTokenEnumerable
         treasuryShare += remainder; // round remainder to treasury as agreed
     }
 
-    function _setReservationSplit(Reservation storage reservation) internal {
-        (
-            uint96 providerShare,
-            uint96 treasuryShare,
-            uint96 subsidiesShare,
-            uint96 governanceShare
-        ) = _calculateRevenueSplit(reservation.price);
+    function _setReservationSplit(
+        Reservation storage reservation
+    ) internal {
+        (uint96 providerShare, uint96 treasuryShare, uint96 subsidiesShare, uint96 governanceShare) =
+            _calculateRevenueSplit(reservation.price);
 
         reservation.providerShare = providerShare;
         reservation.projectTreasuryShare = treasuryShare;
@@ -384,11 +424,9 @@ abstract contract BaseReservationFacet is InstitutionalReservableTokenEnumerable
         reservation.governanceShare = governanceShare;
     }
 
-    function _computeCancellationFee(uint96 price)
-        internal
-        pure
-        returns (uint96 providerFee, uint96 treasuryFee, uint96 governanceFee, uint96 refundAmount)
-    {
+    function _computeCancellationFee(
+        uint96 price
+    ) internal pure returns (uint96 providerFee, uint96 treasuryFee, uint96 governanceFee, uint96 refundAmount) {
         if (price == 0) {
             return (0, 0, 0, 0);
         }
@@ -483,7 +521,9 @@ abstract contract BaseReservationFacet is InstitutionalReservableTokenEnumerable
             Reservation storage reservation = s.reservations[root.key];
             if (
                 reservation.labId == labId
-                    && (reservation.status == _CONFIRMED || reservation.status == _IN_USE || reservation.status == _COMPLETED)
+                    && (reservation.status == _CONFIRMED
+                        || reservation.status == _IN_USE
+                        || reservation.status == _COMPLETED)
             ) {
                 return root.key;
             }
@@ -512,7 +552,9 @@ abstract contract BaseReservationFacet is InstitutionalReservableTokenEnumerable
         }
     }
 
-    function _removeHeapRoot(PayoutCandidate[] storage heap) internal {
+    function _removeHeapRoot(
+        PayoutCandidate[] storage heap
+    ) internal {
         uint256 lastIndex = heap.length - 1;
         if (lastIndex == 0) {
             heap.pop();
@@ -550,7 +592,10 @@ abstract contract BaseReservationFacet is InstitutionalReservableTokenEnumerable
 
     /// @dev Compacts the heap by removing all invalid entries (cancelled/collected reservations)
     /// @notice Optimized version using in-place compaction to reduce gas costs
-    function _compactHeap(AppStorage storage s, uint256 labId) internal {
+    function _compactHeap(
+        AppStorage storage s,
+        uint256 labId
+    ) internal {
         PayoutCandidate[] storage heap = s.payoutHeaps[labId];
         uint256 originalLength = heap.length; // Preserve original length for safe iteration
         if (originalLength > _MAX_COMPACTION_SIZE) {
@@ -566,7 +611,9 @@ abstract contract BaseReservationFacet is InstitutionalReservableTokenEnumerable
 
             if (
                 reservation.labId == labId
-                    && (reservation.status == _CONFIRMED || reservation.status == _IN_USE || reservation.status == _COMPLETED)
+                    && (reservation.status == _CONFIRMED
+                        || reservation.status == _IN_USE
+                        || reservation.status == _COMPLETED)
             ) {
                 // Keep valid entry: move to write position if different from read position
                 if (writeIndex != readIndex) {

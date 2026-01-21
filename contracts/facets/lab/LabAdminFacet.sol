@@ -18,13 +18,7 @@ contract LabAdminFacet {
         string _accessKey
     );
 
-    event LabUpdated(
-        uint256 indexed _labId,
-        string _uri,
-        uint96 _price,
-        string _accessUri,
-        string _accessKey
-    );
+    event LabUpdated(uint256 indexed _labId, string _uri, uint96 _price, string _accessUri, string _accessKey);
 
     event LabDeleted(uint256 indexed _labId);
     event LabURISet(uint256 indexed _labId, string _uri);
@@ -73,17 +67,23 @@ contract LabAdminFacet {
     }
 
     /// @notice Deletes a Lab identified by `_labId`
-    function deleteLab(uint256 _labId) external {
+    function deleteLab(
+        uint256 _labId
+    ) external {
         LibLabAdmin.deleteLab(_labId);
     }
 
     /// @notice Lists a lab for reservations
-    function listLab(uint256 _labId) external {
+    function listLab(
+        uint256 _labId
+    ) external {
         LibLabAdmin.listLab(_labId);
     }
 
     /// @notice Unlists a lab from reservations
-    function unlistLab(uint256 _labId) external {
+    function unlistLab(
+        uint256 _labId
+    ) external {
         LibLabAdmin.unlistLab(_labId);
     }
 }

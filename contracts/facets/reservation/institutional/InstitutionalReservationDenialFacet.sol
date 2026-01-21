@@ -12,7 +12,11 @@ import {AppStorage, Reservation, INSTITUTION_ROLE} from "../../../libraries/LibA
 contract InstitutionalReservationDenialFacet is BaseInstitutionalReservationFacet {
     using EnumerableSet for EnumerableSet.AddressSet;
 
-    function denyInstitutionalReservationRequest(address inst, string calldata puc, bytes32 key) external {
+    function denyInstitutionalReservationRequest(
+        address inst,
+        string calldata puc,
+        bytes32 key
+    ) external {
         AppStorage storage s = _s();
         require(s.roleMembers[INSTITUTION_ROLE].contains(inst), "!i");
         address bk = s.institutionalBackends[inst];
@@ -25,7 +29,11 @@ contract InstitutionalReservationDenialFacet is BaseInstitutionalReservationFace
         _denyInstitutionalReservationRequest(inst, puc, key);
     }
 
-    function _denyInstitutionalReservationRequest(address inst, string calldata puc, bytes32 key) internal override {
+    function _denyInstitutionalReservationRequest(
+        address inst,
+        string calldata puc,
+        bytes32 key
+    ) internal override {
         AppStorage storage s = _s();
         Reservation storage r = s.reservations[key];
         if (r.status != _PENDING) revert("!pnd");

@@ -2,7 +2,14 @@
 pragma solidity ^0.8.31;
 
 import {AccessControlUpgradeable} from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
-import {LibAppStorage, AppStorage, PROVIDER_ROLE, INSTITUTION_ROLE, Provider, ProviderBase} from "../libraries/LibAppStorage.sol";
+import {
+    LibAppStorage,
+    AppStorage,
+    PROVIDER_ROLE,
+    INSTITUTION_ROLE,
+    Provider,
+    ProviderBase
+} from "../libraries/LibAppStorage.sol";
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import {LibDiamond} from "../libraries/LibDiamond.sol";
 import {LibAccessControlEnumerable} from "../libraries/LibAccessControlEnumerable.sol";
@@ -24,37 +31,25 @@ contract ProviderFacet is AccessControlUpgradeable {
     /// @dev Represents the initial amount of LAB tokens minted to new providers.
     /// Total: 1000 tokens (1,000,000,000 units with 6 decimals)
     /// Distribution: 800 tokens automatically staked + 200 tokens to institutional treasury
-    uint32 constant INITIAL_LAB_TOKENS = 1000000000;
+    uint32 constant INITIAL_LAB_TOKENS = 1_000_000_000;
 
     /// @dev Emitted when a new provider is added to the system.
     /// @param _account The address of the provider being added.
     /// @param _name The name of the provider.
     /// @param _email The email address of the provider.
     /// @param _country The country of the provider.
-    event ProviderAdded(
-        address indexed _account,
-        string _name,
-        string _email,
-        string _country
-    );
+    event ProviderAdded(address indexed _account, string _name, string _email, string _country);
 
     /// @dev Emitted when a provider is added but initial tokens cannot be minted due to cap
     /// @param _account The address of the provider being added.
     /// @param reason The reason why tokens could not be minted.
-    event ProviderAddedWithoutTokens(
-        address indexed _account,
-        string reason
-    );
-    
+    event ProviderAddedWithoutTokens(address indexed _account, string reason);
+
     /// @dev Emitted when initial institutional treasury is set for a provider
     /// @param provider The address of the provider.
     /// @param amount The amount deposited to institutional treasury.
     /// @param limit The default spending limit per user.
-    event InstitutionalTreasuryInitialized(
-        address indexed provider,
-        uint256 amount,
-        uint256 limit
-    );
+    event InstitutionalTreasuryInitialized(address indexed provider, uint256 amount, uint256 limit);
 
     /// @dev Emitted when a provider authorizes a backend address
     /// @param provider The provider address
@@ -70,20 +65,12 @@ contract ProviderFacet is AccessControlUpgradeable {
     /// @param _name The name of the provider.
     /// @param _email The email address of the provider.
     /// @param _country The country of the provider.
-    event ProviderUpdated(
-        address indexed _account,
-        string _name,
-        string _email,
-        string _country
-    );
+    event ProviderUpdated(address indexed _account, string _name, string _email, string _country);
 
     /// @dev Emitted when a provider's authentication URI is set or updated.
     /// @param _provider The address of the provider.
     /// @param _authURI The authentication service base URL.
-    event ProviderAuthURIUpdated(
-        address indexed _provider,
-        string _authURI
-    );
+    event ProviderAuthURIUpdated(address indexed _provider, string _authURI);
 
     /// @dev Modifier to restrict access to functions that can only be executed by accounts
     ///      with the `DEFAULT_ADMIN_ROLE`. Ensures that the caller of the function has the
@@ -95,10 +82,7 @@ contract ProviderFacet is AccessControlUpgradeable {
     }
 
     function _onlyDefaultAdminRole() internal view {
-        require(
-            hasRole(DEFAULT_ADMIN_ROLE, msg.sender),
-            "Only the default admin can perform this action"
-        );
+        require(hasRole(DEFAULT_ADMIN_ROLE, msg.sender), "Only the default admin can perform this action");
     }
 
     /// @dev Constructor for the `ProviderFacet` contract.
@@ -125,7 +109,7 @@ contract ProviderFacet is AccessControlUpgradeable {
 
         _s().DEFAULT_ADMIN_ROLE = DEFAULT_ADMIN_ROLE;
         _s().labTokenAddress = _labErc20;
-        _s().labId=0;
+        _s().labId = 0;
     }
 
     /// @notice Adds a new provider to the system.
@@ -152,125 +136,123 @@ contract ProviderFacet is AccessControlUpgradeable {
         string calldata _authURI
     ) external onlyDefaultAdminRole {
         require(_account != address(0), "Invalid provider address");
-        
+
         // Validate string lengths to prevent DoS attacks
         require(bytes(_name).length > 0 && bytes(_name).length <= 100, "Invalid name length");
         require(bytes(_email).length > 0 && bytes(_email).length <= 100, "Invalid email length");
         require(bytes(_country).length > 0 && bytes(_country).length <= 50, "Invalid country length");
-        
+
         // Check if provider already exists (prevents duplicate additions)
         require(!hasRole(PROVIDER_ROLE, _account), "Provider already exists");
-        
+
         // Validate authURI format if provided
         if (bytes(_authURI).length > 0) {
             _validateAuthURI(_authURI);
         }
-        
+
         _grantRole(PROVIDER_ROLE, _account);
         _grantRole(INSTITUTION_ROLE, _account);
         _s()._addProviderRole(_account, _name, _email, _country, _authURI);
-        
+
         // Emit authURI event if provided
         if (bytes(_authURI).length > 0) {
             emit ProviderAuthURIUpdated(_account, _authURI);
         }
-        
+
         // Try to mint initial tokens (1000 total), but don't revert if it fails (e.g., cap reached)
         uint256 treasuryAmount = 200_000_000; // 200 tokens to institutional treasury
-        uint256 stakeAmount = 800_000_000;    // 800 tokens to Diamond (staked)
+        uint256 stakeAmount = 800_000_000; // 800 tokens to Diamond (staked)
         uint256 totalAmount = treasuryAmount + stakeAmount;
 
         bool canMintProvider = _s().providerPoolMinted + totalAmount <= LibAppStorage.PROVIDER_POOL_CAP;
-        
-        if (canMintProvider) {
-        try LabERC20(_s().labTokenAddress).mint(address(this), treasuryAmount) {
-            // Mint staked tokens directly to Diamond contract
-            try LabERC20(_s().labTokenAddress).mint(address(this), stakeAmount) {
-                // Mark that this provider received initial tokens (required for staking)
-                _s().providerStakes[_account].receivedInitialTokens = true;
-                
-                // Register the auto-staked amount and timestamp (for 180-day lock)
-                _s().providerStakes[_account].stakedAmount = stakeAmount;
-                _s().providerStakes[_account].initialStakeTimestamp = block.timestamp;
-                
-                // Deposit the 200 tokens to institutional treasury
-                _s().institutionalTreasury[_account] = treasuryAmount;
 
-                // Track minted provider pool
-                _s().providerPoolMinted += totalAmount;
-                
+        if (canMintProvider) {
+            try LabERC20(_s().labTokenAddress).mint(address(this), treasuryAmount) {
+                // Mint staked tokens directly to Diamond contract
+                try LabERC20(_s().labTokenAddress).mint(address(this), stakeAmount) {
+                    // Mark that this provider received initial tokens (required for staking)
+                    _s().providerStakes[_account].receivedInitialTokens = true;
+
+                    // Register the auto-staked amount and timestamp (for 180-day lock)
+                    _s().providerStakes[_account].stakedAmount = stakeAmount;
+                    _s().providerStakes[_account].initialStakeTimestamp = block.timestamp;
+
+                    // Deposit the 200 tokens to institutional treasury
+                    _s().institutionalTreasury[_account] = treasuryAmount;
+
+                    // Track minted provider pool
+                    _s().providerPoolMinted += totalAmount;
+
+                    // Set default institutional user spending limit (tokens per period)
+                    _s().institutionalUserLimit[_account] = LibAppStorage.DEFAULT_INSTITUTIONAL_USER_LIMIT;
+
+                    // Set default spending period
+                    _s().institutionalSpendingPeriod[_account] = LibAppStorage.DEFAULT_SPENDING_PERIOD;
+
+                    // Auto-authorize provider address as backend for institutional treasury
+                    _s().institutionalBackends[_account] = _account;
+
+                    emit InstitutionalTreasuryInitialized(
+                        _account, treasuryAmount, LibAppStorage.DEFAULT_INSTITUTIONAL_USER_LIMIT
+                    );
+
+                    emit BackendAuthorized(_account, _account);
+
+                    emit ProviderAdded(_account, _name, _email, _country);
+                } catch {
+                    // If stake mint fails, revert the treasury mint too
+                    revert("Failed to mint stake tokens");
+                }
+            } catch Error(string memory reason) {
+                // Provider added without tokens (no staking requirement)
+                // IMPORTANT: Still initialize institutional treasury configuration
+                // even if minting fails, so provider can configure it manually later
+                _s().providerStakes[_account].receivedInitialTokens = false;
+
+                // Initialize institutional treasury with zero balance but valid configuration
+                _s().institutionalTreasury[_account] = 0;
+
                 // Set default institutional user spending limit (tokens per period)
                 _s().institutionalUserLimit[_account] = LibAppStorage.DEFAULT_INSTITUTIONAL_USER_LIMIT;
-                
+
                 // Set default spending period
                 _s().institutionalSpendingPeriod[_account] = LibAppStorage.DEFAULT_SPENDING_PERIOD;
-                
+
                 // Auto-authorize provider address as backend for institutional treasury
+                // This allows provider to configure their institutional system even without initial tokens
                 _s().institutionalBackends[_account] = _account;
-                
+
                 emit InstitutionalTreasuryInitialized(
-                    _account, 
-                    treasuryAmount, 
+                    _account,
+                    0, // zero balance but valid configuration
                     LibAppStorage.DEFAULT_INSTITUTIONAL_USER_LIMIT
                 );
-                
+
                 emit BackendAuthorized(_account, _account);
-                
-                emit ProviderAdded(_account, _name, _email, _country);
+
+                emit ProviderAddedWithoutTokens(_account, reason);
             } catch {
-                // If stake mint fails, revert the treasury mint too
-                revert("Failed to mint stake tokens");
+                // Provider added without tokens (no staking requirement)
+                // IMPORTANT: Still initialize institutional treasury configuration
+                _s().providerStakes[_account].receivedInitialTokens = false;
+
+                // Initialize institutional treasury with zero balance but valid configuration
+                _s().institutionalTreasury[_account] = 0;
+
+                // Set default institutional user spending limit
+                _s().institutionalUserLimit[_account] = LibAppStorage.DEFAULT_INSTITUTIONAL_USER_LIMIT;
+
+                // Set default spending period
+                _s().institutionalSpendingPeriod[_account] = LibAppStorage.DEFAULT_SPENDING_PERIOD;
+
+                // Auto-authorize provider address as backend
+                _s().institutionalBackends[_account] = _account;
+
+                emit InstitutionalTreasuryInitialized(_account, 0, LibAppStorage.DEFAULT_INSTITUTIONAL_USER_LIMIT);
+                emit BackendAuthorized(_account, _account);
+
+                emit ProviderAddedWithoutTokens(_account, "Token minting failed: supply cap reached or other error");
             }
-        } catch Error(string memory reason) {
-            // Provider added without tokens (no staking requirement)
-            // IMPORTANT: Still initialize institutional treasury configuration
-            // even if minting fails, so provider can configure it manually later
-            _s().providerStakes[_account].receivedInitialTokens = false;
-            
-            // Initialize institutional treasury with zero balance but valid configuration
-            _s().institutionalTreasury[_account] = 0;
-            
-            // Set default institutional user spending limit (tokens per period)
-            _s().institutionalUserLimit[_account] = LibAppStorage.DEFAULT_INSTITUTIONAL_USER_LIMIT;
-            
-            // Set default spending period
-            _s().institutionalSpendingPeriod[_account] = LibAppStorage.DEFAULT_SPENDING_PERIOD;
-            
-            // Auto-authorize provider address as backend for institutional treasury
-            // This allows provider to configure their institutional system even without initial tokens
-            _s().institutionalBackends[_account] = _account;
-            
-            emit InstitutionalTreasuryInitialized(
-                _account, 
-                0, // zero balance but valid configuration
-                LibAppStorage.DEFAULT_INSTITUTIONAL_USER_LIMIT
-            );
-            
-            emit BackendAuthorized(_account, _account);
-            
-            emit ProviderAddedWithoutTokens(_account, reason);
-        } catch {
-            // Provider added without tokens (no staking requirement)
-            // IMPORTANT: Still initialize institutional treasury configuration
-            _s().providerStakes[_account].receivedInitialTokens = false;
-            
-            // Initialize institutional treasury with zero balance but valid configuration
-            _s().institutionalTreasury[_account] = 0;
-            
-            // Set default institutional user spending limit
-            _s().institutionalUserLimit[_account] = LibAppStorage.DEFAULT_INSTITUTIONAL_USER_LIMIT;
-            
-            // Set default spending period
-            _s().institutionalSpendingPeriod[_account] = LibAppStorage.DEFAULT_SPENDING_PERIOD;
-            
-            // Auto-authorize provider address as backend
-            _s().institutionalBackends[_account] = _account;
-            
-            emit InstitutionalTreasuryInitialized(_account, 0, LibAppStorage.DEFAULT_INSTITUTIONAL_USER_LIMIT);
-            emit BackendAuthorized(_account, _account);
-            
-            emit ProviderAddedWithoutTokens(_account, "Token minting failed: supply cap reached or other error");
-        }
         } else {
             // Not enough tokens left in provider pool cap, add provider without tokens
             _s().providerStakes[_account].receivedInitialTokens = false;
@@ -279,14 +261,10 @@ contract ProviderFacet is AccessControlUpgradeable {
             _s().institutionalSpendingPeriod[_account] = LibAppStorage.DEFAULT_SPENDING_PERIOD;
             _s().institutionalBackends[_account] = _account;
 
-            emit InstitutionalTreasuryInitialized(
-                _account, 
-                0, 
-                LibAppStorage.DEFAULT_INSTITUTIONAL_USER_LIMIT
-            );
-            
+            emit InstitutionalTreasuryInitialized(_account, 0, LibAppStorage.DEFAULT_INSTITUTIONAL_USER_LIMIT);
+
             emit BackendAuthorized(_account, _account);
-            
+
             emit ProviderAddedWithoutTokens(_account, "Provider pool exhausted");
         }
     }
@@ -302,20 +280,20 @@ contract ProviderFacet is AccessControlUpgradeable {
     ) external onlyRole(DEFAULT_ADMIN_ROLE) {
         // Check if provider exists (prevents removing non-existent providers)
         require(hasRole(PROVIDER_ROLE, _provider), "Provider does not exist");
-        
+
         _revokeRole(PROVIDER_ROLE, _provider);
         AppStorage storage s = _s();
-        
+
         // Burn staked tokens
         uint256 stakedAmount = s.providerStakes[_provider].stakedAmount;
         if (stakedAmount > 0) {
             s.providerStakes[_provider].stakedAmount = 0;
             LabERC20(s.labTokenAddress).burn(stakedAmount);
         }
-        
+
         // Clean up stake data
         delete s.providerStakes[_provider];
-        
+
         s._removeProviderRole(_provider);
         emit ProviderRemoved(_provider);
     }
@@ -344,10 +322,12 @@ contract ProviderFacet is AccessControlUpgradeable {
     ///      Only accounts with the `PROVIDER_ROLE` can call this function.
     ///      Emits a `ProviderAuthURIUpdated` event upon successful update.
     /// @param _authURI The base URL of the authentication service (e.g., https://provider.example.com/auth)
-    function setProviderAuthURI(string calldata _authURI) external onlyRole(PROVIDER_ROLE) {
+    function setProviderAuthURI(
+        string calldata _authURI
+    ) external onlyRole(PROVIDER_ROLE) {
         require(bytes(_authURI).length > 0, "AuthURI cannot be empty");
         _validateAuthURI(_authURI);
-        
+
         _s().providers[msg.sender].authURI = _authURI;
         emit ProviderAuthURIUpdated(msg.sender, _authURI);
     }
@@ -355,35 +335,34 @@ contract ProviderFacet is AccessControlUpgradeable {
     /// @notice Retrieves the authentication URI for a specific provider.
     /// @param _provider The address of the provider.
     /// @return The authentication service base URL.
-    function getProviderAuthURI(address _provider) external view returns (string memory) {
+    function getProviderAuthURI(
+        address _provider
+    ) external view returns (string memory) {
         return _s().providers[_provider].authURI;
     }
 
     /// @dev Internal function to validate authURI format.
     ///      Ensures the URI starts with https://, ends with /auth, and doesn't have a trailing slash.
     /// @param _authURI The authentication URI to validate.
-    function _validateAuthURI(string calldata _authURI) internal pure {
+    function _validateAuthURI(
+        string calldata _authURI
+    ) internal pure {
         bytes memory uri = bytes(_authURI);
-        
+
         // Must start with "https://"
         require(
-            uri.length >= 8 &&
-            uri[0] == 'h' && uri[1] == 't' && uri[2] == 't' && uri[3] == 'p' &&
-            uri[4] == 's' && uri[5] == ':' && uri[6] == '/' && uri[7] == '/',
+            uri.length >= 8 && uri[0] == "h" && uri[1] == "t" && uri[2] == "t" && uri[3] == "p" && uri[4] == "s"
+                && uri[5] == ":" && uri[6] == "/" && uri[7] == "/",
             "AuthURI must start with https://"
         );
-        
+
         // Must not end with '/'
-        require(uri[uri.length - 1] != '/', "AuthURI must not end with a slash");
+        require(uri[uri.length - 1] != "/", "AuthURI must not end with a slash");
 
         // Must end with "/auth"
         require(
-            uri.length >= 5 &&
-            uri[uri.length - 5] == '/' &&
-            uri[uri.length - 4] == 'a' &&
-            uri[uri.length - 3] == 'u' &&
-            uri[uri.length - 2] == 't' &&
-            uri[uri.length - 1] == 'h',
+            uri.length >= 5 && uri[uri.length - 5] == "/" && uri[uri.length - 4] == "a" && uri[uri.length - 3] == "u"
+                && uri[uri.length - 2] == "t" && uri[uri.length - 1] == "h",
             "AuthURI must end with /auth"
         );
     }
@@ -391,7 +370,9 @@ contract ProviderFacet is AccessControlUpgradeable {
     /// @notice Checks if the given account is a Lab provider.
     /// @param _account The address of the account to check.
     /// @return A boolean indicating whether the account is a Lab provider.
-    function isLabProvider(address _account) external view returns (bool) {
+    function isLabProvider(
+        address _account
+    ) external view returns (bool) {
         return _s()._isLabProvider(_account);
     }
 
@@ -409,13 +390,17 @@ contract ProviderFacet is AccessControlUpgradeable {
     /// @return total Total number of providers in the system
     /// @custom:example getLabProvidersPaginated(0, 50) returns first 50 providers
     ///                 getLabProvidersPaginated(50, 50) returns providers 50-99
-    function getLabProvidersPaginated(uint256 offset, uint256 limit) 
-        external view returns (Provider[] memory providers, uint256 total) 
-    {
+    function getLabProvidersPaginated(
+        uint256 offset,
+        uint256 limit
+    ) external view returns (Provider[] memory providers, uint256 total) {
         return _s()._getLabProvidersPaginated(offset, limit);
     }
 
-    function _grantRole(bytes32 role, address account) internal virtual override returns (bool) {
+    function _grantRole(
+        bytes32 role,
+        address account
+    ) internal virtual override returns (bool) {
         bool granted = super._grantRole(role, account);
         if (granted) {
             _s().roleMembers[role].add(account);
@@ -423,7 +408,10 @@ contract ProviderFacet is AccessControlUpgradeable {
         return granted;
     }
 
-    function _revokeRole(bytes32 role, address account) internal virtual override returns (bool) {
+    function _revokeRole(
+        bytes32 role,
+        address account
+    ) internal virtual override returns (bool) {
         bool revoked = super._revokeRole(role, account);
         if (revoked) {
             _s().roleMembers[role].remove(account);

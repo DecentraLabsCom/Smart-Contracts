@@ -13,7 +13,9 @@ import {LibIntent} from "../../../libraries/LibIntent.sol";
 import {LibReputation} from "../../../libraries/LibReputation.sol";
 
 interface IStakingFacet {
-    function updateLastReservation(address provider) external;
+    function updateLastReservation(
+        address provider
+    ) external;
 }
 
 /// @title WalletPayoutFacet
@@ -43,13 +45,19 @@ contract WalletPayoutFacet is ReentrancyGuardTransient {
     uint256 internal constant _ORPHAN_PAYOUT_DELAY = 30 days;
 
     /// @notice Event emitted when a lab intent is processed
-    event LabIntentProcessed(bytes32 indexed requestId, uint256 labId, string action, address provider, bool success, string reason);
+    event LabIntentProcessed(
+        bytes32 indexed requestId, uint256 labId, string action, address provider, bool success, string reason
+    );
 
     /// @notice Emitted when funds are collected for a lab
-    event FundsCollected(address indexed provider, uint256 indexed labId, uint256 amount, uint256 reservationsProcessed);
+    event FundsCollected(
+        address indexed provider, uint256 indexed labId, uint256 amount, uint256 reservationsProcessed
+    );
 
     /// @notice Emitted when default admin recovers stale payouts for a lab
-    event OrphanedLabPayoutRecovered(uint256 indexed labId, address indexed recipient, uint256 providerPayout, uint256 reservationsProcessed);
+    event OrphanedLabPayoutRecovered(
+        uint256 indexed labId, address indexed recipient, uint256 providerPayout, uint256 reservationsProcessed
+    );
 
     /// @dev Returns the AppStorage struct from the diamond storage slot.
     function _s() internal pure returns (AppStorage storage s) {
@@ -63,10 +71,7 @@ contract WalletPayoutFacet is ReentrancyGuardTransient {
     }
 
     function _isLabProvider() internal view {
-        require(
-            _s()._isLabProvider(msg.sender),
-            "Only one LabProvider can perform this action"
-        );
+        require(_s()._isLabProvider(msg.sender), "Only one LabProvider can perform this action");
     }
 
     /// @dev Modifier to restrict access to functions that can only be executed by the DEFAULT_ADMIN_ROLE.
@@ -77,17 +82,13 @@ contract WalletPayoutFacet is ReentrancyGuardTransient {
 
     function _onlyDefaultAdminRole() internal view {
         AppStorage storage s = _s();
-        require(
-            s.roleMembers[s.DEFAULT_ADMIN_ROLE].contains(msg.sender),
-            "Only admin"
-        );
+        require(s.roleMembers[s.DEFAULT_ADMIN_ROLE].contains(msg.sender), "Only admin");
     }
 
-    function requestFunds(uint256 _labId, uint256 maxBatch)
-        external
-        isLabProvider
-        nonReentrant
-    {
+    function requestFunds(
+        uint256 _labId,
+        uint256 maxBatch
+    ) external isLabProvider nonReentrant {
         _requestFunds(_labId, maxBatch);
     }
 
@@ -95,11 +96,7 @@ contract WalletPayoutFacet is ReentrancyGuardTransient {
     function requestFundsWithIntent(
         bytes32 requestId,
         ActionIntentPayload calldata payload
-    )
-        external
-        isLabProvider
-        nonReentrant
-    {
+    ) external isLabProvider nonReentrant {
         require(payload.labId != 0, "REQUEST_FUNDS: labId required");
         require(payload.executor == msg.sender, "Executor must be caller");
         uint256 maxBatch = uint256(payload.maxBatch);
@@ -128,22 +125,24 @@ contract WalletPayoutFacet is ReentrancyGuardTransient {
     /// @return institutionalPayout Total amount pending for institutional treasury payouts
     /// @return totalPayout Sum of wallet and institutional payouts
     /// @return institutionalCollectorCount Number of different institutional collectors
-    function getPendingLabPayout(uint256 _labId) 
-        external 
-        view 
+    function getPendingLabPayout(
+        uint256 _labId
+    )
+        external
+        view
         returns (
             uint256 walletPayout,
             uint256 institutionalPayout,
             uint256 totalPayout,
             uint256 institutionalCollectorCount
-        ) 
+        )
     {
         AppStorage storage s = _s();
-        
+
         walletPayout = s.pendingProviderPayout[_labId];
         institutionalPayout = 0;
         institutionalCollectorCount = 0;
-        
+
         totalPayout = walletPayout;
     }
 
@@ -202,11 +201,7 @@ contract WalletPayoutFacet is ReentrancyGuardTransient {
         uint256 _labId,
         uint256 maxBatch,
         address recipient
-    )
-        external
-        onlyDefaultAdminRole
-        nonReentrant
-    {
+    ) external onlyDefaultAdminRole nonReentrant {
         if (recipient == address(0)) revert("Invalid recipient");
         if (maxBatch == 0 || maxBatch > 100) revert("Invalid batch size");
 
@@ -229,8 +224,7 @@ contract WalletPayoutFacet is ReentrancyGuardTransient {
         }
 
         uint256 providerPayout = s.pendingProviderPayout[_labId];
-        bool payoutUnlocked = providerPayout > 0
-            && s.pendingProviderLastUpdated[_labId] > 0
+        bool payoutUnlocked = providerPayout > 0 && s.pendingProviderLastUpdated[_labId] > 0
             && block.timestamp >= s.pendingProviderLastUpdated[_labId] + _ORPHAN_PAYOUT_DELAY;
 
         if (payoutUnlocked) {
@@ -252,7 +246,10 @@ contract WalletPayoutFacet is ReentrancyGuardTransient {
     /// @dev Max heap entries to compact in a single call
     uint256 internal constant _MAX_COMPACTION_SIZE = 200;
 
-    function _requestFunds(uint256 _labId, uint256 maxBatch) internal {
+    function _requestFunds(
+        uint256 _labId,
+        uint256 maxBatch
+    ) internal {
         if (maxBatch == 0 || maxBatch > 100) revert("Invalid batch size");
 
         AppStorage storage s = _s();
@@ -295,10 +292,11 @@ contract WalletPayoutFacet is ReentrancyGuardTransient {
     }
 
     /// @dev Pops the first eligible reservation from the heap if its end <= cutoff
-    function _popEligiblePayoutCandidate(AppStorage storage s, uint256 labId, uint256 currentTime) 
-        internal 
-        returns (bytes32) 
-    {
+    function _popEligiblePayoutCandidate(
+        AppStorage storage s,
+        uint256 labId,
+        uint256 currentTime
+    ) internal returns (bytes32) {
         PayoutCandidate[] storage heap = s.payoutHeaps[labId];
 
         // Lazy cleanup optimization: if >20% of heap is invalid entries, rebuild heap
@@ -319,7 +317,9 @@ contract WalletPayoutFacet is ReentrancyGuardTransient {
             Reservation storage reservation = s.reservations[root.key];
             if (
                 reservation.labId == labId
-                    && (reservation.status == _CONFIRMED || reservation.status == _IN_USE || reservation.status == _COMPLETED)
+                    && (reservation.status == _CONFIRMED
+                        || reservation.status == _IN_USE
+                        || reservation.status == _COMPLETED)
             ) {
                 return root.key;
             }
@@ -332,7 +332,9 @@ contract WalletPayoutFacet is ReentrancyGuardTransient {
         return bytes32(0);
     }
 
-    function _removeHeapRoot(PayoutCandidate[] storage heap) internal {
+    function _removeHeapRoot(
+        PayoutCandidate[] storage heap
+    ) internal {
         uint256 lastIndex = heap.length - 1;
         if (lastIndex == 0) {
             heap.pop();
@@ -369,7 +371,10 @@ contract WalletPayoutFacet is ReentrancyGuardTransient {
     }
 
     /// @dev Compacts the heap by removing all invalid entries
-    function _compactHeap(AppStorage storage s, uint256 labId) internal {
+    function _compactHeap(
+        AppStorage storage s,
+        uint256 labId
+    ) internal {
         PayoutCandidate[] storage heap = s.payoutHeaps[labId];
         uint256 originalLength = heap.length;
         if (originalLength > _MAX_COMPACTION_SIZE) {
@@ -383,7 +388,9 @@ contract WalletPayoutFacet is ReentrancyGuardTransient {
 
             if (
                 reservation.labId == labId
-                    && (reservation.status == _CONFIRMED || reservation.status == _IN_USE || reservation.status == _COMPLETED)
+                    && (reservation.status == _CONFIRMED
+                        || reservation.status == _IN_USE
+                        || reservation.status == _COMPLETED)
             ) {
                 if (writeIndex != readIndex) {
                     heap[writeIndex] = heap[readIndex];
@@ -410,7 +417,8 @@ contract WalletPayoutFacet is ReentrancyGuardTransient {
     /// @dev Finalizes a reservation for payout: marks as _COLLECTED, updates counters, accrues shares
     function _finalizeReservationForPayout(
         AppStorage storage s,
-        bytes32 /* key */,
+        bytes32,
+        /* key */
         Reservation storage reservation,
         uint256 labId
     ) internal returns (bool) {

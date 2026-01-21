@@ -11,14 +11,17 @@ import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 /// @notice Read-only facet for querying Lab data. Split from LabFacet to reduce contract size.
 /// @dev This facet provides query functions that don't modify state.
 contract LabQueryFacet {
-
     /// @dev Modifier to check if a token exists (has been minted).
-    modifier exists(uint256 _labId) {
+    modifier exists(
+        uint256 _labId
+    ) {
         _exists(_labId);
         _;
     }
 
-    function _exists(uint256 _labId) internal view {
+    function _exists(
+        uint256 _labId
+    ) internal view {
         require(_s().labs[_labId].price > 0 || bytes(_s().labs[_labId].uri).length > 0, "Lab does not exist");
     }
 
@@ -31,7 +34,9 @@ contract LabQueryFacet {
     /// @dev This function returns the Lab details, including its ID, URI, and price.
     /// @param _labId The ID of the Lab to retrieve.
     /// @return A Lab structure containing the details of the specified Lab.
-    function getLab(uint _labId) external view exists(_labId) returns (Lab memory) {
+    function getLab(
+        uint256 _labId
+    ) external view exists(_labId) returns (Lab memory) {
         return Lab({labId: _labId, base: _s().labs[_labId]});
     }
 
@@ -43,24 +48,29 @@ contract LabQueryFacet {
     /// @return total The total number of labs available
     /// @custom:example To get first 50 labs: getLabsPaginated(0, 50)
     /// @custom:example To get next 50 labs: getLabsPaginated(50, 50)
-    function getLabsPaginated(uint256 offset, uint256 limit) external view returns (uint256[] memory ids, uint256 total) {
+    function getLabsPaginated(
+        uint256 offset,
+        uint256 limit
+    ) external view returns (uint256[] memory ids, uint256 total) {
         require(limit > 0 && limit <= 100, "Limit must be between 1 and 100");
-        
+
         AppStorage storage s = _s();
         total = s.labId; // Total minted labs
-        
+
         // Calculate actual number of items to return
         uint256 remaining = total > offset ? total - offset : 0;
         uint256 count = remaining < limit ? remaining : limit;
-        
+
         ids = new uint256[](count);
-        
+
         for (uint256 i = 0; i < count;) {
             // Lab IDs start at 1, so offset + i + 1
             ids[i] = offset + i + 1;
-            unchecked { ++i; }
+            unchecked {
+                ++i;
+            }
         }
-        
+
         return (ids, total);
     }
 
@@ -73,14 +83,18 @@ contract LabQueryFacet {
     /// @notice Checks if a lab is currently listed for reservations
     /// @param _labId The ID of the lab to check
     /// @return True if the lab is listed, false otherwise
-    function isLabListed(uint256 _labId) external view returns (bool) {
+    function isLabListed(
+        uint256 _labId
+    ) external view returns (bool) {
         return _s().tokenStatus[_labId];
     }
 
     /// @notice Returns the price of a lab
     /// @param _labId The ID of the lab
     /// @return The price of the lab in LAB tokens
-    function getLabPrice(uint256 _labId) external view exists(_labId) returns (uint96) {
+    function getLabPrice(
+        uint256 _labId
+    ) external view exists(_labId) returns (uint96) {
         return _s().labs[_labId].price;
     }
 
@@ -88,7 +102,9 @@ contract LabQueryFacet {
     /// @dev This function resolves the lab's provider and returns their authURI
     /// @param _labId The ID of the lab
     /// @return The authentication service URI from the provider
-    function getLabAuthURI(uint256 _labId) external view exists(_labId) returns (string memory) {
+    function getLabAuthURI(
+        uint256 _labId
+    ) external view exists(_labId) returns (string memory) {
         address provider = IERC721(address(this)).ownerOf(_labId);
         return _s().providers[provider].authURI;
     }
@@ -96,21 +112,27 @@ contract LabQueryFacet {
     /// @notice Returns the access URI for a lab
     /// @param _labId The ID of the lab
     /// @return The access URI for the lab services
-    function getLabAccessURI(uint256 _labId) external view exists(_labId) returns (string memory) {
+    function getLabAccessURI(
+        uint256 _labId
+    ) external view exists(_labId) returns (string memory) {
         return _s().labs[_labId].accessURI;
     }
 
     /// @notice Returns the access key for a lab
     /// @param _labId The ID of the lab
     /// @return The public access key for routing
-    function getLabAccessKey(uint256 _labId) external view exists(_labId) returns (string memory) {
+    function getLabAccessKey(
+        uint256 _labId
+    ) external view exists(_labId) returns (string memory) {
         return _s().labs[_labId].accessKey;
     }
 
     /// @notice Returns the age of a lab in seconds since registration
     /// @param _labId The ID of the lab
     /// @return The age in seconds
-    function getLabAge(uint256 _labId) external view exists(_labId) returns (uint256) {
+    function getLabAge(
+        uint256 _labId
+    ) external view exists(_labId) returns (uint256) {
         return block.timestamp - _s().labs[_labId].createdAt;
     }
 }

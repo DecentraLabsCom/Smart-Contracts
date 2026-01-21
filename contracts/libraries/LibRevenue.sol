@@ -17,7 +17,11 @@ library LibRevenue {
     uint256 internal constant MIN_CANCELLATION_FEE = 10_000;
 
     /// @dev Computes a scaled share and clamps to uint96 to avoid unsafe downcasts.
-    function _safeScaledShare(uint96 price, uint256 numerator, uint256 denominator) private pure returns (uint96) {
+    function _safeScaledShare(
+        uint96 price,
+        uint256 numerator,
+        uint256 denominator
+    ) private pure returns (uint96) {
         uint256 raw = (uint256(price) * numerator) / denominator;
         if (raw > type(uint96).max) {
             return type(uint96).max;
@@ -25,12 +29,16 @@ library LibRevenue {
         return uint96(raw);
     }
 
-    function calculateRevenueSplit(uint96 price)
+    function calculateRevenueSplit(
+        uint96 price
+    )
         internal
         pure
         returns (uint96 providerShare, uint96 treasuryShare, uint96 subsidiesShare, uint96 governanceShare)
     {
-        if (price == 0) return (0, 0, 0, 0);
+        if (price == 0) {
+            return (0, 0, 0, 0);
+        }
 
         providerShare = _safeScaledShare(price, REVENUE_PROVIDER, REVENUE_DENOMINATOR);
         treasuryShare = _safeScaledShare(price, REVENUE_TREASURY, REVENUE_DENOMINATOR);
@@ -42,11 +50,9 @@ library LibRevenue {
         treasuryShare += remainder;
     }
 
-    function computeCancellationFee(uint96 price)
-        internal
-        pure
-        returns (uint96 providerFee, uint96 treasuryFee, uint96 governanceFee, uint96 refundAmount)
-    {
+    function computeCancellationFee(
+        uint96 price
+    ) internal pure returns (uint96 providerFee, uint96 treasuryFee, uint96 governanceFee, uint96 refundAmount) {
         if (price == 0) return (0, 0, 0, 0);
 
         uint96 totalFee = uint96((uint256(price) * CANCEL_FEE_TOTAL) / REVENUE_DENOMINATOR);

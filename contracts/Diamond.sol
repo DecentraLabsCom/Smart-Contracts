@@ -8,8 +8,8 @@ pragma solidity ^0.8.33;
 //* Implementation of a diamond.
 //******************************************************************************/
 
-import { LibDiamond } from "./libraries/LibDiamond.sol";
-import { IDiamondCut } from "./interfaces/IDiamondCut.sol";
+import {LibDiamond} from "./libraries/LibDiamond.sol";
+import {IDiamondCut} from "./interfaces/IDiamondCut.sol";
 
 // When no function exists for function called
 error FunctionNotFound(bytes4 _functionSelector);
@@ -23,9 +23,11 @@ struct DiamondArgs {
     bytes initCalldata;
 }
 
-contract Diamond {    
-
-    constructor(IDiamondCut.FacetCut[] memory _diamondCut, DiamondArgs memory _args) payable {
+contract Diamond {
+    constructor(
+        IDiamondCut.FacetCut[] memory _diamondCut,
+        DiamondArgs memory _args
+    ) payable {
         LibDiamond.setContractOwner(_args.owner);
         LibDiamond.diamondCut(_diamondCut, _args.init, _args.initCalldata);
 
@@ -43,25 +45,25 @@ contract Diamond {
         }
         // get facet from function selector
         address facet = ds.facetAddressAndSelectorPosition[msg.sig].facetAddress;
-        if(facet == address(0)) {
+        if (facet == address(0)) {
             revert FunctionNotFound(msg.sig);
         }
         // Execute external function from facet using delegatecall and return any value.
         assembly {
             // copy function selector and any arguments
             calldatacopy(0, 0, calldatasize())
-             // execute function call using the facet
+            // execute function call using the facet
             let result := delegatecall(gas(), facet, 0, calldatasize(), 0, 0)
             // get any return value
             returndatacopy(0, 0, returndatasize())
             // return any return value or error back to the caller
             switch result
-                case 0 {
-                    revert(0, returndatasize())
-                }
-                default {
-                    return(0, returndatasize())
-                }
+            case 0 {
+                revert(0, returndatasize())
+            }
+            default {
+                return(0, returndatasize())
+            }
         }
     }
 

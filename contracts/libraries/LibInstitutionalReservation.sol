@@ -27,12 +27,23 @@ struct InstInput {
 }
 
 interface IInstCreation {
-    function createInstReservation(InstInput calldata i) external;
-    function recordRecentInstReservation(uint256 l, address t, bytes32 k, uint32 st) external;
+    function createInstReservation(
+        InstInput calldata i
+    ) external;
+    function recordRecentInstReservation(
+        uint256 l,
+        address t,
+        bytes32 k,
+        uint32 st
+    ) external;
 }
 
 interface IInstitutionalTreasuryFacet {
-    function refundToInstitutionalTreasury(address provider, string calldata puc, uint256 amount) external;
+    function refundToInstitutionalTreasury(
+        address provider,
+        string calldata puc,
+        uint256 amount
+    ) external;
 }
 
 library LibInstitutionalReservation {
@@ -58,18 +69,12 @@ library LibInstitutionalReservation {
         (address owner, bytes32 key, address trackingKey) =
             IInstValidation(address(this)).validateInstRequest(institutionalProvider, puc, labId, start, end);
 
-        IInstCreation(address(this)).createInstReservation(
-            InstInput({
-                p: institutionalProvider,
-                o: owner,
-                l: labId,
-                s: start,
-                e: end,
-                u: puc,
-                k: key,
-                t: trackingKey
-            })
-        );
+        IInstCreation(address(this))
+            .createInstReservation(
+                InstInput({
+                    p: institutionalProvider, o: owner, l: labId, s: start, e: end, u: puc, k: key, t: trackingKey
+                })
+            );
         IInstCreation(address(this)).recordRecentInstReservation(labId, trackingKey, key, start);
     }
 
@@ -126,11 +131,8 @@ library LibInstitutionalReservation {
             LibReservationCancellation.applyCancellationFees(labId, providerFee, treasuryFee, governanceFee);
         }
 
-        IInstitutionalTreasuryFacet(address(this)).refundToInstitutionalTreasury(
-            reservation.payerInstitution,
-            puc,
-            refundAmount
-        );
+        IInstitutionalTreasuryFacet(address(this))
+            .refundToInstitutionalTreasury(reservation.payerInstitution, puc, refundAmount);
     }
 
     function _pucMatches(

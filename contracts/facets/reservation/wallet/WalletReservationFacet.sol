@@ -33,10 +33,11 @@ contract WalletReservationFacet is BaseWalletReservationFacet, ReentrancyGuardTr
     // withdrawSubsidies(), withdrawGovernance(), adminRecoverOrphanedPayouts()
     // moved to WalletPayoutFacet for contract size optimization
 
-    function releaseExpiredReservations(uint256 _labId, address _user, uint256 maxBatch)
-        external
-        returns (uint256 processed)
-    {
+    function releaseExpiredReservations(
+        uint256 _labId,
+        address _user,
+        uint256 maxBatch
+    ) external returns (uint256 processed) {
         if (msg.sender != _user) revert("Only user can release their quota");
         return _releaseExpiredReservations(_labId, _user, maxBatch);
     }
@@ -47,7 +48,10 @@ contract WalletReservationFacet is BaseWalletReservationFacet, ReentrancyGuardTr
     // Internal overrides
     // ---------------------------------------------------------------------
 
-    function _requestFunds(uint256 _labId, uint256 maxBatch) internal override {
+    function _requestFunds(
+        uint256 _labId,
+        uint256 maxBatch
+    ) internal override {
         if (maxBatch == 0 || maxBatch > 100) revert("Invalid batch size");
 
         AppStorage storage s = _s();
@@ -89,22 +93,26 @@ contract WalletReservationFacet is BaseWalletReservationFacet, ReentrancyGuardTr
         emit FundsCollected(labOwner, _labId, providerPayout, processed);
     }
 
-    function _getLabTokenAddress() internal view override returns (address){
+    function _getLabTokenAddress() internal view override returns (address) {
         return _s().labTokenAddress;
     }
 
-    function _getSafeBalance() internal view override returns (uint256){ 
+    function _getSafeBalance() internal view override returns (uint256) {
         return IERC20(_s().labTokenAddress).balanceOf(address(this));
     }
 
-    function _releaseExpiredReservations(uint256 _labId, address _user, uint256 maxBatch) internal override returns (uint256){
+    function _releaseExpiredReservations(
+        uint256 _labId,
+        address _user,
+        uint256 maxBatch
+    ) internal override returns (uint256) {
         // Only the user can release their own quota to prevent manipulation
         if (msg.sender != _user) {
             revert("Only user can release their quota");
         }
-        
+
         if (maxBatch == 0 || maxBatch > 50) revert("Invalid batch size");
-        
+
         // Delegate to internal function
         return _releaseExpiredReservationsInternal(_labId, _user, maxBatch);
     }

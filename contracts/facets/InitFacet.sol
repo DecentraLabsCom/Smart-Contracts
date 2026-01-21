@@ -17,23 +17,15 @@ contract InitFacet is Initializable {
         LibDiamond.enforceIsContractOwner();
         _delegateInit(
             abi.encodeWithSignature(
-                "initialize(string,string,string,address)",
-                adminName,
-                adminEmail,
-                adminCountry,
-                labToken
+                "initialize(string,string,string,address)", adminName, adminEmail, adminCountry, labToken
             )
         );
-        _delegateInit(
-            abi.encodeWithSignature(
-                "initialize(string,string)",
-                labName,
-                labSymbol
-            )
-        );
+        _delegateInit(abi.encodeWithSignature("initialize(string,string)", labName, labSymbol));
     }
 
-    function _delegateInit(bytes memory data) private {
+    function _delegateInit(
+        bytes memory data
+    ) private {
         // Delegate to the diamond so msg.sender stays the external caller (owner).
         (bool success, bytes memory error) = address(this).delegatecall(data);
         if (!success) {

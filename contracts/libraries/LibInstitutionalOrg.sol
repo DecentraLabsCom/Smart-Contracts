@@ -22,34 +22,29 @@ library LibInstitutionalOrg {
 
     /// @notice Emitted when an institution registers a schacHomeOrganization
     event SchacHomeOrganizationRegistered(
-        address indexed institution,
-        string organization,
-        bytes32 indexed organizationHash
+        address indexed institution, string organization, bytes32 indexed organizationHash
     );
 
     /// @notice Emitted when an institution unregisters a schacHomeOrganization
     event SchacHomeOrganizationRemoved(
-        address indexed institution,
-        string organization,
-        bytes32 indexed organizationHash
+        address indexed institution, string organization, bytes32 indexed organizationHash
     );
 
     /// @notice Emitted when an institution updates its backend URL for a schacHomeOrganization
     event SchacHomeOrganizationBackendUpdated(
-        address indexed institution,
-        string organization,
-        bytes32 indexed organizationHash,
-        string backendUrl
+        address indexed institution, string organization, bytes32 indexed organizationHash, string backendUrl
     );
 
     /// @notice Normalizes schacHomeOrganization identifiers to lowercase and validates characters
-    function normalizeOrganization(string memory organization) internal pure returns (string memory) {
+    function normalizeOrganization(
+        string memory organization
+    ) internal pure returns (string memory) {
         bytes memory input = bytes(organization);
         uint256 length = input.length;
         require(length >= 3 && length <= 255, InvalidOrgLength());
 
         bytes memory normalized = new bytes(length);
-        for (uint256 i; i < length; ) {
+        for (uint256 i; i < length;) {
             bytes1 char = input[i];
 
             if (char >= 0x41 && char <= 0x5A) {
@@ -57,10 +52,7 @@ library LibInstitutionalOrg {
             }
 
             require(
-                (char >= 0x61 && char <= 0x7A) ||
-                (char >= 0x30 && char <= 0x39) ||
-                char == 0x2D ||
-                char == 0x2E,
+                (char >= 0x61 && char <= 0x7A) || (char >= 0x30 && char <= 0x39) || char == 0x2D || char == 0x2E,
                 InvalidOrgCharacter()
             );
 
@@ -84,10 +76,7 @@ library LibInstitutionalOrg {
 
         // forge-lint: disable-next-line(asm-keccak256)
         bytes32 orgHash = keccak256(bytes(normalizedOrganization));
-        require(
-            s.organizationInstitutionWallet[orgHash] == address(0),
-            OrganizationAlreadyRegistered()
-        );
+        require(s.organizationInstitutionWallet[orgHash] == address(0), OrganizationAlreadyRegistered());
 
         s.organizationInstitutionWallet[orgHash] = institution;
         s.schacHomeOrganizationNames[orgHash] = normalizedOrganization;
@@ -106,10 +95,7 @@ library LibInstitutionalOrg {
     ) internal {
         // forge-lint: disable-next-line(asm-keccak256)
         bytes32 orgHash = keccak256(bytes(normalizedOrganization));
-        require(
-            s.organizationInstitutionWallet[orgHash] == institution,
-            OrganizationNotRegisteredByWallet()
-        );
+        require(s.organizationInstitutionWallet[orgHash] == institution, OrganizationNotRegisteredByWallet());
 
         delete s.organizationInstitutionWallet[orgHash];
         delete s.schacHomeOrganizationNames[orgHash];
@@ -130,10 +116,7 @@ library LibInstitutionalOrg {
     ) internal {
         // forge-lint: disable-next-line(asm-keccak256)
         bytes32 orgHash = keccak256(bytes(normalizedOrganization));
-        require(
-            s.organizationInstitutionWallet[orgHash] == institution,
-            OrganizationNotRegisteredByWallet()
-        );
+        require(s.organizationInstitutionWallet[orgHash] == institution, OrganizationNotRegisteredByWallet());
 
         s.organizationBackendUrls[orgHash] = backendUrl;
         emit SchacHomeOrganizationBackendUpdated(institution, normalizedOrganization, orgHash, backendUrl);

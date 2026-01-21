@@ -16,10 +16,11 @@ pragma solidity ^0.8.31;
 import {Tree, Node} from "./LibAppStorage.sol";
 
 library RivalIntervalTreeLibrary {
+    uint256 private constant EMPTY = 0;
 
-    uint private constant EMPTY = 0;
-
-    function first(Tree storage self) internal view returns (uint _key) {
+    function first(
+        Tree storage self
+    ) internal view returns (uint256 _key) {
         _key = self.root;
         if (_key != EMPTY) {
             while (self.nodes[_key].left != EMPTY) {
@@ -28,7 +29,9 @@ library RivalIntervalTreeLibrary {
         }
     }
 
-    function last(Tree storage self) internal view returns (uint _key) {
+    function last(
+        Tree storage self
+    ) internal view returns (uint256 _key) {
         _key = self.root;
         if (_key != EMPTY) {
             while (self.nodes[_key].right != EMPTY) {
@@ -37,7 +40,10 @@ library RivalIntervalTreeLibrary {
         }
     }
 
-    function next(Tree storage self, uint target) internal view returns (uint cursor) {
+    function next(
+        Tree storage self,
+        uint256 target
+    ) internal view returns (uint256 cursor) {
         require(target != EMPTY);
         if (self.nodes[target].right != EMPTY) {
             cursor = treeMinimum(self, self.nodes[target].right);
@@ -50,7 +56,10 @@ library RivalIntervalTreeLibrary {
         }
     }
 
-    function prev(Tree storage self, uint target) internal view returns (uint cursor) {
+    function prev(
+        Tree storage self,
+        uint256 target
+    ) internal view returns (uint256 cursor) {
         require(target != EMPTY);
         if (self.nodes[target].left != EMPTY) {
             cursor = treeMaximum(self, self.nodes[target].left);
@@ -62,29 +71,51 @@ library RivalIntervalTreeLibrary {
             }
         }
     }
-    
+
     // Removed commented out functions size() and getAllKeys()
-    
-    function exists(Tree storage self, uint key) internal view returns (bool) {
+
+    function exists(
+        Tree storage self,
+        uint256 key
+    ) internal view returns (bool) {
         return (key != EMPTY) && ((key == self.root) || (self.nodes[key].parent != EMPTY));
     }
 
-    function isEmpty(uint key) internal pure returns (bool) {
+    function isEmpty(
+        uint256 key
+    ) internal pure returns (bool) {
         return key == EMPTY;
     }
 
-    function getEmpty() internal pure returns (uint) {
+    function getEmpty() internal pure returns (uint256) {
         return EMPTY;
     }
 
-    function getNode(Tree storage self, uint key) public view returns (uint _returnKey, uint _end, uint _parent, uint _left, uint _right, bool _red) {
+    function getNode(
+        Tree storage self,
+        uint256 key
+    )
+        public
+        view
+        returns (uint256 _returnKey, uint256 _end, uint256 _parent, uint256 _left, uint256 _right, bool _red)
+    {
         require(exists(self, key));
-        return(key, self.nodes[key].end, self.nodes[key].parent, self.nodes[key].left, self.nodes[key].right, self.nodes[key].red);
+        return (
+            key,
+            self.nodes[key].end,
+            self.nodes[key].parent,
+            self.nodes[key].left,
+            self.nodes[key].right,
+            self.nodes[key].red
+        );
     }
 
-    function findParent(Tree storage self, uint256 key) internal view returns (uint) {
-        uint cursor = EMPTY;
-        uint probe = self.root;
+    function findParent(
+        Tree storage self,
+        uint256 key
+    ) internal view returns (uint256) {
+        uint256 cursor = EMPTY;
+        uint256 probe = self.root;
         while (probe != EMPTY) {
             cursor = probe;
             if (key < probe) {
@@ -103,13 +134,17 @@ library RivalIntervalTreeLibrary {
     /// @param key The start time of the interval to check
     /// @param end The end time of the interval to check
     /// @return bool True if there is a conflict (overlaps or key exists), False if available
-    function hasConflict(Tree storage self, uint key, uint end) view internal returns (bool) {
+    function hasConflict(
+        Tree storage self,
+        uint256 key,
+        uint256 end
+    ) internal view returns (bool) {
         if (key == EMPTY) return true;
-        
+
         // CRITICAL FIX: If key already exists, it's definitely a conflict
         if (exists(self, key)) return true;
-        
-        uint cursor = findParent(self, key);
+
+        uint256 cursor = findParent(self, key);
 
         // special case for first insert
         if (cursor == EMPTY) {
@@ -119,20 +154,24 @@ library RivalIntervalTreeLibrary {
         Node memory referencedNode = self.nodes[cursor];
         // reservation starts before
         if (key < cursor) {
-            uint prevCursor = prev(self, cursor);
-            uint prevEnd = self.nodes[prevCursor].end;
+            uint256 prevCursor = prev(self, cursor);
+            uint256 prevEnd = self.nodes[prevCursor].end;
             return (end > cursor) || (key < prevEnd);
-        // reservation starts after
+            // reservation starts after
         } else {
-            uint nextCursor = next(self, cursor);
+            uint256 nextCursor = next(self, cursor);
             return (key < referencedNode.end) || ((nextCursor != EMPTY) && (end > nextCursor));
         }
     }
 
-    function overlaps(Tree storage self, uint key, uint end) view internal returns (bool) {
+    function overlaps(
+        Tree storage self,
+        uint256 key,
+        uint256 end
+    ) internal view returns (bool) {
         require(key != EMPTY);
         require(!exists(self, key));
-        uint cursor = findParent(self, key);
+        uint256 cursor = findParent(self, key);
 
         // special case for first insert
         if (cursor == EMPTY) {
@@ -142,20 +181,24 @@ library RivalIntervalTreeLibrary {
         Node memory referencedNode = self.nodes[cursor];
         // reservation starts before
         if (key < cursor) {
-            uint prevCursor = prev(self, cursor);
-            uint prevEnd = self.nodes[prevCursor].end;
+            uint256 prevCursor = prev(self, cursor);
+            uint256 prevEnd = self.nodes[prevCursor].end;
             return (end > cursor) || (key < prevEnd);
-        // reservation starts after
+            // reservation starts after
         } else {
-            uint nextCursor = next(self, cursor);  // FIX: Changed from prev() to next()
+            uint256 nextCursor = next(self, cursor); // FIX: Changed from prev() to next()
             return (key < referencedNode.end) || ((nextCursor != EMPTY) && (end > nextCursor));
         }
     }
 
-    function insert(Tree storage self, uint32 key, uint32 end) public {
+    function insert(
+        Tree storage self,
+        uint32 key,
+        uint32 end
+    ) public {
         require(key != EMPTY);
         require(!exists(self, key));
-        uint cursor = findParent(self, key);
+        uint256 cursor = findParent(self, key);
         Node memory node = Node({parent: cursor, left: EMPTY, right: EMPTY, end: end, red: true});
 
         // special case for first insert
@@ -168,36 +211,39 @@ library RivalIntervalTreeLibrary {
 
         bool overlap;
         if (key < cursor) {
-            uint prevCursor = prev(self, cursor);
+            uint256 prevCursor = prev(self, cursor);
             overlap = (end > cursor) || ((prevCursor != EMPTY) && (key < self.nodes[prevCursor].end));
-            
+
             if (!overlap) {
                 self.nodes[key] = node;
                 self.nodes[cursor].left = key;
             }
         } else {
-            uint nextCursor = next(self, cursor);
+            uint256 nextCursor = next(self, cursor);
             overlap = (key < self.nodes[cursor].end) || ((nextCursor != EMPTY) && (end > nextCursor));
-            
+
             if (!overlap) {
                 self.nodes[key] = node;
                 self.nodes[cursor].right = key;
             }
         }
-        
+
         if (overlap) {
             revert("Overlap");
         }
-        
+
         insertFixup(self, key);
     }
 
-    function remove(Tree storage self, uint key) internal {
+    function remove(
+        Tree storage self,
+        uint256 key
+    ) internal {
         require(key != EMPTY);
         require(exists(self, key));
-        uint probe;
-        uint cursor;
-        
+        uint256 probe;
+        uint256 cursor;
+
         if (self.nodes[key].left == EMPTY || self.nodes[key].right == EMPTY) {
             cursor = key;
         } else {
@@ -206,16 +252,16 @@ library RivalIntervalTreeLibrary {
                 cursor = self.nodes[cursor].left;
             }
         }
-        
+
         if (self.nodes[cursor].left != EMPTY) {
             probe = self.nodes[cursor].left;
         } else {
             probe = self.nodes[cursor].right;
         }
-        
-        uint yParent = self.nodes[cursor].parent;
+
+        uint256 yParent = self.nodes[cursor].parent;
         self.nodes[probe].parent = yParent;
-        
+
         if (yParent != EMPTY) {
             if (cursor == self.nodes[yParent].left) {
                 self.nodes[yParent].left = probe;
@@ -225,9 +271,9 @@ library RivalIntervalTreeLibrary {
         } else {
             self.root = probe;
         }
-        
+
         bool doFixup = !self.nodes[cursor].red;
-        
+
         if (cursor != key) {
             replaceParent(self, cursor, key);
             self.nodes[cursor].left = self.nodes[key].left;
@@ -237,22 +283,28 @@ library RivalIntervalTreeLibrary {
             self.nodes[cursor].red = self.nodes[key].red;
             (cursor, key) = (key, cursor);
         }
-        
+
         if (doFixup) {
             removeFixup(self, probe);
         }
-        
+
         delete self.nodes[cursor];
     }
 
-    function treeMinimum(Tree storage self, uint key) private view returns (uint) {
+    function treeMinimum(
+        Tree storage self,
+        uint256 key
+    ) private view returns (uint256) {
         while (self.nodes[key].left != EMPTY) {
             key = self.nodes[key].left;
         }
         return key;
     }
-    
-    function treeMaximum(Tree storage self, uint key) private view returns (uint) {
+
+    function treeMaximum(
+        Tree storage self,
+        uint256 key
+    ) private view returns (uint256) {
         while (self.nodes[key].right != EMPTY) {
             key = self.nodes[key].right;
         }
@@ -260,11 +312,15 @@ library RivalIntervalTreeLibrary {
     }
 
     // Unified rotation helper function
-    function rotate(Tree storage self, uint key, bool isLeft) private {
-        uint cursor;
-        uint keyParent = self.nodes[key].parent;
-        uint cursorChild;
-        
+    function rotate(
+        Tree storage self,
+        uint256 key,
+        bool isLeft
+    ) private {
+        uint256 cursor;
+        uint256 keyParent = self.nodes[key].parent;
+        uint256 cursorChild;
+
         if (isLeft) {
             cursor = self.nodes[key].right;
             cursorChild = self.nodes[cursor].left;
@@ -276,70 +332,81 @@ library RivalIntervalTreeLibrary {
             self.nodes[key].left = cursorChild;
             self.nodes[cursor].right = key;
         }
-        
+
         if (cursorChild != EMPTY) {
             self.nodes[cursorChild].parent = key;
         }
-        
+
         self.nodes[cursor].parent = keyParent;
-        
+
         if (keyParent == EMPTY) {
             self.root = cursor;
-        } else if ((isLeft && key == self.nodes[keyParent].left) || 
-                  (!isLeft && key == self.nodes[keyParent].right)) {
+        } else if ((isLeft && key == self.nodes[keyParent].left) || (!isLeft && key == self.nodes[keyParent].right)) {
             self.nodes[keyParent].left = cursor;
         } else {
             self.nodes[keyParent].right = cursor;
         }
-        
+
         self.nodes[key].parent = cursor;
     }
 
-    function rotateLeft(Tree storage self, uint key) private {
+    function rotateLeft(
+        Tree storage self,
+        uint256 key
+    ) private {
         rotate(self, key, true);
     }
-    
-    function rotateRight(Tree storage self, uint key) private {
+
+    function rotateRight(
+        Tree storage self,
+        uint256 key
+    ) private {
         rotate(self, key, false);
     }
 
-    function insertFixup(Tree storage self, uint key) private {
-        uint cursor;
+    function insertFixup(
+        Tree storage self,
+        uint256 key
+    ) private {
+        uint256 cursor;
         while (key != self.root && self.nodes[self.nodes[key].parent].red) {
-            uint keyParent = self.nodes[key].parent;
-            uint keyGrandparent = self.nodes[keyParent].parent;
+            uint256 keyParent = self.nodes[key].parent;
+            uint256 keyGrandparent = self.nodes[keyParent].parent;
             bool isLeft = keyParent == self.nodes[keyGrandparent].left;
-            
+
             cursor = isLeft ? self.nodes[keyGrandparent].right : self.nodes[keyGrandparent].left;
-            
+
             if (self.nodes[cursor].red) {
                 self.nodes[keyParent].red = false;
                 self.nodes[cursor].red = false;
                 self.nodes[keyGrandparent].red = true;
                 key = keyGrandparent;
             } else {
-                if ((isLeft && key == self.nodes[keyParent].right) || 
-                    (!isLeft && key == self.nodes[keyParent].left)) {
+                if ((isLeft && key == self.nodes[keyParent].right) || (!isLeft && key == self.nodes[keyParent].left)) {
                     key = keyParent;
                     isLeft ? rotateLeft(self, key) : rotateRight(self, key);
                 }
-                
+
                 keyParent = self.nodes[key].parent;
                 keyGrandparent = self.nodes[keyParent].parent;
-                
+
                 self.nodes[keyParent].red = false;
                 self.nodes[keyGrandparent].red = true;
                 isLeft ? rotateRight(self, keyGrandparent) : rotateLeft(self, keyGrandparent);
             }
         }
-        
+
         self.nodes[self.root].red = false;
     }
 
-    function replaceParent(Tree storage self, uint a, uint b) private {
-        uint bParent = self.nodes[b].parent;
+    function replaceParent(
+        Tree storage self,
+        uint256 a,
+        uint256 b
+    ) private {
+        uint256 bParent = self.nodes[b].parent;
         self.nodes[a].parent = bParent;
-        
+
         if (bParent == EMPTY) {
             self.root = a;
         } else {
@@ -350,47 +417,51 @@ library RivalIntervalTreeLibrary {
             }
         }
     }
-    
-    function removeFixup(Tree storage self, uint key) private {
-        uint cursor;
-        
+
+    function removeFixup(
+        Tree storage self,
+        uint256 key
+    ) private {
+        uint256 cursor;
+
         while (key != self.root && !self.nodes[key].red) {
-            uint keyParent = self.nodes[key].parent;
+            uint256 keyParent = self.nodes[key].parent;
             bool isLeft = key == self.nodes[keyParent].left;
-            
+
             cursor = isLeft ? self.nodes[keyParent].right : self.nodes[keyParent].left;
-            
+
             if (self.nodes[cursor].red) {
                 self.nodes[cursor].red = false;
                 self.nodes[keyParent].red = true;
                 isLeft ? rotateLeft(self, keyParent) : rotateRight(self, keyParent);
                 cursor = isLeft ? self.nodes[keyParent].right : self.nodes[keyParent].left;
             }
-            
-            uint cursorLeft = self.nodes[cursor].left;
-            uint cursorRight = self.nodes[cursor].right;
-            
-            if ((!isLeft && !self.nodes[cursorRight].red && !self.nodes[cursorLeft].red) ||
-                (isLeft && !self.nodes[cursorLeft].red && !self.nodes[cursorRight].red)) {
+
+            uint256 cursorLeft = self.nodes[cursor].left;
+            uint256 cursorRight = self.nodes[cursor].right;
+
+            if (
+                (!isLeft && !self.nodes[cursorRight].red && !self.nodes[cursorLeft].red)
+                    || (isLeft && !self.nodes[cursorLeft].red && !self.nodes[cursorRight].red)
+            ) {
                 self.nodes[cursor].red = true;
                 key = keyParent;
             } else {
-                if ((isLeft && !self.nodes[cursorRight].red) || 
-                    (!isLeft && !self.nodes[cursorLeft].red)) {
+                if ((isLeft && !self.nodes[cursorRight].red) || (!isLeft && !self.nodes[cursorLeft].red)) {
                     if (isLeft) {
                         self.nodes[cursorLeft].red = false;
                     } else {
                         self.nodes[cursorRight].red = false;
                     }
-                    
+
                     self.nodes[cursor].red = true;
                     isLeft ? rotateRight(self, cursor) : rotateLeft(self, cursor);
                     cursor = isLeft ? self.nodes[keyParent].right : self.nodes[keyParent].left;
                 }
-                
+
                 self.nodes[cursor].red = self.nodes[keyParent].red;
                 self.nodes[keyParent].red = false;
-                
+
                 if (isLeft) {
                     self.nodes[self.nodes[cursor].right].red = false;
                     rotateLeft(self, keyParent);
@@ -398,11 +469,11 @@ library RivalIntervalTreeLibrary {
                     self.nodes[self.nodes[cursor].left].red = false;
                     rotateRight(self, keyParent);
                 }
-                
+
                 key = self.root;
             }
         }
-        
+
         self.nodes[key].red = false;
     }
 }

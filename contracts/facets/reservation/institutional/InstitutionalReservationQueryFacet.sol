@@ -25,23 +25,28 @@ contract InstitutionalReservationQueryFacet {
         s = LibAppStorage.diamondStorage();
     }
 
-    modifier onlyInstitution(address institution) {
+    modifier onlyInstitution(
+        address institution
+    ) {
         _onlyInstitution(institution);
         _;
     }
 
-    function _onlyInstitution(address institution) internal view {
+    function _onlyInstitution(
+        address institution
+    ) internal view {
         AppStorage storage s = _s();
         require(s.roleMembers[INSTITUTION_ROLE].contains(institution), "Unknown institution");
         address backend = s.institutionalBackends[institution];
-        require(msg.sender == institution || (backend != address(0) && msg.sender == backend), "Not authorized institution");
+        require(
+            msg.sender == institution || (backend != address(0) && msg.sender == backend), "Not authorized institution"
+        );
     }
 
-    function _trackingKeyFromInstitutionHash(address institution, bytes32 pucHash)
-        internal
-        pure
-        returns (address)
-    {
+    function _trackingKeyFromInstitutionHash(
+        address institution,
+        bytes32 pucHash
+    ) internal pure returns (address) {
         return address(uint160(uint256(keccak256(abi.encodePacked(institution, pucHash)))));
     }
 
@@ -102,8 +107,7 @@ contract InstitutionalReservationQueryFacet {
 
         Reservation storage reservation = s.reservations[reservationKey];
         uint32 time = uint32(block.timestamp);
-        return (reservation.status == _CONFIRMED || reservation.status == _IN_USE)
-            && reservation.start <= time
+        return (reservation.status == _CONFIRMED || reservation.status == _IN_USE) && reservation.start <= time
             && reservation.end >= time;
     }
 
@@ -132,8 +136,7 @@ contract InstitutionalReservationQueryFacet {
         Reservation storage reservation = s.reservations[activeKey];
         uint32 time = uint32(block.timestamp);
         if (
-            (reservation.status == _CONFIRMED || reservation.status == _IN_USE)
-                && reservation.start <= time
+            (reservation.status == _CONFIRMED || reservation.status == _IN_USE) && reservation.start <= time
                 && reservation.end >= time
         ) {
             return activeKey;
@@ -161,25 +164,33 @@ contract InstitutionalReservationQueryFacet {
     /// @notice Get reservation details by key
     /// @param _reservationKey The reservation key to query
     /// @return reservation The reservation data
-    function getReservation(bytes32 _reservationKey) external view returns (Reservation memory reservation) {
+    function getReservation(
+        bytes32 _reservationKey
+    ) external view returns (Reservation memory reservation) {
         return _s().reservations[_reservationKey];
     }
 
-    function getReservationPucHash(bytes32 _reservationKey) external view returns (bytes32) {
+    function getReservationPucHash(
+        bytes32 _reservationKey
+    ) external view returns (bytes32) {
         return _s().reservationPucHash[_reservationKey];
     }
 
     /// @notice Get the total reservations count for a lab
     /// @param labId The lab to query
     /// @return count The total number of reservations ever made for this lab
-    function getLabReservationCount(uint256 labId) external view returns (uint256 count) {
+    function getLabReservationCount(
+        uint256 labId
+    ) external view returns (uint256 count) {
         return _s().reservationKeysByToken[labId].length();
     }
 
     /// @notice Get the active reservation count for a lab
     /// @param labId The lab to query
     /// @return count The number of active (non-collected, non-cancelled) reservations
-    function getLabActiveReservationCount(uint256 labId) external view returns (uint256 count) {
+    function getLabActiveReservationCount(
+        uint256 labId
+    ) external view returns (uint256 count) {
         return _s().labActiveReservationCount[labId];
     }
 }

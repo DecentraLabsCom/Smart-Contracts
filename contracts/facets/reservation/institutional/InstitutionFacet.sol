@@ -30,7 +30,10 @@ contract InstitutionFacet is AccessControlUpgradeable {
     /// @notice Grants the INSTITUTION_ROLE to `institution` and registers its schacHomeOrganization
     /// @param institution Wallet that will manage the institutional treasury and backend
     /// @param organization schacHomeOrganization string (will be normalized to lowercase)
-    function grantInstitutionRole(address institution, string calldata organization) external onlyDefaultAdmin {
+    function grantInstitutionRole(
+        address institution,
+        string calldata organization
+    ) external onlyDefaultAdmin {
         AppStorage storage s = _s();
         require(institution != address(0), "Invalid institution");
 
@@ -46,7 +49,10 @@ contract InstitutionFacet is AccessControlUpgradeable {
     /// @notice Revokes the INSTITUTION_ROLE from `institution` (when it no longer controls the domain)
     /// @param institution Wallet whose role should be revoked
     /// @param organization schacHomeOrganization string to unregister
-    function revokeInstitutionRole(address institution, string calldata organization) external onlyDefaultAdmin {
+    function revokeInstitutionRole(
+        address institution,
+        string calldata organization
+    ) external onlyDefaultAdmin {
         AppStorage storage s = _s();
         require(institution != address(0), "Invalid institution");
 
@@ -70,11 +76,10 @@ contract InstitutionFacet is AccessControlUpgradeable {
     }
 
     /// @notice Paginated list of institution wallets
-    function getInstitutionsPaginated(uint256 offset, uint256 limit)
-        external
-        view
-        returns (address[] memory institutions, uint256 total)
-    {
+    function getInstitutionsPaginated(
+        uint256 offset,
+        uint256 limit
+    ) external view returns (address[] memory institutions, uint256 total) {
         AppStorage storage s = _s();
         total = s.roleMembers[INSTITUTION_ROLE].length();
         require(limit > 0 && limit <= 200, "Invalid limit");
@@ -90,7 +95,10 @@ contract InstitutionFacet is AccessControlUpgradeable {
         }
     }
 
-    function _grantRole(bytes32 role, address account) internal virtual override returns (bool) {
+    function _grantRole(
+        bytes32 role,
+        address account
+    ) internal virtual override returns (bool) {
         bool granted = super._grantRole(role, account);
         if (granted) {
             _s().roleMembers[role].add(account);
@@ -98,7 +106,10 @@ contract InstitutionFacet is AccessControlUpgradeable {
         return granted;
     }
 
-    function _revokeRole(bytes32 role, address account) internal virtual override returns (bool) {
+    function _revokeRole(
+        bytes32 role,
+        address account
+    ) internal virtual override returns (bool) {
         bool revoked = super._revokeRole(role, account);
         if (revoked) {
             _s().roleMembers[role].remove(account);

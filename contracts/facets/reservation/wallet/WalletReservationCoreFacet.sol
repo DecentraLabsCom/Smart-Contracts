@@ -25,59 +25,61 @@ contract WalletReservationCoreFacet is BaseLightReservationFacet {
     error SlotUnavailable();
     uint256 internal constant _PENDING_REQUEST_TTL = 1 hours;
 
-    function reservationRequest(uint256 _labId, uint32 _start, uint32 _end)
-        external
-        exists(_labId)
-        override
-    {
+    function reservationRequest(
+        uint256 _labId,
+        uint32 _start,
+        uint32 _end
+    ) external override exists(_labId) {
         _reservationRequest(_labId, _start, _end);
     }
 
-    function _reservationRequest(uint256 _labId, uint32 _start, uint32 _end) internal { 
+    function _reservationRequest(
+        uint256 _labId,
+        uint32 _start,
+        uint32 _end
+    ) internal {
         AppStorage storage s = _s();
-        
+
         if (!s.tokenStatus[_labId]) revert LabNotListed();
-        
+
         address labOwner = IERC721(address(this)).ownerOf(_labId);
         uint256 listedLabsCount = s.providerStakes[labOwner].listedLabsCount;
         uint256 requiredStake = ReservableToken(address(this)).calculateRequiredStake(labOwner, listedLabsCount);
         if (s.providerStakes[labOwner].stakedAmount < requiredStake) revert InsufficientStake();
-        
+
         uint256 userActiveCount = s.activeReservationCountByTokenAndUser[_labId][msg.sender];
-        
+
         if (userActiveCount >= _MAX_RESERVATIONS_PER_LAB_USER - 2) {
             bytes32 earliestKey = s.activeReservationByTokenAndUser[_labId][msg.sender];
             if (earliestKey != bytes32(0)) {
                 Reservation storage earliestReservation = s.reservations[earliestKey];
-                if (
-                    earliestReservation.status == _CONFIRMED &&
-                    earliestReservation.end < block.timestamp
-                ) {
+                if (earliestReservation.status == _CONFIRMED && earliestReservation.end < block.timestamp) {
                     _releaseExpiredReservationsInternal(_labId, msg.sender, _MAX_RESERVATIONS_PER_LAB_USER);
                     userActiveCount = s.activeReservationCountByTokenAndUser[_labId][msg.sender];
                 }
             }
         }
-        
+
         if (userActiveCount >= _MAX_RESERVATIONS_PER_LAB_USER) {
             revert MaxReservationsReached();
         }
-        
+
         if (_start >= _end || _start <= block.timestamp + _RESERVATION_MARGIN) revert InvalidRange();
-      
+
         uint96 price = s.labs[_labId].price;
-    
+
         uint256 balance = IERC20(s.labTokenAddress).balanceOf(msg.sender);
         if (balance < price) revert InsufficientFunds();
-        
+
         if (IERC20(s.labTokenAddress).allowance(msg.sender, address(this)) < price) revert LowAllowance();
-        
+
         bytes32 reservationKey = _getReservationKey(_labId, _start);
-        
+
         Reservation storage existing = s.reservations[reservationKey];
         if (existing.renter != address(0) && existing.status != _CANCELLED && existing.status != _COLLECTED) {
             bool isStalePending = existing.status == _PENDING
-                && (existing.requestPeriodStart == 0 || block.timestamp >= existing.requestPeriodStart + _PENDING_REQUEST_TTL);
+                && (existing.requestPeriodStart == 0
+                    || block.timestamp >= existing.requestPeriodStart + _PENDING_REQUEST_TTL);
             if (isStalePending) {
                 _cancelReservation(reservationKey);
             } else {
@@ -86,7 +88,7 @@ contract WalletReservationCoreFacet is BaseLightReservationFacet {
         }
 
         s.reservationKeysByToken[_labId].add(reservationKey);
-        
+
         s.reservations[reservationKey] = Reservation({
             labId: _labId,
             renter: msg.sender,
@@ -105,17 +107,16 @@ contract WalletReservationCoreFacet is BaseLightReservationFacet {
             subsidiesShare: 0,
             governanceShare: 0
         });
-        
+
         s.totalReservationsCount++;
         s.renters[msg.sender].add(reservationKey);
-        
+
         s.activeReservationCountByTokenAndUser[_labId][msg.sender]++;
-        
+
         s.reservationKeysByTokenAndUser[_labId][msg.sender].add(reservationKey);
 
         _recordRecent(s, _labId, msg.sender, reservationKey, _start);
-        
+
         emit ReservationRequested(msg.sender, _labId, _start, _end, reservationKey);
     }
-
 }

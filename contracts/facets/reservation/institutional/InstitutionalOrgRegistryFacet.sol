@@ -15,7 +15,9 @@ contract InstitutionalOrgRegistryFacet {
 
     /// @notice Register a schacHomeOrganization for the caller's provider account
     /// @param schacHomeOrganization The organization identifier (will be normalized to lowercase)
-    function registerSchacHomeOrganization(string calldata schacHomeOrganization) external onlyInstitution {
+    function registerSchacHomeOrganization(
+        string calldata schacHomeOrganization
+    ) external onlyInstitution {
         string memory normalized = LibInstitutionalOrg.normalizeOrganization(schacHomeOrganization);
         LibInstitutionalOrg.registerOrganization(_s(), msg.sender, normalized);
     }
@@ -33,7 +35,9 @@ contract InstitutionalOrgRegistryFacet {
 
     /// @notice Remove a schacHomeOrganization previously registered by the caller
     /// @param schacHomeOrganization The organization identifier to remove
-    function unregisterSchacHomeOrganization(string calldata schacHomeOrganization) external onlyInstitution {
+    function unregisterSchacHomeOrganization(
+        string calldata schacHomeOrganization
+    ) external onlyInstitution {
         string memory normalized = LibInstitutionalOrg.normalizeOrganization(schacHomeOrganization);
         LibInstitutionalOrg.unregisterOrganization(_s(), msg.sender, normalized);
     }
@@ -76,7 +80,9 @@ contract InstitutionalOrgRegistryFacet {
     /// @notice Resolve a schacHomeOrganization to the provider wallet that registered it
     /// @param schacHomeOrganization The organization identifier to resolve (case-insensitive)
     /// @return institution The institution wallet associated with the normalized identifier
-    function resolveSchacHomeOrganization(string calldata schacHomeOrganization) external view returns (address institution) {
+    function resolveSchacHomeOrganization(
+        string calldata schacHomeOrganization
+    ) external view returns (address institution) {
         string memory normalized = LibInstitutionalOrg.normalizeOrganization(schacHomeOrganization);
         // forge-lint: disable-next-line(asm-keccak256)
         bytes32 orgHash = keccak256(bytes(normalized));
@@ -85,7 +91,9 @@ contract InstitutionalOrgRegistryFacet {
 
     /// @notice Returns the backend URL registered for a schacHomeOrganization
     /// @param schacHomeOrganization The organization identifier to resolve
-    function getSchacHomeOrganizationBackend(string calldata schacHomeOrganization) external view returns (string memory backendUrl) {
+    function getSchacHomeOrganizationBackend(
+        string calldata schacHomeOrganization
+    ) external view returns (string memory backendUrl) {
         string memory normalized = LibInstitutionalOrg.normalizeOrganization(schacHomeOrganization);
         // forge-lint: disable-next-line(asm-keccak256)
         bytes32 orgHash = keccak256(bytes(normalized));
@@ -95,7 +103,9 @@ contract InstitutionalOrgRegistryFacet {
     /// @notice Returns all schacHomeOrganization identifiers registered by a provider
     /// @param institution The institution wallet to inspect
     /// @return organizations Array of normalized schacHomeOrganization identifiers
-    function getRegisteredSchacHomeOrganizations(address institution) external view returns (string[] memory organizations) {
+    function getRegisteredSchacHomeOrganizations(
+        address institution
+    ) external view returns (string[] memory organizations) {
         AppStorage storage s = _s();
         uint256 total = s.institutionSchacHomeOrganizations[institution].length();
         organizations = new string[](total);
@@ -132,19 +142,25 @@ contract InstitutionalOrgRegistryFacet {
     /// @param organizationHash keccak256 hash of the normalized schacHomeOrganization
     /// @return institution The institution wallet that owns the identifier
     /// @return organization The normalized schacHomeOrganization string
-    function getOrganizationByHash(bytes32 organizationHash) external view returns (address institution, string memory organization) {
+    function getOrganizationByHash(
+        bytes32 organizationHash
+    ) external view returns (address institution, string memory organization) {
         AppStorage storage s = _s();
         institution = s.organizationInstitutionWallet[organizationHash];
         organization = s.schacHomeOrganizationNames[organizationHash];
     }
 
     /// @notice Returns the institution wallet registered for an organization hash
-    function getInstitutionWalletByOrganizationHash(bytes32 organizationHash) external view returns (address) {
+    function getInstitutionWalletByOrganizationHash(
+        bytes32 organizationHash
+    ) external view returns (address) {
         return _s().organizationInstitutionWallet[organizationHash];
     }
 
     /// @notice Returns the organization hashes registered by an institution wallet
-    function getOrganizationHashesByInstitution(address institution) external view returns (bytes32[] memory organizationHashes) {
+    function getOrganizationHashesByInstitution(
+        address institution
+    ) external view returns (bytes32[] memory organizationHashes) {
         AppStorage storage s = _s();
         uint256 total = s.institutionSchacHomeOrganizations[institution].length();
         organizationHashes = new bytes32[](total);

@@ -16,12 +16,16 @@ contract InstitutionalReservationCancellationFacet {
     event ReservationRequestCanceled(bytes32 indexed reservationKey, uint256 indexed tokenId);
     event BookingCanceled(bytes32 indexed reservationKey, uint256 indexed tokenId);
 
-    modifier onlyInstitution(address institution) {
+    modifier onlyInstitution(
+        address institution
+    ) {
         _onlyInstitution(institution);
         _;
     }
 
-    function _onlyInstitution(address institution) internal view {
+    function _onlyInstitution(
+        address institution
+    ) internal view {
         AppStorage storage s = _s();
         if (!s.roleMembers[INSTITUTION_ROLE].contains(institution)) revert("Unknown institution");
         address backend = s.institutionalBackends[institution];
@@ -55,11 +59,8 @@ contract InstitutionalReservationCancellationFacet {
         string calldata puc,
         bytes32 _reservationKey
     ) internal {
-        uint256 labId = LibInstitutionalReservation.cancelReservationRequest(
-            institutionalProvider,
-            puc,
-            _reservationKey
-        );
+        uint256 labId =
+            LibInstitutionalReservation.cancelReservationRequest(institutionalProvider, puc, _reservationKey);
         emit ReservationRequestCanceled(_reservationKey, labId);
     }
 
@@ -68,11 +69,7 @@ contract InstitutionalReservationCancellationFacet {
         bytes32 _reservationKey,
         string calldata puc
     ) internal {
-        uint256 labId = LibInstitutionalReservation.cancelBooking(
-            institutionalProvider,
-            puc,
-            _reservationKey
-        );
+        uint256 labId = LibInstitutionalReservation.cancelBooking(institutionalProvider, puc, _reservationKey);
         emit BookingCanceled(_reservationKey, labId);
     }
 }

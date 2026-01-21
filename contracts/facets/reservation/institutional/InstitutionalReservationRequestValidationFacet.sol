@@ -7,7 +7,6 @@ import {AppStorage, Reservation} from "../../../libraries/LibAppStorage.sol";
 import {ReservableToken} from "../../../abstracts/ReservableToken.sol";
 
 contract InstitutionalReservationRequestValidationFacet is BaseLightReservationFacet {
-
     error InstitutionalBackendMissing();
     error OnlyInstitutionalBackend();
     error InvalidInstitutionalUserId();
@@ -28,7 +27,10 @@ contract InstitutionalReservationRequestValidationFacet is BaseLightReservationF
         if (!s.tokenStatus[l]) revert();
 
         o = IERC721(address(this)).ownerOf(l);
-        if (s.providerStakes[o].stakedAmount < ReservableToken(address(this)).calculateRequiredStake(o, s.providerStakes[o].listedLabsCount)) {
+        if (
+            s.providerStakes[o].stakedAmount
+                < ReservableToken(address(this)).calculateRequiredStake(o, s.providerStakes[o].listedLabsCount)
+        ) {
             revert();
         }
         if (st >= en || st <= block.timestamp + _RESERVATION_MARGIN) revert();

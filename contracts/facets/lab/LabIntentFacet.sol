@@ -14,7 +14,9 @@ import {LibLabAdmin} from "../../libraries/LibLabAdmin.sol";
 /// @dev This facet handles intent-based operations for labs: add, update, delete, list, unlist with intents.
 contract LabIntentFacet {
     /// @notice Intent lifecycle event for lab operations
-    event LabIntentProcessed(bytes32 indexed requestId, uint256 labId, string action, address provider, bool success, string reason);
+    event LabIntentProcessed(
+        bytes32 indexed requestId, uint256 labId, string action, address provider, bool success, string reason
+    );
 
     /// @dev Returns the AppStorage struct from the diamond storage slot.
     function _s() internal pure returns (AppStorage storage s) {
@@ -97,7 +99,10 @@ contract LabIntentFacet {
     }
 
     /// @notice Lists a lab via intent
-    function listLabWithIntent(bytes32 requestId, ActionIntentPayload calldata payload) external {
+    function listLabWithIntent(
+        bytes32 requestId,
+        ActionIntentPayload calldata payload
+    ) external {
         require(payload.labId != 0, "LAB_LIST: labId required");
         _consumeLabIntent(requestId, LibIntent.ACTION_LAB_LIST, payload);
 
@@ -106,7 +111,10 @@ contract LabIntentFacet {
     }
 
     /// @notice Unlists a lab via intent
-    function unlistLabWithIntent(bytes32 requestId, ActionIntentPayload calldata payload) external {
+    function unlistLabWithIntent(
+        bytes32 requestId,
+        ActionIntentPayload calldata payload
+    ) external {
         require(payload.labId != 0, "LAB_UNLIST: labId required");
         _consumeLabIntent(requestId, LibIntent.ACTION_LAB_UNLIST, payload);
 

@@ -11,7 +11,11 @@ import {ERC721Enumerable} from "@openzeppelin/contracts/token/ERC721/extensions/
 
 contract MockERC20 is ERC20 {
     constructor() ERC20("MockLabToken", "MLAB") {}
-    function mint(address to, uint256 amount) external {
+
+    function mint(
+        address to,
+        uint256 amount
+    ) external {
         _mint(to, amount);
     }
 }
@@ -22,7 +26,9 @@ contract ReservationHarness is ERC721Enumerable, WalletReservationFacet {
 
     constructor() ERC721("Labs", "LAB") {}
 
-    function initializeHarness(address labToken) external {
+    function initializeHarness(
+        address labToken
+    ) external {
         AppStorage storage s = _s();
         s.labTokenAddress = labToken;
         s.DEFAULT_ADMIN_ROLE = keccak256("DEFAULT_ADMIN_ROLE");
@@ -30,32 +36,29 @@ contract ReservationHarness is ERC721Enumerable, WalletReservationFacet {
         s.providerStakes[msg.sender].stakedAmount = type(uint256).max;
     }
 
-    function mintAndList(uint96 price) external returns (uint256 id) {
+    function mintAndList(
+        uint96 price
+    ) external returns (uint256 id) {
         AppStorage storage s = _s();
         id = s.labId + 1;
         _mint(msg.sender, id);
         s.labId = id;
         s.labs[id] = LabBase({
-            uri: "uri",
-            price: price,
-            accessURI: "accessURI",
-            accessKey: "accessKey",
-            createdAt: uint32(block.timestamp)
+            uri: "uri", price: price, accessURI: "accessURI", accessKey: "accessKey", createdAt: uint32(block.timestamp)
         });
         s.providerStakes[msg.sender].listedLabsCount += 1;
         s.tokenStatus[id] = true;
     }
 
     // Staking facet stub to satisfy internal call
-    function updateLastReservation(address) external {}
+    function updateLastReservation(
+        address
+    ) external {}
 
     // ERC165 override
-    function supportsInterface(bytes4 interfaceId)
-        public
-        view
-        override(ERC721Enumerable)
-        returns (bool)
-    {
+    function supportsInterface(
+        bytes4 interfaceId
+    ) public view override(ERC721Enumerable) returns (bool) {
         return super.supportsInterface(interfaceId);
     }
 }
@@ -80,7 +83,9 @@ contract GasReservationsTest is Test {
         token.approve(address(harness), type(uint256).max);
     }
 
-    function _reservationKey(uint32 start) internal view returns (bytes32) {
+    function _reservationKey(
+        uint32 start
+    ) internal view returns (bytes32) {
         return keccak256(abi.encodePacked(labId, start));
     }
 

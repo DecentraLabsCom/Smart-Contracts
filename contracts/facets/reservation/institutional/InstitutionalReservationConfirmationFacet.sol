@@ -85,8 +85,10 @@ contract InstitutionalReservationConfirmationFacet is BaseLightReservationFacet 
             return;
         }
 
-        if (r.price == 0) _fin(s, r, key, lp, tr);
-        return;
+        if (r.price == 0) {
+            _fin(s, r, key, lp, tr);
+            return;
+        }
 
         try IInstitutionalTreasuryFacetConfirm(address(this))
             .spendFromInstitutionalTreasury(r.payerInstitution, puc, r.price) {

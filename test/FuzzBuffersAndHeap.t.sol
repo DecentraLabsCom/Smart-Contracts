@@ -66,6 +66,24 @@ contract BufferHeapHarness {
         return rootKey;
     }
 
+    // cancel an arbitrary active reservation by key
+    function cancelActiveReservationByKey(bytes32 key) external {
+        LibReservationCancellation.cancelReservation(key);
+    }
+
+    // get info about heap root and length
+    function getActiveHeapRootInfo(uint256 labId, address trackingKey)
+        external
+        view
+        returns (bool hasRoot, uint32 start, bytes32 key, uint256 len)
+    {
+        AppStorage storage s = LibAppStorage.diamondStorage();
+        UserActiveReservation[] storage heap = s.activeReservationHeaps[labId][trackingKey];
+        uint256 n = heap.length;
+        if (n == 0) return (false, 0, bytes32(0), 0);
+        return (true, heap[0].start, heap[0].key, n);
+    }
+
     // verify heap invariant: for all i, parent.start <= child.start
     function checkHeapInvariant(
         uint256 labId,
@@ -169,5 +187,108 @@ contract FuzzBuffersAndHeapTest is BaseTest {
 
         bool ok = harness.checkHeapInvariant(labId, tracking);
         assert(ok);
+    }
+
+    // repeatedly remove root until heap empty; ensure heap invariant holds after each removal
+    function test_fuzz_heap_multiple_removals(bytes32 seed) public {
+        vm.assume(seed != bytes32(0));
+        uint8 count = uint8(uint8(seed[0]) % 20) + 1; // 1..20
+        uint256 labId = uint256(uint160(address(this))) & 0xFFFF;
+        address tracking = makeAddr("track2");
+
+        // generate raw values then build a valid heap representation in memory via insertion/percolate-up
+        uint32[] memory raw = new uint32[](count);
+        bytes32[] memory rawKeys = new bytes32[](count);
+        for (uint8 i = 0; i < count; ++i) {
+            raw[i] = uint32(uint256(keccak256(abi.encodePacked(seed, "s", i))) % 100000);
+            rawKeys[i] = keccak256(abi.encodePacked(seed, "k", i, raw[i]));
+        }
+
+        // build heap arrays
+        uint32[] memory startsHeap = new uint32[](count);
+        bytes32[] memory keysHeap = new bytes32[](count);
+        uint256 heapLen = 0;
+        for (uint8 i = 0; i < count; ++i) {
+            startsHeap[heapLen] = raw[i];
+            keysHeap[heapLen] = rawKeys[i];
+            uint256 j = heapLen;
+            while (j > 0) {
+                uint256 parent = (j - 1) / 2;
+                if (startsHeap[parent] > startsHeap[j]) {
+                    // swap start
+                    uint32 tmpStart = startsHeap[parent];
+                    startsHeap[parent] = startsHeap[j];
+                    startsHeap[j] = tmpStart;
+                    // swap key
+                    bytes32 tmpKey = keysHeap[parent];
+                    keysHeap[parent] = keysHeap[j];
+                    keysHeap[j] = tmpKey;
+                    j = parent;
+                } else break;
+            }
+            heapLen++;
+        }
+
+        harness.seedActiveHeap(labId, tracking, startsHeap, keysHeap);
+
+        for (uint8 i = 0; i < count; ++i) {
+            vm.prank(address(this));
+            harness.cancelRootActiveReservation(labId, tracking);
+            bool ok2 = harness.checkHeapInvariant(labId, tracking);
+            assert(ok2);
+        }
+    }
+
+    // fuzz past buffer with deliberate duplicates to check ordering and collision behavior
+    function test_fuzz_past_buffer_duplicates(bytes32 seed) public {
+        vm.assume(seed != bytes32(0));
+        address user = makeAddr("dup");
+        uint256 labId = uint256(uint160(address(this))) & 0xFFFF;
+        uint8 count = uint8(uint8(seed[0]) % 40) + 1; // up to 40 cancellations
+
+        for (uint8 i = 0; i < count; ++i) {
+            // repeat the base end every 3 iterations to create duplicates
+            uint32 base = uint32(uint256(keccak256(abi.encodePacked(seed, i / 3))) % 1_000_000);
+            uint32 end = base;
+            uint32 start = end > 3600 ? end - 3600 : 0;
+            bytes32 key = keccak256(abi.encodePacked(labId, start, i));
+            harness.createReservationAndCancel(key, user, labId, start, end);
+        }
+
+        (uint8 sizeT, uint32[50] memory endsT) = harness.getPastEndsByToken(labId);
+        assert(sizeT <= 50);
+        for (uint256 j = 0; j + 1 < sizeT; ++j) assert(endsT[j] >= endsT[j + 1]);
+    }
+
+    // test heapify-up and heapify-down behavior by creating a small heap where the last element is the smallest
+    function test_heapify_up_and_down_deterministic() public {
+        uint256 labId = 4444;
+        address tracking = makeAddr("track3");
+
+        uint32[] memory starts = new uint32[](7);
+        bytes32[] memory keys = new bytes32[](7);
+
+        // build a valid heap array by hand: [1,10,5,20,21,8,9]
+        starts[0] = 1;
+        starts[1] = 10;
+        starts[2] = 5;
+        starts[3] = 20;
+        starts[4] = 21;
+        starts[5] = 8;
+        starts[6] = 9;
+
+        for (uint8 i = 0; i < 7; ++i) keys[i] = keccak256(abi.encodePacked("det", i, starts[i]));
+
+        harness.seedActiveHeap(labId, tracking, starts, keys);
+
+        // cancel node at index 3 (value 20) so last entry (9) is swapped into that position
+        vm.prank(address(this));
+        harness.cancelActiveReservationByKey(keys[3]);
+
+        (bool has, uint32 rootStart, bytes32 rootKey, uint256 len) = harness.getActiveHeapRootInfo(labId, tracking);
+        assert(has);
+        // root should remain the minimal value (1) and heap invariant should hold
+        assert(rootStart == 1);
+        assert(harness.checkHeapInvariant(labId, tracking));
     }
 }

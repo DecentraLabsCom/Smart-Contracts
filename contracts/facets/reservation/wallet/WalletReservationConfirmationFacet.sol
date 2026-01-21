@@ -5,6 +5,7 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import {BaseWalletReservationFacet, IStakingFacetW} from "../base/BaseWalletReservationFacet.sol";
+import {ReentrancyGuardTransient} from "@openzeppelin/contracts/utils/ReentrancyGuardTransient.sol";
 import {RivalIntervalTreeLibrary, Tree} from "../../../libraries/RivalIntervalTreeLibrary.sol";
 import {AppStorage, Reservation} from "../../../libraries/LibAppStorage.sol";
 
@@ -13,20 +14,20 @@ import {AppStorage, Reservation} from "../../../libraries/LibAppStorage.sol";
 /// @notice Confirmation and denial functions for wallet reservations
 /// @dev Extracted from WalletReservationCoreFacet to reduce contract size below EIP-170 limit
 
-contract WalletReservationConfirmationFacet is BaseWalletReservationFacet {
+contract WalletReservationConfirmationFacet is BaseWalletReservationFacet, ReentrancyGuardTransient {
     using EnumerableSet for EnumerableSet.Bytes32Set;
     using RivalIntervalTreeLibrary for Tree;
 
     function confirmReservationRequest(
         bytes32 _reservationKey
-    ) external override reservationPending(_reservationKey) {
+    ) external override reservationPending(_reservationKey) nonReentrant {
         _requireLabProviderOrBackend(_reservationKey);
         _confirmReservationRequest(_reservationKey);
     }
 
     function denyReservationRequest(
         bytes32 _reservationKey
-    ) external override reservationPending(_reservationKey) {
+    ) external override reservationPending(_reservationKey) nonReentrant {
         _requireLabProviderOrBackend(_reservationKey);
         _denyReservationRequest(_reservationKey);
     }
@@ -62,6 +63,10 @@ contract WalletReservationConfirmationFacet is BaseWalletReservationFacet {
             return;
         }
 
+        // EFFECTS: Pre-compute and prepare state changes BEFORE external call
+        _setReservationSplit(reservation);
+        
+        // INTERACTIONS: Execute external call
         (bool success, bytes memory data) = s.labTokenAddress
             .call(
                 abi.encodeWithSelector(
@@ -75,9 +80,8 @@ contract WalletReservationConfirmationFacet is BaseWalletReservationFacet {
             return;
         }
 
-        _setReservationSplit(reservation);
+        // EFFECTS: Update state AFTER successful transfer
         s.calendars[reservation.labId].insert(reservation.start, reservation.end);
-
         reservation.status = _CONFIRMED;
         _incrementActiveReservationCounters(reservation);
         _enqueuePayoutCandidate(s, reservation.labId, _reservationKey, reservation.end);

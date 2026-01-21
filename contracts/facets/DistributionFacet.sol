@@ -4,6 +4,7 @@ pragma solidity ^0.8.31;
 import {AccessControlUpgradeable} from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
 import {TimelockController} from "@openzeppelin/contracts/governance/TimelockController.sol";
 import {VestingWallet} from "@openzeppelin/contracts/finance/VestingWallet.sol";
+import {ReentrancyGuardTransient} from "@openzeppelin/contracts/utils/ReentrancyGuardTransient.sol";
 import {LabERC20} from "../external/LabERC20.sol";
 import {LibAppStorage, AppStorage} from "../libraries/LibAppStorage.sol";
 
@@ -21,7 +22,7 @@ error DistributionBalanceAboveThreshold();
 /// @title DistributionFacet
 /// @notice Handles one-time initial tokenomics mint and controlled top-ups for subsidies and ecosystem growth.
 /// @dev Admin-only; addresses are provided at initialization and cannot be changed via setters.
-contract DistributionFacet is AccessControlUpgradeable {
+contract DistributionFacet is AccessControlUpgradeable, ReentrancyGuardTransient {
     /// @dev Emitted when the initial pools are minted.
     event TokenPoolsInitialized(
         address projectTreasury,
@@ -68,7 +69,7 @@ contract DistributionFacet is AccessControlUpgradeable {
         address ecosystemGrowth,
         address teamBeneficiary,
         uint256 timelockDelay
-    ) external onlyDefaultAdminRole {
+    ) external onlyDefaultAdminRole nonReentrant {
         AppStorage storage s = _s();
         require(!s.tokenPoolsInitialized, DistributionAlreadyInitialized());
         require(projectTreasury != address(0), DistributionZeroAddress());
@@ -112,7 +113,7 @@ contract DistributionFacet is AccessControlUpgradeable {
     }
 
     /// @notice Admin-only top-up for subsidies in 3% tranches when balance is low.
-    function topUpSubsidies() external onlyDefaultAdminRole {
+    function topUpSubsidies() external onlyDefaultAdminRole nonReentrant {
         AppStorage storage s = _s();
         require(s.tokenPoolsInitialized, DistributionNotInitialized());
         require(s.subsidiesPoolMinted < LibAppStorage.SUBSIDIES_POOL_CAP, DistributionSubsidiesCapReached());
@@ -124,13 +125,14 @@ contract DistributionFacet is AccessControlUpgradeable {
         uint256 tranche = LibAppStorage.SUBSIDIES_TOPUP_TRANCHE;
         if (tranche > remaining) tranche = remaining;
 
-        LabERC20(s.labTokenAddress).mint(s.subsidiesWallet, tranche);
+        // record state before external mint to follow checks-effects-interactions
         s.subsidiesPoolMinted += tranche;
+        LabERC20(s.labTokenAddress).mint(s.subsidiesWallet, tranche);
         emit SubsidiesToppedUp(tranche, s.subsidiesPoolMinted);
     }
 
     /// @notice Admin-only top-up for ecosystem growth in 2% tranches when balance is low.
-    function topUpEcosystemGrowth() external onlyDefaultAdminRole {
+    function topUpEcosystemGrowth() external onlyDefaultAdminRole nonReentrant {
         AppStorage storage s = _s();
         require(s.tokenPoolsInitialized, DistributionNotInitialized());
         require(s.ecosystemPoolMinted < LibAppStorage.ECOSYSTEM_POOL_CAP, DistributionEcosystemCapReached());
@@ -142,8 +144,9 @@ contract DistributionFacet is AccessControlUpgradeable {
         uint256 tranche = LibAppStorage.ECOSYSTEM_TOPUP_TRANCHE;
         if (tranche > remaining) tranche = remaining;
 
-        LabERC20(s.labTokenAddress).mint(s.ecosystemGrowthWallet, tranche);
+        // record state before external mint to follow checks-effects-interactions
         s.ecosystemPoolMinted += tranche;
+        LabERC20(s.labTokenAddress).mint(s.ecosystemGrowthWallet, tranche);
         emit EcosystemToppedUp(tranche, s.ecosystemPoolMinted);
     }
 
@@ -154,7 +157,7 @@ contract DistributionFacet is AccessControlUpgradeable {
     function mintFromReserve(
         address to,
         uint256 amount
-    ) external onlyDefaultAdminRole {
+    ) external onlyDefaultAdminRole nonReentrant {
         require(to != address(0), DistributionZeroAddress());
         require(amount > 0, DistributionZeroAmount());
 
@@ -163,9 +166,10 @@ contract DistributionFacet is AccessControlUpgradeable {
         require(s.reservePoolMinted + amount <= LibAppStorage.RESERVE_POOL_CAP, DistributionReserveCapReached());
 
         LabERC20 token = LabERC20(s.labTokenAddress);
+        // record state change before external mint
+        s.reservePoolMinted += amount;
         // ERC20Capped enforces total cap; we also guard reserve portion.
         token.mint(to, amount);
-        s.reservePoolMinted += amount;
 
         emit ReserveMinted(to, amount, s.reservePoolMinted);
     }
@@ -174,11 +178,12 @@ contract DistributionFacet is AccessControlUpgradeable {
     /// @param newMinter Address that will hold MINTER_ROLE (governance/Timelock/DAO)
     function finalizeMinterGovernance(
         address newMinter
-    ) external onlyDefaultAdminRole {
+    ) external onlyDefaultAdminRole nonReentrant {
         require(newMinter != address(0), DistributionZeroAddress());
         AppStorage storage s = _s();
         require(s.tokenPoolsInitialized, DistributionNotInitialized());
 
+        // No state changes needed before external calls - safe as-is
         LabERC20 token = LabERC20(s.labTokenAddress);
         token.grantRole(token.MINTER_ROLE(), newMinter);
         token.revokeRole(token.MINTER_ROLE(), address(this));
@@ -192,28 +197,23 @@ contract DistributionFacet is AccessControlUpgradeable {
         address subsidies,
         address ecosystemGrowth
     ) internal {
-        LabERC20 token = LabERC20(tokenAddr);
-        // Treasury: mint full 15%
-        token.mint(timelock, LibAppStorage.TREASURY_POOL_CAP);
-        s.treasuryPoolMinted = LibAppStorage.TREASURY_POOL_CAP;
-
-        // Subsidies: initial 3%
+        // EFFECTS: Update all state variables BEFORE external calls (CEI pattern)
         uint256 subsidiesInit = LibAppStorage.SUBSIDIES_TOPUP_TRANCHE;
-        token.mint(subsidies, subsidiesInit);
-        s.subsidiesPoolMinted = subsidiesInit;
-
-        // Liquidity: mint full 12% to timelock to enforce on-chain lock of liquidity funds
-        token.mint(timelock, LibAppStorage.LIQUIDITY_POOL_CAP);
-        s.liquidityPoolMinted = LibAppStorage.LIQUIDITY_POOL_CAP;
-
-        // Ecosystem: initial 2%
         uint256 ecosystemInit = LibAppStorage.ECOSYSTEM_TOPUP_TRANCHE;
-        token.mint(ecosystemGrowth, ecosystemInit);
+        
+        s.treasuryPoolMinted = LibAppStorage.TREASURY_POOL_CAP;
+        s.subsidiesPoolMinted = subsidiesInit;
+        s.liquidityPoolMinted = LibAppStorage.LIQUIDITY_POOL_CAP;
         s.ecosystemPoolMinted = ecosystemInit;
-
-        // Team: vesting 10%
-        token.mint(vesting, LibAppStorage.TEAM_POOL_CAP);
         s.teamPoolMinted = LibAppStorage.TEAM_POOL_CAP;
+
+        // INTERACTIONS: Execute all external calls AFTER state updates
+        LabERC20 token = LabERC20(tokenAddr);
+        token.mint(timelock, LibAppStorage.TREASURY_POOL_CAP);
+        token.mint(subsidies, subsidiesInit);
+        token.mint(timelock, LibAppStorage.LIQUIDITY_POOL_CAP);
+        token.mint(ecosystemGrowth, ecosystemInit);
+        token.mint(vesting, LibAppStorage.TEAM_POOL_CAP);
     }
 
     function _s() internal pure returns (AppStorage storage s) {

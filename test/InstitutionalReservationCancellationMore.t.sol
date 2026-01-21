@@ -38,6 +38,13 @@ contract RevertingInstReservationHarness2 {
         r.start = start;
         r.end = start + 3600;
         if (bytes(puc).length > 0) _s.reservationPucHash[key] = keccak256(bytes(puc));
+
+        // set request period start/duration to a valid aligned period
+        uint256 d = _s.institutionalSpendingPeriod[payerInstitution];
+        if (d == 0) d = LibAppStorage.DEFAULT_SPENDING_PERIOD;
+        uint256 rsAligned = block.timestamp - (block.timestamp % d);
+        r.requestPeriodStart = uint64(rsAligned);
+        r.requestPeriodDuration = uint64(d);
     }
 
     function cancelBookingWrapper(address institutionalProvider, string calldata puc, bytes32 reservationKey) external returns (uint256) {

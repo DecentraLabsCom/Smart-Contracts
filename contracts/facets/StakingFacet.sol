@@ -6,6 +6,7 @@ import {LibAppStorage, AppStorage, PROVIDER_ROLE, PendingSlash} from "../librari
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {LabERC20} from "../external/LabERC20.sol";
+import {ReentrancyGuardTransient} from "@openzeppelin/contracts/utils/ReentrancyGuardTransient.sol";
 import {ReservableToken} from "../abstracts/ReservableToken.sol";
 
 using SafeERC20 for IERC20;
@@ -16,7 +17,7 @@ using SafeERC20 for IERC20;
 /// @notice Manages provider token staking for service quality assurance
 /// @dev Implements staking, slashing, and unstaking mechanisms for providers
 /// @custom:security Providers must stake tokens to offer services, stakes can be slashed for misconduct
-contract StakingFacet is AccessControlUpgradeable {
+contract StakingFacet is AccessControlUpgradeable, ReentrancyGuardTransient {
     /// @notice Lock period after last reservation (30 days)
     uint256 public constant LOCK_PERIOD = 30 days;
 
@@ -98,7 +99,7 @@ contract StakingFacet is AccessControlUpgradeable {
     /// @param amount The amount of tokens to stake
     function stakeTokens(
         uint256 amount
-    ) external onlyRole(PROVIDER_ROLE) {
+    ) external onlyRole(PROVIDER_ROLE) nonReentrant {
         require(amount > 0, "StakingFacet: amount must be greater than 0");
 
         AppStorage storage s = _s();
@@ -133,7 +134,7 @@ contract StakingFacet is AccessControlUpgradeable {
     /// @param amount The amount of tokens to unstake
     function unstakeTokens(
         uint256 amount
-    ) external onlyRole(PROVIDER_ROLE) {
+    ) external onlyRole(PROVIDER_ROLE) nonReentrant {
         AppStorage storage s = _s();
 
         require(amount > 0, "StakingFacet: amount must be greater than 0");
@@ -235,7 +236,7 @@ contract StakingFacet is AccessControlUpgradeable {
     /// @notice Execute a queued slash after the timelock has expired
     function executeQueuedSlash(
         address provider
-    ) external onlyDefaultAdminRole {
+    ) external onlyDefaultAdminRole nonReentrant {
         AppStorage storage s = _s();
         PendingSlash storage pending = s.pendingSlashes[provider];
         require(pending.executeAfter != 0, "StakingFacet: no queued slash");
@@ -270,24 +271,24 @@ contract StakingFacet is AccessControlUpgradeable {
     /// @param provider The address of the provider being removed
     function burnStakeOnRemoval(
         address provider
-    ) external onlyDefaultAdminRole {
+    ) external onlyDefaultAdminRole nonReentrant {
         require(provider != address(0), "StakingFacet: invalid provider address");
 
         AppStorage storage s = _s();
 
         uint256 stakedAmount = s.providerStakes[provider].stakedAmount;
 
+        // EFFECTS: Update all state BEFORE external call (CEI pattern)
         if (stakedAmount > 0) {
             s.providerStakes[provider].stakedAmount = 0;
+        }
+        delete s.providerStakes[provider];
 
-            // Burn all staked tokens
+        // INTERACTIONS: Execute external call AFTER state updates
+        if (stakedAmount > 0) {
             LabERC20(s.labTokenAddress).burn(stakedAmount);
-
             emit StakeBurned(provider, stakedAmount, "Provider removed from system");
         }
-
-        // Clean up stake data
-        delete s.providerStakes[provider];
     }
 
     /// @notice Updates the last reservation timestamp for lock period calculation

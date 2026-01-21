@@ -150,8 +150,10 @@ struct Node {
 /// @param nodes Mapping from uint keys to Node values representing the tree structure
 struct Tree {
     uint256 root;
+    // Test-only: when true the RivalIntervalTree emits traces and performs heavy consistency checks
+    bool debug;
     mapping(uint256 => Node) nodes;
-}
+} 
 
 /// @notice Struct representing a provider's staking information
 /// @dev Tracks staked tokens, slashing history, and lock periods

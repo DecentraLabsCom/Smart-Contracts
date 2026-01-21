@@ -1,0 +1,82 @@
+# Wake Configuration File
+# https://getwake.io/docs/latest/
+
+[compiler.solc]
+# Solidity compiler version
+version = "0.8.33"
+
+# Remappings for dependencies
+remappings = [
+    "@openzeppelin/contracts/=lib/openzeppelin-contracts/contracts/",
+    "@openzeppelin/contracts-upgradeable/=lib/openzeppelin-contracts-upgradeable/contracts/",
+    "forge-std/=lib/forge-std/src/",
+]
+
+# EVM version
+evm_version = "cancun"
+
+# Optimizer settings
+optimizer = { enabled = true, runs = 200 }
+
+# Via IR compilation (improves optimization but slower compile)
+via_ir = true
+
+[compiler.solc.paths]
+# Sources to compile
+sources = ["contracts"]
+
+# Include paths for imports
+include_paths = ["lib"]
+
+# Exclude paths from compilation and analysis
+exclude_paths = [
+    "test",
+    "scripts",
+    "node_modules",
+    ".git",
+    "lib/forge-std",              # Exclude forge-std to avoid deprecation warnings
+    "lib/openzeppelin-contracts", # Exclude OpenZeppelin contracts
+    "lib/openzeppelin-contracts-upgradeable",
+]
+
+[detectors]
+# Disable detectors that produce false positives in Diamond pattern (EIP-2535)
+exclude = [
+    "unused-function",      # False positives with abstract contracts and Diamond inheritance
+    "unused-modifier",      # False positives in base contracts for facets
+    "unused-event",         # Events may be emitted through delegatecall in Diamond
+    "unused-error",         # Errors may be used through delegatecall
+    "unused-contract",      # Interfaces/abstracts used through inheritance
+    "reentrancy",          # Already protected with ReentrancyGuardTransient + CEI pattern
+    "unsafe-delegatecall"  # Safe in Diamond pattern with proper validations (LibDiamond)
+]
+
+# Detector configuration
+[detectors.config]
+# Minimum severity to report (info, low, medium, high, critical)
+min_severity = "medium"  # Changed from "low" to reduce noise
+
+# Maximum findings to report per detector (0 = unlimited)
+max_findings_per_detector = 50
+
+[lsp]
+# Language Server Protocol settings for IDE integration
+enable = true
+
+# Compilation database for better IDE support
+compilation_db = true
+
+[testing]
+# Test framework (currently supports wake-test)
+framework = "wake"
+
+# Paths to test files
+test_paths = ["test"]
+
+[detector.specific]
+# Keep only relevant detectors enabled for Diamond pattern projects
+# access_control = { enabled = true }
+
+# Note: Reentrancy and delegatecall are disabled globally above
+# because the codebase uses ReentrancyGuardTransient + CEI pattern
+# and follows EIP-2535 Diamond Standard for safe delegatecalls

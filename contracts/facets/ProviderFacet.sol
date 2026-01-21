@@ -12,6 +12,7 @@ import {
 } from "../libraries/LibAppStorage.sol";
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import {LibDiamond} from "../libraries/LibDiamond.sol";
+import {ReentrancyGuardTransient} from "@openzeppelin/contracts/utils/ReentrancyGuardTransient.sol";
 import {LibAccessControlEnumerable} from "../libraries/LibAccessControlEnumerable.sol";
 import {LabERC20} from "../external/LabERC20.sol"; // Import the LabERC20 contract, no yet implemented
 
@@ -24,7 +25,7 @@ import {LabERC20} from "../external/LabERC20.sol"; // Import the LabERC20 contra
 ///      The contract integrates with the LabERC20 token to mint initial tokens for new providers.
 /// @notice The contract uses the Diamond Standard (EIP-2535) for modularity and extensibility, enabling seamless upgrades and modular design.
 /// @custom:security Only accounts with the appropriate roles can perform restricted actions.
-contract ProviderFacet is AccessControlUpgradeable {
+contract ProviderFacet is AccessControlUpgradeable, ReentrancyGuardTransient {
     using LibAccessControlEnumerable for AppStorage;
     using EnumerableSet for EnumerableSet.AddressSet;
 
@@ -134,7 +135,7 @@ contract ProviderFacet is AccessControlUpgradeable {
         string calldata _email,
         string calldata _country,
         string calldata _authURI
-    ) external onlyDefaultAdminRole {
+    ) external onlyDefaultAdminRole nonReentrant {
         require(_account != address(0), "Invalid provider address");
 
         // Validate string lengths to prevent DoS attacks
@@ -167,89 +168,50 @@ contract ProviderFacet is AccessControlUpgradeable {
         bool canMintProvider = _s().providerPoolMinted + totalAmount <= LibAppStorage.PROVIDER_POOL_CAP;
 
         if (canMintProvider) {
-            try LabERC20(_s().labTokenAddress).mint(address(this), treasuryAmount) {
-                // Mint staked tokens directly to Diamond contract
-                try LabERC20(_s().labTokenAddress).mint(address(this), stakeAmount) {
-                    // Mark that this provider received initial tokens (required for staking)
-                    _s().providerStakes[_account].receivedInitialTokens = true;
+            // EFFECTS: Update all state BEFORE external mint calls (CEI pattern)
+            AppStorage storage s = _s();
+            s.providerStakes[_account].receivedInitialTokens = true;
+            s.providerStakes[_account].stakedAmount = stakeAmount;
+            s.providerStakes[_account].initialStakeTimestamp = block.timestamp;
+            s.institutionalTreasury[_account] = treasuryAmount;
+            s.providerPoolMinted += totalAmount;
+            s.institutionalUserLimit[_account] = LibAppStorage.DEFAULT_INSTITUTIONAL_USER_LIMIT;
+            s.institutionalSpendingPeriod[_account] = LibAppStorage.DEFAULT_SPENDING_PERIOD;
+            s.institutionalBackends[_account] = _account;
 
-                    // Register the auto-staked amount and timestamp (for 180-day lock)
-                    _s().providerStakes[_account].stakedAmount = stakeAmount;
-                    _s().providerStakes[_account].initialStakeTimestamp = block.timestamp;
-
-                    // Deposit the 200 tokens to institutional treasury
-                    _s().institutionalTreasury[_account] = treasuryAmount;
-
-                    // Track minted provider pool
-                    _s().providerPoolMinted += totalAmount;
-
-                    // Set default institutional user spending limit (tokens per period)
-                    _s().institutionalUserLimit[_account] = LibAppStorage.DEFAULT_INSTITUTIONAL_USER_LIMIT;
-
-                    // Set default spending period
-                    _s().institutionalSpendingPeriod[_account] = LibAppStorage.DEFAULT_SPENDING_PERIOD;
-
-                    // Auto-authorize provider address as backend for institutional treasury
-                    _s().institutionalBackends[_account] = _account;
-
+            // INTERACTIONS: Execute external calls AFTER state updates
+            try LabERC20(s.labTokenAddress).mint(address(this), treasuryAmount) {
+                try LabERC20(s.labTokenAddress).mint(address(this), stakeAmount) {
                     emit InstitutionalTreasuryInitialized(
                         _account, treasuryAmount, LibAppStorage.DEFAULT_INSTITUTIONAL_USER_LIMIT
                     );
-
                     emit BackendAuthorized(_account, _account);
-
                     emit ProviderAdded(_account, _name, _email, _country);
                 } catch {
-                    // If stake mint fails, revert the treasury mint too
+                    // If stake mint fails, revert state changes
+                    s.providerStakes[_account].receivedInitialTokens = false;
+                    s.providerStakes[_account].stakedAmount = 0;
+                    s.providerStakes[_account].initialStakeTimestamp = 0;
+                    s.institutionalTreasury[_account] = 0;
+                    s.providerPoolMinted -= totalAmount;
                     revert("Failed to mint stake tokens");
                 }
             } catch Error(string memory reason) {
-                // Provider added without tokens (no staking requirement)
-                // IMPORTANT: Still initialize institutional treasury configuration
-                // even if minting fails, so provider can configure it manually later
-                _s().providerStakes[_account].receivedInitialTokens = false;
-
-                // Initialize institutional treasury with zero balance but valid configuration
-                _s().institutionalTreasury[_account] = 0;
-
-                // Set default institutional user spending limit (tokens per period)
-                _s().institutionalUserLimit[_account] = LibAppStorage.DEFAULT_INSTITUTIONAL_USER_LIMIT;
-
-                // Set default spending period
-                _s().institutionalSpendingPeriod[_account] = LibAppStorage.DEFAULT_SPENDING_PERIOD;
-
-                // Auto-authorize provider address as backend for institutional treasury
-                // This allows provider to configure their institutional system even without initial tokens
-                _s().institutionalBackends[_account] = _account;
-
-                emit InstitutionalTreasuryInitialized(
-                    _account,
-                    0, // zero balance but valid configuration
-                    LibAppStorage.DEFAULT_INSTITUTIONAL_USER_LIMIT
-                );
-
-                emit BackendAuthorized(_account, _account);
+                // Revert state changes if treasury mint fails
+                s.providerStakes[_account].receivedInitialTokens = false;
+                s.providerStakes[_account].stakedAmount = 0;
+                s.providerStakes[_account].initialStakeTimestamp = 0;
+                s.institutionalTreasury[_account] = 0;
+                s.providerPoolMinted -= totalAmount;
 
                 emit ProviderAddedWithoutTokens(_account, reason);
             } catch {
-                // Provider added without tokens (no staking requirement)
-                // IMPORTANT: Still initialize institutional treasury configuration
-                _s().providerStakes[_account].receivedInitialTokens = false;
-
-                // Initialize institutional treasury with zero balance but valid configuration
-                _s().institutionalTreasury[_account] = 0;
-
-                // Set default institutional user spending limit
-                _s().institutionalUserLimit[_account] = LibAppStorage.DEFAULT_INSTITUTIONAL_USER_LIMIT;
-
-                // Set default spending period
-                _s().institutionalSpendingPeriod[_account] = LibAppStorage.DEFAULT_SPENDING_PERIOD;
-
-                // Auto-authorize provider address as backend
-                _s().institutionalBackends[_account] = _account;
-
-                emit InstitutionalTreasuryInitialized(_account, 0, LibAppStorage.DEFAULT_INSTITUTIONAL_USER_LIMIT);
-                emit BackendAuthorized(_account, _account);
+                // Revert state changes if minting fails
+                s.providerStakes[_account].receivedInitialTokens = false;
+                s.providerStakes[_account].stakedAmount = 0;
+                s.providerStakes[_account].initialStakeTimestamp = 0;
+                s.institutionalTreasury[_account] = 0;
+                s.providerPoolMinted -= totalAmount;
 
                 emit ProviderAddedWithoutTokens(_account, "Token minting failed: supply cap reached or other error");
             }
@@ -277,24 +239,26 @@ contract ProviderFacet is AccessControlUpgradeable {
     /// @param _provider The address of the provider to be removed.
     function removeProvider(
         address _provider
-    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+    ) external onlyRole(DEFAULT_ADMIN_ROLE) nonReentrant {
         // Check if provider exists (prevents removing non-existent providers)
         require(hasRole(PROVIDER_ROLE, _provider), "Provider does not exist");
 
         _revokeRole(PROVIDER_ROLE, _provider);
         AppStorage storage s = _s();
 
-        // Burn staked tokens
+        // EFFECTS: Update state BEFORE external call (CEI pattern)
         uint256 stakedAmount = s.providerStakes[_provider].stakedAmount;
         if (stakedAmount > 0) {
             s.providerStakes[_provider].stakedAmount = 0;
+        }
+        delete s.providerStakes[_provider];
+        s._removeProviderRole(_provider);
+
+        // INTERACTIONS: Execute external call AFTER state updates
+        if (stakedAmount > 0) {
             LabERC20(s.labTokenAddress).burn(stakedAmount);
         }
 
-        // Clean up stake data
-        delete s.providerStakes[_provider];
-
-        s._removeProviderRole(_provider);
         emit ProviderRemoved(_provider);
     }
 

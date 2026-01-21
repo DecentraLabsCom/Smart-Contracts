@@ -9,6 +9,7 @@ pragma solidity ^0.8.31;
 //******************************************************************************/
 
 import {LibDiamond} from "../libraries/LibDiamond.sol";
+import {IDiamondCut} from "../interfaces/IDiamondCut.sol";
 
 error AddressAndCalldataLengthDoNotMatch(uint256 _addressesLength, uint256 _calldataLength);
 
@@ -24,7 +25,12 @@ contract DiamondMultiInit {
             revert AddressAndCalldataLengthDoNotMatch(_addresses.length, _calldata.length);
         }
         for (uint256 i; i < _addresses.length; i++) {
-            LibDiamond.initializeDiamondCut(_addresses[i], _calldata[i]);
+            LibDiamond.initializeDiamondCut(_addresses[i], _calldata[i], new IDiamondCut.FacetCut[](0));
         }
+    }
+
+    /// @notice Marker for LibDiamond to allow using this contract as a safe initializer
+    function isInitializer() external pure returns (bool) {
+        return true;
     }
 }

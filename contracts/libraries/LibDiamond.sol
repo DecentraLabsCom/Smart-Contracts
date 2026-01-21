@@ -26,6 +26,8 @@ error RemoveFacetAddressMustBeZeroAddress(address _facetAddress);
 error CannotRemoveFunctionThatDoesNotExist(bytes4 _selector);
 error CannotRemoveImmutableFunction(bytes4 _selector);
 error InitializationFunctionReverted(address _initializationContractAddress, bytes _calldata);
+error InitializationCalldataTooShort();
+error InitializationNotAllowed(address _addr);
 
 library LibDiamond {
     bytes32 constant DIAMOND_STORAGE_POSITION = keccak256("diamond.standard.diamond.storage");
@@ -98,7 +100,8 @@ library LibDiamond {
             }
         }
         emit DiamondCut(_diamondCut, _init, _calldata);
-        initializeDiamondCut(_init, _calldata);
+        // pass the facet list to the initializer check so we can allow initializers that are one of the facet addresses
+        initializeDiamondCut(_init, _calldata, _diamondCut);
     }
 
     function addFunctions(
@@ -186,20 +189,54 @@ library LibDiamond {
         }
     }
 
+    /// @notice Executes optional initialization after diamond cut.
+    /// @dev Only executed if `_init` is non-zero. Caller must be contract owner via DiamondCutFacet.
+    ///      We require the calldata to contain a function selector to avoid accidental empty delegatecalls.
+    ///      The initializer is allowed if either:
+    ///        1) `_init` matches one of the facet addresses included in the current cut, or
+    ///        2) `_init` implements the `isInitializer()` marker which must return true on a staticcall.
+    /// @custom:security delegatecall is safe here because:
+    ///      - Only contract owner can call this (via DiamondCutFacet)
+    ///      - Target address is validated (has code + is whitelisted facet OR implements isInitializer())
+    ///      - Calldata is validated (minimum 4 bytes for selector)
+    ///      - This is the EIP-2535 Diamond Standard pattern for initialization
     function initializeDiamondCut(
         address _init,
-        bytes memory _calldata
+        bytes memory _calldata,
+        IDiamondCut.FacetCut[] memory _diamondCut
     ) internal {
         if (_init == address(0)) {
             return;
         }
         enforceHasContractCode(_init, "LibDiamondCut: _init address has no code");
+
+        // If _init is not one of the facet addresses in this cut, require it implements isInitializer() marker
+        bool allowed = false;
+        for (uint256 i = 0; i < _diamondCut.length; i++) {
+            if (_diamondCut[i].facetAddress == _init) {
+                allowed = true;
+                break;
+            }
+        }
+        if (!allowed) {
+            // staticcall is safe and cannot modify state; use it to confirm the external initializer is explicit
+            (bool ok, bytes memory ret) = _init.staticcall(abi.encodeWithSelector(bytes4(keccak256("isInitializer()"))));
+            if (!ok || ret.length == 0 || !abi.decode(ret, (bool))) {
+                revert InitializationNotAllowed(_init);
+            }
+        }
+
+        // Basic sanity: calldata must include a function selector when calling initializer
+        if (_calldata.length < 4) {
+            revert InitializationCalldataTooShort();
+        }
+
+        // INTERACTIONS: Safe delegatecall after all validations
         (bool success, bytes memory error) = _init.delegatecall(_calldata);
         if (!success) {
             if (error.length > 0) {
                 // bubble up error
-                /// @solidity memory-safe-assembly
-                assembly {
+                assembly ("memory-safe") {
                     let returndata_size := mload(error)
                     revert(add(32, error), returndata_size)
                 }

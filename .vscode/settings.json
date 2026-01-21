@@ -16,12 +16,37 @@
         "@openzeppelin/contracts-upgradeable/=lib/openzeppelin-contracts-upgradeable/contracts/",
         "forge-std/=lib/forge-std/src/"
     ],
+    "solidity.excludePaths": [
+        "lib/forge-std/**",
+        "lib/openzeppelin-contracts/**",
+        "lib/openzeppelin-contracts-upgradeable/**",
+        "node_modules/**",
+        "test/**"
+    ],
+    "solidity.defaultCompiler": "embedded",
+    "files.watcherExclude": {
+        "**/.git/objects/**": true,
+        "**/.git/subtree-cache/**": true,
+        "**/node_modules/**": true,
+        "**/lib/forge-std/**": true,
+        "**/lib/openzeppelin-contracts/**": true,
+        "**/lib/openzeppelin-contracts-upgradeable/**": true
+    },
+    "solidity.compileUsingRemoteVersion": "",
+    "solidity.validation.onChange": false,
+    "solidity.enabledAsYouTypeCompilationErrorCheck": false,
+    "solidity.validationDelay": 1500,
+    "solidity.includePathsPatterns": [
+        "contracts/**/*.sol"
+    ],
+    "solidity.linter": "",
+    "solidity.enabledSolium": false,
+    "solidity.enableLocalNodeCompiler": false,
     "wake.compiler.solc.remappings": [
         "@openzeppelin/contracts/=lib/openzeppelin-contracts/contracts/",
         "@openzeppelin/contracts-upgradeable/=lib/openzeppelin-contracts-upgradeable/contracts/",
         "forge-std/=lib/forge-std/src/",
         "openzeppelin-contracts-upgradeable/=lib/openzeppelin-contracts-upgradeable/",
-        "openzeppelin-contracts/=lib/openzeppelin-contracts/",
-        "openzeppelin/=lib/openzeppelin-contracts/contracts/"
+        "openzeppelin-contracts/=lib/openzeppelin-contracts/"
     ]
 }

@@ -189,6 +189,73 @@ contract FuzzBuffersAndHeapTest is BaseTest {
         assert(ok);
     }
 
+    // longer heap sequences stress test: construct up to 128 items and perform multiple removals
+    function test_fuzz_active_heap_long_sequences(bytes32 seed) public {
+        vm.assume(seed != bytes32(0));
+        uint16 count = uint16(uint16(uint8(seed[0])) % 128) + 1; // 1..128
+        uint256 labId = 9999;
+        address tracking = makeAddr("track_long");
+
+        uint32[] memory raw = new uint32[](count);
+        bytes32[] memory rawKeys = new bytes32[](count);
+        for (uint256 i = 0; i < count; ++i) {
+            raw[i] = uint32(uint256(keccak256(abi.encodePacked(seed, i))) % 1000000);
+            rawKeys[i] = keccak256(abi.encodePacked(seed, "k", i, raw[i]));
+        }
+
+        // build heap by percolating-up in memory (same algorithm as tested earlier)
+        uint32[] memory startsHeap = new uint32[](count);
+        bytes32[] memory keysHeap = new bytes32[](count);
+        uint256 heapLen = 0;
+        for (uint256 i = 0; i < count; ++i) {
+            startsHeap[heapLen] = raw[i];
+            keysHeap[heapLen] = rawKeys[i];
+            uint256 j = heapLen;
+            while (j > 0) {
+                uint256 parent = (j - 1) / 2;
+                if (startsHeap[parent] > startsHeap[j]) {
+                    (startsHeap[parent], startsHeap[j]) = (startsHeap[j], startsHeap[parent]);
+                    (keysHeap[parent], keysHeap[j]) = (keysHeap[j], keysHeap[parent]);
+                    j = parent;
+                } else break;
+            }
+            heapLen++;
+        }
+
+        harness.seedActiveHeap(labId, tracking, startsHeap, keysHeap);
+
+        // perform several random removals and check invariant
+        uint16 removals = uint16(uint16(uint8(seed[1])) % uint16(count)) + 1;
+        for (uint16 r = 0; r < removals; ++r) {
+            vm.prank(address(this));
+            try harness.cancelRootActiveReservation(labId, tracking) returns (bytes32) {
+                // ok
+            } catch {
+                // ignore
+            }
+            assert(harness.checkHeapInvariant(labId, tracking));
+        }
+    }
+
+    // past buffer saturation test: create many cancellations to overflow cap and verify cap respected and ordering
+    function test_fuzz_past_buffer_saturation(bytes32 seed) public {
+        vm.assume(seed != bytes32(0));
+        address user = makeAddr("saturate");
+        uint256 labId = uint256(uint160(address(this))) & 0xFFFF;
+        uint16 count = uint16(uint16(uint8(seed[2])) % 120) + 1; // 1..120 cancellations
+
+        for (uint16 i = 0; i < count; ++i) {
+            uint32 end = uint32(uint256(keccak256(abi.encodePacked(seed, i))) % 1_000_000);
+            uint32 start = end > 3600 ? end - 3600 : 0;
+            bytes32 key = keccak256(abi.encodePacked(labId, start, i));
+            harness.createReservationAndCancel(key, user, labId, start, end);
+        }
+
+        (uint8 sizeT, uint32[50] memory endsT) = harness.getPastEndsByToken(labId);
+        assert(sizeT <= 50);
+        for (uint256 j = 0; j + 1 < sizeT; ++j) assert(endsT[j] >= endsT[j + 1]);
+    }
+
     // repeatedly remove root until heap empty; ensure heap invariant holds after each removal
     function test_fuzz_heap_multiple_removals(bytes32 seed) public {
         vm.assume(seed != bytes32(0));

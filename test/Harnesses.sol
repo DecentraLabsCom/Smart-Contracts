@@ -40,6 +40,14 @@ contract InstReservationHarness {
         r.start = start;
         r.end = start + 3600; // default 1 hour slot for tests
         if (bytes(puc).length > 0) s.reservationPucHash[key] = keccak256(bytes(puc));
+
+        // set the institutional request period start/duration similar to production path so confirm checks pass
+        uint256 d = s.institutionalSpendingPeriod[payerInstitution];
+        if (d == 0) d = LibAppStorage.DEFAULT_SPENDING_PERIOD;
+        uint256 rsAligned = block.timestamp - (block.timestamp % d);
+        r.requestPeriodStart = uint64(rsAligned);
+        r.requestPeriodDuration = uint64(d);
+
         // reservation index sets are not required by these unit tests and are omitted in the harness
     }
 
@@ -140,6 +148,14 @@ contract WalletCancellationHarness is WalletReservationCancellationFacet {
         r.payerInstitution = payerInstitution;
         r.puc = ""; // legacy field left empty
         if (bytes(puc).length > 0) s.reservationPucHash[key] = keccak256(bytes(puc));
+
+        // set the request period to avoid confirmation being denied due to period slippage
+        uint256 d = s.institutionalSpendingPeriod[payerInstitution];
+        if (d == 0) d = LibAppStorage.DEFAULT_SPENDING_PERIOD;
+        uint256 rsAligned = block.timestamp - (block.timestamp % d);
+        r.requestPeriodStart = uint64(rsAligned);
+        r.requestPeriodDuration = uint64(d);
+
         // reservation index sets are not required by these unit tests and are omitted in the harness
     }
 
@@ -197,6 +213,14 @@ contract ConfirmHarness is InstitutionalReservationConfirmationFacet {
         r.end = start + 3600;
         r.puc = "";
         if (bytes(puc).length > 0) s.reservationPucHash[key] = keccak256(bytes(puc));
+
+        // set the institutional request period start/duration to emulate createInstReservation alignment
+        uint256 d = s.institutionalSpendingPeriod[payerInstitution];
+        if (d == 0) d = LibAppStorage.DEFAULT_SPENDING_PERIOD;
+        uint256 rsAligned = block.timestamp - (block.timestamp % d);
+        r.requestPeriodStart = uint64(rsAligned);
+        r.requestPeriodDuration = uint64(d);
+
         // reservation index sets are not required by these unit tests and are omitted in the harness
     }
 

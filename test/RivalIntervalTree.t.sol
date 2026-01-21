@@ -13,6 +13,11 @@ contract TreeHarness {
         tree.insert(s, e);
     }
 
+    // Test-only non-reverting insert that emits trace events and returns success
+    function tryInsert(uint32 s, uint32 e) external returns (bool) {
+        return tree.tryInsert(s, e);
+    }
+
     function exists(uint32 k) external view returns (bool) {
         return tree.exists(k);
     }
@@ -29,6 +34,11 @@ contract TreeHarness {
         return tree.first();
     }
 
+    // return the actual root key
+    function getRoot() external view returns (uint256) {
+        return tree.root;
+    }
+
     function last() external view returns (uint256) {
         return tree.last();
     }
@@ -36,7 +46,62 @@ contract TreeHarness {
     function getNode(uint32 k) external view returns (uint256 _k, uint256 _end, uint256 _parent, uint256 _left, uint256 _right, bool _red) {
         return tree.getNode(k);
     }
-}
+
+    // Test-only: enable or disable debug tracing and heavy checks for this harness's tree
+    function setDebug(bool enabled) external {
+        tree.debug = enabled;
+    }
+
+    function isDebug() external view returns (bool) {
+        return tree.debug;
+    }
+
+    // return successor key (in-order successor) or 0 if none
+    function nextKey(uint32 k) public view returns (uint256) {
+        (, , uint256 parent, uint256 left, uint256 right, ) = tree.getNode(k);
+        uint256 cursor = k;
+        // if right subtree exists, go to its minimum
+        if (right != 0) {
+            cursor = right;
+            while (true) {
+                (uint256 ck, , , uint256 cl, , ) = tree.getNode(uint32(cursor));
+                if (cl == 0) return ck;
+                cursor = cl;
+            }
+        }
+        // otherwise climb up until we come from left
+        while (parent != 0) {
+            (uint256 pkey, , uint256 pparent, uint256 pleft, uint256 pright, ) = tree.getNode(uint32(parent));
+            if (pleft == cursor) return pkey;
+            cursor = parent;
+            parent = pparent;
+        }
+        return 0;
+    }
+
+    // count nodes by iterating from first to last (safe: cap iterations and detect cycles)
+    function countNodes() external view returns (uint256) {
+        uint256 cnt = 0;
+        uint256 cur = RivalIntervalTreeLibrary.first(tree);
+        uint256 cap = 256;
+        uint256[] memory visited = new uint256[](cap);
+        while (cur != 0) {
+            // detect cycle
+            for (uint256 i = 0; i < cnt; ++i) {
+                if (visited[i] == cur) {
+                    return cnt; // cycle detected: return partial count
+                }
+            }
+            if (cnt >= cap) {
+                return cnt; // iteration cap reached
+            }
+            visited[cnt] = cur;
+            cnt++;
+            uint256 nx = nextKey(uint32(cur));
+            cur = nx;
+        }
+        return cnt;
+    }}
 
 contract RivalIntervalTreeTest is Test {
     TreeHarness harness;

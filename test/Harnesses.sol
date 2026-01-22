@@ -146,7 +146,6 @@ contract WalletCancellationHarness is WalletReservationCancellationFacet {
         r.start = start;
         r.end = start + 3600; // default 1 hour
         r.payerInstitution = payerInstitution;
-        r.puc = ""; // legacy field left empty
         if (bytes(puc).length > 0) s.reservationPucHash[key] = keccak256(bytes(puc));
 
         // set the request period to avoid confirmation being denied due to period slippage
@@ -211,7 +210,6 @@ contract ConfirmHarness is InstitutionalReservationConfirmationFacet {
         r.labId = labId;
         r.start = start;
         r.end = start + 3600;
-        r.puc = "";
         if (bytes(puc).length > 0) s.reservationPucHash[key] = keccak256(bytes(puc));
 
         // set the institutional request period start/duration to emulate createInstReservation alignment

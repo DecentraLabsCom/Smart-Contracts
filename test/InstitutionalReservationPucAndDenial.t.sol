@@ -43,7 +43,6 @@ contract DenialHarness is InstitutionalReservationDenialFacet {
         r.labId = labId;
         r.start = start;
         r.end = start + 3600;
-        r.puc = "";
         if (bytes(puc).length > 0) s.reservationPucHash[key] = keccak256(bytes(puc));
     }
 

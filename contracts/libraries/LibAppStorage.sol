@@ -90,15 +90,14 @@ struct Reservation {
     uint8 status; // Slot 2: +1 byte
     uint32 start; // Slot 2: +4 bytes
     uint32 end; // Slot 2: +4 bytes = 29 bytes total
-    string puc; // Slot 3: 32 bytes (pointer)
-    uint64 requestPeriodStart; // Slot 4: +8 bytes
-    uint64 requestPeriodDuration; // Slot 4: +8 bytes (0 for wallet reservations)
-    address payerInstitution; // Slot 5: 20 bytes
-    address collectorInstitution; // Slot 5: +20 bytes (stored in separate slot)
-    uint96 providerShare; // Slot 6: Provider allocation cached at confirmation
-    uint96 projectTreasuryShare; // Slot 6: +12 bytes
-    uint96 subsidiesShare; // Slot 7: Allocation for subsidies pool
-    uint96 governanceShare; // Slot 7: +12 bytes
+    uint64 requestPeriodStart; // Slot 3: 8 bytes
+    uint64 requestPeriodDuration; // Slot 3: +8 bytes (0 for wallet reservations)
+    address payerInstitution; // Slot 4: 20 bytes
+    address collectorInstitution; // Slot 4: +20 bytes (stored in separate slot)
+    uint96 providerShare; // Slot 5: Provider allocation cached at confirmation
+    uint96 projectTreasuryShare; // Slot 5: +12 bytes
+    uint96 subsidiesShare; // Slot 6: Allocation for subsidies pool
+    uint96 governanceShare; // Slot 6: +12 bytes
 }
 
 struct PayoutCandidate {

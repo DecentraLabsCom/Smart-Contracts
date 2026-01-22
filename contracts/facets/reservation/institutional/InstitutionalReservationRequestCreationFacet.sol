@@ -56,7 +56,6 @@ contract InstitutionalReservationRequestCreationFacet is BaseMinimalReservationF
         r.start = i.s;
         r.end = i.e;
         r.status = _PENDING;
-        r.puc = "";
         r.requestPeriodStart = rs;
         r.requestPeriodDuration = period;
         r.payerInstitution = i.p;

@@ -23,6 +23,11 @@ jobs:
         with:
           version: stable
 
+      - name: init submodules
+        run: |
+          git submodule sync --recursive
+          git submodule update --init --recursive
+
       - name: install dependencies
         run: |
           forge install || true

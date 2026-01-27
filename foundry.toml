@@ -9,7 +9,6 @@ cache_path = "cache"
 
 # Configuración del compilador Solidity
 solc_version = "0.8.33"
-solc = "C:/Users/ldela/.foundry/bin/solc-0.8.33.exe"
 optimizer = true
 optimizer_runs = 200
 via_ir = true

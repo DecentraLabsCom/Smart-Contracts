@@ -29,4 +29,4 @@ jobs:
         run: forge fmt --check
 
       - name: run tests
-        run: forge test --reporter=github-actions --color never
+        run: forge test --color never

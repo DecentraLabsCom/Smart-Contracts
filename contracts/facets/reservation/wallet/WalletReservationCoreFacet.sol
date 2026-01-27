@@ -97,7 +97,6 @@ contract WalletReservationCoreFacet is BaseLightReservationFacet {
             start: _start,
             end: _end,
             status: _PENDING,
-            puc: "",
             requestPeriodStart: uint64(block.timestamp),
             requestPeriodDuration: 0,
             payerInstitution: address(0),

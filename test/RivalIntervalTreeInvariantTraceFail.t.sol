@@ -49,10 +49,9 @@ contract RivalIntervalTreeInvariantTraceFail is Test {
                             uint256 right,
                             uint256 end,
                             bool red
-                        ) =
-                            abi.decode(
-                                logs[j].data, (string, uint256, uint256, uint256, uint256, uint256, uint256, bool)
-                            );
+                        ) = abi.decode(
+                            logs[j].data, (string, uint256, uint256, uint256, uint256, uint256, uint256, bool)
+                        );
                         emit log_named_string("insert_step", step);
                         emit log_named_uint("  key", key);
                         emit log_named_uint("  cursor", cursor);

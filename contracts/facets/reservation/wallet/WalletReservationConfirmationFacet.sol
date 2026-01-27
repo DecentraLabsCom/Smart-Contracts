@@ -65,7 +65,7 @@ contract WalletReservationConfirmationFacet is BaseWalletReservationFacet, Reent
 
         // EFFECTS: Pre-compute and prepare state changes BEFORE external call
         _setReservationSplit(reservation);
-        
+
         // INTERACTIONS: Execute external call
         (bool success, bytes memory data) = s.labTokenAddress
             .call(

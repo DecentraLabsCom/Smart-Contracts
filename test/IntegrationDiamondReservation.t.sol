@@ -9,7 +9,9 @@ import "../contracts/libraries/LibAppStorage.sol";
 contract ToggleRefundHarness {
     bool public failRefund = false;
 
-    function setFailRefund(bool v) external {
+    function setFailRefund(
+        bool v
+    ) external {
         failRefund = v;
     }
 
@@ -110,7 +112,7 @@ contract IntegrationDiamondReservationTest is BaseTest {
         uint32 start = uint32(block.timestamp + 3600);
         bytes32 key = keccak256(abi.encodePacked(labId, start));
         string memory puc = "user@inst";
-        uint96 price = 20000;
+        uint96 price = 20_000;
 
         // set institution role and backend
         confirm.setInstitutionRole(INSTITUTION);
@@ -162,7 +164,7 @@ contract IntegrationDiamondReservationTest is BaseTest {
         uint32 start = uint32(block.timestamp + 7200);
         bytes32 key = keccak256(abi.encodePacked(labId, start));
         string memory puc = "recover@inst";
-        uint96 price = 20000;
+        uint96 price = 20_000;
 
         // prepare toggler as the handler (it will be called to refund)
         toggler.setBackend(INSTITUTION, BACKEND);

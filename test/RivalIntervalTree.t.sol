@@ -9,24 +9,37 @@ contract TreeHarness {
     using RivalIntervalTreeLibrary for Tree;
     Tree internal tree;
 
-    function insert(uint32 s, uint32 e) external {
+    function insert(
+        uint32 s,
+        uint32 e
+    ) external {
         tree.insert(s, e);
     }
 
     // Test-only non-reverting insert that emits trace events and returns success
-    function tryInsert(uint32 s, uint32 e) external returns (bool) {
+    function tryInsert(
+        uint32 s,
+        uint32 e
+    ) external returns (bool) {
         return tree.tryInsert(s, e);
     }
 
-    function exists(uint32 k) external view returns (bool) {
+    function exists(
+        uint32 k
+    ) external view returns (bool) {
         return tree.exists(k);
     }
 
-    function hasConflict(uint32 s, uint32 e) external view returns (bool) {
+    function hasConflict(
+        uint32 s,
+        uint32 e
+    ) external view returns (bool) {
         return tree.hasConflict(s, e);
     }
 
-    function remove(uint32 k) external {
+    function remove(
+        uint32 k
+    ) external {
         tree.remove(k);
     }
 
@@ -43,12 +56,16 @@ contract TreeHarness {
         return tree.last();
     }
 
-    function getNode(uint32 k) external view returns (uint256 _k, uint256 _end, uint256 _parent, uint256 _left, uint256 _right, bool _red) {
+    function getNode(
+        uint32 k
+    ) external view returns (uint256 _k, uint256 _end, uint256 _parent, uint256 _left, uint256 _right, bool _red) {
         return tree.getNode(k);
     }
 
     // Test-only: enable or disable debug tracing and heavy checks for this harness's tree
-    function setDebug(bool enabled) external {
+    function setDebug(
+        bool enabled
+    ) external {
         tree.debug = enabled;
     }
 
@@ -57,21 +74,23 @@ contract TreeHarness {
     }
 
     // return successor key (in-order successor) or 0 if none
-    function nextKey(uint32 k) public view returns (uint256) {
-        (, , uint256 parent, uint256 left, uint256 right, ) = tree.getNode(k);
+    function nextKey(
+        uint32 k
+    ) public view returns (uint256) {
+        (,, uint256 parent, uint256 left, uint256 right,) = tree.getNode(k);
         uint256 cursor = k;
         // if right subtree exists, go to its minimum
         if (right != 0) {
             cursor = right;
             while (true) {
-                (uint256 ck, , , uint256 cl, , ) = tree.getNode(uint32(cursor));
+                (uint256 ck,,, uint256 cl,,) = tree.getNode(uint32(cursor));
                 if (cl == 0) return ck;
                 cursor = cl;
             }
         }
         // otherwise climb up until we come from left
         while (parent != 0) {
-            (uint256 pkey, , uint256 pparent, uint256 pleft, uint256 pright, ) = tree.getNode(uint32(parent));
+            (uint256 pkey,, uint256 pparent, uint256 pleft, uint256 pright,) = tree.getNode(uint32(parent));
             if (pleft == cursor) return pkey;
             cursor = parent;
             parent = pparent;
@@ -101,7 +120,8 @@ contract TreeHarness {
             cur = nx;
         }
         return cnt;
-    }}
+    }
+}
 
 contract RivalIntervalTreeTest is Test {
     TreeHarness harness;

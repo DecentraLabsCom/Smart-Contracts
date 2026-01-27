@@ -8,7 +8,8 @@ import "../contracts/libraries/LibAppStorage.sol";
 
 contract DummyReservable is ReservableToken {
     // no overrides required — call the public implementation directly in tests
-}
+
+    }
 
 contract ProviderStakeBoundaryTest is BaseTest {
     DummyReservable token;
@@ -34,6 +35,9 @@ contract ProviderStakeBoundaryTest is BaseTest {
         assertEq(token.calculateRequiredStake(p, freeCount), LibAppStorage.BASE_STAKE);
 
         // one beyond free count
-        assertEq(token.calculateRequiredStake(p, freeCount + 1), LibAppStorage.BASE_STAKE + LibAppStorage.STAKE_PER_ADDITIONAL_LAB);
+        assertEq(
+            token.calculateRequiredStake(p, freeCount + 1),
+            LibAppStorage.BASE_STAKE + LibAppStorage.STAKE_PER_ADDITIONAL_LAB
+        );
     }
 }

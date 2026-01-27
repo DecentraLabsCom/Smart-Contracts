@@ -11,11 +11,14 @@ contract RivalIntervalTreeTwoOpReproTest is Test {
         harness = new TreeHarness();
     }
 
-    function dumpNodes(uint256 cap) internal {
+    function dumpNodes(
+        uint256 cap
+    ) internal {
         uint256 cur = harness.first();
         uint256 iter = 0;
         while (cur != 0 && iter < cap) {
-            (uint256 k, uint256 end, uint256 parent, uint256 left, uint256 right, bool red) = harness.getNode(uint32(cur));
+            (uint256 k, uint256 end, uint256 parent, uint256 left, uint256 right, bool red) =
+                harness.getNode(uint32(cur));
             emit log_named_uint("node_key", k);
             emit log_named_uint("node_end", end);
             emit log_named_uint("node_parent", parent);
@@ -29,7 +32,9 @@ contract RivalIntervalTreeTwoOpReproTest is Test {
         emit log_named_uint("dump_nodes_count", iter);
     }
 
-    function dumpNodeKey(uint32 key) internal {
+    function dumpNodeKey(
+        uint32 key
+    ) internal {
         (uint256 k, uint256 end, uint256 parent, uint256 left, uint256 right, bool red) = harness.getNode(key);
         emit log_named_uint("single_node_key", k);
         emit log_named_uint("single_node_end", end);
@@ -40,8 +45,10 @@ contract RivalIntervalTreeTwoOpReproTest is Test {
     }
 
     function test_two_op_repro_and_dump() public {
-        uint32 s1 = 5922; uint32 e1 = 5989;
-        uint32 s2 = 5908; uint32 e2 = 5985;
+        uint32 s1 = 5922;
+        uint32 e1 = 5989;
+        uint32 s2 = 5908;
+        uint32 e2 = 5985;
 
         // Insert first interval
         harness.insert(s1, e1);

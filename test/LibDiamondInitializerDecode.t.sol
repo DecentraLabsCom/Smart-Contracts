@@ -21,9 +21,8 @@ contract LibDiamondInitializerDecode is Test {
         IDiamond.FacetCut[] memory cut = new IDiamond.FacetCut[](0);
         bytes memory initData = abi.encodeWithSelector(UnsafeExternalInitializer.init.selector);
 
-        (bool ok, bytes memory data) = address(diamond).call(
-            abi.encodeWithSelector(diamond.callInitializeDiamondCut.selector, address(unsafeInit), initData, cut)
-        );
+        (bool ok, bytes memory data) = address(diamond)
+            .call(abi.encodeWithSelector(diamond.callInitializeDiamondCut.selector, address(unsafeInit), initData, cut));
         assertFalse(ok, "call should have reverted");
 
         // data is the revert payload. If it's a standard Error(string) it starts with 0x08c379a0
@@ -35,7 +34,9 @@ contract LibDiamondInitializerDecode is Test {
                 // skip selector (4) + offset (32) + length (32)
                 // abi.decode(data[4:], (string)) won't work directly, so use abi.decode of slice
                 bytes memory sliced = new bytes(data.length - 4);
-                for (uint i = 0; i < sliced.length; i++) sliced[i] = data[i + 4];
+                for (uint256 i = 0; i < sliced.length; i++) {
+                    sliced[i] = data[i + 4];
+                }
                 // decode
                 string memory reason = abi.decode(sliced, (string));
                 emit RevertReason(reason);

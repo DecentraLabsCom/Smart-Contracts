@@ -16,7 +16,9 @@ contract DistributionHarness is DistributionFacet {
     }
 
     // test-only setter to wire the token into the harness' own app storage
-    function setLabTokenAddress(address tokenAddr) public {
+    function setLabTokenAddress(
+        address tokenAddr
+    ) public {
         LibAppStorage.diamondStorage().labTokenAddress = tokenAddr;
     }
 

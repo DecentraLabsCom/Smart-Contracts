@@ -11,9 +11,10 @@ contract RevertingInstReservationHarness2 {
 
     address public lastRefundProvider;
 
-
-
-    function setBackend(address inst, address backend) external {
+    function setBackend(
+        address inst,
+        address backend
+    ) external {
         AppStorage storage _s = LibAppStorage.diamondStorage();
         _s.institutionalBackends[inst] = backend;
     }
@@ -47,11 +48,19 @@ contract RevertingInstReservationHarness2 {
         r.requestPeriodDuration = uint64(d);
     }
 
-    function cancelBookingWrapper(address institutionalProvider, string calldata puc, bytes32 reservationKey) external returns (uint256) {
+    function cancelBookingWrapper(
+        address institutionalProvider,
+        string calldata puc,
+        bytes32 reservationKey
+    ) external returns (uint256) {
         return LibInstitutionalReservation.cancelBooking(institutionalProvider, puc, reservationKey);
     }
 
-    function refundToInstitutionalTreasury(address, string calldata, uint256) external pure {
+    function refundToInstitutionalTreasury(
+        address,
+        string calldata,
+        uint256
+    ) external pure {
         revert("refund failed");
     }
 }

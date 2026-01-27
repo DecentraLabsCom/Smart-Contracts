@@ -14,7 +14,9 @@ contract RivalIntervalTreeRandomTest is BaseTest {
     }
 
     // randomized insert/remove sequence property-based test
-    function test_randomized_insert_remove(bytes32 seed) public {
+    function test_randomized_insert_remove(
+        bytes32 seed
+    ) public {
         vm.assume(seed != bytes32(0));
         uint256 ops = (uint8(seed[0]) % 16) + 1; // up to 16 operations to avoid deep trees causing OOG
 
@@ -27,7 +29,7 @@ contract RivalIntervalTreeRandomTest is BaseTest {
         for (uint256 i = 0; i < ops; ++i) {
             uint256 rnd = uint256(keccak256(abi.encodePacked(seed, i, "rnd")));
             bool doInsert = (rnd % 2 == 0);
-            uint32 s = uint32(rnd % 10000);
+            uint32 s = uint32(rnd % 10_000);
             uint32 e = s + uint32((rnd >> 8) % 100 + 1);
 
             if (doInsert) {
@@ -102,7 +104,7 @@ contract RivalIntervalTreeRandomTest is BaseTest {
                     }
                     // tree.hasConflict should detect overlaps when checked against any inserted interval
                     // guard against expensive calls if gas is low
-                    if (gasleft() > 200000) {
+                    if (gasleft() > 200_000) {
                         require(harness.hasConflict(starts[a], ends[a]), "hasConflict failed");
                     }
                 }

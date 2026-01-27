@@ -200,7 +200,7 @@ contract DistributionFacet is AccessControlUpgradeable, ReentrancyGuardTransient
         // EFFECTS: Update all state variables BEFORE external calls (CEI pattern)
         uint256 subsidiesInit = LibAppStorage.SUBSIDIES_TOPUP_TRANCHE;
         uint256 ecosystemInit = LibAppStorage.ECOSYSTEM_TOPUP_TRANCHE;
-        
+
         s.treasuryPoolMinted = LibAppStorage.TREASURY_POOL_CAP;
         s.subsidiesPoolMinted = subsidiesInit;
         s.liquidityPoolMinted = LibAppStorage.LIQUIDITY_POOL_CAP;

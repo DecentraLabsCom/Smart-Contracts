@@ -12,20 +12,23 @@ contract RivalIntervalTreeInvariantsTest is Test {
     }
 
     // Fuzzed property: after applying a bounded sequence of inserts/removes, tree invariants must hold
-    function test_fuzz_tree_invariants(bytes32 seed) public {
+    function test_fuzz_tree_invariants(
+        bytes32 seed
+    ) public {
         uint256 ops = (uint8(seed[0]) % 8) + 1; // smaller bounded sequence to avoid pathological rebalancing
 
         // perform operations (insert/remove) defensively; treat insert reverts as acceptable
         for (uint256 i = 0; i < ops; ++i) {
             uint256 rnd = uint256(keccak256(abi.encodePacked(seed, i, "rnd")));
             bool doInsert = (rnd % 2 == 0);
-            uint32 s = uint32(rnd % 10000);
+            uint32 s = uint32(rnd % 10_000);
             uint32 e = s + uint32((rnd >> 8) % 100 + 1);
 
             if (doInsert) {
                 try harness.insert(s, e) {
-                    // ok
-                } catch {
+                // ok
+                }
+                    catch {
                     // acceptable overlap or other insert revert; continue
                 }
             } else {
@@ -70,7 +73,7 @@ contract RivalIntervalTreeInvariantsTest is Test {
         // Root detection: exactly one node should have parent == 0 and it must be black
         uint256 rootCount = 0;
         for (uint256 i = 0; i < cnt; ++i) {
-            (uint256 k, , uint256 parent, , , bool red) = harness.getNode(uint32(keys[i]));
+            (uint256 k,, uint256 parent,,, bool red) = harness.getNode(uint32(keys[i]));
             if (parent == 0) {
                 rootCount++;
                 assertFalse(red, "root must be black");
@@ -85,16 +88,17 @@ contract RivalIntervalTreeInvariantsTest is Test {
 
         // For each node, verify parent-child consistency and red-black property: red nodes have black children
         for (uint256 i = 0; i < cnt; ++i) {
-            (uint256 k, uint256 end, uint256 parent, uint256 left, uint256 right, bool red) = harness.getNode(uint32(keys[i]));
+            (uint256 k, uint256 end, uint256 parent, uint256 left, uint256 right, bool red) =
+                harness.getNode(uint32(keys[i]));
 
             // child parent pointers
             if (left != 0) {
-                (uint256 lk, , uint256 lparent, , , ) = harness.getNode(uint32(left));
+                (uint256 lk,, uint256 lparent,,,) = harness.getNode(uint32(left));
                 assertEq(lparent, k, "left child's parent must be node");
                 assertEq(lk, left, "left child's key mismatch");
             }
             if (right != 0) {
-                (uint256 rk, , uint256 rparent, , , ) = harness.getNode(uint32(right));
+                (uint256 rk,, uint256 rparent,,,) = harness.getNode(uint32(right));
                 assertEq(rparent, k, "right child's parent must be node");
                 assertEq(rk, right, "right child's key mismatch");
             }
@@ -102,25 +106,25 @@ contract RivalIntervalTreeInvariantsTest is Test {
             // red node children must be black
             if (red) {
                 if (left != 0) {
-                    (, , , , , bool lred) = harness.getNode(uint32(left));
+                    (,,,,, bool lred) = harness.getNode(uint32(left));
                     assertFalse(lred, "red node has red left child");
                 }
                 if (right != 0) {
-                    (, , , , , bool rred) = harness.getNode(uint32(right));
+                    (,,,,, bool rred) = harness.getNode(uint32(right));
                     assertFalse(rred, "red node has red right child");
                 }
             }
 
             // ordering & overlap check with successor (in-order)
             if (i + 1 < cnt) {
-                (uint256 nk, , , , , ) = harness.getNode(uint32(keys[i + 1]));
+                (uint256 nk,,,,,) = harness.getNode(uint32(keys[i + 1]));
                 assertTrue(end <= nk, "intervals must not overlap and must be ordered");
             }
 
             // parent pointer consistency (if parent != 0, the parent's key should exist)
             if (parent != 0) {
                 // try to access parent; getNode should succeed
-                (uint256 pk, , , , , ) = harness.getNode(uint32(parent));
+                (uint256 pk,,,,,) = harness.getNode(uint32(parent));
                 assertEq(pk, parent, "parent key must match");
             }
         }

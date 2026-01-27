@@ -12,8 +12,10 @@ contract RivalIntervalTreeTraceTest is Test {
     }
 
     function test_trace_two_op_sequence_logs() public {
-        uint32 s1 = 5922; uint32 e1 = 5989;
-        uint32 s2 = 5908; uint32 e2 = 5985;
+        uint32 s1 = 5922;
+        uint32 e1 = 5989;
+        uint32 s2 = 5908;
+        uint32 e2 = 5985;
 
         // Clear and record logs around operations
         vm.recordLogs();

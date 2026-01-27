@@ -67,16 +67,17 @@ contract BufferHeapHarness {
     }
 
     // cancel an arbitrary active reservation by key
-    function cancelActiveReservationByKey(bytes32 key) external {
+    function cancelActiveReservationByKey(
+        bytes32 key
+    ) external {
         LibReservationCancellation.cancelReservation(key);
     }
 
     // get info about heap root and length
-    function getActiveHeapRootInfo(uint256 labId, address trackingKey)
-        external
-        view
-        returns (bool hasRoot, uint32 start, bytes32 key, uint256 len)
-    {
+    function getActiveHeapRootInfo(
+        uint256 labId,
+        address trackingKey
+    ) external view returns (bool hasRoot, uint32 start, bytes32 key, uint256 len) {
         AppStorage storage s = LibAppStorage.diamondStorage();
         UserActiveReservation[] storage heap = s.activeReservationHeaps[labId][trackingKey];
         uint256 n = heap.length;
@@ -190,7 +191,9 @@ contract FuzzBuffersAndHeapTest is BaseTest {
     }
 
     // longer heap sequences stress test: construct up to 128 items and perform multiple removals
-    function test_fuzz_active_heap_long_sequences(bytes32 seed) public {
+    function test_fuzz_active_heap_long_sequences(
+        bytes32 seed
+    ) public {
         vm.assume(seed != bytes32(0));
         uint16 count = uint16(uint16(uint8(seed[0])) % 128) + 1; // 1..128
         uint256 labId = 9999;
@@ -199,7 +202,7 @@ contract FuzzBuffersAndHeapTest is BaseTest {
         uint32[] memory raw = new uint32[](count);
         bytes32[] memory rawKeys = new bytes32[](count);
         for (uint256 i = 0; i < count; ++i) {
-            raw[i] = uint32(uint256(keccak256(abi.encodePacked(seed, i))) % 1000000);
+            raw[i] = uint32(uint256(keccak256(abi.encodePacked(seed, i))) % 1_000_000);
             rawKeys[i] = keccak256(abi.encodePacked(seed, "k", i, raw[i]));
         }
 
@@ -217,7 +220,9 @@ contract FuzzBuffersAndHeapTest is BaseTest {
                     (startsHeap[parent], startsHeap[j]) = (startsHeap[j], startsHeap[parent]);
                     (keysHeap[parent], keysHeap[j]) = (keysHeap[j], keysHeap[parent]);
                     j = parent;
-                } else break;
+                } else {
+                    break;
+                }
             }
             heapLen++;
         }
@@ -228,9 +233,12 @@ contract FuzzBuffersAndHeapTest is BaseTest {
         uint16 removals = uint16(uint16(uint8(seed[1])) % uint16(count)) + 1;
         for (uint16 r = 0; r < removals; ++r) {
             vm.prank(address(this));
-            try harness.cancelRootActiveReservation(labId, tracking) returns (bytes32) {
-                // ok
-            } catch {
+            try harness.cancelRootActiveReservation(labId, tracking) returns (
+                bytes32
+            ) {
+            // ok
+            }
+                catch {
                 // ignore
             }
             assert(harness.checkHeapInvariant(labId, tracking));
@@ -238,7 +246,9 @@ contract FuzzBuffersAndHeapTest is BaseTest {
     }
 
     // past buffer saturation test: create many cancellations to overflow cap and verify cap respected and ordering
-    function test_fuzz_past_buffer_saturation(bytes32 seed) public {
+    function test_fuzz_past_buffer_saturation(
+        bytes32 seed
+    ) public {
         vm.assume(seed != bytes32(0));
         address user = makeAddr("saturate");
         uint256 labId = uint256(uint160(address(this))) & 0xFFFF;
@@ -253,11 +263,15 @@ contract FuzzBuffersAndHeapTest is BaseTest {
 
         (uint8 sizeT, uint32[50] memory endsT) = harness.getPastEndsByToken(labId);
         assert(sizeT <= 50);
-        for (uint256 j = 0; j + 1 < sizeT; ++j) assert(endsT[j] >= endsT[j + 1]);
+        for (uint256 j = 0; j + 1 < sizeT; ++j) {
+            assert(endsT[j] >= endsT[j + 1]);
+        }
     }
 
     // repeatedly remove root until heap empty; ensure heap invariant holds after each removal
-    function test_fuzz_heap_multiple_removals(bytes32 seed) public {
+    function test_fuzz_heap_multiple_removals(
+        bytes32 seed
+    ) public {
         vm.assume(seed != bytes32(0));
         uint8 count = uint8(uint8(seed[0]) % 20) + 1; // 1..20
         uint256 labId = uint256(uint160(address(this))) & 0xFFFF;
@@ -267,7 +281,7 @@ contract FuzzBuffersAndHeapTest is BaseTest {
         uint32[] memory raw = new uint32[](count);
         bytes32[] memory rawKeys = new bytes32[](count);
         for (uint8 i = 0; i < count; ++i) {
-            raw[i] = uint32(uint256(keccak256(abi.encodePacked(seed, "s", i))) % 100000);
+            raw[i] = uint32(uint256(keccak256(abi.encodePacked(seed, "s", i))) % 100_000);
             rawKeys[i] = keccak256(abi.encodePacked(seed, "k", i, raw[i]));
         }
 
@@ -291,7 +305,9 @@ contract FuzzBuffersAndHeapTest is BaseTest {
                     keysHeap[parent] = keysHeap[j];
                     keysHeap[j] = tmpKey;
                     j = parent;
-                } else break;
+                } else {
+                    break;
+                }
             }
             heapLen++;
         }
@@ -307,7 +323,9 @@ contract FuzzBuffersAndHeapTest is BaseTest {
     }
 
     // fuzz past buffer with deliberate duplicates to check ordering and collision behavior
-    function test_fuzz_past_buffer_duplicates(bytes32 seed) public {
+    function test_fuzz_past_buffer_duplicates(
+        bytes32 seed
+    ) public {
         vm.assume(seed != bytes32(0));
         address user = makeAddr("dup");
         uint256 labId = uint256(uint160(address(this))) & 0xFFFF;
@@ -324,7 +342,9 @@ contract FuzzBuffersAndHeapTest is BaseTest {
 
         (uint8 sizeT, uint32[50] memory endsT) = harness.getPastEndsByToken(labId);
         assert(sizeT <= 50);
-        for (uint256 j = 0; j + 1 < sizeT; ++j) assert(endsT[j] >= endsT[j + 1]);
+        for (uint256 j = 0; j + 1 < sizeT; ++j) {
+            assert(endsT[j] >= endsT[j + 1]);
+        }
     }
 
     // test heapify-up and heapify-down behavior by creating a small heap where the last element is the smallest
@@ -344,7 +364,9 @@ contract FuzzBuffersAndHeapTest is BaseTest {
         starts[5] = 8;
         starts[6] = 9;
 
-        for (uint8 i = 0; i < 7; ++i) keys[i] = keccak256(abi.encodePacked("det", i, starts[i]));
+        for (uint8 i = 0; i < 7; ++i) {
+            keys[i] = keccak256(abi.encodePacked("det", i, starts[i]));
+        }
 
         harness.seedActiveHeap(labId, tracking, starts, keys);
 

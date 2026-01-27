@@ -13,7 +13,9 @@ contract DistributionHarness is DistributionFacet {
     }
 
     // test-only setter
-    function setLabTokenAddress(address tokenAddr) public {
+    function setLabTokenAddress(
+        address tokenAddr
+    ) public {
         LibAppStorage.diamondStorage().labTokenAddress = tokenAddr;
     }
 
@@ -50,7 +52,9 @@ contract DistributionAccessControlTest is Test {
         // deploy a plain DistributionFacet (no admin granted) and assert revert when calling initializer
         DistributionFacet plain = new DistributionFacet();
         vm.expectRevert();
-        plain.initializeTokenPools(address(0x1), address(0x2), address(0x3), address(0x4), address(0x5), address(0x6), 1);
+        plain.initializeTokenPools(
+            address(0x1), address(0x2), address(0x3), address(0x4), address(0x5), address(0x6), 1
+        );
     }
 
     function test_admin_can_initialize_and_topup_and_mint_reserve() public {

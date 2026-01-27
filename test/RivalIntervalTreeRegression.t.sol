@@ -10,13 +10,13 @@ contract RivalIntervalTreeRegression is RivalIntervalTreeInvariantTraceFail {
         for (uint256 i = 0; i <= 35; ++i) {
             uint256 rnd = uint256(keccak256(abi.encodePacked(seed, i)));
             if (rnd % 2 == 0) {
-                uint32 s = uint32(rnd % 10000);
+                uint32 s = uint32(rnd % 10_000);
                 uint32 e = s + uint32((rnd >> 8) % 100 + 1);
                 bool ok = harness.tryInsert(s, e);
                 // insertion may be false on overlap, that's fine; invariants must hold regardless
                 if (!ok) { /* expected overlap or invalid insert */ }
             } else {
-                uint32 s = uint32(rnd % 10000);
+                uint32 s = uint32(rnd % 10_000);
                 if (harness.exists(s)) harness.remove(s);
             }
             // After each op the tree must satisfy invariants

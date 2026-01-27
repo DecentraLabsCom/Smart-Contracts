@@ -21,12 +21,12 @@ contract RivalIntervalTreeReproTest is Test {
         for (uint256 i = 0; i < ops; ++i) {
             uint256 rnd = uint256(keccak256(abi.encodePacked(seed, i, "rnd")));
             bool doInsert = (rnd % 2 == 0);
-            uint32 s = uint32(rnd % 10000);
+            uint32 s = uint32(rnd % 10_000);
             uint32 e = s + uint32((rnd >> 8) % 100 + 1);
 
             // avoid calling expensive countNodes on every iteration (can OOG after large inserts)
             uint256 nodeCount = 0;
-            if (i % 8 == 0 && gasleft() > 200000) {
+            if (i % 8 == 0 && gasleft() > 200_000) {
                 nodeCount = harness.countNodes();
             }
             emit log_named_uint("op_index", i);
@@ -77,7 +77,8 @@ contract RivalIntervalTreeReproTest is Test {
                     assert(false); // fail test to capture logs
                 }
                 // log node details
-                (uint256 k, uint256 end, uint256 parent, uint256 left, uint256 right, bool red) = harness.getNode(uint32(cur));
+                (uint256 k, uint256 end, uint256 parent, uint256 left, uint256 right, bool red) =
+                    harness.getNode(uint32(cur));
                 emit log_named_uint("node_key", k);
                 emit log_named_uint("node_end", end);
                 emit log_named_uint("node_parent", parent);
@@ -97,7 +98,7 @@ contract RivalIntervalTreeReproTest is Test {
 
                 if (nx != 0) {
                     // also assert ordering to check for overlaps
-                    (uint256 nk, , , , , ) = harness.getNode(uint32(nx));
+                    (uint256 nk,,,,,) = harness.getNode(uint32(nx));
                     assert(end <= nk);
                 }
 

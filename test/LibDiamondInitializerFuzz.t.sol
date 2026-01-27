@@ -39,15 +39,12 @@ contract LibDiamondInitializerFuzz is Test {
         // construct a single-element diamond cut to avoid complex nested fuzz inputs
         IDiamond.FacetCut[] memory _diamondCut = new IDiamond.FacetCut[](1);
         _diamondCut[0] = IDiamond.FacetCut({
-            facetAddress: _facet,
-            action: IDiamond.FacetCutAction(_action),
-            functionSelectors: _functionSelectors
+            facetAddress: _facet, action: IDiamond.FacetCutAction(_action), functionSelectors: _functionSelectors
         });
 
         // Low-level call to capture revert data without Forge's massive dump
-        (bool success, bytes memory data) = address(diamond).call(
-            abi.encodeWithSelector(diamond.callInitializeDiamondCut.selector, _init, _calldata, _diamondCut)
-        );
+        (bool success, bytes memory data) = address(diamond)
+            .call(abi.encodeWithSelector(diamond.callInitializeDiamondCut.selector, _init, _calldata, _diamondCut));
 
         if (!success) {
             emit RevertData(data);

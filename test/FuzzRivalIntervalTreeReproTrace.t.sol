@@ -24,7 +24,7 @@ contract RivalIntervalTreeReproTraceTest is Test {
         for (uint256 i = 0; i < ops; ++i) {
             uint256 rnd = uint256(keccak256(abi.encodePacked(seed, i, "rnd")));
             bool doInsert = (rnd % 2 == 0);
-            uint32 s = uint32(rnd % 10000);
+            uint32 s = uint32(rnd % 10_000);
             uint32 e = s + uint32((rnd >> 8) % 100 + 1);
 
             emit log_named_uint("op_index", i);

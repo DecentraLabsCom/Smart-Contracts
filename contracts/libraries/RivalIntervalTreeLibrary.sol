@@ -19,7 +19,9 @@ library RivalIntervalTreeLibrary {
     uint256 private constant EMPTY = 0;
 
     // Test-only tracing events: enabled in test runs to diagnose pathological sequences
-    event TraceInsertStep(string step, uint256 key, uint256 cursor, uint256 parent, uint256 left, uint256 right, uint256 end, bool red);
+    event TraceInsertStep(
+        string step, uint256 key, uint256 cursor, uint256 parent, uint256 left, uint256 right, uint256 end, bool red
+    );
     event TraceRotation(string step, uint256 key, uint256 cursor, uint256 cursorChild, uint256 parent);
     // Additional rotation post-state for diagnostics (root and parent pointers)
     event TraceRotateState(uint256 root, uint256 key, uint256 cursor, uint256 cursor_parent, uint256 key_parent);
@@ -209,13 +211,19 @@ library RivalIntervalTreeLibrary {
         require(!exists(self, key));
         uint256 cursor = findParent(self, key);
         Node memory node = Node({parent: cursor, left: EMPTY, right: EMPTY, end: end, red: true});
-        if (RIT_TEST_TRACE && self.debug) emit TraceInsertStep("findParent", key, cursor, node.parent, 0, 0, node.end, node.red);
+        if (RIT_TEST_TRACE && self.debug) {
+            emit TraceInsertStep("findParent", key, cursor, node.parent, 0, 0, node.end, node.red);
+        }
 
         // special case for first insert
         if (cursor == EMPTY) {
             self.root = key;
             self.nodes[key] = node;
-            if (RIT_TEST_TRACE && self.debug) emit TraceInsertStep("first_insert", key, cursor, node.parent, node.left, node.right, node.end, node.red);
+            if (RIT_TEST_TRACE && self.debug) {
+                emit TraceInsertStep(
+                    "first_insert", key, cursor, node.parent, node.left, node.right, node.end, node.red
+                );
+            }
             insertFixup(self, key);
             return;
         }
@@ -224,27 +232,59 @@ library RivalIntervalTreeLibrary {
         if (key < cursor) {
             uint256 prevCursor = prev(self, cursor);
             overlap = (end > cursor) || ((prevCursor != EMPTY) && (key < self.nodes[prevCursor].end));
-            if (RIT_TEST_TRACE && self.debug) emit TraceInsertStep("overlap_check_left", key, cursor, node.parent, self.nodes[cursor].left, self.nodes[cursor].right, node.end, node.red);
+            if (RIT_TEST_TRACE && self.debug) {
+                emit TraceInsertStep(
+                    "overlap_check_left",
+                    key,
+                    cursor,
+                    node.parent,
+                    self.nodes[cursor].left,
+                    self.nodes[cursor].right,
+                    node.end,
+                    node.red
+                );
+            }
 
             if (!overlap) {
                 self.nodes[key] = node;
                 self.nodes[cursor].left = key;
-                if (RIT_TEST_TRACE && self.debug) emit TraceInsertStep("linked_left", key, cursor, node.parent, node.left, node.right, node.end, node.red);
+                if (RIT_TEST_TRACE && self.debug) {
+                    emit TraceInsertStep(
+                        "linked_left", key, cursor, node.parent, node.left, node.right, node.end, node.red
+                    );
+                }
             }
         } else {
             uint256 nextCursor = next(self, cursor);
             overlap = (key < self.nodes[cursor].end) || ((nextCursor != EMPTY) && (end > nextCursor));
-            if (RIT_TEST_TRACE && self.debug) emit TraceInsertStep("overlap_check_right", key, cursor, node.parent, self.nodes[cursor].left, self.nodes[cursor].right, node.end, node.red);
+            if (RIT_TEST_TRACE && self.debug) {
+                emit TraceInsertStep(
+                    "overlap_check_right",
+                    key,
+                    cursor,
+                    node.parent,
+                    self.nodes[cursor].left,
+                    self.nodes[cursor].right,
+                    node.end,
+                    node.red
+                );
+            }
 
             if (!overlap) {
                 self.nodes[key] = node;
                 self.nodes[cursor].right = key;
-                if (RIT_TEST_TRACE && self.debug) emit TraceInsertStep("linked_right", key, cursor, node.parent, node.left, node.right, node.end, node.red);
+                if (RIT_TEST_TRACE && self.debug) {
+                    emit TraceInsertStep(
+                        "linked_right", key, cursor, node.parent, node.left, node.right, node.end, node.red
+                    );
+                }
             }
         }
 
         if (overlap) {
-            if (RIT_TEST_TRACE && self.debug) emit TraceInsertStep("overlap_detected", key, cursor, node.parent, 0, 0, node.end, node.red);
+            if (RIT_TEST_TRACE && self.debug) {
+                emit TraceInsertStep("overlap_detected", key, cursor, node.parent, 0, 0, node.end, node.red);
+            }
             revert("Overlap");
         }
 
@@ -263,13 +303,19 @@ library RivalIntervalTreeLibrary {
 
         uint256 cursor = findParent(self, key);
         Node memory node = Node({parent: cursor, left: EMPTY, right: EMPTY, end: end, red: true});
-        if (RIT_TEST_TRACE && self.debug) emit TraceInsertStep("findParent", key, cursor, node.parent, 0, 0, node.end, node.red);
+        if (RIT_TEST_TRACE && self.debug) {
+            emit TraceInsertStep("findParent", key, cursor, node.parent, 0, 0, node.end, node.red);
+        }
 
         // special case for first insert
         if (cursor == EMPTY) {
             self.root = key;
             self.nodes[key] = node;
-            if (RIT_TEST_TRACE && self.debug) emit TraceInsertStep("first_insert", key, cursor, node.parent, node.left, node.right, node.end, node.red);
+            if (RIT_TEST_TRACE && self.debug) {
+                emit TraceInsertStep(
+                    "first_insert", key, cursor, node.parent, node.left, node.right, node.end, node.red
+                );
+            }
             insertFixup(self, key);
             return true;
         }
@@ -278,27 +324,59 @@ library RivalIntervalTreeLibrary {
         if (key < cursor) {
             uint256 prevCursor = prev(self, cursor);
             overlap = (end > cursor) || ((prevCursor != EMPTY) && (key < self.nodes[prevCursor].end));
-            if (RIT_TEST_TRACE && self.debug) emit TraceInsertStep("overlap_check_left", key, cursor, node.parent, self.nodes[cursor].left, self.nodes[cursor].right, node.end, node.red);
+            if (RIT_TEST_TRACE && self.debug) {
+                emit TraceInsertStep(
+                    "overlap_check_left",
+                    key,
+                    cursor,
+                    node.parent,
+                    self.nodes[cursor].left,
+                    self.nodes[cursor].right,
+                    node.end,
+                    node.red
+                );
+            }
 
             if (!overlap) {
                 self.nodes[key] = node;
                 self.nodes[cursor].left = key;
-                if (RIT_TEST_TRACE && self.debug) emit TraceInsertStep("linked_left", key, cursor, node.parent, node.left, node.right, node.end, node.red);
+                if (RIT_TEST_TRACE && self.debug) {
+                    emit TraceInsertStep(
+                        "linked_left", key, cursor, node.parent, node.left, node.right, node.end, node.red
+                    );
+                }
             }
         } else {
             uint256 nextCursor = next(self, cursor);
             overlap = (key < self.nodes[cursor].end) || ((nextCursor != EMPTY) && (end > nextCursor));
-            if (RIT_TEST_TRACE && self.debug) emit TraceInsertStep("overlap_check_right", key, cursor, node.parent, self.nodes[cursor].left, self.nodes[cursor].right, node.end, node.red);
+            if (RIT_TEST_TRACE && self.debug) {
+                emit TraceInsertStep(
+                    "overlap_check_right",
+                    key,
+                    cursor,
+                    node.parent,
+                    self.nodes[cursor].left,
+                    self.nodes[cursor].right,
+                    node.end,
+                    node.red
+                );
+            }
 
             if (!overlap) {
                 self.nodes[key] = node;
                 self.nodes[cursor].right = key;
-                if (RIT_TEST_TRACE && self.debug) emit TraceInsertStep("linked_right", key, cursor, node.parent, node.left, node.right, node.end, node.red);
+                if (RIT_TEST_TRACE && self.debug) {
+                    emit TraceInsertStep(
+                        "linked_right", key, cursor, node.parent, node.left, node.right, node.end, node.red
+                    );
+                }
             }
         }
 
         if (overlap) {
-            if (RIT_TEST_TRACE && self.debug) emit TraceInsertStep("overlap_detected", key, cursor, node.parent, 0, 0, node.end, node.red);
+            if (RIT_TEST_TRACE && self.debug) {
+                emit TraceInsertStep("overlap_detected", key, cursor, node.parent, 0, 0, node.end, node.red);
+            }
             return false;
         }
 
@@ -395,35 +473,47 @@ library RivalIntervalTreeLibrary {
         if (isLeft) {
             cursor = self.nodes[key].right;
             cursorChild = self.nodes[cursor].left;
-            if (RIT_TEST_TRACE && self.debug) emit TraceRotation("rotate_left_prepare", key, cursor, cursorChild, keyParent);
+            if (RIT_TEST_TRACE && self.debug) {
+                emit TraceRotation("rotate_left_prepare", key, cursor, cursorChild, keyParent);
+            }
             self.nodes[key].right = cursorChild;
             self.nodes[cursor].left = key;
         } else {
             cursor = self.nodes[key].left;
             cursorChild = self.nodes[cursor].right;
-            if (RIT_TEST_TRACE && self.debug) emit TraceRotation("rotate_right_prepare", key, cursor, cursorChild, keyParent);
+            if (RIT_TEST_TRACE && self.debug) {
+                emit TraceRotation("rotate_right_prepare", key, cursor, cursorChild, keyParent);
+            }
             self.nodes[key].left = cursorChild;
             self.nodes[cursor].right = key;
         }
 
         if (cursorChild != EMPTY) {
             self.nodes[cursorChild].parent = key;
-            if (RIT_TEST_TRACE && self.debug) emit TraceRotation("rotate_child_relinked", key, cursor, cursorChild, keyParent);
+            if (RIT_TEST_TRACE && self.debug) {
+                emit TraceRotation("rotate_child_relinked", key, cursor, cursorChild, keyParent);
+            }
         }
 
         self.nodes[cursor].parent = keyParent;
 
         if (keyParent == EMPTY) {
             self.root = cursor;
-            if (RIT_TEST_TRACE && self.debug) emit TraceRotation("rotate_new_root", key, cursor, cursorChild, keyParent);
+            if (RIT_TEST_TRACE && self.debug) {
+                emit TraceRotation("rotate_new_root", key, cursor, cursorChild, keyParent);
+            }
         } else {
             // Link the rotated subtree to the correct side of keyParent based on where `key` was
             if (key == self.nodes[keyParent].left) {
                 self.nodes[keyParent].left = cursor;
-                if (RIT_TEST_TRACE && self.debug) emit TraceRotation("rotate_linked_left", key, cursor, cursorChild, keyParent);
+                if (RIT_TEST_TRACE && self.debug) {
+                    emit TraceRotation("rotate_linked_left", key, cursor, cursorChild, keyParent);
+                }
             } else {
                 self.nodes[keyParent].right = cursor;
-                if (RIT_TEST_TRACE && self.debug) emit TraceRotation("rotate_linked_right", key, cursor, cursorChild, keyParent);
+                if (RIT_TEST_TRACE && self.debug) {
+                    emit TraceRotation("rotate_linked_right", key, cursor, cursorChild, keyParent);
+                }
             }
         }
 
@@ -464,7 +554,10 @@ library RivalIntervalTreeLibrary {
         }
     }
 
-    function _blackHeight(Tree storage self, uint256 k) private view returns (uint256, bool) {
+    function _blackHeight(
+        Tree storage self,
+        uint256 k
+    ) private view returns (uint256, bool) {
         if (k == EMPTY) return (0, true);
         uint256 left = self.nodes[k].left;
         uint256 right = self.nodes[k].right;
@@ -490,7 +583,9 @@ library RivalIntervalTreeLibrary {
         rotate(self, key, false);
     }
 
-    event TraceInsertFixup(string step, uint256 key, uint256 keyParent, uint256 keyGrandparent, uint256 cursor, uint256 root, bool rootRed);
+    event TraceInsertFixup(
+        string step, uint256 key, uint256 keyParent, uint256 keyGrandparent, uint256 cursor, uint256 root, bool rootRed
+    );
 
     function insertFixup(
         Tree storage self,
@@ -504,20 +599,60 @@ library RivalIntervalTreeLibrary {
 
             cursor = isLeft ? self.nodes[keyGrandparent].right : self.nodes[keyGrandparent].left;
 
-            if (RIT_TEST_TRACE && self.debug) emit TraceInsertFixup("loop_start", key, keyParent, keyGrandparent, cursor, self.root, (self.root != EMPTY ? self.nodes[self.root].red : false));
+            if (RIT_TEST_TRACE && self.debug) {
+                emit TraceInsertFixup(
+                    "loop_start",
+                    key,
+                    keyParent,
+                    keyGrandparent,
+                    cursor,
+                    self.root,
+                    (self.root != EMPTY ? self.nodes[self.root].red : false)
+                );
+            }
 
             if (self.nodes[cursor].red) {
-                if (RIT_TEST_TRACE && self.debug) emit TraceInsertFixup("case_both_red", key, keyParent, keyGrandparent, cursor, self.root, (self.root != EMPTY ? self.nodes[self.root].red : false));
+                if (RIT_TEST_TRACE && self.debug) {
+                    emit TraceInsertFixup(
+                        "case_both_red",
+                        key,
+                        keyParent,
+                        keyGrandparent,
+                        cursor,
+                        self.root,
+                        (self.root != EMPTY ? self.nodes[self.root].red : false)
+                    );
+                }
                 self.nodes[keyParent].red = false;
                 self.nodes[cursor].red = false;
                 self.nodes[keyGrandparent].red = true;
                 key = keyGrandparent;
             } else {
                 if ((isLeft && key == self.nodes[keyParent].right) || (!isLeft && key == self.nodes[keyParent].left)) {
-                    if (RIT_TEST_TRACE && self.debug) emit TraceInsertFixup("pre_rotate_key", key, keyParent, keyGrandparent, cursor, self.root, (self.root != EMPTY ? self.nodes[self.root].red : false));
+                    if (RIT_TEST_TRACE && self.debug) {
+                        emit TraceInsertFixup(
+                            "pre_rotate_key",
+                            key,
+                            keyParent,
+                            keyGrandparent,
+                            cursor,
+                            self.root,
+                            (self.root != EMPTY ? self.nodes[self.root].red : false)
+                        );
+                    }
                     key = keyParent;
                     isLeft ? rotateLeft(self, key) : rotateRight(self, key);
-                    if (RIT_TEST_TRACE && self.debug) emit TraceInsertFixup("post_rotate_key", key, keyParent, keyGrandparent, cursor, self.root, (self.root != EMPTY ? self.nodes[self.root].red : false));
+                    if (RIT_TEST_TRACE && self.debug) {
+                        emit TraceInsertFixup(
+                            "post_rotate_key",
+                            key,
+                            keyParent,
+                            keyGrandparent,
+                            cursor,
+                            self.root,
+                            (self.root != EMPTY ? self.nodes[self.root].red : false)
+                        );
+                    }
                 }
 
                 keyParent = self.nodes[key].parent;
@@ -525,9 +660,29 @@ library RivalIntervalTreeLibrary {
 
                 self.nodes[keyParent].red = false;
                 self.nodes[keyGrandparent].red = true;
-                if (RIT_TEST_TRACE && self.debug) emit TraceInsertFixup("pre_rotate_grandparent", key, keyParent, keyGrandparent, cursor, self.root, (self.root != EMPTY ? self.nodes[self.root].red : false));
+                if (RIT_TEST_TRACE && self.debug) {
+                    emit TraceInsertFixup(
+                        "pre_rotate_grandparent",
+                        key,
+                        keyParent,
+                        keyGrandparent,
+                        cursor,
+                        self.root,
+                        (self.root != EMPTY ? self.nodes[self.root].red : false)
+                    );
+                }
                 isLeft ? rotateRight(self, keyGrandparent) : rotateLeft(self, keyGrandparent);
-                if (RIT_TEST_TRACE && self.debug) emit TraceInsertFixup("post_rotate_grandparent", key, keyParent, keyGrandparent, cursor, self.root, (self.root != EMPTY ? self.nodes[self.root].red : false));
+                if (RIT_TEST_TRACE && self.debug) {
+                    emit TraceInsertFixup(
+                        "post_rotate_grandparent",
+                        key,
+                        keyParent,
+                        keyGrandparent,
+                        cursor,
+                        self.root,
+                        (self.root != EMPTY ? self.nodes[self.root].red : false)
+                    );
+                }
 
                 // Test-only: ensure black heights of grandparent's children are equal after rotation
                 if (RIT_TEST_TRACE && self.debug) {
@@ -539,7 +694,11 @@ library RivalIntervalTreeLibrary {
             }
         }
 
-        if (RIT_TEST_TRACE && self.debug) emit TraceInsertFixup("final_root", 0, 0, 0, 0, self.root, (self.root != EMPTY ? self.nodes[self.root].red : false));
+        if (RIT_TEST_TRACE && self.debug) {
+            emit TraceInsertFixup(
+                "final_root", 0, 0, 0, 0, self.root, (self.root != EMPTY ? self.nodes[self.root].red : false)
+            );
+        }
         self.nodes[self.root].red = false;
     }
 

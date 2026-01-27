@@ -17,7 +17,9 @@ import "../contracts/interfaces/IDiamond.sol";
 
 contract StakingSlashingTest is BaseTest {
     // helper to compute selector
-    function _selector(string memory sig) internal pure returns (bytes4) {
+    function _selector(
+        string memory sig
+    ) internal pure returns (bytes4) {
         return bytes4(keccak256(bytes(sig)));
     }
 
@@ -32,7 +34,9 @@ contract StakingSlashingTest is BaseTest {
         IDiamond.FacetCut[] memory initial = new IDiamond.FacetCut[](2);
         bytes4[] memory dcSelectors = new bytes4[](1);
         dcSelectors[0] = IDiamondCut.diamondCut.selector;
-        initial[0] = IDiamond.FacetCut({facetAddress: address(dc), action: IDiamond.FacetCutAction.Add, functionSelectors: dcSelectors});
+        initial[0] = IDiamond.FacetCut({
+            facetAddress: address(dc), action: IDiamond.FacetCutAction.Add, functionSelectors: dcSelectors
+        });
 
         // Also add DiamondLoupe selectors so we can query facetAddress()/facets()
         bytes4[] memory loupeSels = new bytes4[](4);
@@ -40,7 +44,9 @@ contract StakingSlashingTest is BaseTest {
         loupeSels[1] = _selector("facetFunctionSelectors(address)");
         loupeSels[2] = _selector("facetAddresses()");
         loupeSels[3] = _selector("facetAddress(bytes4)");
-        initial[1] = IDiamond.FacetCut({facetAddress: address(loupe), action: IDiamond.FacetCutAction.Add, functionSelectors: loupeSels});
+        initial[1] = IDiamond.FacetCut({
+            facetAddress: address(loupe), action: IDiamond.FacetCutAction.Add, functionSelectors: loupeSels
+        });
 
         DiamondArgs memory args = DiamondArgs({owner: admin, init: address(0), initCalldata: ""});
         Diamond d = new Diamond(initial, args);
@@ -55,19 +61,26 @@ contract StakingSlashingTest is BaseTest {
         bytes4[] memory s0 = new bytes4[](2);
         s0[0] = _selector("initialize(string,string,string,address)");
         s0[1] = _selector("addProvider(string,address,string,string,string)");
-        cut[0] = IDiamond.FacetCut({facetAddress: address(pf), action: IDiamond.FacetCutAction.Add, functionSelectors: s0});
-        bytes4[] memory s1 = new bytes4[](1); s1[0] = _selector("initializeDiamond(string,string,string,address,string,string)");
-        cut[1] = IDiamond.FacetCut({facetAddress: address(initFacet), action: IDiamond.FacetCutAction.Add, functionSelectors: s1});
+        cut[0] =
+            IDiamond.FacetCut({facetAddress: address(pf), action: IDiamond.FacetCutAction.Add, functionSelectors: s0});
+        bytes4[] memory s1 = new bytes4[](1);
+        s1[0] = _selector("initializeDiamond(string,string,string,address,string,string)");
+        cut[1] = IDiamond.FacetCut({
+            facetAddress: address(initFacet), action: IDiamond.FacetCutAction.Add, functionSelectors: s1
+        });
         bytes4[] memory s2 = new bytes4[](2);
         s2[0] = _selector("initialize(string,string)");
         s2[1] = _selector("calculateRequiredStake(address,uint256)");
-        cut[2] = IDiamond.FacetCut({facetAddress: address(lf), action: IDiamond.FacetCutAction.Add, functionSelectors: s2});
+        cut[2] =
+            IDiamond.FacetCut({facetAddress: address(lf), action: IDiamond.FacetCutAction.Add, functionSelectors: s2});
         bytes4[] memory s3 = new bytes4[](4);
         s3[0] = _selector("slashProvider(address,uint256,string)");
         s3[1] = _selector("executeQueuedSlash(address)");
         s3[2] = _selector("cancelQueuedSlash(address)");
         s3[3] = _selector("getStakeInfo(address)");
-        cut[3] = IDiamond.FacetCut({facetAddress: address(stakeFacet), action: IDiamond.FacetCutAction.Add, functionSelectors: s3});
+        cut[3] = IDiamond.FacetCut({
+            facetAddress: address(stakeFacet), action: IDiamond.FacetCutAction.Add, functionSelectors: s3
+        });
 
         vm.prank(admin);
         IDiamondCut(address(d)).diamondCut(cut, address(0), "");
@@ -83,15 +96,16 @@ contract StakingSlashingTest is BaseTest {
 
         // Prepare: call InitFacet.initializeDiamond to set lab token and default admin
         vm.prank(admin);
-        InitFacet(address(d)).initializeDiamond("Admin","admin@x","ES", address(token), "LN", "LS");
+        InitFacet(address(d)).initializeDiamond("Admin", "admin@x", "ES", address(token), "LN", "LS");
 
         // as admin, add provider via ProviderFacet on diamond
         string memory name = "ProviderX";
         vm.prank(admin);
-        ProviderFacet(address(d)).addProvider(name, prov, "p@x","ES", "");
+        ProviderFacet(address(d)).addProvider(name, prov, "p@x", "ES", "");
 
         // Ensure provider was added and got initial stake (200 treasury + 800 stake) OR at least stake recorded
-        (uint256 preStake, uint256 preSlashed, uint256 preLastReservation, uint256 preUnlock, bool canUnstake) = StakingFacet(address(d)).getStakeInfo(prov);
+        (uint256 preStake, uint256 preSlashed, uint256 preLastReservation, uint256 preUnlock, bool canUnstake) =
+            StakingFacet(address(d)).getStakeInfo(prov);
         assertTrue(preStake >= 0);
 
         // Queue a slash for provider as admin
@@ -122,7 +136,7 @@ contract StakingSlashingTest is BaseTest {
         StakingFacet(address(d)).executeQueuedSlash(prov);
 
         // slashed amount recorded and stake decreased
-        (uint256 postStake, uint256 postSlashed, , , ) = StakingFacet(address(d)).getStakeInfo(prov);
+        (uint256 postStake, uint256 postSlashed,,,) = StakingFacet(address(d)).getStakeInfo(prov);
         assertEq(postSlashed - preSlashed, amount);
         assertEq(postStake, preStake - amount);
     }

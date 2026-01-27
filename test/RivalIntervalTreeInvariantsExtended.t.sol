@@ -32,13 +32,13 @@ contract RivalIntervalTreeInvariantsExtendedTest is Test {
     function parentChildConsistent() internal view returns (bool) {
         uint256 cur = harness.first();
         while (cur != 0) {
-            (, , uint256 parent, uint256 left, uint256 right, ) = harness.getNode(uint32(cur));
+            (,, uint256 parent, uint256 left, uint256 right,) = harness.getNode(uint32(cur));
             if (left != 0) {
-                (uint256 lk, , uint256 lparent, , , ) = harness.getNode(uint32(left));
+                (uint256 lk,, uint256 lparent,,,) = harness.getNode(uint32(left));
                 if (lparent != cur || lk != left) return false;
             }
             if (right != 0) {
-                (uint256 rk, , uint256 rparent, , , ) = harness.getNode(uint32(right));
+                (uint256 rk,, uint256 rparent,,,) = harness.getNode(uint32(right));
                 if (rparent != cur || rk != right) return false;
             }
             if (parent == cur) return false; // self parent
@@ -47,16 +47,18 @@ contract RivalIntervalTreeInvariantsExtendedTest is Test {
         // root parent check
         uint256 root = harness.getRoot();
         if (root != 0) {
-            (, , uint256 rparent, , , ) = harness.getNode(uint32(root));
+            (,, uint256 rparent,,,) = harness.getNode(uint32(root));
             if (rparent != 0) return false;
         }
         return true;
     }
 
     // Compute black-height for subtree rooted at k; returns (height, ok)
-    function blackHeight(uint256 k) internal view returns (uint256, bool) {
+    function blackHeight(
+        uint256 k
+    ) internal view returns (uint256, bool) {
         if (k == 0) return (0, true);
-        (, , , uint256 left, uint256 right, bool red) = harness.getNode(uint32(k));
+        (,,, uint256 left, uint256 right, bool red) = harness.getNode(uint32(k));
         (uint256 hl, bool ol) = blackHeight(left);
         (uint256 hr, bool orr) = blackHeight(right);
         if (!ol || !orr) return (0, false);
@@ -69,7 +71,7 @@ contract RivalIntervalTreeInvariantsExtendedTest is Test {
         // root black
         uint256 root = harness.getRoot();
         if (root != 0) {
-            (, , , , , bool redRoot) = harness.getNode(uint32(root));
+            (,,,,, bool redRoot) = harness.getNode(uint32(root));
             if (redRoot) return false;
         }
         if (!noCycles()) return false;
@@ -105,18 +107,20 @@ contract RivalIntervalTreeInvariantsExtendedTest is Test {
     // Test that a revert during insert (actual insert reverts) does not leave partial state
     function test_actual_revert_leaves_no_ghosts() public {
         harness.setDebug(true);
-        harness.insert(10000 - 1000, 10000 - 900); // some other nodes to mix
+        harness.insert(10_000 - 1000, 10_000 - 900); // some other nodes to mix
         uint256 before = harness.countNodes();
         // expected to revert
         try harness.insert(5922, 5989) {
-            // ok
-        } catch {
+        // ok
+        }
+            catch {
             // ignore
         }
         // attempt overlapping insert via raw insert that will revert
         try harness.insert(5922, 5989) {
-            // first time may succeed depending on prior insert
-        } catch {
+        // first time may succeed depending on prior insert
+        }
+            catch {
             // ignored
         }
 
@@ -138,11 +142,11 @@ contract RivalIntervalTreeInvariantsExtendedTest is Test {
         for (uint256 i = 0; i < 64; ++i) {
             uint256 rnd = uint256(keccak256(abi.encodePacked(seed, i)));
             if (rnd % 2 == 0) {
-                uint32 s = uint32(rnd % 10000);
+                uint32 s = uint32(rnd % 10_000);
                 uint32 e = s + uint32((rnd >> 8) % 100 + 1);
                 harness.tryInsert(s, e);
             } else {
-                uint32 s = uint32(rnd % 10000);
+                uint32 s = uint32(rnd % 10_000);
                 if (harness.exists(s)) harness.remove(s);
             }
             assertTrue(invariantsHold(), "invariants failed during random ops");
@@ -155,7 +159,8 @@ contract RivalIntervalTreeInvariantsExtendedTest is Test {
         for (uint32 i = 1000; i < 1050; ++i) {
             harness.tryInsert(i * 10, i * 10 + 5);
         }
-        uint32 s = 9000; uint32 e = 9010;
+        uint32 s = 9000;
+        uint32 e = 9010;
         uint256 gasBefore = gasleft();
         harness.tryInsert(s, e);
         uint256 gasAfter = gasleft();

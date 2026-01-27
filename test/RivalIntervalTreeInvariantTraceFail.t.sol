@@ -7,7 +7,8 @@ import "./RivalIntervalTree.t.sol";
 contract RivalIntervalTreeInvariantTraceFail is Test {
     TreeHarness public harness;
 
-    bytes32 private constant TRACE_INSERT_SIG = keccak256("TraceInsertStep(string,uint256,uint256,uint256,uint256,uint256,uint256,bool)");
+    bytes32 private constant TRACE_INSERT_SIG =
+        keccak256("TraceInsertStep(string,uint256,uint256,uint256,uint256,uint256,uint256,bool)");
     bytes32 private constant TRACE_ROT_SIG = keccak256("TraceRotation(string,uint256,uint256,uint256,uint256)");
 
     function setUp() public {
@@ -22,11 +23,11 @@ contract RivalIntervalTreeInvariantTraceFail is Test {
             vm.recordLogs();
             uint256 rnd = uint256(keccak256(abi.encodePacked(seed, i)));
             if (rnd % 2 == 0) {
-                uint32 s = uint32(rnd % 10000);
+                uint32 s = uint32(rnd % 10_000);
                 uint32 e = s + uint32((rnd >> 8) % 100 + 1);
                 harness.tryInsert(s, e);
             } else {
-                uint32 s = uint32(rnd % 10000);
+                uint32 s = uint32(rnd % 10_000);
                 if (harness.exists(s)) harness.remove(s);
             }
 
@@ -39,7 +40,19 @@ contract RivalIntervalTreeInvariantTraceFail is Test {
                 for (uint256 j = 0; j < logs.length; ++j) {
                     bytes32 sig = logs[j].topics.length > 0 ? logs[j].topics[0] : bytes32(0);
                     if (sig == TRACE_INSERT_SIG) {
-                        (string memory step, uint256 key, uint256 cursor, uint256 parent, uint256 left, uint256 right, uint256 end, bool red) = abi.decode(logs[j].data, (string,uint256,uint256,uint256,uint256,uint256,uint256,bool));
+                        (
+                            string memory step,
+                            uint256 key,
+                            uint256 cursor,
+                            uint256 parent,
+                            uint256 left,
+                            uint256 right,
+                            uint256 end,
+                            bool red
+                        ) =
+                            abi.decode(
+                                logs[j].data, (string, uint256, uint256, uint256, uint256, uint256, uint256, bool)
+                            );
                         emit log_named_string("insert_step", step);
                         emit log_named_uint("  key", key);
                         emit log_named_uint("  cursor", cursor);
@@ -49,7 +62,8 @@ contract RivalIntervalTreeInvariantTraceFail is Test {
                         emit log_named_uint("  end", end);
                         emit log_named_uint("  red", red ? 1 : 0);
                     } else if (sig == TRACE_ROT_SIG) {
-                        (string memory step, uint256 key, uint256 cursor, uint256 cursorChild, uint256 parent) = abi.decode(logs[j].data, (string,uint256,uint256,uint256,uint256));
+                        (string memory step, uint256 key, uint256 cursor, uint256 cursorChild, uint256 parent) =
+                            abi.decode(logs[j].data, (string, uint256, uint256, uint256, uint256));
                         emit log_named_string("rot_step", step);
                         emit log_named_uint("  key", key);
                         emit log_named_uint("  cursor", cursor);
@@ -61,7 +75,8 @@ contract RivalIntervalTreeInvariantTraceFail is Test {
                 uint256 root = harness.getRoot();
                 emit log_named_uint("root_at_failure", root);
                 if (root != 0) {
-                    (uint256 k, uint256 end, uint256 parent, uint256 left, uint256 right, bool red) = harness.getNode(uint32(root));
+                    (uint256 k, uint256 end, uint256 parent, uint256 left, uint256 right, bool red) =
+                        harness.getNode(uint32(root));
                     emit log_named_uint("root_key", k);
                     emit log_named_uint("root_end", end);
                     emit log_named_uint("root_parent", parent);
@@ -79,7 +94,7 @@ contract RivalIntervalTreeInvariantTraceFail is Test {
     function _invariantsHold() internal returns (bool) {
         uint256 root = harness.getRoot();
         if (root != 0) {
-            (, , , , , bool redRoot) = harness.getNode(uint32(root));
+            (,,,,, bool redRoot) = harness.getNode(uint32(root));
             if (redRoot) {
                 emit log_named_string("invariant", "root_red");
                 return false;
@@ -102,9 +117,9 @@ contract RivalIntervalTreeInvariantTraceFail is Test {
                 return false;
             }
             seen[i++] = cur;
-            (, , , uint256 left, uint256 right, ) = harness.getNode(uint32(cur));
+            (,,, uint256 left, uint256 right,) = harness.getNode(uint32(cur));
             if (left != 0) {
-                (, , uint256 lparent, , , ) = harness.getNode(uint32(left));
+                (,, uint256 lparent,,,) = harness.getNode(uint32(left));
                 if (lparent != cur) {
                     emit log_named_string("invariant", "parent_mismatch_left");
                     emit log_named_uint("node", cur);
@@ -114,7 +129,7 @@ contract RivalIntervalTreeInvariantTraceFail is Test {
                 }
             }
             if (right != 0) {
-                (, , uint256 rparent, , , ) = harness.getNode(uint32(right));
+                (,, uint256 rparent,,,) = harness.getNode(uint32(right));
                 if (rparent != cur) {
                     emit log_named_string("invariant", "parent_mismatch_right");
                     emit log_named_uint("node", cur);
@@ -136,9 +151,11 @@ contract RivalIntervalTreeInvariantTraceFail is Test {
         return true;
     }
 
-    function _blackHeight(uint256 k) internal returns (uint256, bool) {
+    function _blackHeight(
+        uint256 k
+    ) internal returns (uint256, bool) {
         if (k == 0) return (0, true);
-        (, , , uint256 left, uint256 right, bool red) = harness.getNode(uint32(k));
+        (,,, uint256 left, uint256 right, bool red) = harness.getNode(uint32(k));
         (uint256 hl, bool ol) = _blackHeight(left);
         (uint256 hr, bool orr) = _blackHeight(right);
         if (!ol || !orr) return (0, false);

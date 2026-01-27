@@ -11,15 +11,24 @@ import "../contracts/libraries/LibAppStorage.sol";
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 
 contract OwnerSetter {
-    function setOwner(address _new) external {
+    function setOwner(
+        address _new
+    ) external {
         LibDiamond.setContractOwner(_new);
     }
 }
 
 // Test helper: call ProviderFacet.initialize via delegatecall from an Initializable caller
 import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+
 contract ProviderInitializeCaller is Initializable {
-    function runInitialize(address providerAddr, string memory name, string memory email, string memory country, address labToken) public reinitializer(1) {
+    function runInitialize(
+        address providerAddr,
+        string memory name,
+        string memory email,
+        string memory country,
+        address labToken
+    ) public reinitializer(1) {
         (bool ok, bytes memory res) = providerAddr.delegatecall(
             abi.encodeWithSignature("initialize(string,string,string,address)", name, email, country, labToken)
         );
@@ -31,7 +40,9 @@ contract ProviderInitializeCaller is Initializable {
 }
 
 contract Inspector {
-    function checkRole(bytes32 role) external view returns (address who, bool has) {
+    function checkRole(
+        bytes32 role
+    ) external view returns (address who, bool has) {
         AppStorage storage s = LibAppStorage.diamondStorage();
         who = msg.sender;
         has = EnumerableSet.contains(s.roleMembers[role], msg.sender);
@@ -40,32 +51,49 @@ contract Inspector {
 
 contract InstitutionalTreasuryFacetMock {
     using EnumerableSet for EnumerableSet.AddressSet;
-    function addInstitution(address a) external {
+
+    function addInstitution(
+        address a
+    ) external {
         AppStorage storage s = LibAppStorage.diamondStorage();
         EnumerableSet.add(s.roleMembers[INSTITUTION_ROLE], a);
     }
-    function authorizeBackend(address backend) external {
+
+    function authorizeBackend(
+        address backend
+    ) external {
         AppStorage storage s = LibAppStorage.diamondStorage();
         require(s.roleMembers[INSTITUTION_ROLE].contains(msg.sender), "Unknown institution");
         s.institutionalBackends[msg.sender] = backend;
     }
-    function getBackend(address institution) external view returns (address) {
+
+    function getBackend(
+        address institution
+    ) external view returns (address) {
         AppStorage storage s = LibAppStorage.diamondStorage();
         return s.institutionalBackends[institution];
     }
 }
 
 contract ProviderFacetMock {
-    function setProviderAuthURI(string calldata uri) external {
+    function setProviderAuthURI(
+        string calldata uri
+    ) external {
         AppStorage storage s = LibAppStorage.diamondStorage();
         require(EnumerableSet.contains(s.roleMembers[PROVIDER_ROLE], msg.sender), "Only provider");
         s.providers[msg.sender].authURI = uri; // note: providers mapping uses ProviderBase struct
     }
-    function getProviderAuthURI(address provider) external view returns (string memory) {
+
+    function getProviderAuthURI(
+        address provider
+    ) external view returns (string memory) {
         AppStorage storage s = LibAppStorage.diamondStorage();
         return s.providers[provider].authURI;
     }
-    function addProviderRole(address provider) external {
+
+    function addProviderRole(
+        address provider
+    ) external {
         AppStorage storage s = LibAppStorage.diamondStorage();
         EnumerableSet.add(s.roleMembers[PROVIDER_ROLE], provider);
     }
@@ -103,16 +131,21 @@ contract AccessControlTest is Test {
         // NOTE: full "admin -> success" path requires a diamond context; TODO: add diamond harness to exercise successful init end-to-end
 
         // leave the rest of initialization to separate integration tests focused on diamond deployment
-
     }
 
-    function _delegateAuthorizeBackend(address backend) internal {
-        (bool ok, bytes memory res) = address(instFacet).delegatecall(abi.encodeWithSignature("authorizeBackend(address)", backend));
+    function _delegateAuthorizeBackend(
+        address backend
+    ) internal {
+        (bool ok, bytes memory res) =
+            address(instFacet).delegatecall(abi.encodeWithSignature("authorizeBackend(address)", backend));
         if (!ok) assembly { revert(add(res, 32), mload(res)) }
     }
 
-    function _delegateSetProviderAuthURI(string memory uri) internal {
-        (bool ok, bytes memory res) = address(provider).delegatecall(abi.encodeWithSignature("setProviderAuthURI(string)", uri));
+    function _delegateSetProviderAuthURI(
+        string memory uri
+    ) internal {
+        (bool ok, bytes memory res) =
+            address(provider).delegatecall(abi.encodeWithSignature("setProviderAuthURI(string)", uri));
         if (!ok) assembly { revert(add(res, 32), mload(res)) }
     }
 

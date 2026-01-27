@@ -12,19 +12,31 @@ contract DummyERC20 {
     mapping(address => uint256) public balances;
     mapping(address => mapping(address => uint256)) public allowances;
 
-    function setBalance(address who, uint256 amount) external {
+    function setBalance(
+        address who,
+        uint256 amount
+    ) external {
         balances[who] = amount;
     }
 
-    function setAllowance(address owner, address spender, uint256 amount) external {
+    function setAllowance(
+        address owner,
+        address spender,
+        uint256 amount
+    ) external {
         allowances[owner][spender] = amount;
     }
 
-    function balanceOf(address who) external view returns (uint256) {
+    function balanceOf(
+        address who
+    ) external view returns (uint256) {
         return balances[who];
     }
 
-    function allowance(address owner, address spender) external view returns (uint256) {
+    function allowance(
+        address owner,
+        address spender
+    ) external view returns (uint256) {
         return allowances[owner][spender];
     }
 }
@@ -32,44 +44,68 @@ contract DummyERC20 {
 contract WalletRequestHarness is WalletReservationCoreFacet {
     mapping(uint256 => address) public owners;
 
-    function setOwner(uint256 tokenId, address owner) external {
+    function setOwner(
+        uint256 tokenId,
+        address owner
+    ) external {
         owners[tokenId] = owner;
     }
 
-    function ownerOf(uint256 tokenId) external view returns (address) {
+    function ownerOf(
+        uint256 tokenId
+    ) external view returns (address) {
         return owners[tokenId];
     }
 
-    function setTokenStatus(uint256 tokenId, bool status) external {
+    function setTokenStatus(
+        uint256 tokenId,
+        bool status
+    ) external {
         AppStorage storage s = LibAppStorage.diamondStorage();
         s.tokenStatus[tokenId] = status;
     }
 
-    function setLabPrice(uint256 tokenId, uint96 price) external {
+    function setLabPrice(
+        uint256 tokenId,
+        uint96 price
+    ) external {
         AppStorage storage s = LibAppStorage.diamondStorage();
         s.labs[tokenId].price = price;
     }
 
-    function setLabTokenAddress(address addr) external {
+    function setLabTokenAddress(
+        address addr
+    ) external {
         AppStorage storage s = LibAppStorage.diamondStorage();
         s.labTokenAddress = addr;
     }
 
-    function setProviderStake(address p, uint256 v) external {
+    function setProviderStake(
+        address p,
+        uint256 v
+    ) external {
         AppStorage storage s = LibAppStorage.diamondStorage();
         s.providerStakes[p].stakedAmount = v;
     }
 
-    function request(uint256 labId, uint32 start, uint32 end) external {
+    function request(
+        uint256 labId,
+        uint32 start,
+        uint32 end
+    ) external {
         this.reservationRequest(labId, start, end);
     }
 
-    function getReservationRenter(bytes32 key) external view returns (address) {
+    function getReservationRenter(
+        bytes32 key
+    ) external view returns (address) {
         AppStorage storage s = LibAppStorage.diamondStorage();
         return s.reservations[key].renter;
     }
 
-    function getReservationStatus(bytes32 key) external view returns (uint8) {
+    function getReservationStatus(
+        bytes32 key
+    ) external view returns (uint8) {
         AppStorage storage s = LibAppStorage.diamondStorage();
         return s.reservations[key].status;
     }
@@ -154,5 +190,7 @@ contract WalletReservationRequestTest is BaseTest {
     }
 
     // duplicate event signature placer
-    event ReservationRequested(address indexed renter, uint256 indexed lab, uint256 start, uint256 end, bytes32 indexed reservationKey);
+    event ReservationRequested(
+        address indexed renter, uint256 indexed lab, uint256 start, uint256 end, bytes32 indexed reservationKey
+    );
 }

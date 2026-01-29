@@ -21,7 +21,7 @@ jobs:
       - name: setup foundry
         uses: foundry-rs/foundry-toolchain@v1
         with:
-          version: stable
+          version: 1.5.0
 
       - name: init submodules
         run: |

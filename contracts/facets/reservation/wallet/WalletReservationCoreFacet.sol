@@ -23,7 +23,6 @@ contract WalletReservationCoreFacet is BaseLightReservationFacet {
     error InvalidRange();
     error LowAllowance();
     error SlotUnavailable();
-    uint256 internal constant _PENDING_REQUEST_TTL = 1 hours;
 
     function reservationRequest(
         uint256 _labId,

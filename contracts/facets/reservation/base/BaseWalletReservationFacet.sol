@@ -166,8 +166,8 @@ abstract contract BaseWalletReservationFacet is InstitutionalReservableTokenEnum
             if (reservation.status == _PENDING) {
                 uint256 ttl = reservation.requestPeriodDuration;
                 if (ttl == 0) ttl = _PENDING_REQUEST_TTL;
-                bool expired = reservation.requestPeriodStart == 0
-                    || currentTime >= reservation.requestPeriodStart + ttl;
+                bool expired =
+                    reservation.requestPeriodStart == 0 || currentTime >= reservation.requestPeriodStart + ttl;
                 if (expired) {
                     _cancelReservation(key);
                     len = userReservations.length();

@@ -52,7 +52,8 @@ library LibInstitutionalReservationRequestValidation {
         owner = IERC721(address(this)).ownerOf(labId);
         if (
             s.providerStakes[owner].stakedAmount
-                < IReservableTokenCalcV(address(this)).calculateRequiredStake(owner, s.providerStakes[owner].listedLabsCount)
+                < IReservableTokenCalcV(address(this))
+                    .calculateRequiredStake(owner, s.providerStakes[owner].listedLabsCount)
         ) {
             revert();
         }

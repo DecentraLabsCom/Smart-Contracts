@@ -152,7 +152,8 @@ library LibInstitutionalReservationConfirmation {
     ) private view returns (bool) {
         if (!s.tokenStatus[labId]) return false;
         uint256 listedLabsCount = s.providerStakes[labProvider].listedLabsCount;
-        uint256 requiredStake = IReservableTokenCalcI(address(this)).calculateRequiredStake(labProvider, listedLabsCount);
+        uint256 requiredStake =
+            IReservableTokenCalcI(address(this)).calculateRequiredStake(labProvider, listedLabsCount);
         return s.providerStakes[labProvider].stakedAmount >= requiredStake;
     }
 

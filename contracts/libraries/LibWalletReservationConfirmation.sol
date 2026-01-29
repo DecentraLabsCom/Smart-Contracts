@@ -92,11 +92,12 @@ library LibWalletReservationConfirmation {
 
         _setReservationSplit(reservation);
 
-        (bool success, bytes memory data) = s.labTokenAddress.call(
-            abi.encodeWithSelector(
-                IERC20.transferFrom.selector, reservation.renter, address(this), uint256(reservation.price)
-            )
-        );
+        (bool success, bytes memory data) = s.labTokenAddress
+            .call(
+                abi.encodeWithSelector(
+                    IERC20.transferFrom.selector, reservation.renter, address(this), uint256(reservation.price)
+                )
+            );
 
         if (!success || (data.length != 0 && !abi.decode(data, (bool)))) {
             LibReservationCancellation.cancelReservation(reservationKey);
@@ -131,7 +132,8 @@ library LibWalletReservationConfirmation {
     ) private view returns (bool) {
         if (!s.tokenStatus[labId]) return false;
         uint256 listedLabsCount = s.providerStakes[labProvider].listedLabsCount;
-        uint256 requiredStake = IReservableTokenCalcW(address(this)).calculateRequiredStake(labProvider, listedLabsCount);
+        uint256 requiredStake =
+            IReservableTokenCalcW(address(this)).calculateRequiredStake(labProvider, listedLabsCount);
         return s.providerStakes[labProvider].stakedAmount >= requiredStake;
     }
 

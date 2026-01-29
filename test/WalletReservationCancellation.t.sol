@@ -5,6 +5,7 @@ import "forge-std/Test.sol";
 import "./BaseTest.sol";
 import "./Harnesses.sol";
 import "../contracts/libraries/LibAppStorage.sol";
+import "../contracts/libraries/LibWalletReservationCancellation.sol";
 
 contract WalletReservationCancellationTest is BaseTest {
     WalletCancellationHarness public harness;
@@ -24,7 +25,7 @@ contract WalletReservationCancellationTest is BaseTest {
         harness.setReservation(key, user1, 0, _CONFIRMED, labId, start, address(0x0), puc);
 
         vm.prank(user1);
-        vm.expectRevert(bytes("Use cancelInstitutionalBookingWithPuc"));
+        vm.expectRevert(abi.encodeWithSelector(LibWalletReservationCancellation.UseInstitutionalCancel.selector));
         harness.ext_cancelBooking(key);
     }
 

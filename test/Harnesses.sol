@@ -244,6 +244,14 @@ contract ConfirmHarness is InstitutionalReservationConfirmationFacet {
         address
     ) external {}
 
+    // stubbed required stake so provider checks pass in tests
+    function calculateRequiredStake(
+        address,
+        uint256
+    ) external pure returns (uint256) {
+        return 0;
+    }
+
     // expose confirm wrapper
     function ext_confirmWithPuc(
         address inst,

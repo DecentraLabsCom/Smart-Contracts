@@ -8,6 +8,7 @@ artifacts
 .env
 deployments/
 .wake/build/
+upgrade-log.txt
 
 # Foundry files
 out/

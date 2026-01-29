@@ -7,6 +7,7 @@ import "../contracts/facets/reservation/institutional/InstitutionalReservationCo
 import "../contracts/libraries/LibAppStorage.sol";
 import "../contracts/libraries/LibInstitutionalReservation.sol";
 import "../contracts/libraries/LibReservationCancellation.sol";
+import "../contracts/libraries/LibWalletReservationCancellation.sol";
 
 contract InstReservationHarness {
     using EnumerableSet for EnumerableSet.Bytes32Set;
@@ -162,7 +163,7 @@ contract WalletCancellationHarness is WalletReservationCancellationFacet {
     function ext_cancelBooking(
         bytes32 key
     ) external {
-        _cancelBooking(key);
+        LibWalletReservationCancellation.cancelBooking(key);
     }
 
     function getReservationStatus(

@@ -38,19 +38,20 @@ library LibReservationCancellation {
             : reservation.renter;
         uint256 labId = reservation.labId;
 
-        if (reservation.status == _CONFIRMED || reservation.status == _IN_USE || reservation.status == _PENDING) {
+        bool isActive = reservation.status == _CONFIRMED || reservation.status == _IN_USE;
+        bool isPending = reservation.status == _PENDING;
+        if (isActive) {
             if (s.activeReservationCountByTokenAndUser[labId][reservation.renter] > 0) {
                 s.activeReservationCountByTokenAndUser[labId][reservation.renter]--;
             }
+        }
+        if (isActive || isPending) {
             s.reservationKeysByTokenAndUser[labId][reservation.renter].remove(reservationKey);
+        }
 
-            if (
-                (reservation.status == _CONFIRMED || reservation.status == _IN_USE)
-                    && s.activeReservationByTokenAndUser[labId][reservation.renter] == reservationKey
-            ) {
-                bytes32 nextKey = _findNextEarliestReservation(s, labId, reservation.renter);
-                s.activeReservationByTokenAndUser[labId][reservation.renter] = nextKey;
-            }
+        if (isActive && s.activeReservationByTokenAndUser[labId][reservation.renter] == reservationKey) {
+            bytes32 nextKey = _findNextEarliestReservation(s, labId, reservation.renter);
+            s.activeReservationByTokenAndUser[labId][reservation.renter] = nextKey;
         }
 
         s.reservationKeysByToken[labId].remove(reservationKey);
@@ -61,12 +62,14 @@ library LibReservationCancellation {
         _cancelReservationBase(s, reservationKey, reservation);
 
         if (isInstitutional) {
-            if (s.activeReservationCountByTokenAndUser[labId][trackingKey] > 0) {
-                s.activeReservationCountByTokenAndUser[labId][trackingKey]--;
+            if (isActive) {
+                if (s.activeReservationCountByTokenAndUser[labId][trackingKey] > 0) {
+                    s.activeReservationCountByTokenAndUser[labId][trackingKey]--;
+                }
             }
             s.reservationKeysByTokenAndUser[labId][trackingKey].remove(reservationKey);
 
-            if (s.activeReservationByTokenAndUser[labId][trackingKey] == reservationKey) {
+            if (isActive && s.activeReservationByTokenAndUser[labId][trackingKey] == reservationKey) {
                 bytes32 nextKey = _findNextEarliestReservation(s, labId, trackingKey);
                 s.activeReservationByTokenAndUser[labId][trackingKey] = nextKey;
             }

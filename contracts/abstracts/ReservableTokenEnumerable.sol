@@ -710,19 +710,20 @@ abstract contract ReservableTokenEnumerable is ReservableToken {
         AppStorage storage s = _s();
         Reservation storage reservation = s.reservations[_reservationKey];
 
-        if (reservation.status == _CONFIRMED || reservation.status == _IN_USE || reservation.status == _PENDING) {
+        bool isActive = reservation.status == _CONFIRMED || reservation.status == _IN_USE;
+        bool isPending = reservation.status == _PENDING;
+        if (isActive) {
             if (s.activeReservationCountByTokenAndUser[reservation.labId][reservation.renter] > 0) {
                 s.activeReservationCountByTokenAndUser[reservation.labId][reservation.renter]--;
             }
+        }
+        if (isActive || isPending) {
             s.reservationKeysByTokenAndUser[reservation.labId][reservation.renter].remove(_reservationKey);
+        }
 
-            if (
-                (reservation.status == _CONFIRMED || reservation.status == _IN_USE)
-                    && s.activeReservationByTokenAndUser[reservation.labId][reservation.renter] == _reservationKey
-            ) {
-                bytes32 nextKey = _findNextEarliestReservation(reservation.labId, reservation.renter);
-                s.activeReservationByTokenAndUser[reservation.labId][reservation.renter] = nextKey;
-            }
+        if (isActive && s.activeReservationByTokenAndUser[reservation.labId][reservation.renter] == _reservationKey) {
+            bytes32 nextKey = _findNextEarliestReservation(reservation.labId, reservation.renter);
+            s.activeReservationByTokenAndUser[reservation.labId][reservation.renter] = nextKey;
         }
 
         s.reservationKeysByToken[reservation.labId].remove(_reservationKey);

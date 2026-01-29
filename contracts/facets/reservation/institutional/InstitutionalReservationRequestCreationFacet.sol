@@ -69,7 +69,6 @@ contract InstitutionalReservationRequestCreationFacet is BaseMinimalReservationF
         s.totalReservationsCount++;
         s.renters[i.p].add(i.k);
         s.renters[i.t].add(i.k);
-        s.activeReservationCountByTokenAndUser[i.l][i.t]++;
         s.reservationKeysByTokenAndUser[i.l][i.t].add(i.k);
 
         emit ReservationRequested(i.p, i.l, i.s, i.e, i.k);

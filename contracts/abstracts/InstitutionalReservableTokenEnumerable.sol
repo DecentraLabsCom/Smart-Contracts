@@ -80,17 +80,21 @@ abstract contract InstitutionalReservableTokenEnumerable is ReservableTokenEnume
             return;
         }
 
+        uint8 previousStatus = reservation.status;
         address trackingKey = _computeTrackingKey(_reservationKey, reservation);
         uint256 labId = reservation.labId;
 
         super._cancelReservation(_reservationKey);
 
-        if (s.activeReservationCountByTokenAndUser[labId][trackingKey] > 0) {
-            s.activeReservationCountByTokenAndUser[labId][trackingKey]--;
+        if (previousStatus == _CONFIRMED || previousStatus == _IN_USE) {
+            if (s.activeReservationCountByTokenAndUser[labId][trackingKey] > 0) {
+                s.activeReservationCountByTokenAndUser[labId][trackingKey]--;
+            }
         }
         s.reservationKeysByTokenAndUser[labId][trackingKey].remove(_reservationKey);
 
-        if (s.activeReservationByTokenAndUser[labId][trackingKey] == _reservationKey) {
+        if ((previousStatus == _CONFIRMED || previousStatus == _IN_USE)
+            && s.activeReservationByTokenAndUser[labId][trackingKey] == _reservationKey) {
             bytes32 nextKey = _findNextEarliestReservation(labId, trackingKey);
             s.activeReservationByTokenAndUser[labId][trackingKey] = nextKey;
         }

@@ -110,6 +110,7 @@ contract InstitutionalReservationConfirmationFacet is BaseLightReservationFacet 
         s.calendars[r.labId].insert(r.start, r.end);
         r.status = _CONFIRMED;
         _incrementActiveReservationCounters(r);
+        s.activeReservationCountByTokenAndUser[r.labId][tr]++;
         _enqueuePayoutCandidate(s, r.labId, k, r.end);
         _enqueueInstitutionalActiveReservation(s, r.labId, r, k);
         IStakingFacetConfirm(address(this)).updateLastReservation(lp);

@@ -49,6 +49,7 @@ abstract contract BaseInstitutionalReservationFacet is InstitutionalReservableTo
     );
 
     uint256 internal constant _ORPHAN_PAYOUT_DELAY = 90 days;
+    uint256 internal constant _PENDING_REQUEST_TTL = 1 hours;
 
     modifier onlyDefaultAdminRole() {
         _onlyDefaultAdminRole();
@@ -199,6 +200,20 @@ abstract contract BaseInstitutionalReservationFacet is InstitutionalReservableTo
                     ++processed;
                 }
                 continue;
+            }
+            if (reservation.status == _PENDING) {
+                uint256 ttl = reservation.requestPeriodDuration;
+                if (ttl == 0) ttl = _PENDING_REQUEST_TTL;
+                bool expired = reservation.requestPeriodStart == 0
+                    || currentTime >= reservation.requestPeriodStart + ttl;
+                if (expired) {
+                    _cancelReservation(key);
+                    len = userReservations.length();
+                    unchecked {
+                        ++processed;
+                    }
+                    continue;
+                }
             }
             unchecked {
                 ++i;

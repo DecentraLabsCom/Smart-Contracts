@@ -61,6 +61,7 @@ abstract contract BaseReservationFacet is InstitutionalReservableTokenEnumerable
     uint256 internal constant _REVENUE_SUBSIDIES = 10;
     uint256 internal constant _REVENUE_GOVERNANCE = 5;
     uint256 internal constant _MAX_COMPACTION_SIZE = 500;
+    uint256 internal constant _PENDING_REQUEST_TTL = 1 hours;
 
     uint256 internal constant _CANCEL_FEE_TOTAL = 3;
     uint256 internal constant _CANCEL_FEE_PROVIDER = 1;
@@ -260,6 +261,20 @@ abstract contract BaseReservationFacet is InstitutionalReservableTokenEnumerable
                     ++processed;
                 }
                 continue;
+            }
+            if (reservation.status == _PENDING) {
+                uint256 ttl = reservation.requestPeriodDuration;
+                if (ttl == 0) ttl = _PENDING_REQUEST_TTL;
+                bool expired = reservation.requestPeriodStart == 0
+                    || currentTime >= reservation.requestPeriodStart + ttl;
+                if (expired) {
+                    _cancelReservation(key);
+                    len = userReservations.length();
+                    unchecked {
+                        ++processed;
+                    }
+                    continue;
+                }
             }
 
             unchecked {

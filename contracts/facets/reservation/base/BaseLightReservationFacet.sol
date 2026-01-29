@@ -14,6 +14,7 @@ import {LibReputation} from "../../../libraries/LibReputation.sol";
 abstract contract BaseLightReservationFacet is ReservableTokenEnumerable {
     using EnumerableSet for EnumerableSet.Bytes32Set;
     using EnumerableSet for EnumerableSet.AddressSet;
+    uint256 internal constant _PENDING_REQUEST_TTL = 1 hours;
 
     modifier onlyInstitution(
         address institution
@@ -84,6 +85,20 @@ abstract contract BaseLightReservationFacet is ReservableTokenEnumerable {
                     ++processed;
                 }
                 continue;
+            }
+            if (reservation.status == _PENDING) {
+                uint256 ttl = reservation.requestPeriodDuration;
+                if (ttl == 0) ttl = _PENDING_REQUEST_TTL;
+                bool expired = reservation.requestPeriodStart == 0
+                    || currentTime >= reservation.requestPeriodStart + ttl;
+                if (expired) {
+                    _cancelReservation(key);
+                    len = userReservations.length();
+                    unchecked {
+                        ++processed;
+                    }
+                    continue;
+                }
             }
             unchecked {
                 ++i;

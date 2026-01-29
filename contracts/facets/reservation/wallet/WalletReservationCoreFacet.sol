@@ -110,8 +110,6 @@ contract WalletReservationCoreFacet is BaseLightReservationFacet {
         s.totalReservationsCount++;
         s.renters[msg.sender].add(reservationKey);
 
-        s.activeReservationCountByTokenAndUser[_labId][msg.sender]++;
-
         s.reservationKeysByTokenAndUser[_labId][msg.sender].add(reservationKey);
 
         _recordRecent(s, _labId, msg.sender, reservationKey, _start);

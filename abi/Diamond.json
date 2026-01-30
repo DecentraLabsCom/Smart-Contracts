@@ -175,6 +175,11 @@
     "type": "error"
   },
   {
+    "inputs": [],
+    "name": "InitializationCalldataTooShort",
+    "type": "error"
+  },
+  {
     "inputs": [
       {
         "internalType": "address",
@@ -188,6 +193,17 @@
       }
     ],
     "name": "InitializationFunctionReverted",
+    "type": "error"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "_addr",
+        "type": "address"
+      }
+    ],
+    "name": "InitializationNotAllowed",
     "type": "error"
   },
   {
@@ -441,6 +457,11 @@
   {
     "inputs": [],
     "name": "DistributionZeroAmount",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "ReentrancyGuardReentrantCall",
     "type": "error"
   },
   {
@@ -746,52 +767,7 @@
   },
   {
     "inputs": [],
-    "name": "PucRequired",
-    "type": "error"
-  },
-  {
-    "inputs": [],
     "name": "UnauthorizedInstitution",
-    "type": "error"
-  },
-  {
-    "inputs": [],
-    "name": "InstitutionNotRegistered",
-    "type": "error"
-  },
-  {
-    "inputs": [],
-    "name": "UnauthorizedInstitutionCall",
-    "type": "error"
-  },
-  {
-    "inputs": [],
-    "name": "EmptyPuc",
-    "type": "error"
-  },
-  {
-    "inputs": [],
-    "name": "InvalidBatchSize",
-    "type": "error"
-  },
-  {
-    "inputs": [],
-    "name": "InstitutionalBackendMissing",
-    "type": "error"
-  },
-  {
-    "inputs": [],
-    "name": "InvalidInstitutionalUserId",
-    "type": "error"
-  },
-  {
-    "inputs": [],
-    "name": "OnlyInstitutionalBackend",
-    "type": "error"
-  },
-  {
-    "inputs": [],
-    "name": "ReentrancyGuardReentrantCall",
     "type": "error"
   },
   {
@@ -858,6 +834,66 @@
   {
     "inputs": [],
     "name": "SlotUnavailable",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "InstitutionNotRegistered",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "PayerMismatch",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "PucMissing",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "PucRequired",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "UnauthorizedInstitutionCall",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "EmptyPuc",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "InvalidBatchSize",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "NotBackend",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "InstitutionalBackendMissing",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "InvalidInstitutionalUserId",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "OnlyInstitutionalBackend",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "UseInstitutionalCancel",
     "type": "error"
   },
   {
@@ -1254,11 +1290,6 @@
             "internalType": "uint32",
             "name": "end",
             "type": "uint32"
-          },
-          {
-            "internalType": "string",
-            "name": "puc",
-            "type": "string"
           },
           {
             "internalType": "uint64",
@@ -4794,74 +4825,23 @@
     "inputs": [
       {
         "internalType": "address",
-        "name": "",
-        "type": "address"
-      },
-      {
-        "internalType": "bytes32",
-        "name": "",
-        "type": "bytes32"
-      }
-    ],
-    "name": "confirmInstitutionalReservationRequest",
-    "outputs": [],
-    "stateMutability": "pure",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "address",
-        "name": "",
+        "name": "inst",
         "type": "address"
       },
       {
         "internalType": "string",
-        "name": "",
+        "name": "puc",
         "type": "string"
       },
       {
         "internalType": "bytes32",
-        "name": "",
+        "name": "key",
         "type": "bytes32"
       }
     ],
     "name": "denyInstitutionalReservationRequest",
     "outputs": [],
-    "stateMutability": "pure",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "address",
-        "name": "",
-        "type": "address"
-      },
-      {
-        "internalType": "string",
-        "name": "",
-        "type": "string"
-      },
-      {
-        "internalType": "uint256",
-        "name": "",
-        "type": "uint256"
-      },
-      {
-        "internalType": "uint32",
-        "name": "",
-        "type": "uint32"
-      },
-      {
-        "internalType": "uint32",
-        "name": "",
-        "type": "uint32"
-      }
-    ],
-    "name": "institutionalReservationRequest",
-    "outputs": [],
-    "stateMutability": "pure",
+    "stateMutability": "nonpayable",
     "type": "function"
   },
   {
@@ -5174,6 +5154,39 @@
       }
     ],
     "name": "recordRecentInstReservation",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "ip",
+        "type": "address"
+      },
+      {
+        "internalType": "string",
+        "name": "puc",
+        "type": "string"
+      },
+      {
+        "internalType": "uint256",
+        "name": "lid",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint32",
+        "name": "st",
+        "type": "uint32"
+      },
+      {
+        "internalType": "uint32",
+        "name": "en",
+        "type": "uint32"
+      }
+    ],
+    "name": "institutionalReservationRequest",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"
@@ -6337,10 +6350,72 @@
     "type": "function"
   },
   {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "inst",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "backend",
+        "type": "address"
+      }
+    ],
+    "name": "test_setBackend",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "inst",
+        "type": "address"
+      }
+    ],
+    "name": "test_setInstitutionRole",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "inst",
+        "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "amount",
+        "type": "uint256"
+      }
+    ],
+    "name": "test_setInstitutionalTreasury",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
     "inputs": [],
     "name": "init",
     "outputs": [],
     "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "isInitializer",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "pure",
     "type": "function"
   },
   {
@@ -6535,6 +6610,215 @@
       }
     ],
     "name": "ReservationsReleased",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "node",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "hl",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "hr",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "string",
+        "name": "context",
+        "type": "string"
+      }
+    ],
+    "name": "TraceBHCheck",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
+        "internalType": "string",
+        "name": "step",
+        "type": "string"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "key",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "keyParent",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "keyGrandparent",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "cursor",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "root",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "bool",
+        "name": "rootRed",
+        "type": "bool"
+      }
+    ],
+    "name": "TraceInsertFixup",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
+        "internalType": "string",
+        "name": "step",
+        "type": "string"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "key",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "cursor",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "parent",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "left",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "right",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "end",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "bool",
+        "name": "red",
+        "type": "bool"
+      }
+    ],
+    "name": "TraceInsertStep",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "root",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "key",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "cursor",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "cursor_parent",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "key_parent",
+        "type": "uint256"
+      }
+    ],
+    "name": "TraceRotateState",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
+        "internalType": "string",
+        "name": "step",
+        "type": "string"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "key",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "cursor",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "cursorChild",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "parent",
+        "type": "uint256"
+      }
+    ],
+    "name": "TraceRotation",
     "type": "event"
   },
   {

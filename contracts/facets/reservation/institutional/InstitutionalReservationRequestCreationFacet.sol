@@ -39,13 +39,10 @@ contract InstitutionalReservationRequestCreationFacet is BaseMinimalReservationF
         }
 
         bytes32 pucHash = keccak256(bytes(i.u));
-        uint256 d = s.institutionalSpendingPeriod[i.p];
-        if (d == 0) d = LibAppStorage.DEFAULT_SPENDING_PERIOD;
-        uint256 rsAligned = block.timestamp - (block.timestamp % d);
         // forge-lint: disable-next-line(unsafe-typecast)
-        uint64 rs = uint64(rsAligned);
+        uint64 rs = uint64(block.timestamp);
         // forge-lint: disable-next-line(unsafe-typecast)
-        uint64 period = uint64(d);
+        uint64 period = uint64(5 minutes);
 
         s.reservationKeysByToken[i.l].add(i.k);
         Reservation storage r = s.reservations[i.k];

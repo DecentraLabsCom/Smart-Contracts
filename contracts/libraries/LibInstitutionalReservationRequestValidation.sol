@@ -29,7 +29,7 @@ library LibInstitutionalReservationRequestValidation {
     uint8 internal constant _CANCELLED = 5;
 
     uint32 internal constant _RESERVATION_MARGIN = 0;
-    uint256 internal constant _PENDING_REQUEST_TTL = 1 hours;
+    uint256 internal constant _PENDING_REQUEST_TTL = 5 minutes;
 
     uint256 internal constant _MAX_RESERVATIONS_PER_LAB_USER = 10;
 
@@ -70,7 +70,19 @@ library LibInstitutionalReservationRequestValidation {
         if (count >= _MAX_RESERVATIONS_PER_LAB_USER) revert MaxReservationsReached();
 
         Reservation storage existing = s.reservations[key];
-        if (existing.renter != address(0) && existing.status != _CANCELLED && existing.status != _COLLECTED) revert();
+        if (existing.renter != address(0) && existing.status != _CANCELLED && existing.status != _COLLECTED) {
+            if (existing.status == _PENDING) {
+                uint256 ttl = existing.requestPeriodDuration;
+                if (ttl == 0) ttl = _PENDING_REQUEST_TTL;
+                bool expired =
+                    existing.requestPeriodStart == 0 || block.timestamp >= existing.requestPeriodStart + ttl;
+                if (expired) {
+                    LibReservationCancellation.cancelReservation(key);
+                    return (owner, key, trackingKey);
+                }
+            }
+            revert();
+        }
     }
 
     function _releaseExpiredReservationsInternal(

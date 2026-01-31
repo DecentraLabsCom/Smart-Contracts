@@ -74,8 +74,7 @@ library LibInstitutionalReservationRequestValidation {
             if (existing.status == _PENDING) {
                 uint256 ttl = existing.requestPeriodDuration;
                 if (ttl == 0) ttl = _PENDING_REQUEST_TTL;
-                bool expired =
-                    existing.requestPeriodStart == 0 || block.timestamp >= existing.requestPeriodStart + ttl;
+                bool expired = existing.requestPeriodStart == 0 || block.timestamp >= existing.requestPeriodStart + ttl;
                 if (expired) {
                     LibReservationCancellation.cancelReservation(key);
                     return (owner, key, trackingKey);

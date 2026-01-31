@@ -110,14 +110,6 @@ abstract contract BaseInstitutionalReservationFacet is InstitutionalReservableTo
         revert NotImplemented();
     }
 
-    function _denyInstitutionalReservationRequest(
-        address, /* institutionalProvider */
-        string calldata, /* puc */
-        bytes32 /* _reservationKey */
-    ) internal virtual {
-        revert NotImplemented();
-    }
-
     function _cancelInstitutionalReservationRequest(
         address, /* institutionalProvider */
         string calldata, /* puc */

@@ -9,6 +9,7 @@ import {LibTracking} from "./LibTracking.sol";
 import {LibRevenue} from "./LibRevenue.sol";
 import {LibHeap} from "./LibHeap.sol";
 import {LibReservationCancellation} from "./LibReservationCancellation.sol";
+import {LibReservationDenyReason} from "./LibReservationDenyReason.sol";
 
 interface IStakingFacetConfirmLib {
     function updateLastReservation(
@@ -47,7 +48,7 @@ library LibInstitutionalReservationConfirmation {
     uint8 internal constant _IN_USE = 2;
 
     event ReservationConfirmed(bytes32 indexed reservationKey, uint256 indexed tokenId);
-    event ReservationRequestDenied(bytes32 indexed reservationKey, uint256 indexed tokenId);
+    event ReservationRequestDenied(bytes32 indexed reservationKey, uint256 indexed tokenId, uint8 reason);
 
     function confirmInstitutionalReservationRequestWithPuc(
         address institution,
@@ -92,7 +93,7 @@ library LibInstitutionalReservationConfirmation {
 
         if (!_providerCanFulfill(s, labProvider, r.labId)) {
             LibReservationCancellation.cancelReservation(key);
-            emit ReservationRequestDenied(key, r.labId);
+            emit ReservationRequestDenied(key, r.labId, LibReservationDenyReason.PROVIDER_NOT_ELIGIBLE);
             return;
         }
 
@@ -103,7 +104,7 @@ library LibInstitutionalReservationConfirmation {
         if (d == 0) d = LibAppStorage.DEFAULT_SPENDING_PERIOD;
         if (block.timestamp >= r.requestPeriodStart + d) {
             LibReservationCancellation.cancelReservation(key);
-            emit ReservationRequestDenied(key, r.labId);
+            emit ReservationRequestDenied(key, r.labId, LibReservationDenyReason.REQUEST_EXPIRED);
             return;
         }
 
@@ -117,7 +118,7 @@ library LibInstitutionalReservationConfirmation {
             _finalize(s, r, key, labProvider, trackingKey);
         } catch {
             LibReservationCancellation.cancelReservation(key);
-            emit ReservationRequestDenied(key, r.labId);
+            emit ReservationRequestDenied(key, r.labId, LibReservationDenyReason.TREASURY_SPEND_FAILED);
         }
     }
 

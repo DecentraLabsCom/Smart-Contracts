@@ -4,6 +4,7 @@ pragma solidity ^0.8.31;
 import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import {LibAppStorage, AppStorage, Reservation} from "../libraries/LibAppStorage.sol";
+import {LibReservationDenyReason} from "../libraries/LibReservationDenyReason.sol";
 import {RivalIntervalTreeLibrary, Tree} from "../libraries/RivalIntervalTreeLibrary.sol";
 
 using EnumerableSet for EnumerableSet.AddressSet;
@@ -88,7 +89,8 @@ abstract contract ReservableToken {
     /// @notice Emitted when a reservation request is denied.
     /// @param reservationKey The unique key identifying the reservation that was denied.
     /// @param tokenId The ID of the token associated with the reservation.
-    event ReservationRequestDenied(bytes32 indexed reservationKey, uint256 indexed tokenId);
+    /// @param reason Reason code (see LibReservationDenyReason).
+    event ReservationRequestDenied(bytes32 indexed reservationKey, uint256 indexed tokenId, uint8 reason);
 
     /// @notice Emitted when a reservation request is canceled.
     /// @param reservationKey The unique identifier of the reservation that was canceled.
@@ -327,7 +329,7 @@ abstract contract ReservableToken {
     ) external virtual reservationPending(_reservationKey) {
         uint256 tokenId = _s().reservations[_reservationKey].labId;
         _cancelReservation(_reservationKey);
-        emit ReservationRequestDenied(_reservationKey, tokenId);
+        emit ReservationRequestDenied(_reservationKey, tokenId, LibReservationDenyReason.PROVIDER_MANUAL);
     }
 
     /// @notice Cancels a reservation request associated with the given reservation key.

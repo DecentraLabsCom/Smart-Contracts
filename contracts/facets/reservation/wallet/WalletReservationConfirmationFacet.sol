@@ -15,10 +15,4 @@ contract WalletReservationConfirmationFacet is ReentrancyGuardTransient {
     ) external nonReentrant {
         LibWalletReservationConfirmation.confirmReservationRequest(_reservationKey);
     }
-
-    function denyReservationRequest(
-        bytes32 _reservationKey
-    ) external nonReentrant {
-        LibWalletReservationConfirmation.denyReservationRequest(_reservationKey);
-    }
 }

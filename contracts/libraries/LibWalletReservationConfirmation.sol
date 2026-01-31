@@ -8,6 +8,7 @@ import {LibAppStorage, AppStorage, Reservation} from "./LibAppStorage.sol";
 import {LibRevenue} from "./LibRevenue.sol";
 import {LibHeap} from "./LibHeap.sol";
 import {LibReservationCancellation} from "./LibReservationCancellation.sol";
+import {LibReservationDenyReason} from "./LibReservationDenyReason.sol";
 
 interface IStakingFacetWalletConfirm {
     function updateLastReservation(
@@ -30,7 +31,7 @@ library LibWalletReservationConfirmation {
     error Unauthorized();
 
     event ReservationConfirmed(bytes32 indexed reservationKey, uint256 indexed tokenId);
-    event ReservationRequestDenied(bytes32 indexed reservationKey, uint256 indexed tokenId);
+    event ReservationRequestDenied(bytes32 indexed reservationKey, uint256 indexed tokenId, uint8 reason);
 
     uint8 internal constant _PENDING = 0;
     uint8 internal constant _CONFIRMED = 1;
@@ -54,7 +55,7 @@ library LibWalletReservationConfirmation {
         _requirePending(reservation);
         _requireLabProviderOrBackend(s, reservation);
         LibReservationCancellation.cancelReservation(reservationKey);
-        emit ReservationRequestDenied(reservationKey, reservation.labId);
+        emit ReservationRequestDenied(reservationKey, reservation.labId, LibReservationDenyReason.PROVIDER_MANUAL);
     }
 
     function _requirePending(
@@ -86,7 +87,9 @@ library LibWalletReservationConfirmation {
 
         if (!_providerCanFulfill(s, labProvider, reservation.labId)) {
             LibReservationCancellation.cancelReservation(reservationKey);
-            emit ReservationRequestDenied(reservationKey, reservation.labId);
+            emit ReservationRequestDenied(
+                reservationKey, reservation.labId, LibReservationDenyReason.PROVIDER_NOT_ELIGIBLE
+            );
             return;
         }
 
@@ -101,7 +104,7 @@ library LibWalletReservationConfirmation {
 
         if (!success || (data.length != 0 && !abi.decode(data, (bool)))) {
             LibReservationCancellation.cancelReservation(reservationKey);
-            emit ReservationRequestDenied(reservationKey, reservation.labId);
+            emit ReservationRequestDenied(reservationKey, reservation.labId, LibReservationDenyReason.PAYMENT_FAILED);
             return;
         }
 

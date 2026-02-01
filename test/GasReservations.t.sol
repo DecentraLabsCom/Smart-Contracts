@@ -2,8 +2,9 @@
 pragma solidity ^0.8.33;
 
 import {Test} from "forge-std/Test.sol";
+import {WalletReservationCoreFacet} from "../contracts/facets/reservation/wallet/WalletReservationCoreFacet.sol";
 import {WalletReservationReleaseFacet} from "../contracts/facets/reservation/wallet/WalletReservationReleaseFacet.sol";
-import {AppStorage, LabBase} from "../contracts/libraries/LibAppStorage.sol";
+import {AppStorage, LabBase, LibAppStorage} from "../contracts/libraries/LibAppStorage.sol";
 import {LibAccessControlEnumerable} from "../contracts/libraries/LibAccessControlEnumerable.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {ERC721} from "@openzeppelin/contracts/token/ERC721/ERC721.sol";
@@ -21,7 +22,7 @@ contract MockERC20 is ERC20 {
 }
 
 /// @dev Minimal harness combining ERC721 and wallet reservation logic in a single contract
-contract ReservationHarness is ERC721Enumerable, WalletReservationReleaseFacet {
+contract ReservationHarness is ERC721Enumerable, WalletReservationCoreFacet, WalletReservationReleaseFacet {
     using LibAccessControlEnumerable for AppStorage;
 
     constructor() ERC721("Labs", "LAB") {}
@@ -29,7 +30,7 @@ contract ReservationHarness is ERC721Enumerable, WalletReservationReleaseFacet {
     function initializeHarness(
         address labToken
     ) external {
-        AppStorage storage s = _s();
+        AppStorage storage s = LibAppStorage.diamondStorage();
         s.labTokenAddress = labToken;
         s.DEFAULT_ADMIN_ROLE = keccak256("DEFAULT_ADMIN_ROLE");
         s._addProviderRole(msg.sender, "provider", "provider@example.com", "ES", "");
@@ -39,7 +40,7 @@ contract ReservationHarness is ERC721Enumerable, WalletReservationReleaseFacet {
     function mintAndList(
         uint96 price
     ) external returns (uint256 id) {
-        AppStorage storage s = _s();
+        AppStorage storage s = LibAppStorage.diamondStorage();
         id = s.labId + 1;
         _mint(msg.sender, id);
         s.labId = id;

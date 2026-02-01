@@ -107,6 +107,15 @@ contract ReservationHarness is ERC721Enumerable, WalletReservationCoreFacet, Wal
         return s.renters[renter].length();
     }
 
+    // Test helper: get currently active reservation key for a user (earliest active)
+    function getActiveReservationKey(
+        uint256 labId,
+        address user
+    ) external view returns (bytes32) {
+        AppStorage storage s = LibAppStorage.diamondStorage();
+        return s.activeReservationByTokenAndUser[labId][user];
+    }
+
     // Resolve conflicting confirmReservationRequest implementations by routing to the library implementation
     function confirmReservationRequest(
         bytes32 _reservationKey

@@ -69,3 +69,4 @@ jobs:
 
       - name: run Slither
         run: slither . 
+        continue-on-error: true

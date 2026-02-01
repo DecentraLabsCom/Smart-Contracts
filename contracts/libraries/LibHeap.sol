@@ -80,8 +80,10 @@ library LibHeap {
         PayoutCandidate[] storage heap
     ) private {
         uint256 lastIndex = heap.length - 1;
-        if (lastIndex == 0) heap.pop();
-        return;
+        if (lastIndex == 0) {
+            heap.pop();
+            return;
+        }
         heap[0] = heap[lastIndex];
         heap.pop();
         _heapifyDown(heap, 0);
@@ -103,6 +105,58 @@ library LibHeap {
             heap[index] = heap[smallest];
             heap[smallest] = temp;
             index = smallest;
+        }
+    }
+
+    // Remove element at arbitrary index keeping heap invariant
+    function _removeIndex(
+        PayoutCandidate[] storage heap,
+        uint256 index
+    ) private {
+        uint256 lastIndex = heap.length - 1;
+        if (index == lastIndex) {
+            heap.pop();
+            return;
+        }
+        heap[index] = heap[lastIndex];
+        heap.pop();
+        // Try both directions to restore heap property
+        _heapifyDown(heap, index);
+        _heapifyUp(heap, index);
+    }
+
+    /// @notice Prune up to `maxIterations` entries from the payout heap for a lab.
+    /// @dev Iterates through the heap and removes invalid entries (status mismatch or wrong lab).
+    ///      Designed to be callable incrementally so compaction can be performed in chunks. Ignores MAX_COMPACTION_SIZE.
+    function prunePayoutHeap(
+        AppStorage storage s,
+        uint256 labId,
+        uint256 maxIterations
+    ) internal returns (uint256 removed) {
+        PayoutCandidate[] storage heap = s.payoutHeaps[labId];
+        uint256 iterations = 0;
+        uint256 i = 0;
+        while (i < heap.length && iterations < maxIterations) {
+            bytes32 key = heap[i].key;
+            Reservation storage reservation = s.reservations[key];
+            if (
+                reservation.labId != labId
+                    || !(reservation.status == _CONFIRMED
+                        || reservation.status == _IN_USE
+                        || reservation.status == _COMPLETED)
+            ) {
+                // remove invalid entry
+                s.payoutHeapContains[key] = false;
+                _removeIndex(heap, i);
+                if (s.payoutHeapInvalidCount[labId] > 0) {
+                    s.payoutHeapInvalidCount[labId]--;
+                }
+                removed++;
+                // do not increment i, inspect swapped element at same index
+            } else {
+                i++;
+            }
+            iterations++;
         }
     }
 

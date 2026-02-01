@@ -6,7 +6,6 @@ import {LibLabAdmin} from "../../libraries/LibLabAdmin.sol";
 /// @title LabAdminFacet
 /// @author Luis de la Torre Cubillo, Juan Luis Ramos Villalón
 /// @notice Administrative functions for lab management (CRUD operations)
-/// @dev Extracted from LabFacet to reduce contract size below EIP-170 limit
 
 contract LabAdminFacet {
     event LabAdded(

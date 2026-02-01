@@ -8,7 +8,6 @@ import {LibInstitutionalReservation} from "../../../libraries/LibInstitutionalRe
 /// @title InstitutionalReservationCancellationFacet
 /// @author Luis de la Torre Cubillo, Juan Luis Ramos Villalón
 /// @notice Cancellation functions for institutional reservations
-/// @dev Extracted from InstitutionalReservationFacet to reduce contract size below EIP-170 limit
 
 contract InstitutionalReservationCancellationFacet {
     using EnumerableSet for EnumerableSet.AddressSet;

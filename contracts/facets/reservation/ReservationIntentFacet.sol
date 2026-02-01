@@ -19,7 +19,7 @@ error IntentUnknownReservation();
 /// @author
 /// - Luis de la Torre Cubillo
 /// - Juan Luis Ramos Villalón
-/// @notice Facet for intent-based institutional reservations. Split from InstitutionalReservationFacet to reduce contract size.
+/// @notice Facet for intent-based institutional reservations.
 contract ReservationIntentFacet {
     using EnumerableSet for EnumerableSet.AddressSet;
 

@@ -23,7 +23,6 @@ interface IStakingFacet {
 /// - Luis de la Torre Cubillo
 /// - Juan Luis Ramos Villalón
 /// @dev Facet contract to manage fund collection and payouts for lab providers.
-/// @notice Split from WalletReservationFacet to reduce contract size.
 /// Provides functions for collecting reservation funds, withdrawing revenue shares,
 /// and administrative recovery of orphaned payouts.
 

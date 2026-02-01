@@ -7,7 +7,6 @@ import {LibWalletReservationCancellation} from "../../../libraries/LibWalletRese
 /// @title WalletReservationCancellationFacet
 /// @author Luis de la Torre Cubillo, Juan Luis Ramos Villalón
 /// @notice Cancellation functions for wallet reservations
-/// @dev Extracted from WalletReservationFacet to reduce contract size below EIP-170 limit
 
 contract WalletReservationCancellationFacet is ReentrancyGuardTransient {
     function cancelReservationRequest(

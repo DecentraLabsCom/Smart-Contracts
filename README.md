@@ -154,14 +154,13 @@ Handles the complete reservation lifecycle for labs:
 - Support for institutional and wallet reservations
 
 **Sub-facets:**
-- **WalletReservationFacet**: Manages reservations paid from user wallets
-- **WalletReservationCoreFacet**: Core reservation request stubs for wallet flow
+- **WalletReservationReleaseFacet**: Releases expired reservations paid from user wallets
+- **WalletReservationCoreFacet**: Core reservation request flow for wallet users
 - **WalletReservationConfirmationFacet**: Confirms wallet reservation requests
 - **ReservationDenialFacet**: Denies reservation requests (wallet + institutional)
 - **WalletReservationCancellationFacet**: Cancellation logic for wallet reservations
 - **WalletPayoutFacet**: Provider payout collection for wallet reservations
 - **InstitutionalReservationFacet**: Releases expired institutional reservations
-- **InstitutionalReservationCoreFacet**: Stubs that redirect to specialized institutional facets
 - **InstitutionalReservationRequestFacet**: Entry point for institutional reservation requests
 - **InstitutionalReservationRequestValidationFacet**: Validates institutional reservation requests
 - **InstitutionalReservationRequestCreationFacet**: Creates institutional reservation records

@@ -93,7 +93,7 @@ abstract contract BaseReservationFacet is InstitutionalReservableTokenEnumerable
     }
 
     // ---------------------------------------------------------------------
-    // Abstract hooks implemented by WalletReservationFacet / InstitutionalReservationFacet
+    // Abstract hooks implemented by reservation facets (wallet/institutional variants)
     // ---------------------------------------------------------------------
 
     function _reservationRequest(

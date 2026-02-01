@@ -22,7 +22,7 @@ import {RivalIntervalTreeLibrary, Tree} from "../libraries/RivalIntervalTreeLibr
 ///
 /// @dev This contract fully implements all abstract functions from ReservableToken but is marked
 ///      as abstract to enforce inheritance-only usage. It should never be deployed directly,
-///      only inherited by facets like WalletReservationFacet.
+///      only inherited by reservation facets (wallet/institutional variants).
 abstract contract ReservableTokenEnumerable is ReservableToken {
     using RivalIntervalTreeLibrary for Tree;
     using EnumerableSet for EnumerableSet.Bytes32Set;

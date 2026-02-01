@@ -35,5 +35,17 @@ jobs:
       - name: check formatting
         run: forge fmt --check
 
-      - name: run tests
+      - name: run unit tests
         run: forge test --color never
+
+      - name: run fuzz/stress tests (LibHeapStress)
+        run: forge test --match-contract LibHeapStress -vvvv --color never
+
+      - name: run gas benchmark (LibHeapGas) and upload report
+        run: |
+          forge test --gas-report --match-contract LibHeapGas --color never | tee gas-report.txt
+      - name: upload gas-report
+        uses: actions/upload-artifact@v4
+        with:
+          name: gas-report
+          path: gas-report.txt

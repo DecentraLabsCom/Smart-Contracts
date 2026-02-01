@@ -80,8 +80,10 @@ library LibHeap {
         PayoutCandidate[] storage heap
     ) private {
         uint256 lastIndex = heap.length - 1;
-        if (lastIndex == 0) heap.pop();
-        return;
+        if (lastIndex == 0) {
+            heap.pop();
+            return;
+        }
         heap[0] = heap[lastIndex];
         heap.pop();
         _heapifyDown(heap, 0);

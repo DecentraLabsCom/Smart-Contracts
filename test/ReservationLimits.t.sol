@@ -241,7 +241,7 @@ contract ReservationLimitsTest is BaseTest {
         assertEq(beforeActive, 9);
 
         // Warp past all end times to make them expired
-        vm.warp(block.timestamp + 1000000);
+        vm.warp(block.timestamp + 1_000_000);
 
         // Now attempt a new reservation; auto-release should free expired ones and allow the request
         token.mint(renter, 1 ether);
@@ -257,7 +257,10 @@ contract ReservationLimitsTest is BaseTest {
         assertTrue(afterActive < beforeActive);
     }
 
-    function test_fuzz_wallet_release_behavior(uint8 expiredCount, uint8 nonExpiredCount) public {
+    function test_fuzz_wallet_release_behavior(
+        uint8 expiredCount,
+        uint8 nonExpiredCount
+    ) public {
         // bounds
         uint8 MAX = 10;
         vm.assume(uint256(expiredCount) + uint256(nonExpiredCount) <= MAX);
@@ -289,7 +292,7 @@ contract ReservationLimitsTest is BaseTest {
 
         // create non-expired reservations
         for (i = 0; i < nonExpiredCount; ++i) {
-            uint32 sT = startBase + uint32(100000 + i * 1000);
+            uint32 sT = startBase + uint32(100_000 + i * 1000);
             uint32 eT = sT + 1000;
             token.mint(renter, 1 ether);
             vm.prank(renter);
@@ -302,7 +305,7 @@ contract ReservationLimitsTest is BaseTest {
         }
 
         // Warp past the expired ones
-        vm.warp(block.timestamp + 20000);
+        vm.warp(block.timestamp + 20_000);
 
         AppStorage storage s = LibAppStorage.diamondStorage();
         uint256 nonExpired = nonExpiredCount;

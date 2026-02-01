@@ -4,7 +4,9 @@ pragma solidity ^0.8.33;
 import {Test} from "forge-std/Test.sol";
 import {WalletReservationCoreFacet} from "../contracts/facets/reservation/wallet/WalletReservationCoreFacet.sol";
 import {WalletReservationReleaseFacet} from "../contracts/facets/reservation/wallet/WalletReservationReleaseFacet.sol";
-import {WalletReservationConfirmationFacet} from "../contracts/facets/reservation/wallet/WalletReservationConfirmationFacet.sol";
+import {
+    WalletReservationConfirmationFacet
+} from "../contracts/facets/reservation/wallet/WalletReservationConfirmationFacet.sol";
 import {AppStorage, LabBase, LibAppStorage} from "../contracts/libraries/LibAppStorage.sol";
 import {LibWalletReservationConfirmation} from "../contracts/libraries/LibWalletReservationConfirmation.sol";
 import {ReservableTokenEnumerable} from "../contracts/abstracts/ReservableTokenEnumerable.sol";
@@ -106,7 +108,9 @@ contract ReservationHarness is ERC721Enumerable, WalletReservationCoreFacet, Wal
     }
 
     // Resolve conflicting confirmReservationRequest implementations by routing to the library implementation
-    function confirmReservationRequest(bytes32 _reservationKey) public override(ReservableTokenEnumerable) {
+    function confirmReservationRequest(
+        bytes32 _reservationKey
+    ) public override(ReservableTokenEnumerable) {
         LibWalletReservationConfirmation.confirmReservationRequest(_reservationKey);
     }
 

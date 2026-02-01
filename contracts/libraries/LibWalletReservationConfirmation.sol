@@ -99,7 +99,10 @@ library LibWalletReservationConfirmation {
         }
 
         // enforce per-user cap before transferring funds
-        if (s.activeReservationCountByTokenAndUser[reservation.labId][reservation.renter] >= _MAX_RESERVATIONS_PER_LAB_USER) {
+        if (
+            s.activeReservationCountByTokenAndUser[reservation.labId][reservation.renter]
+                >= _MAX_RESERVATIONS_PER_LAB_USER
+        ) {
             revert MaxReservationsReached();
         }
 

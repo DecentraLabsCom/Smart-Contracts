@@ -8,6 +8,7 @@ on:
   workflow_dispatch: {}
 
 
+
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -39,6 +40,7 @@ jobs:
         run: forge test --color never
 
   slither:
+    needs: test
     runs-on: ubuntu-latest
     steps:
       - name: checkout
@@ -68,5 +70,13 @@ jobs:
         run: pip install slither-analyzer
 
       - name: run Slither
-        run: slither . 
         continue-on-error: true
+        run: slither . --sarif results.sarif
+
+      - name: Upload Slither SARIF artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: slither-sarif
+          path: results.sarif
+    

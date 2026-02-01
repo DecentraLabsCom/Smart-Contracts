@@ -4,8 +4,14 @@ pragma solidity ^0.8.33;
 import {Test} from "forge-std/Test.sol";
 import {WalletReservationCoreFacet} from "../contracts/facets/reservation/wallet/WalletReservationCoreFacet.sol";
 import {WalletReservationReleaseFacet} from "../contracts/facets/reservation/wallet/WalletReservationReleaseFacet.sol";
+import {
+    WalletReservationConfirmationFacet
+} from "../contracts/facets/reservation/wallet/WalletReservationConfirmationFacet.sol";
 import {AppStorage, LabBase, LibAppStorage} from "../contracts/libraries/LibAppStorage.sol";
+import {LibWalletReservationConfirmation} from "../contracts/libraries/LibWalletReservationConfirmation.sol";
+import {ReservableTokenEnumerable} from "../contracts/abstracts/ReservableTokenEnumerable.sol";
 import {LibAccessControlEnumerable} from "../contracts/libraries/LibAccessControlEnumerable.sol";
+import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {ERC721} from "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import {ERC721Enumerable} from "@openzeppelin/contracts/token/ERC721/extensions/ERC721Enumerable.sol";
@@ -24,6 +30,7 @@ contract MockERC20 is ERC20 {
 /// @dev Minimal harness combining ERC721 and wallet reservation logic in a single contract
 contract ReservationHarness is ERC721Enumerable, WalletReservationCoreFacet, WalletReservationReleaseFacet {
     using LibAccessControlEnumerable for AppStorage;
+    using EnumerableSet for EnumerableSet.Bytes32Set;
 
     constructor() ERC721("Labs", "LAB") {}
 
@@ -64,6 +71,56 @@ contract ReservationHarness is ERC721Enumerable, WalletReservationCoreFacet, Wal
     ) external {
         AppStorage storage s = LibAppStorage.diamondStorage();
         s.activeReservationCountByTokenAndUser[labId][user] = v;
+    }
+
+    // Test helper: get activeReservationCountByTokenAndUser from harness storage
+    function getActiveCount(
+        uint256 labId,
+        address user
+    ) external view returns (uint8) {
+        AppStorage storage s = LibAppStorage.diamondStorage();
+        return s.activeReservationCountByTokenAndUser[labId][user];
+    }
+
+    // Test helper: get per-user reservation keys length for a token
+    function getReservationKeysByTokenAndUserLength(
+        uint256 labId,
+        address user
+    ) external view returns (uint256) {
+        AppStorage storage s = LibAppStorage.diamondStorage();
+        return s.reservationKeysByTokenAndUser[labId][user].length();
+    }
+
+    // Test helper: get total reservation keys length for a token
+    function getReservationKeysByTokenLength(
+        uint256 labId
+    ) external view returns (uint256) {
+        AppStorage storage s = LibAppStorage.diamondStorage();
+        return s.reservationKeysByToken[labId].length();
+    }
+
+    // Test helper: get number of reservation entries for a renter
+    function getRentersLength(
+        address renter
+    ) external view returns (uint256) {
+        AppStorage storage s = LibAppStorage.diamondStorage();
+        return s.renters[renter].length();
+    }
+
+    // Test helper: get currently active reservation key for a user (earliest active)
+    function getActiveReservationKey(
+        uint256 labId,
+        address user
+    ) external view returns (bytes32) {
+        AppStorage storage s = LibAppStorage.diamondStorage();
+        return s.activeReservationByTokenAndUser[labId][user];
+    }
+
+    // Resolve conflicting confirmReservationRequest implementations by routing to the library implementation
+    function confirmReservationRequest(
+        bytes32 _reservationKey
+    ) public override(ReservableTokenEnumerable) {
+        LibWalletReservationConfirmation.confirmReservationRequest(_reservationKey);
     }
 
     // ERC165 override

@@ -8,6 +8,7 @@ import {AppStorage, Reservation, INSTITUTION_ROLE} from "../../../libraries/LibA
 import {LibAccessControlEnumerable} from "../../../libraries/LibAccessControlEnumerable.sol";
 import {LibHeap} from "../../../libraries/LibHeap.sol";
 import {LibRevenue} from "../../../libraries/LibRevenue.sol";
+import {LibReservationConfig} from "../../../libraries/LibReservationConfig.sol";
 
 /// @dev Interface for StakingFacet to update reservation timestamps
 interface IStakingFacetI {
@@ -49,7 +50,7 @@ abstract contract BaseInstitutionalReservationFacet is InstitutionalReservableTo
     );
 
     uint256 internal constant _ORPHAN_PAYOUT_DELAY = 90 days;
-    uint256 internal constant _PENDING_REQUEST_TTL = 1 hours;
+    uint256 internal constant _PENDING_REQUEST_TTL = LibReservationConfig.PENDING_REQUEST_TTL;
 
     modifier onlyDefaultAdminRole() {
         _onlyDefaultAdminRole();

@@ -5,6 +5,7 @@ import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet
 import {LibAppStorage, AppStorage, Reservation, INSTITUTION_ROLE} from "./LibAppStorage.sol";
 import {LibTracking} from "./LibTracking.sol";
 import {LibReservationCancellation} from "./LibReservationCancellation.sol";
+import {LibReservationConfig} from "./LibReservationConfig.sol";
 
 library LibInstitutionalReservationRelease {
     using EnumerableSet for EnumerableSet.Bytes32Set;
@@ -21,7 +22,7 @@ library LibInstitutionalReservationRelease {
     uint8 internal constant _CONFIRMED = 1;
     uint8 internal constant _COLLECTED = 4;
 
-    uint256 internal constant _PENDING_REQUEST_TTL = 1 hours;
+    uint256 internal constant _PENDING_REQUEST_TTL = LibReservationConfig.PENDING_REQUEST_TTL;
 
     function releaseInstitutionalExpiredReservations(
         address institutionalProvider,

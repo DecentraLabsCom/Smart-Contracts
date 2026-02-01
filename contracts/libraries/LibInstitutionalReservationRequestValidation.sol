@@ -6,6 +6,7 @@ import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import {LibAppStorage, AppStorage, Reservation} from "./LibAppStorage.sol";
 import {LibTracking} from "./LibTracking.sol";
 import {LibReservationCancellation} from "./LibReservationCancellation.sol";
+import {LibReservationConfig} from "./LibReservationConfig.sol";
 
 interface IReservableTokenCalcV {
     function calculateRequiredStake(
@@ -29,7 +30,7 @@ library LibInstitutionalReservationRequestValidation {
     uint8 internal constant _CANCELLED = 5;
 
     uint32 internal constant _RESERVATION_MARGIN = 0;
-    uint256 internal constant _PENDING_REQUEST_TTL = 5 minutes;
+    uint256 internal constant _PENDING_REQUEST_TTL = LibReservationConfig.PENDING_REQUEST_TTL;
 
     uint256 internal constant _MAX_RESERVATIONS_PER_LAB_USER = 10;
 

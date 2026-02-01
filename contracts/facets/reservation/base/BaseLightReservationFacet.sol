@@ -8,13 +8,14 @@ import {LibTracking} from "../../../libraries/LibTracking.sol";
 import {LibRevenue} from "../../../libraries/LibRevenue.sol";
 import {LibHeap} from "../../../libraries/LibHeap.sol";
 import {LibReputation} from "../../../libraries/LibReputation.sol";
+import {LibReservationConfig} from "../../../libraries/LibReservationConfig.sol";
 
 /// @title BaseLightReservationFacet - Minimal base for size-constrained facets
 /// @notice Provides only essential functionality without heavy helpers
 abstract contract BaseLightReservationFacet is ReservableTokenEnumerable {
     using EnumerableSet for EnumerableSet.Bytes32Set;
     using EnumerableSet for EnumerableSet.AddressSet;
-    uint256 internal constant _PENDING_REQUEST_TTL = 1 hours;
+    uint256 internal constant _PENDING_REQUEST_TTL = LibReservationConfig.PENDING_REQUEST_TTL;
 
     modifier onlyInstitution(
         address institution

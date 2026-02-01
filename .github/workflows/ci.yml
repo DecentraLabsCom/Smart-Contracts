@@ -71,7 +71,7 @@ jobs:
 
       - name: run Slither
         continue-on-error: true
-        run: slither . --sarif results.sarif
+        run: slither contracts/ --sarif results.sarif --config-file .slither.config.json
 
       - name: Upload Slither SARIF artifact
         if: always()

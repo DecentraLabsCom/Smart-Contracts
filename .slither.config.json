@@ -1,0 +1,18 @@
+{
+    "filter_paths": [
+        "contracts/facets/test/"
+    ],
+    "detectors_to_exclude": [
+        "naming-convention",
+        "solc-version",
+        "pragma",
+        "assembly",
+        "low-level-calls",
+        "reentrancy-eth",
+        "reentrancy-no-eth",
+        "reentrancy-benign",
+        "reentrancy-events",
+        "reentrancy-unlimited-gas",
+        "controlled-delegatecall"
+    ]
+}

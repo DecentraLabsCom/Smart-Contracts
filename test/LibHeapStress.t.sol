@@ -15,7 +15,10 @@ contract LibHeapStress is BaseTest {
 
     // Fuzzed test: build a heap of up to 1000 entries and randomly cancel some
     // Ensures popped elements come in non-decreasing end order and cancellations are skipped
-    function test_fuzz_heap_with_random_cancellations(uint256 seed, uint16 n) public {
+    function test_fuzz_heap_with_random_cancellations(
+        uint256 seed,
+        uint16 n
+    ) public {
         // bound n to 1..1000
         uint256 nn = uint256(n % 1000) + 1;
         vm.assume(nn > 0 && nn <= 1000);

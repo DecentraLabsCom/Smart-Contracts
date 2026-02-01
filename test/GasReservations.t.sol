@@ -57,7 +57,11 @@ contract ReservationHarness is ERC721Enumerable, WalletReservationCoreFacet, Wal
     ) external {}
 
     // Test helper: set activeReservationCountByTokenAndUser for harness storage
-    function setActiveCount(uint256 labId, address user, uint8 v) external {
+    function setActiveCount(
+        uint256 labId,
+        address user,
+        uint8 v
+    ) external {
         AppStorage storage s = LibAppStorage.diamondStorage();
         s.activeReservationCountByTokenAndUser[labId][user] = v;
     }

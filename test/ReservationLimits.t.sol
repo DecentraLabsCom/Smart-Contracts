@@ -13,22 +13,64 @@ contract DummyERC20 {
     mapping(address => uint256) public balances;
     mapping(address => mapping(address => uint256)) public allowances;
 
-    function setBalance(address who, uint256 amount) external { balances[who] = amount; }
-    function setAllowance(address owner, address spender, uint256 amount) external { allowances[owner][spender] = amount; }
-    function balanceOf(address who) external view returns (uint256) { return balances[who]; }
-    function allowance(address owner, address spender) external view returns (uint256) { return allowances[owner][spender]; }
+    function setBalance(
+        address who,
+        uint256 amount
+    ) external {
+        balances[who] = amount;
+    }
+
+    function setAllowance(
+        address owner,
+        address spender,
+        uint256 amount
+    ) external {
+        allowances[owner][spender] = amount;
+    }
+
+    function balanceOf(
+        address who
+    ) external view returns (uint256) {
+        return balances[who];
+    }
+
+    function allowance(
+        address owner,
+        address spender
+    ) external view returns (uint256) {
+        return allowances[owner][spender];
+    }
 }
 
 // Minimal harness that exposes ownerOf so library calls succeed when executed in-contract
 contract InstValidateHarness is InstitutionalReservationRequestValidationFacet {
     mapping(uint256 => address) public owners;
-    function setOwner(uint256 tokenId, address owner) external { owners[tokenId] = owner; }
-    function ownerOf(uint256 tokenId) external view returns (address) { return owners[tokenId]; }
+
+    function setOwner(
+        uint256 tokenId,
+        address owner
+    ) external {
+        owners[tokenId] = owner;
+    }
+
+    function ownerOf(
+        uint256 tokenId
+    ) external view returns (address) {
+        return owners[tokenId];
+    }
 }
 
 contract ConfirmStub {
     // minimal stub to exercise the cap check similar to ReservableTokenEnumerable.confirmReservationRequest
-    function setReservationEntry(bytes32 key, address renter, uint8 status, uint256 labId, uint32 start, uint32 end, uint96 price) external {
+    function setReservationEntry(
+        bytes32 key,
+        address renter,
+        uint8 status,
+        uint256 labId,
+        uint32 start,
+        uint32 end,
+        uint96 price
+    ) external {
         AppStorage storage s = LibAppStorage.diamondStorage();
         Reservation storage r = s.reservations[key];
         r.renter = renter;
@@ -39,27 +81,36 @@ contract ConfirmStub {
         r.price = price;
     }
 
-    function confirmReservationRequest(bytes32 key) external {
+    function confirmReservationRequest(
+        bytes32 key
+    ) external {
         AppStorage storage s = LibAppStorage.diamondStorage();
         Reservation storage reservation = s.reservations[key];
         if (reservation.renter == address(0)) revert("ReservationNotFound");
         if (reservation.status != 0) revert("ReservationNotPending");
-        if (s.activeReservationCountByTokenAndUser[reservation.labId][reservation.renter] >= 10) revert("MaxReservationsReached");
+        if (s.activeReservationCountByTokenAndUser[reservation.labId][reservation.renter] >= 10) {
+            revert("MaxReservationsReached");
+        }
         reservation.status = 1; // CONFIRMED
     }
 
-    function activeCount(uint256 labId, address user) external view returns (uint8) {
+    function activeCount(
+        uint256 labId,
+        address user
+    ) external view returns (uint8) {
         AppStorage storage s = LibAppStorage.diamondStorage();
         return s.activeReservationCountByTokenAndUser[labId][user];
     }
 
-    function setActiveCount(uint256 labId, address user, uint8 v) external {
+    function setActiveCount(
+        uint256 labId,
+        address user,
+        uint8 v
+    ) external {
         AppStorage storage s = LibAppStorage.diamondStorage();
         s.activeReservationCountByTokenAndUser[labId][user] = v;
     }
 }
-
-
 
 contract ReservationLimitsTest is BaseTest {
     DummyERC20 public token;
@@ -68,7 +119,6 @@ contract ReservationLimitsTest is BaseTest {
         super.setUp();
         token = new DummyERC20();
     }
-
 
     function test_institutional_reservation_reverts_when_tracked_user_at_max() public {
         uint256 labId = 211;

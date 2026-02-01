@@ -7,7 +7,6 @@ import {LibWalletReservationConfirmation} from "../../../libraries/LibWalletRese
 /// @title WalletReservationConfirmationFacet
 /// @author Luis de la Torre Cubillo, Juan Luis Ramos Villalón
 /// @notice Confirmation and denial functions for wallet reservations
-/// @dev Extracted from WalletReservationCoreFacet to reduce contract size below EIP-170 limit
 
 contract WalletReservationConfirmationFacet is ReentrancyGuardTransient {
     function confirmReservationRequest(

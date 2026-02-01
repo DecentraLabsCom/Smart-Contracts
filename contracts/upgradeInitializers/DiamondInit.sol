@@ -22,6 +22,11 @@ import {IERC165} from "../interfaces/IERC165.sol";
 // DiamondInit contract reusable accross upgrades, and can be used for multiple diamonds.
 
 contract DiamondInit {
+    /// @notice Marker for LibDiamond initializer allowlist
+    function isInitializer() external pure returns (bool) {
+        return true;
+    }
+
     // You can add parameters to this function in order to pass in
     // data to set your own state variables
     function init() external {

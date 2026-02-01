@@ -53,7 +53,7 @@ contract InstitutionalTreasuryFacet is ReentrancyGuardTransient {
     /// @param institution The institution address
     /// @custom:security Allows two types of callers:
     ///   1. The authorized backend (for external calls from backend)
-    ///   2. The Diamond contract itself (for internal calls from other facets like WalletReservationFacet or InstitutionalReservationFacet)
+    ///   2. The Diamond contract itself (for internal calls from reservation facets/libraries)
     modifier onlyAuthorizedBackendOrInternal(
         address institution
     ) {
@@ -324,9 +324,9 @@ contract InstitutionalTreasuryFacet is ReentrancyGuardTransient {
     }
 
     /// @notice Spend tokens from the institution's institutional treasury as an institutional user
-    /// @dev Only callable by the institution's authorized backend
+    /// @dev Only callable by the institution's authorized backend or internal Diamond calls
     ///      This function marks the spending for accounting purposes with automatic period reset.
-    ///      The actual token transfer must be coordinated with WalletReservationFacet, InstitutionalReservationFacet or other payment mechanisms.
+    ///      The actual token transfer is coordinated by reservation facets/libraries (diamond internal calls).
     ///      Tokens remain in Diamond contract until explicitly transferred by another facet.
     ///      Spending resets automatically when a new period begins.
     /// @param institution The institution who owns the treasury
@@ -364,7 +364,7 @@ contract InstitutionalTreasuryFacet is ReentrancyGuardTransient {
     }
 
     /// @notice Refund tokens back to the institution's institutional treasury (e.g., when canceling a reservation)
-    /// @dev Only WalletReservationFacet or InstitutionalReservationFacet can call this via cancelBooking/cancelInstitutionalBooking
+    /// @dev Only internal Diamond calls from reservation facets/libraries can invoke this
     ///      This reverses a previous spend, incrementing treasury and decrementing user's spent amount
     ///      Allows refunds from past periods
     /// @param institution The institution who owns the treasury

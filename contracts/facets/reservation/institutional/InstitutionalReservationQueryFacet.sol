@@ -9,7 +9,6 @@ import {AppStorage, Reservation, INSTITUTION_ROLE, LibAppStorage} from "../../..
 /// - Luis de la Torre Cubillo
 /// - Juan Luis Ramos Villalón
 /// @dev Facet contract for querying institutional reservation data.
-/// @notice Split from InstitutionalReservationFacet to reduce contract size.
 /// Provides read-only functions for institutional users to query their reservations.
 
 contract InstitutionalReservationQueryFacet {

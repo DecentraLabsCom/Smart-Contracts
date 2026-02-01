@@ -128,7 +128,7 @@ contract AccessControlTest is Test {
         vm.expectRevert();
         initFacet.initializeDiamond("x", "x", "x", address(0), "LN", "LS");
 
-        // NOTE: full "admin -> success" path requires a diamond context; TODO: add diamond harness to exercise successful init end-to-end
+        // TODO: add diamond harness to exercise successful init end-to-end
 
         // leave the rest of initialization to separate integration tests focused on diamond deployment
     }

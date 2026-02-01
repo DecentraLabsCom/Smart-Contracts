@@ -14,7 +14,7 @@ import {AppStorage, Reservation, UserActiveReservation} from "../libraries/LibAp
 ///
 /// @dev This contract is marked abstract to enforce inheritance-only usage, even though it has
 ///      no pending abstract functions. It extends wallet reservation logic with institutional features.
-///      Should only be inherited by facets like InstitutionalReservationFacet.
+///      Should only be inherited by institutional reservation facets.
 abstract contract InstitutionalReservableTokenEnumerable is ReservableTokenEnumerable {
     using EnumerableSet for EnumerableSet.Bytes32Set;
 

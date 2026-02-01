@@ -11,7 +11,6 @@ import {ReservableToken} from "../../../abstracts/ReservableToken.sol";
 /// @title WalletReservationCoreFacet
 /// @author Luis de la Torre Cubillo, Juan Luis Ramos Villalón
 /// @notice Core reservation request and confirmation functions for wallet users
-/// @dev Extracted from WalletReservationFacet to reduce contract size below EIP-170 limit
 
 contract WalletReservationCoreFacet is BaseLightReservationFacet {
     using EnumerableSet for EnumerableSet.AddressSet;

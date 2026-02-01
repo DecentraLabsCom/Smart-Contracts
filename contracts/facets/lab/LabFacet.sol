@@ -2,13 +2,10 @@
 pragma solidity ^0.8.31;
 
 import {ERC721Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC721/ERC721Upgradeable.sol";
-import {
-    ERC721EnumerableUpgradeable
-} from "@openzeppelin/contracts-upgradeable/token/ERC721/extensions/ERC721EnumerableUpgradeable.sol";
-import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import {AppStorage} from "../../libraries/LibAppStorage.sol";
 import {LibAccessControlEnumerable} from "../../libraries/LibAccessControlEnumerable.sol";
+import {LibLabTransfer} from "../../libraries/LibLabTransfer.sol";
 import {ReservableToken} from "../../abstracts/ReservableToken.sol";
 
 using EnumerableSet for EnumerableSet.Bytes32Set;
@@ -29,7 +26,7 @@ using EnumerableSet for EnumerableSet.AddressSet;
 ///         Each Lab has associated metadata, including a URI, price, authentication details, and access information.
 /// @custom:security Only authorized Lab Providers can perform certain actions, such as adding or updating Labs.
 /// @custom:security The contract uses OpenZeppelin's AccessControlEnumerable for role-based access control.
-contract LabFacet is ERC721EnumerableUpgradeable, ReservableToken {
+contract LabFacet is ERC721Upgradeable, ReservableToken {
     using LibAccessControlEnumerable for AppStorage;
 
     /// @dev Maximum number of reservation indices to clean up during NFT transfer
@@ -83,8 +80,6 @@ contract LabFacet is ERC721EnumerableUpgradeable, ReservableToken {
     /// @param _uri The URI of the lab.
     event LabURISet(uint256 indexed _labId, string _uri);
 
-    // NOTE: _consumeLabIntent moved to LabIntentFacet
-
     /// @dev Modifier to restrict access to functions that can only be executed by the LabProvider.
     ///      Ensures that the caller is authorized as the LabProvider before proceeding.
     /// @notice Throws an error if the caller is not the designated LabProvider.
@@ -120,14 +115,6 @@ contract LabFacet is ERC721EnumerableUpgradeable, ReservableToken {
     /// @param _uri The URI of the Lab, providing metadata or additional information.
     /// @param _price The price of the Lab in the smallest unit of the currency.
 
-    // NOTE: addLab(), addAndListLab(), updateLab(), deleteLab(), setTokenURI(), listLab(), unlistLab()
-    // are located in LabAdminFacet for contract size optimization
-
-    // NOTE: addLabWithIntent(), addAndListLabWithIntent(), updateLabWithIntent(), deleteLabWithIntent(),
-    // setTokenURIWithIntent(), listLabWithIntent(), unlistLabWithIntent() are located in LabIntentFacet
-
-    // NOTE: getLab() and getLabsPaginated() are located in LabQueryFacet
-
     /// @notice Helper function called by LabAdminFacet/LibLabAdmin to mint tokens
     /// @dev Intended for internal diamond calls; access is enforced by the caller
     function safeMintTo(
@@ -153,14 +140,6 @@ contract LabFacet is ERC721EnumerableUpgradeable, ReservableToken {
         return _s().labs[_labId].uri;
     }
 
-    /// @notice Checks if a lab has any uncollected reservations
-    function _hasActiveBookings(
-        uint256 _labId
-    ) internal view returns (bool) {
-        AppStorage storage s = _s();
-        return s.labActiveReservationCount[_labId] > 0 || s.pendingProviderPayout[_labId] > 0;
-    }
-
     /// @notice Approves a specific address to manage the given token ID.
     /// @dev Overrides the `approve` function from both IERC721 and ERC721Upgradeable.
     ///      Ensures that only a LabProvider can be approved for the token.
@@ -171,7 +150,7 @@ contract LabFacet is ERC721EnumerableUpgradeable, ReservableToken {
     function approve(
         address _to,
         uint256 _tokenId
-    ) public virtual override(IERC721, ERC721Upgradeable) {
+    ) public virtual override(ERC721Upgradeable) {
         require(_s()._isLabProvider(_to), "Only one LabProvider can be approved");
         // Proceed with the standard approval process
         super.approve(_to, _tokenId);
@@ -186,7 +165,7 @@ contract LabFacet is ERC721EnumerableUpgradeable, ReservableToken {
     function setApprovalForAll(
         address _operator,
         bool _approved
-    ) public virtual override(IERC721, ERC721Upgradeable) {
+    ) public virtual override(ERC721Upgradeable) {
         require(_s()._isLabProvider(_operator), "Only one LabProvider can be approved");
         // Proceed with the standard approval process
         super.setApprovalForAll(_operator, _approved);
@@ -198,7 +177,7 @@ contract LabFacet is ERC721EnumerableUpgradeable, ReservableToken {
         address to,
         uint256 tokenId,
         address auth
-    ) internal virtual override(ERC721EnumerableUpgradeable) returns (address) {
+    ) internal virtual override(ERC721Upgradeable) returns (address) {
         AppStorage storage s = _s();
         address from = _ownerOf(tokenId);
 
@@ -210,96 +189,10 @@ contract LabFacet is ERC721EnumerableUpgradeable, ReservableToken {
         // from != address(0) means it's not a mint
         // to != address(0) means it's not a burn
         if (from != address(0) && to != address(0)) {
-            _handleListingOnTransfer(s, from, to, tokenId);
-            _migrateReservationsOnTransfer(s, from, to, tokenId);
+            LibLabTransfer.handleListingOnTransfer(from, to, tokenId);
+            LibLabTransfer.migrateReservationsOnTransfer(from, to, tokenId, _MAX_CLEANUP_PER_TRANSFER);
         }
 
         return super._update(to, tokenId, auth);
-    }
-
-    function _handleListingOnTransfer(
-        AppStorage storage s,
-        address from,
-        address to,
-        uint256 tokenId
-    ) internal {
-        if (!s.tokenStatus[tokenId]) {
-            return;
-        }
-
-        s.tokenStatus[tokenId] = false;
-
-        if (s.providerStakes[from].listedLabsCount > 0) {
-            s.providerStakes[from].listedLabsCount--;
-        }
-
-        emit LabUnlisted(tokenId, from);
-
-        uint256 recipientListedCount = s.providerStakes[to].listedLabsCount;
-        if (recipientListedCount == 0) {
-            return;
-        }
-
-        uint256 requiredStake = calculateRequiredStake(to, recipientListedCount);
-        uint256 currentStake = s.providerStakes[to].stakedAmount;
-
-        require(currentStake >= requiredStake, "Recipient lacks sufficient stake for their current listings");
-    }
-
-    function _migrateReservationsOnTransfer(
-        AppStorage storage s,
-        address from,
-        address to,
-        uint256 tokenId
-    ) internal {
-        EnumerableSet.Bytes32Set storage labReservations = s.reservationKeysByToken[tokenId];
-        uint256 reservationCount = labReservations.length();
-        require(reservationCount <= _MAX_CLEANUP_PER_TRANSFER, "Too many active reservations to transfer");
-
-        bool hasActiveReservation;
-
-        for (uint256 i = 0; i < reservationCount;) {
-            bytes32 key = labReservations.at(i);
-
-            // Cache status in memory to save SLOAD
-            uint8 status = s.reservations[key].status;
-
-            // Prevent transferring labs with pending reservations to avoid owner ambush
-            if (status == _PENDING) {
-                revert("Pending reservations block transfer");
-            }
-
-            // Migrate _CONFIRMED, _IN_USE and _COMPLETED reservations to new lab owner.
-            // The new owner inherits the right to collect pending funds earned by the lab.
-            // _PENDING reservations don't have provider assigned yet.
-            // _COLLECTED/_CANCELLED are terminal states and don't need migration.
-            if (status == _CONFIRMED || status == _IN_USE || status == _COMPLETED) {
-                hasActiveReservation = true;
-                s.reservations[key].labProvider = to;
-                s.reservations[key].collectorInstitution = s.institutionalBackends[to] != address(0) ? to : address(0);
-
-                if (s.providerActiveReservationCount[from] > 0) {
-                    s.providerActiveReservationCount[from]--;
-                }
-                s.providerActiveReservationCount[to]++;
-
-                emit ReservationProviderUpdated(key, tokenId, from, to);
-            }
-
-            unchecked {
-                ++i;
-            }
-        }
-
-        // Preserve or extend unstake lock on new owner to prevent lock-bypass via transfer
-        uint256 fromLast = s.providerStakes[from].lastReservationTimestamp;
-        uint256 toLast = s.providerStakes[to].lastReservationTimestamp;
-        uint256 newLast = fromLast > toLast ? fromLast : toLast;
-        if (hasActiveReservation && block.timestamp > newLast) {
-            newLast = block.timestamp;
-        }
-        if (newLast > toLast) {
-            s.providerStakes[to].lastReservationTimestamp = newLast;
-        }
     }
 }

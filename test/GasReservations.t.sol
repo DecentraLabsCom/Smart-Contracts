@@ -2,7 +2,7 @@
 pragma solidity ^0.8.33;
 
 import {Test} from "forge-std/Test.sol";
-import {WalletReservationFacet} from "../contracts/facets/reservation/wallet/WalletReservationFacet.sol";
+import {WalletReservationReleaseFacet} from "../contracts/facets/reservation/wallet/WalletReservationReleaseFacet.sol";
 import {AppStorage, LabBase} from "../contracts/libraries/LibAppStorage.sol";
 import {LibAccessControlEnumerable} from "../contracts/libraries/LibAccessControlEnumerable.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
@@ -21,7 +21,7 @@ contract MockERC20 is ERC20 {
 }
 
 /// @dev Minimal harness combining ERC721 and wallet reservation logic in a single contract
-contract ReservationHarness is ERC721Enumerable, WalletReservationFacet {
+contract ReservationHarness is ERC721Enumerable, WalletReservationReleaseFacet {
     using LibAccessControlEnumerable for AppStorage;
 
     constructor() ERC721("Labs", "LAB") {}

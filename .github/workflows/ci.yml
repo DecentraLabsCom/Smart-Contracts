@@ -37,3 +37,35 @@ jobs:
 
       - name: run tests
         run: forge test --color never
+
+  slither:
+    runs-on: ubuntu-latest
+    steps:
+      - name: checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: setup foundry
+        uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: 1.5.0
+
+      - name: init submodules
+        run: |
+          git submodule sync --recursive
+          git submodule update --init --recursive
+
+      - name: install dependencies
+        run: forge install || true
+
+      - name: setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: install Slither
+        run: pip install slither-analyzer
+
+      - name: run Slither
+        run: slither . 

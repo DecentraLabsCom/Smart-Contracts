@@ -4,6 +4,7 @@ pragma solidity ^0.8.33;
 import "forge-std/Test.sol";
 import "./BaseTest.sol";
 import "./Harnesses.sol";
+import {ReservationHarness, MockERC20} from "./GasReservations.t.sol";
 import "../contracts/facets/reservation/institutional/InstitutionalReservationRequestValidationFacet.sol";
 import "../contracts/libraries/LibAppStorage.sol";
 
@@ -101,25 +102,35 @@ contract ReservationLimitsTest is BaseTest {
         inst.validateInstRequest(provider, userId, labId, start, end);
     }
 
-    function test_wallet_confirm_reverts_when_user_at_max() public {
-        ConfirmStub stub = new ConfirmStub();
+    function test_wallet_confirm_reverts_when_user_at_max_real_facet() public {
+        // Use the real harness + confirm flow instead of a storage stub
+        // Reuse ReservationHarness and MockERC20 from GasReservations tests
+        ReservationHarness harness = new ReservationHarness();
+        MockERC20 token = new MockERC20();
+        harness.initializeHarness(address(token));
 
-        uint256 labId = 300;
+        uint256 labId = harness.mintAndList(500);
         address renter = address(0xCAFE);
+
         uint32 start = uint32(block.timestamp + 3600);
         uint32 end = start + 3600;
-        bytes32 key = keccak256(abi.encodePacked(labId, start));
 
         // create pending reservation entry for the renter
-        stub.setReservationEntry(key, renter, 0, labId, start, end, 500);
+        vm.prank(renter);
+        token.mint(renter, 10 ether);
+        vm.prank(renter);
+        token.approve(address(harness), type(uint256).max);
+        vm.prank(renter);
+        harness.reservationRequest(labId, start, end);
 
-        // set active count inside stub's storage (diamondStorage is per-contract)
-        stub.setActiveCount(labId, renter, 10);
+        bytes32 key = keccak256(abi.encodePacked(labId, start));
 
-        // sanity check via stub getter
-        assertEq(uint256(stub.activeCount(labId, renter)), 10);
+        // set active count in harness' storage (via helper on harness)
+        harness.setActiveCount(labId, renter, 10);
 
+        // provider (this) attempts to confirm -> should revert due to cap
+        vm.prank(address(this));
         vm.expectRevert();
-        stub.confirmReservationRequest(key);
+        harness.confirmReservationRequest(key);
     }
 }

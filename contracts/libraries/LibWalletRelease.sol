@@ -7,6 +7,7 @@ import {LibAppStorage, AppStorage, Reservation, PastReservationBuffer} from "./L
 import {LibRevenue} from "./LibRevenue.sol";
 import {LibReputation} from "./LibReputation.sol";
 import {LibReservationCancellation} from "./LibReservationCancellation.sol";
+import {LibReservationConfig} from "./LibReservationConfig.sol";
 
 library LibWalletRelease {
     using EnumerableSet for EnumerableSet.Bytes32Set;
@@ -21,7 +22,7 @@ library LibWalletRelease {
     uint8 internal constant _COLLECTED = 4;
     uint8 internal constant _CANCELLED = 5;
 
-    uint256 internal constant _PENDING_REQUEST_TTL = 1 hours;
+    uint256 internal constant _PENDING_REQUEST_TTL = LibReservationConfig.PENDING_REQUEST_TTL;
     uint8 internal constant _TOKEN_BUFFER_CAP = 40;
     uint8 internal constant _USER_BUFFER_CAP = 20;
 

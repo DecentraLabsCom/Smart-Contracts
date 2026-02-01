@@ -7,6 +7,9 @@ import "./Harnesses.sol";
 import {ReservationHarness, MockERC20} from "./GasReservations.t.sol";
 import "../contracts/facets/reservation/institutional/InstitutionalReservationRequestValidationFacet.sol";
 import "../contracts/libraries/LibAppStorage.sol";
+import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
+
+using EnumerableSet for EnumerableSet.Bytes32Set;
 
 // Minimal ERC20 used for tests
 contract DummyERC20 {
@@ -182,5 +185,141 @@ contract ReservationLimitsTest is BaseTest {
         vm.prank(address(this));
         vm.expectRevert();
         harness.confirmReservationRequest(key);
+    }
+
+    function test_wallet_request_reverts_when_user_at_max() public {
+        ReservationHarness harness = new ReservationHarness();
+        MockERC20 token = new MockERC20();
+        harness.initializeHarness(address(token));
+
+        uint256 labId = harness.mintAndList(500);
+        address renter = address(0xF00D);
+
+        // give user funds and approval
+        token.mint(renter, 1 ether);
+        vm.prank(renter);
+        token.approve(address(harness), type(uint256).max);
+
+        // set active count to cap
+        harness.setActiveCount(labId, renter, 10);
+
+        uint32 start = uint32(block.timestamp + 3600);
+        uint32 end = start + 3600;
+
+        vm.prank(renter);
+        vm.expectRevert();
+        harness.reservationRequest(labId, start, end);
+    }
+
+    function test_wallet_auto_release_allows_request_when_expired() public {
+        ReservationHarness harness = new ReservationHarness();
+        MockERC20 token = new MockERC20();
+        harness.initializeHarness(address(token));
+
+        uint256 labId = harness.mintAndList(500);
+        address renter = address(0xD00D);
+
+        // prepare: create & confirm 9 reservations
+        uint32 startBase = uint32(block.timestamp + 1000);
+        for (uint256 i = 0; i < 9; ++i) {
+            uint32 s = startBase + uint32(i * 1000);
+            uint32 e = s + 100;
+            token.mint(renter, 1 ether);
+            vm.prank(renter);
+            token.approve(address(harness), type(uint256).max);
+            vm.prank(renter);
+            harness.reservationRequest(labId, s, e);
+            bytes32 key = keccak256(abi.encodePacked(labId, s));
+            vm.prank(address(this));
+            harness.confirmReservationRequest(key);
+            uint256 afterCount = harness.getActiveCount(labId, renter);
+            // Assert the active count increments monotonically; will catch iteration where it resets
+            assertEq(afterCount, i + 1);
+        }
+
+        uint256 beforeActive = harness.getActiveCount(labId, renter);
+        assertEq(beforeActive, 9);
+
+        // Warp past all end times to make them expired
+        vm.warp(block.timestamp + 1000000);
+
+        // Now attempt a new reservation; auto-release should free expired ones and allow the request
+        token.mint(renter, 1 ether);
+        vm.prank(renter);
+        token.approve(address(harness), type(uint256).max);
+
+        uint32 newStart = uint32(block.timestamp + 3600);
+        vm.prank(renter);
+        harness.reservationRequest(labId, newStart, newStart + 100);
+
+        uint256 afterActive = harness.getActiveCount(labId, renter);
+        // after auto-release, active count must be < beforeActive (some expired were finalized)
+        assertTrue(afterActive < beforeActive);
+    }
+
+    function test_fuzz_wallet_release_behavior(uint8 expiredCount, uint8 nonExpiredCount) public {
+        // bounds
+        uint8 MAX = 10;
+        vm.assume(uint256(expiredCount) + uint256(nonExpiredCount) <= MAX);
+        vm.assume(uint256(nonExpiredCount) <= MAX);
+
+        ReservationHarness harness = new ReservationHarness();
+        MockERC20 token = new MockERC20();
+        harness.initializeHarness(address(token));
+
+        uint256 labId = harness.mintAndList(500);
+        address renter = address(0xBAAD);
+
+        uint32 startBase = uint32(block.timestamp + 1000);
+        uint256 i;
+
+        // create expired reservations
+        for (i = 0; i < expiredCount; ++i) {
+            uint32 sT = startBase + uint32(i * 1000);
+            uint32 eT = sT + 10;
+            token.mint(renter, 1 ether);
+            vm.prank(renter);
+            token.approve(address(harness), type(uint256).max);
+            vm.prank(renter);
+            harness.reservationRequest(labId, sT, eT);
+            bytes32 key = keccak256(abi.encodePacked(labId, sT));
+            vm.prank(address(this));
+            harness.confirmReservationRequest(key);
+        }
+
+        // create non-expired reservations
+        for (i = 0; i < nonExpiredCount; ++i) {
+            uint32 sT = startBase + uint32(100000 + i * 1000);
+            uint32 eT = sT + 1000;
+            token.mint(renter, 1 ether);
+            vm.prank(renter);
+            token.approve(address(harness), type(uint256).max);
+            vm.prank(renter);
+            harness.reservationRequest(labId, sT, eT);
+            bytes32 key = keccak256(abi.encodePacked(labId, sT));
+            vm.prank(address(this));
+            harness.confirmReservationRequest(key);
+        }
+
+        // Warp past the expired ones
+        vm.warp(block.timestamp + 20000);
+
+        AppStorage storage s = LibAppStorage.diamondStorage();
+        uint256 nonExpired = nonExpiredCount;
+
+        // Try a new reservation
+        token.mint(renter, 1 ether);
+        vm.prank(renter);
+        token.approve(address(harness), type(uint256).max);
+
+        uint32 newStart = uint32(block.timestamp + 3600);
+        vm.prank(renter);
+
+        if (nonExpired >= MAX) {
+            vm.expectRevert();
+            harness.reservationRequest(labId, newStart, newStart + 100);
+        } else {
+            harness.reservationRequest(labId, newStart, newStart + 100);
+        }
     }
 }

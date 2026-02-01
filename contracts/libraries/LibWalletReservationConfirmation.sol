@@ -4,6 +4,7 @@ pragma solidity ^0.8.31;
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import {RivalIntervalTreeLibrary, Tree} from "./RivalIntervalTreeLibrary.sol";
+import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import {LibAppStorage, AppStorage, Reservation} from "./LibAppStorage.sol";
 import {LibRevenue} from "./LibRevenue.sol";
 import {LibHeap} from "./LibHeap.sol";
@@ -24,6 +25,7 @@ interface IReservableTokenCalcW {
 }
 
 library LibWalletReservationConfirmation {
+    using EnumerableSet for EnumerableSet.Bytes32Set;
     using RivalIntervalTreeLibrary for Tree;
 
     error ReservationNotFound();
@@ -36,6 +38,9 @@ library LibWalletReservationConfirmation {
     uint8 internal constant _PENDING = 0;
     uint8 internal constant _CONFIRMED = 1;
     uint8 internal constant _IN_USE = 2;
+
+    error MaxReservationsReached();
+    uint8 internal constant _MAX_RESERVATIONS_PER_LAB_USER = 10;
 
     function confirmReservationRequest(
         bytes32 reservationKey
@@ -93,6 +98,11 @@ library LibWalletReservationConfirmation {
             return;
         }
 
+        // enforce per-user cap before transferring funds
+        if (s.activeReservationCountByTokenAndUser[reservation.labId][reservation.renter] >= _MAX_RESERVATIONS_PER_LAB_USER) {
+            revert MaxReservationsReached();
+        }
+
         _setReservationSplit(reservation);
 
         (bool success, bytes memory data) = s.labTokenAddress
@@ -111,6 +121,11 @@ library LibWalletReservationConfirmation {
         s.calendars[reservation.labId].insert(reservation.start, reservation.end);
         reservation.status = _CONFIRMED;
         _incrementActiveReservationCounters(s, reservation);
+
+        // increment per-user counters and indexes (was previously only done in ReservableTokenEnumerable.confirmReservationRequest)
+        s.activeReservationCountByTokenAndUser[reservation.labId][reservation.renter]++;
+        bool added = s.reservationKeysByTokenAndUser[reservation.labId][reservation.renter].add(reservationKey);
+
         _enqueuePayoutCandidate(s, reservation.labId, reservationKey, reservation.end);
 
         IStakingFacetWalletConfirm(address(this)).updateLastReservation(labProvider);

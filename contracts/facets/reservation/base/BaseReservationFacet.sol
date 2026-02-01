@@ -7,6 +7,7 @@ import {ProviderFacet} from "../../ProviderFacet.sol";
 import {AppStorage, Reservation, PayoutCandidate} from "../../../libraries/LibAppStorage.sol";
 import {LibAccessControlEnumerable} from "../../../libraries/LibAccessControlEnumerable.sol";
 import {LibReputation} from "../../../libraries/LibReputation.sol";
+import {LibReservationConfig} from "../../../libraries/LibReservationConfig.sol";
 
 /// @dev Interface for StakingFacet to update reservation timestamps
 interface IStakingFacet {
@@ -61,7 +62,7 @@ abstract contract BaseReservationFacet is InstitutionalReservableTokenEnumerable
     uint256 internal constant _REVENUE_SUBSIDIES = 10;
     uint256 internal constant _REVENUE_GOVERNANCE = 5;
     uint256 internal constant _MAX_COMPACTION_SIZE = 500;
-    uint256 internal constant _PENDING_REQUEST_TTL = 1 hours;
+    uint256 internal constant _PENDING_REQUEST_TTL = LibReservationConfig.PENDING_REQUEST_TTL;
 
     uint256 internal constant _CANCEL_FEE_TOTAL = 3;
     uint256 internal constant _CANCEL_FEE_PROVIDER = 1;

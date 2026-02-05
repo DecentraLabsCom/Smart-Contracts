@@ -63,6 +63,7 @@ jobs:
           path: gas-report.txt
 
       - name: verify diamond selectors (sepolia)
+        if: github.event_name == 'push'
         shell: pwsh
         env:
           RPC_URL: ${{ secrets.SEPOLIA_RPC_URL }}

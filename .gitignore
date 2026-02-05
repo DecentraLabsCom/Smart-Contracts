@@ -7,6 +7,8 @@ cache
 artifacts
 .env
 deployments/
+!deployments/
+!deployments/sepolia-latest.json
 .wake/build/
 upgrade-log*.txt
 

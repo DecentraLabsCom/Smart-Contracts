@@ -1,0 +1,26 @@
+﻿{
+    "network":  "sepolia",
+    "timestamp":  "2026-02-01T14:14:31.5495554+01:00",
+    "chainId":  11155111,
+    "contracts":  {
+                      "Diamond":  "0x00c57F4187b18EC9433b9b63275C8ba3ACbD6951",
+                      "LabERC20":  "0x1DE6AB1D9289ED9925aff2dfA424a1F74F8f3652",
+                      "DiamondCutFacet":  "0x629DEbe258A2f0E6A17343b548f63be8Ac51c8EF",
+                      "DiamondInit":  "0xDDa5Ed87612F578d2880a38FCD1Eb45ACa8F61D8",
+                      "RivalIntervalTreeLibrary":  "0x566e73bcf2981CFFb0d86191bB57c627EDcecA13"
+                  },
+    "deployer":  "0x183f062b6a8c39b9a9e71898741acf8f25e11561",
+    "configuration":  {
+                          "adminName":  "Luis",
+                          "adminEmail":  "ldelatorre@dia.uned.es",
+                          "adminCountry":  "Spain",
+                          "treasuryWallet":  "0x63dd6e44e0fd4ffe4065dbf37f26163d484dd2f4",
+                          "subsidiesWallet":  "0x8145e668931cf946750eae4ddc76df9d02e8c3ba",
+                          "governanceWallet":  "0x63dd6e44e0fd4ffe4065dbf37f26163d484dd2f4",
+                          "projectTreasury":  "0x63dd6e44e0fd4ffe4065dbf37f26163d484dd2f4",
+                          "liquidityWallet":  "0xc0c35cd8196ff66f5484da5d49b31fe26cd51385",
+                          "ecosystemWallet":  "0xc0c35cd8196ff66f5484da5d49b31fe26cd51385",
+                          "teamBeneficiary":  "0x183f062b6a8c39b9a9e71898741acf8f25e11561",
+                          "timelockDelay":  604800
+                      }
+}

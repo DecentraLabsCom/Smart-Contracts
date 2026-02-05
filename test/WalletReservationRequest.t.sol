@@ -153,9 +153,10 @@ contract WalletReservationRequestTest is BaseTest {
         harness.setTokenStatus(labId, true);
         harness.setProviderStake(address(this), 1_000_000);
 
-        harness.setLabPrice(labId, 1000);
+        harness.setLabPrice(labId, 1); // 1 unit per second
         harness.setLabTokenAddress(address(token));
 
+        // ensure balance covers total price (duration=100 -> total=100)
         token.setBalance(address(this), 2000);
         token.setAllowance(address(this), address(harness), 10); // too low
 
@@ -172,8 +173,9 @@ contract WalletReservationRequestTest is BaseTest {
         harness.setLabPrice(labId, 500);
         harness.setLabTokenAddress(address(token));
 
-        token.setBalance(address(harness), 1000);
-        token.setAllowance(address(harness), address(harness), 1000);
+        // total price = 500 * 3600 = 1,800,000
+        token.setBalance(address(harness), 2_000_000);
+        token.setAllowance(address(harness), address(harness), 2_000_000);
 
         uint32 start = uint32(block.timestamp + 3600);
         uint32 end = start + 3600;

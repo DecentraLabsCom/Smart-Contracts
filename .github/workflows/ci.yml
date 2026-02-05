@@ -8,10 +8,11 @@ on:
   workflow_dispatch: {}
 
 
-
 jobs:
   test:
     runs-on: ubuntu-latest
+    env:
+      SEPOLIA_RPC_URL: ${{ secrets.SEPOLIA_RPC_URL }}
 
     steps:
       - name: checkout
@@ -24,6 +25,13 @@ jobs:
         with:
           version: 1.5.0
 
+      - name: setup node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: package-lock.json
+
       - name: init submodules
         run: |
           git submodule sync --recursive
@@ -32,6 +40,9 @@ jobs:
       - name: install dependencies
         run: |
           forge install || true
+
+      - name: install node deps (hardhat)
+        run: npm ci
 
       - name: check formatting
         run: forge fmt --check
@@ -50,6 +61,14 @@ jobs:
         with:
           name: gas-report
           path: gas-report.txt
+
+      - name: verify diamond selectors (sepolia)
+        shell: pwsh
+        env:
+          RPC_URL: ${{ secrets.SEPOLIA_RPC_URL }}
+        run: |
+          if (-not $env:RPC_URL) { Write-Host "SEPOLIA_RPC_URL missing - skipping verify"; exit 0 }
+          ./scripts/ci-verify-selectors.ps1 -RpcUrl $env:RPC_URL
 
   slither:
     needs: test

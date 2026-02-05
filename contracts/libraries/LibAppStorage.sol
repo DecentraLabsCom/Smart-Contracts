@@ -40,7 +40,7 @@ struct Provider {
 
 /// @dev Represents the base structure for a laboratory entity and is the part of the metadata associated with the laboratory stored on-chain.
 /// @param uri The URI pointing to the laboratory's metadata or information.
-/// @param price The price associated with the laboratory, stored as a uint96.
+/// @param price The price per second for the laboratory in LAB base units (uint96).
 /// @param accessURI The URI used to access the laboratory's services.
 /// @param accessKey A public (non-sensitive) key or ID used for routing/access to the laboratory.
 /// @param createdAt Timestamp when the lab was registered, stored as uint32.
@@ -73,7 +73,7 @@ struct Lab {
 ///      Total: 5 slots (vs 7 slots in unoptimized version)
 /// @param labId Unique identifier of the lab being reserved
 /// @param renter Address of the user making the reservation
-/// @param price Cost of the reservation in wei
+/// @param price Total cost of the reservation in LAB base units (uint96)
 /// @param labProvider Address of the lab provider (owner at reservation time)
 /// @param status Current state of the reservation (0=_PENDING, 1=_CONFIRMED, 2=_IN_USE, 3=_COMPLETED, 4=_COLLECTED, 5=_CANCELLED)
 /// @param start Starting timestamp of the reservation (as uint32)

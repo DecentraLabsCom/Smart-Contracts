@@ -32,7 +32,7 @@ struct ReservationIntentPayload {
     uint256 labId;
     uint32 start;
     uint32 end;
-    uint96 price;
+    uint96 price; // total reservation price in LAB base units (per-second price * duration)
     bytes32 reservationKey; // precalculated key if available (labId + start)
 }
 

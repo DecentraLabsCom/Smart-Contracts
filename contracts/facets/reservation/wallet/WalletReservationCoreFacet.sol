@@ -22,6 +22,7 @@ contract WalletReservationCoreFacet is BaseLightReservationFacet {
     error InvalidRange();
     error LowAllowance();
     error SlotUnavailable();
+    error ReservationPriceOverflow();
 
     function reservationRequest(
         uint256 _labId,
@@ -64,12 +65,16 @@ contract WalletReservationCoreFacet is BaseLightReservationFacet {
 
         if (_start >= _end || _start <= block.timestamp + _RESERVATION_MARGIN) revert InvalidRange();
 
-        uint96 price = s.labs[_labId].price;
+        uint96 pricePerSecond = s.labs[_labId].price;
+        uint256 durationSeconds = uint256(_end - _start);
+        uint256 totalPrice = uint256(pricePerSecond) * durationSeconds;
+        if (totalPrice > type(uint96).max) revert ReservationPriceOverflow();
+        uint96 price = uint96(totalPrice);
 
         uint256 balance = IERC20(s.labTokenAddress).balanceOf(msg.sender);
-        if (balance < price) revert InsufficientFunds();
+        if (balance < totalPrice) revert InsufficientFunds();
 
-        if (IERC20(s.labTokenAddress).allowance(msg.sender, address(this)) < price) revert LowAllowance();
+        if (IERC20(s.labTokenAddress).allowance(msg.sender, address(this)) < totalPrice) revert LowAllowance();
 
         bytes32 reservationKey = _getReservationKey(_labId, _start);
 

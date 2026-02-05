@@ -14,6 +14,7 @@ error IntentLabDoesNotExist();
 error IntentExecutorMustBeCaller();
 error IntentInstitutionMustBeCaller();
 error IntentUnknownReservation();
+error ReservationPriceOverflow();
 
 /// @title ReservationIntentFacet
 /// @author
@@ -116,7 +117,11 @@ contract ReservationIntentFacet {
         AppStorage storage s = _s();
         bytes32 expectedKey = _getReservationKey(payload.labId, payload.start);
         require(payload.reservationKey == expectedKey, "RESERVATION_KEY_MISMATCH");
-        require(payload.price == s.labs[payload.labId].price, "LAB_PRICE_MISMATCH");
+        uint96 pricePerSecond = s.labs[payload.labId].price;
+        uint256 durationSeconds = uint256(payload.end - payload.start);
+        uint256 totalPrice = uint256(pricePerSecond) * durationSeconds;
+        if (totalPrice > type(uint96).max) revert ReservationPriceOverflow();
+        require(payload.price == uint96(totalPrice), "LAB_PRICE_MISMATCH");
         _consumeReservationIntent(requestId, LibIntent.ACTION_REQUEST_BOOKING, payload);
 
         LibInstitutionalReservation.requestReservation(

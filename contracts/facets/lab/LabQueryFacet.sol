@@ -89,9 +89,9 @@ contract LabQueryFacet {
         return _s().tokenStatus[_labId];
     }
 
-    /// @notice Returns the price of a lab
+    /// @notice Returns the price of a lab (per second, LAB base units)
     /// @param _labId The ID of the lab
-    /// @return The price of the lab in LAB tokens
+    /// @return The price per second in LAB base units
     function getLabPrice(
         uint256 _labId
     ) external view exists(_labId) returns (uint96) {

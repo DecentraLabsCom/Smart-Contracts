@@ -15,6 +15,7 @@ interface IInstitutionalTreasuryFacetLight {
 
 contract InstitutionalReservationRequestCreationFacet is BaseMinimalReservationFacet {
     using EnumerableSet for EnumerableSet.Bytes32Set;
+    error ReservationPriceOverflow();
 
     struct InstInput {
         address p;
@@ -32,7 +33,16 @@ contract InstitutionalReservationRequestCreationFacet is BaseMinimalReservationF
     ) external {
         AppStorage storage s = _s();
         address hc = s.institutionalBackends[i.o];
-        uint96 pr = (hc != address(0) && i.p == i.o) ? 0 : s.labs[i.l].price;
+        uint96 pr;
+        if (hc != address(0) && i.p == i.o) {
+            pr = 0;
+        } else {
+            uint96 pricePerSecond = s.labs[i.l].price;
+            uint256 durationSeconds = uint256(i.e - i.s);
+            uint256 totalPrice = uint256(pricePerSecond) * durationSeconds;
+            if (totalPrice > type(uint96).max) revert ReservationPriceOverflow();
+            pr = uint96(totalPrice);
+        }
 
         if (pr > 0) {
             IInstitutionalTreasuryFacetLight(address(this)).checkInstitutionalTreasuryAvailability(i.p, i.u, pr);

@@ -46,4 +46,5 @@ if ($Compile -or -not (Test-Path (Join-Path -Path $PSScriptRoot -ChildPath "..\h
 }
 
 Write-Host "Verifying selectors on $Diamond ..."
-node "$PSScriptRoot\verify-all-facets-selectors.js" --rpc $Env:RPC_URL --diamond $Diamond --throttle-ms $ThrottleMs
+$verifyScript = Join-Path -Path $PSScriptRoot -ChildPath "verify-all-facets-selectors.js"
+node $verifyScript --rpc $Env:RPC_URL --diamond $Diamond --throttle-ms $ThrottleMs

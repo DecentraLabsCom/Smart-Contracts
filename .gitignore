@@ -9,6 +9,7 @@ artifacts
 deployments/
 !deployments/
 !deployments/sepolia-latest.json
+!deployments/sepolia-resume.json
 .wake/build/
 upgrade-log*.txt
 
@@ -28,3 +29,4 @@ dev/
 scripts/*
 !scripts/ci-verify-selectors.ps1
 !scripts/verify-selectors.ps1
+!scripts/verify-all-facets-selectors.js

@@ -7,7 +7,7 @@ param(
 
 $ErrorActionPreference = "Stop"
 
-function Load-Env {
+function Import-Env {
     $envPath = Join-Path -Path $PSScriptRoot -ChildPath "..\.env"
     if (Test-Path $envPath) {
         Get-Content $envPath | ForEach-Object {
@@ -27,7 +27,7 @@ function Load-Env {
     }
 }
 
-Load-Env
+Import-Env
 
 if ($RpcUrl) { $Env:RPC_URL = $RpcUrl }
 if (-not $Env:RPC_URL) { throw "RPC_URL must be provided (or set in .env)" }

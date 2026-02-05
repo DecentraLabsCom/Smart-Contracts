@@ -27,3 +27,4 @@ dev/
 #Scripts
 scripts/*
 !scripts/ci-verify-selectors.ps1
+!scripts/verify-selectors.ps1

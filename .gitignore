@@ -23,4 +23,5 @@ lib/
 dev/
 
 #Scripts
-scripts/
+scripts/*
+!scripts/ci-verify-selectors.ps1

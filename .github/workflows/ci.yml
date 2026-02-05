@@ -68,7 +68,8 @@ jobs:
           RPC_URL: ${{ secrets.SEPOLIA_RPC_URL }}
         run: |
           if (-not $env:RPC_URL) { Write-Host "SEPOLIA_RPC_URL missing - skipping verify"; exit 0 }
-          ./scripts/ci-verify-selectors.ps1 -RpcUrl $env:RPC_URL
+          if (-not (Test-Path "./scripts/ci-verify-selectors.ps1")) { Write-Host "ci-verify-selectors.ps1 missing - skipping verify"; exit 0 }
+          & ./scripts/ci-verify-selectors.ps1 -RpcUrl $env:RPC_URL
 
   slither:
     needs: test

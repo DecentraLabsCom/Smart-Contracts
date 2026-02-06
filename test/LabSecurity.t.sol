@@ -27,7 +27,9 @@ contract LabSecurityTest is BaseTest {
     address provider1 = address(0xDEAD);
     address attacker = address(0xBAD);
 
-    function _selector(string memory sig) internal pure returns (bytes4) {
+    function _selector(
+        string memory sig
+    ) internal pure returns (bytes4) {
         return bytes4(keccak256(bytes(sig)));
     }
 
@@ -45,16 +47,10 @@ contract LabSecurityTest is BaseTest {
         bytes4[] memory selsDC = new bytes4[](1);
         selsDC[0] = IDiamondCut.diamondCut.selector;
         cut[0] = IDiamond.FacetCut({
-            facetAddress: address(dc),
-            action: IDiamond.FacetCutAction.Add,
-            functionSelectors: selsDC
+            facetAddress: address(dc), action: IDiamond.FacetCutAction.Add, functionSelectors: selsDC
         });
 
-        DiamondArgs memory args = DiamondArgs({
-            owner: admin,
-            init: address(0),
-            initCalldata: ""
-        });
+        DiamondArgs memory args = DiamondArgs({owner: admin, init: address(0), initCalldata: ""});
         diamond = new Diamond(cut, args);
 
         // Deploy facets
@@ -67,24 +63,16 @@ contract LabSecurityTest is BaseTest {
         IDiamond.FacetCut[] memory cut2 = new IDiamond.FacetCut[](4);
 
         bytes4[] memory initSels = new bytes4[](1);
-        initSels[0] = _selector(
-            "initializeDiamond(string,string,string,address,string,string)"
-        );
+        initSels[0] = _selector("initializeDiamond(string,string,string,address,string,string)");
         cut2[0] = IDiamond.FacetCut({
-            facetAddress: address(initFacet),
-            action: IDiamond.FacetCutAction.Add,
-            functionSelectors: initSels
+            facetAddress: address(initFacet), action: IDiamond.FacetCutAction.Add, functionSelectors: initSels
         });
 
         bytes4[] memory provSels = new bytes4[](2);
         provSels[0] = _selector("initialize(string,string,string,address)");
-        provSels[1] = _selector(
-            "addProvider(string,address,string,string,string)"
-        );
+        provSels[1] = _selector("addProvider(string,address,string,string,string)");
         cut2[1] = IDiamond.FacetCut({
-            facetAddress: address(providerFacet),
-            action: IDiamond.FacetCutAction.Add,
-            functionSelectors: provSels
+            facetAddress: address(providerFacet), action: IDiamond.FacetCutAction.Add, functionSelectors: provSels
         });
 
         bytes4[] memory labSels = new bytes4[](3);
@@ -92,17 +80,13 @@ contract LabSecurityTest is BaseTest {
         labSels[1] = _selector("safeMintTo(address,uint256)");
         labSels[2] = _selector("burnToken(uint256)");
         cut2[2] = IDiamond.FacetCut({
-            facetAddress: address(labFacet),
-            action: IDiamond.FacetCutAction.Add,
-            functionSelectors: labSels
+            facetAddress: address(labFacet), action: IDiamond.FacetCutAction.Add, functionSelectors: labSels
         });
 
         bytes4[] memory adminSels = new bytes4[](1);
         adminSels[0] = _selector("addLab(string,uint96,string,string)");
         cut2[3] = IDiamond.FacetCut({
-            facetAddress: address(labAdminFacet),
-            action: IDiamond.FacetCutAction.Add,
-            functionSelectors: adminSels
+            facetAddress: address(labAdminFacet), action: IDiamond.FacetCutAction.Add, functionSelectors: adminSels
         });
 
         vm.prank(admin);
@@ -114,24 +98,11 @@ contract LabSecurityTest is BaseTest {
 
         // Initialize diamond
         vm.prank(admin);
-        InitFacet(address(diamond)).initializeDiamond(
-            "Admin",
-            "admin@x",
-            "ES",
-            address(token),
-            "LN",
-            "LS"
-        );
+        InitFacet(address(diamond)).initializeDiamond("Admin", "admin@x", "ES", address(token), "LN", "LS");
 
         // Add a provider for legitimate operations
         vm.prank(admin);
-        ProviderFacet(address(diamond)).addProvider(
-            "Provider1",
-            provider1,
-            "p@x",
-            "ES",
-            ""
-        );
+        ProviderFacet(address(diamond)).addProvider("Provider1", provider1, "p@x", "ES", "");
     }
 
     /// @notice Security: External callers cannot mint directly via LabFacet helper
@@ -144,12 +115,7 @@ contract LabSecurityTest is BaseTest {
     /// @notice Security: External callers cannot burn directly via LabFacet helper
     function test_burnToken_reverts_for_external_caller() public {
         vm.prank(provider1);
-        LabAdminFacet(address(diamond)).addLab(
-            "ipfs://metadata",
-            100 ether,
-            "https://access.example.com",
-            "key123"
-        );
+        LabAdminFacet(address(diamond)).addLab("ipfs://metadata", 100 ether, "https://access.example.com", "key123");
 
         uint256 labId = 1;
         vm.prank(attacker);
@@ -167,12 +133,7 @@ contract LabSecurityTest is BaseTest {
     /// @notice Security: helper burn must reject external callers with exact reason
     function test_burnToken_reverts_with_expected_reason() public {
         vm.prank(provider1);
-        LabAdminFacet(address(diamond)).addLab(
-            "ipfs://metadata",
-            100 ether,
-            "https://access.example.com",
-            "key123"
-        );
+        LabAdminFacet(address(diamond)).addLab("ipfs://metadata", 100 ether, "https://access.example.com", "key123");
 
         vm.prank(attacker);
         vm.expectRevert(_onlyDiamondCanCallRevertData());

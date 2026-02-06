@@ -24,7 +24,9 @@ contract ProviderTest is BaseTest {
     address provider1 = address(0xDEAD);
     address nonAdmin = address(0xBAD);
 
-    function _selector(string memory sig) internal pure returns (bytes4) {
+    function _selector(
+        string memory sig
+    ) internal pure returns (bytes4) {
         return bytes4(keccak256(bytes(sig)));
     }
 
@@ -38,13 +40,7 @@ contract ProviderTest is BaseTest {
     /// @notice SPEC: "ADD PROVIDER" use case
     function test_addProvider_grants_role_and_mints_tokens() public {
         vm.prank(admin);
-        providerFacet.addProvider(
-            "NewProvider",
-            provider1,
-            "new@provider.com",
-            "US",
-            ""
-        );
+        providerFacet.addProvider("NewProvider", provider1, "new@provider.com", "US", "");
 
         // Verify provider role granted
         assertTrue(providerFacet.isLabProvider(provider1));
@@ -57,13 +53,7 @@ contract ProviderTest is BaseTest {
     function test_addProvider_only_by_admin() public {
         vm.prank(nonAdmin);
         vm.expectRevert();
-        providerFacet.addProvider(
-            "BadProvider",
-            address(0x1234),
-            "bad@example.com",
-            "XX",
-            ""
-        );
+        providerFacet.addProvider("BadProvider", address(0x1234), "bad@example.com", "XX", "");
     }
 
     /// @notice SPEC: "UPDATE PROVIDER" use case
@@ -86,7 +76,7 @@ contract ProviderTest is BaseTest {
         providerFacet.addProvider("Provider1", provider1, "p1@x", "ES", "");
 
         // Create very long string (potential DoS)
-        string memory longString = new string(10000);
+        string memory longString = new string(10_000);
         // TODO: Fill with data
 
         // This SHOULD revert with length check, but currently doesn't

@@ -30,7 +30,9 @@ contract LabAdminTest is BaseTest {
     address provider2 = address(0xBEEF);
     address nonProvider = address(0xBAD);
 
-    function _selector(string memory sig) internal pure returns (bytes4) {
+    function _selector(
+        string memory sig
+    ) internal pure returns (bytes4) {
         return bytes4(keccak256(bytes(sig)));
     }
 
@@ -46,12 +48,7 @@ contract LabAdminTest is BaseTest {
     /// @notice SPEC: "ADD LAB" use case
     function test_addLab_creates_nft_with_metadata() public {
         vm.prank(provider1);
-        labAdmin.addLab(
-            "ipfs://lab-metadata",
-            100 ether,
-            "https://access.example.com",
-            "accessKey123"
-        );
+        labAdmin.addLab("ipfs://lab-metadata", 100 ether, "https://access.example.com", "accessKey123");
 
         // Verify NFT was minted
         assertEq(labFacet.ownerOf(1), provider1);
@@ -66,12 +63,7 @@ contract LabAdminTest is BaseTest {
     function test_addLab_requires_provider_role() public {
         vm.prank(nonProvider);
         vm.expectRevert();
-        labAdmin.addLab(
-            "ipfs://metadata",
-            100 ether,
-            "https://access.example.com",
-            "key"
-        );
+        labAdmin.addLab("ipfs://metadata", 100 ether, "https://access.example.com", "key");
     }
 
     /// @notice SPEC: "UPDATE LAB" use case

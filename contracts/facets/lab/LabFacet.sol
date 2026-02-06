@@ -121,7 +121,10 @@ contract LabFacet is ERC721Upgradeable, ReservableToken {
         address to,
         uint256 tokenId
     ) external {
-        // Caller is expected to be the diamond (invoked by admin facets/libraries)
+        // Restrict to calls originating from the diamond contract itself
+        // (i.e., internal diamond calls via libraries/facets) to avoid
+        // external actors minting tokens directly.
+        require(msg.sender == address(this), "Only diamond can call");
         _safeMint(to, tokenId);
     }
 
@@ -130,6 +133,9 @@ contract LabFacet is ERC721Upgradeable, ReservableToken {
     function burnToken(
         uint256 tokenId
     ) external {
+        // Restrict to calls originating from the diamond contract itself
+        // to avoid external actors burning arbitrary tokens.
+        require(msg.sender == address(this), "Only diamond can call");
         _burn(tokenId);
     }
 

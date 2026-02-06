@@ -31,6 +31,10 @@ contract LabSecurityTest is BaseTest {
         return bytes4(keccak256(bytes(sig)));
     }
 
+    function _onlyDiamondCanCallRevertData() internal pure returns (bytes memory) {
+        return abi.encodeWithSelector(bytes4(keccak256("Error(string)")), "Only diamond can call");
+    }
+
     function setUp() public override {
         super.setUp();
 
@@ -130,21 +134,15 @@ contract LabSecurityTest is BaseTest {
         );
     }
 
-    /// @notice CRITICAL: Test that anyone can call safeMintTo
-    function test_CRITICAL_safeMintTo_no_access_control() public {
-        // ATTACK: Attacker calls safeMintTo directly
+    /// @notice Security: External callers cannot mint directly via LabFacet helper
+    function test_safeMintTo_reverts_for_external_caller() public {
         vm.prank(attacker);
+        vm.expectRevert(_onlyDiamondCanCallRevertData());
         LabFacet(address(diamond)).safeMintTo(attacker, 999);
-
-        // VERIFY: Attacker now owns the NFT
-        assertEq(LabFacet(address(diamond)).ownerOf(999), attacker);
-
-        // This test PASSES = vulnerability confirmed
     }
 
-    /// @notice CRITICAL: Test that anyone can burn any lab
-    function test_CRITICAL_burnToken_no_access_control() public {
-        // Setup: Provider creates legitimate lab
+    /// @notice Security: External callers cannot burn directly via LabFacet helper
+    function test_burnToken_reverts_for_external_caller() public {
         vm.prank(provider1);
         LabAdminFacet(address(diamond)).addLab(
             "ipfs://metadata",
@@ -154,34 +152,20 @@ contract LabSecurityTest is BaseTest {
         );
 
         uint256 labId = 1;
-        address legitOwner = LabFacet(address(diamond)).ownerOf(labId);
-        assertEq(legitOwner, provider1);
-
-        // ATTACK: Attacker burns someone else's lab
         vm.prank(attacker);
+        vm.expectRevert(_onlyDiamondCanCallRevertData());
         LabFacet(address(diamond)).burnToken(labId);
-
-        // VERIFY: Lab is destroyed
-        vm.expectRevert();
-        LabFacet(address(diamond)).ownerOf(labId);
-
-        // This test PASSES = vulnerability confirmed
     }
 
-    /// @notice Test that safeMintTo should only be callable by diamond
-    function test_safeMintTo_should_require_internal_calls() public {
-        // This is how it SHOULD work after fix
+    /// @notice Security: helper mint must reject external callers with exact reason
+    function test_safeMintTo_reverts_with_expected_reason() public {
         vm.prank(attacker);
-        vm.expectRevert(); // Should revert with "Only diamond" or similar
+        vm.expectRevert(_onlyDiamondCanCallRevertData());
         LabFacet(address(diamond)).safeMintTo(attacker, 999);
-
-        // This test will FAIL now (proving vulnerability)
-        // After fix is applied, this test will PASS
     }
 
-    /// @notice Test that burnToken should only be callable by diamond
-    function test_burnToken_should_require_internal_calls() public {
-        // Setup: Create lab first
+    /// @notice Security: helper burn must reject external callers with exact reason
+    function test_burnToken_reverts_with_expected_reason() public {
         vm.prank(provider1);
         LabAdminFacet(address(diamond)).addLab(
             "ipfs://metadata",
@@ -190,12 +174,8 @@ contract LabSecurityTest is BaseTest {
             "key123"
         );
 
-        // This is how it SHOULD work after fix
         vm.prank(attacker);
-        vm.expectRevert(); // Should revert with "Only diamond" or similar
+        vm.expectRevert(_onlyDiamondCanCallRevertData());
         LabFacet(address(diamond)).burnToken(1);
-
-        // This test will FAIL now (proving vulnerability)
-        // After fix is applied, this test will PASS
     }
 }

@@ -93,14 +93,18 @@ contract LabAdminTest is BaseTest {
         labAdminSelectors[3] = _selector("listLab(uint256)");
         labAdminSelectors[4] = _selector("unlistLab(uint256)");
         cut2[3] = IDiamond.FacetCut({
-            facetAddress: address(labAdminImpl), action: IDiamond.FacetCutAction.Add, functionSelectors: labAdminSelectors
+            facetAddress: address(labAdminImpl),
+            action: IDiamond.FacetCutAction.Add,
+            functionSelectors: labAdminSelectors
         });
 
         bytes4[] memory labQuerySelectors = new bytes4[](2);
         labQuerySelectors[0] = _selector("getLab(uint256)");
         labQuerySelectors[1] = _selector("isLabListed(uint256)");
         cut2[4] = IDiamond.FacetCut({
-            facetAddress: address(labQueryImpl), action: IDiamond.FacetCutAction.Add, functionSelectors: labQuerySelectors
+            facetAddress: address(labQueryImpl),
+            action: IDiamond.FacetCutAction.Add,
+            functionSelectors: labQuerySelectors
         });
 
         vm.prank(admin);

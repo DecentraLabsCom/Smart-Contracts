@@ -30,7 +30,9 @@ async function main() {
     process.exit(1);
   }
 
-  const provider = new ethers.JsonRpcProvider(rpc);
+  // Disable JSON-RPC request batching to avoid partial-batch failures on
+  // rate-limited providers (e.g. Infura returning one error + one success).
+  const provider = new ethers.JsonRpcProvider(rpc, undefined, { batchMaxCount: 1 });
   const resume = readJsonRobust(resumePath);
   const facetsMap = resume.facets || {};
 
@@ -62,9 +64,22 @@ async function main() {
     const msg = String(err && err.message ? err.message : '');
     const code = err && err.code;
     const nestedCode = err && err.info && err.info.error && err.info.error.code;
+    const hasRateLimitInValueArray = Array.isArray(err && err.value)
+      && err.value.some(v => {
+        if (!v || typeof v !== 'object') return false;
+        const vCode = v.code;
+        const vMsg = String(v.message || '');
+        return vCode === -32005
+          || vCode === 429
+          || vMsg.toLowerCase().includes('too many requests')
+          || vMsg.toLowerCase().includes('rate limit');
+      });
     if (code === 'UNKNOWN_ERROR' || code === 'CALL_EXCEPTION') {
       if (msg.toLowerCase().includes('rate') || msg.toLowerCase().includes('limit')) return true;
     }
+    if (code === 'BAD_DATA' && hasRateLimitInValueArray) return true;
+    if (msg.toLowerCase().includes('too many requests')) return true;
+    if (msg.toLowerCase().includes('missing response for request') && hasRateLimitInValueArray) return true;
     if (nestedCode === -32005 || nestedCode === 429) return true;
     if (code === -32005 || code === 429) return true;
     return false;
@@ -86,6 +101,10 @@ async function main() {
       }
     }
   }
+
+  // Warm up provider network resolution with retries so first calls don't fail
+  // the whole run under provider throttling.
+  await withRetry(() => provider.getNetwork(), 'getNetwork');
 
   function getCanonicalType(node) {
     if (!node || !node.type) return '';
@@ -225,7 +244,7 @@ async function main() {
     for (const cut of facetCuts) {
       for (const sel of cut.functionSelectors) {
         const data = iface.encodeFunctionData('facetAddress', [sel]);
-        const res = await provider.call({ to: diamond, data });
+        const res = await withRetry(() => provider.call({ to: diamond, data }), 'facetAddress(reverify)');
         const [current] = iface.decodeFunctionResult('facetAddress', res);
         console.log(sel, '->', current);
       }

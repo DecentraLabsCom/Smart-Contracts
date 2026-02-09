@@ -19,7 +19,17 @@ try {
     }
 
     $diamond = node -e "console.log(require('./deployments/sepolia-latest.json').contracts.Diamond)"
-    & ./scripts/verify-selectors.ps1 -RpcUrl $RpcUrl -Diamond $diamond -Compile
+    $throttleMs = if ($env:VERIFY_THROTTLE_MS) { [int]$env:VERIFY_THROTTLE_MS } else { 175 }
+    $retries = if ($env:VERIFY_RETRIES) { [int]$env:VERIFY_RETRIES } else { 10 }
+    $retryBaseMs = if ($env:VERIFY_RETRY_BASE_MS) { [int]$env:VERIFY_RETRY_BASE_MS } else { 400 }
+
+    & ./scripts/verify-selectors.ps1 `
+        -RpcUrl $RpcUrl `
+        -Diamond $diamond `
+        -Compile `
+        -ThrottleMs $throttleMs `
+        -Retries $retries `
+        -RetryBaseMs $retryBaseMs
 } finally {
     Pop-Location
 }

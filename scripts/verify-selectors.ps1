@@ -2,7 +2,9 @@ param(
     [string]$RpcUrl,
     [string]$Diamond,
     [switch]$Compile,
-    [int]$ThrottleMs = 50
+    [int]$ThrottleMs = 125,
+    [int]$Retries = 8,
+    [int]$RetryBaseMs = 300
 )
 
 $ErrorActionPreference = "Stop"
@@ -47,4 +49,4 @@ if ($Compile -or -not (Test-Path (Join-Path -Path $PSScriptRoot -ChildPath "..\h
 
 Write-Host "Verifying selectors on $Diamond ..."
 $verifyScript = Join-Path -Path $PSScriptRoot -ChildPath "verify-all-facets-selectors.js"
-node $verifyScript --rpc $Env:RPC_URL --diamond $Diamond --throttle-ms $ThrottleMs
+node $verifyScript --rpc $Env:RPC_URL --diamond $Diamond --throttle-ms $ThrottleMs --retries $Retries --retry-base-ms $RetryBaseMs

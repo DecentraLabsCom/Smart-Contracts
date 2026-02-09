@@ -33,8 +33,58 @@ contract ProviderTest is BaseTest {
     function setUp() public override {
         super.setUp();
 
-        // TODO: Deploy diamond with Provider facets
-        // Similar to LabSecurity setup
+        DiamondCutFacet dc = new DiamondCutFacet();
+
+        IDiamond.FacetCut[] memory cut = new IDiamond.FacetCut[](1);
+        bytes4[] memory dcSelectors = new bytes4[](1);
+        dcSelectors[0] = IDiamondCut.diamondCut.selector;
+        cut[0] = IDiamond.FacetCut({
+            facetAddress: address(dc), action: IDiamond.FacetCutAction.Add, functionSelectors: dcSelectors
+        });
+
+        DiamondArgs memory args = DiamondArgs({owner: admin, init: address(0), initCalldata: ""});
+        diamond = new Diamond(cut, args);
+
+        InitFacet initFacet = new InitFacet();
+        ProviderFacet providerFacetImpl = new ProviderFacet();
+        LabFacet labFacet = new LabFacet();
+
+        IDiamond.FacetCut[] memory cut2 = new IDiamond.FacetCut[](3);
+
+        bytes4[] memory initSelectors = new bytes4[](1);
+        initSelectors[0] = _selector("initializeDiamond(string,string,string,address,string,string)");
+        cut2[0] = IDiamond.FacetCut({
+            facetAddress: address(initFacet), action: IDiamond.FacetCutAction.Add, functionSelectors: initSelectors
+        });
+
+        bytes4[] memory providerSelectors = new bytes4[](5);
+        providerSelectors[0] = _selector("initialize(string,string,string,address)");
+        providerSelectors[1] = _selector("addProvider(string,address,string,string,string)");
+        providerSelectors[2] = _selector("removeProvider(address)");
+        providerSelectors[3] = _selector("updateProvider(string,string,string)");
+        providerSelectors[4] = _selector("isLabProvider(address)");
+        cut2[1] = IDiamond.FacetCut({
+            facetAddress: address(providerFacetImpl),
+            action: IDiamond.FacetCutAction.Add,
+            functionSelectors: providerSelectors
+        });
+
+        bytes4[] memory labSelectors = new bytes4[](1);
+        labSelectors[0] = _selector("initialize(string,string)");
+        cut2[2] = IDiamond.FacetCut({
+            facetAddress: address(labFacet), action: IDiamond.FacetCutAction.Add, functionSelectors: labSelectors
+        });
+
+        vm.prank(admin);
+        IDiamondCut(address(diamond)).diamondCut(cut2, address(0), "");
+
+        token = new LabERC20();
+        token.initialize("LS", address(diamond));
+
+        vm.prank(admin);
+        InitFacet(address(diamond)).initializeDiamond("Admin", "admin@x", "ES", address(token), "Labs", "LS");
+
+        providerFacet = ProviderFacet(address(diamond));
     }
 
     /// @notice SPEC: "ADD PROVIDER" use case
@@ -45,8 +95,8 @@ contract ProviderTest is BaseTest {
         // Verify provider role granted
         assertTrue(providerFacet.isLabProvider(provider1));
 
-        // Verify 1000 LAB tokens minted (1000 * 10^6 with 6 decimals)
-        assertEq(token.balanceOf(provider1), 1000 * 10 ** 6);
+        // Provider token allocation is minted to Diamond treasury/stake buckets
+        assertEq(token.balanceOf(address(diamond)), 1000 * 10 ** 6);
     }
 
     /// @notice SPEC: Only admin can add providers

@@ -11,6 +11,9 @@ import {
 import {
     ERC20CappedUpgradeable
 } from "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC20CappedUpgradeable.sol";
+import {
+    ERC20PermitUpgradeable
+} from "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC20PermitUpgradeable.sol";
 import {AccessControlUpgradeable} from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
 import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 
@@ -26,6 +29,7 @@ import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Ini
 contract LabERC20 is
     Initializable,
     ERC20Upgradeable,
+    ERC20PermitUpgradeable,
     ERC20BurnableUpgradeable,
     ERC20PausableUpgradeable,
     ERC20CappedUpgradeable,
@@ -80,6 +84,7 @@ contract LabERC20 is
         require(_diamondAddress != address(0), "LabERC20: diamond address cannot be zero");
 
         __ERC20_init(string.concat("$", _symbol), _symbol);
+        __ERC20Permit_init(string.concat("$", _symbol));
         __ERC20Burnable_init();
         __ERC20Pausable_init();
         __ERC20Capped_init(_MAX_SUPPLY);

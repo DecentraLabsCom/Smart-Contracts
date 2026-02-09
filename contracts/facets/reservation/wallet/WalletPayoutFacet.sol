@@ -37,8 +37,8 @@ contract WalletPayoutFacet is ReentrancyGuardTransient {
     uint8 internal constant _CONFIRMED = 1;
     uint8 internal constant _IN_USE = 2;
     uint8 internal constant _COMPLETED = 3;
-    uint8 internal constant _CANCELLED = 4;
-    uint8 internal constant _COLLECTED = 5;
+    uint8 internal constant _COLLECTED = 4;
+    uint8 internal constant _CANCELLED = 5;
 
     /// @dev Delay before admin can recover orphaned payouts (30 days)
     uint256 internal constant _ORPHAN_PAYOUT_DELAY = 30 days;

@@ -98,9 +98,10 @@ contract LabAdminTest is BaseTest {
             functionSelectors: labAdminSelectors
         });
 
-        bytes4[] memory labQuerySelectors = new bytes4[](2);
+        bytes4[] memory labQuerySelectors = new bytes4[](3);
         labQuerySelectors[0] = _selector("getLab(uint256)");
         labQuerySelectors[1] = _selector("isLabListed(uint256)");
+        labQuerySelectors[2] = _selector("getLabsPaginated(uint256,uint256)");
         cut2[4] = IDiamond.FacetCut({
             facetAddress: address(labQueryImpl),
             action: IDiamond.FacetCutAction.Add,
@@ -215,5 +216,21 @@ contract LabAdminTest is BaseTest {
         labAdmin.unlistLab(1);
 
         assertFalse(labQuery.isLabListed(1));
+    }
+
+    function test_getLabsPaginated_excludes_deleted_ids() public {
+        vm.startPrank(provider1);
+        labAdmin.addLab("uri1", 100 ether, "access1", "key1");
+        labAdmin.addLab("uri2", 100 ether, "access2", "key2");
+        labAdmin.addLab("uri3", 100 ether, "access3", "key3");
+        labAdmin.deleteLab(2);
+        vm.stopPrank();
+
+        (uint256[] memory ids, uint256 total) = labQuery.getLabsPaginated(0, 5);
+
+        assertEq(total, 2);
+        assertEq(ids.length, 2);
+        assertEq(ids[0], 1);
+        assertEq(ids[1], 3);
     }
 }

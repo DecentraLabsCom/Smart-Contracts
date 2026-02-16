@@ -230,6 +230,8 @@ struct InstitutionalUserSpending {
 /// @custom:member organizationInstitutionWallet Mapping of normalized organization hashes to institution wallets
 /// @custom:member institutionSchacHomeOrganizations Enumerable set of organization hashes registered by each institution wallet
 /// @custom:member organizationBackendUrls Backend URL per schacHomeOrganization hash
+/// @custom:member activeLabIds Dense array of currently existing lab IDs (for efficient pagination)
+/// @custom:member activeLabIndexPlusOne 1-based index of lab ID inside activeLabIds (0 means not indexed)
 struct AppStorage {
     // forge-lint: disable-next-line(mixed-case-variable)
     bytes32 DEFAULT_ADMIN_ROLE;
@@ -316,6 +318,10 @@ struct AppStorage {
 
     // Reservation PUC hashes (appended to preserve storage layout)
     mapping(bytes32 reservationKey => bytes32 pucHash) reservationPucHash;
+
+    // Active labs index (appended to preserve storage layout)
+    uint256[] activeLabIds;
+    mapping(uint256 labId => uint256 indexPlusOne) activeLabIndexPlusOne;
 }
 
 /// @title LibAppStorage

@@ -11,7 +11,7 @@ import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 /// @notice Read-only facet for querying Lab data. Split from LabFacet to reduce contract size.
 /// @dev This facet provides query functions that don't modify state.
 contract LabQueryFacet {
-    /// @dev Modifier to check if a token exists (has been minted).
+    /// @dev Modifier to check if a lab exists and is currently active (not deleted/burned).
     modifier exists(
         uint256 _labId
     ) {
@@ -22,7 +22,13 @@ contract LabQueryFacet {
     function _exists(
         uint256 _labId
     ) internal view {
-        require(_s().labs[_labId].price > 0 || bytes(_s().labs[_labId].uri).length > 0, "Lab does not exist");
+        require(_labExists(_labId), "Lab does not exist");
+    }
+
+    function _labExists(
+        uint256 _labId
+    ) internal view returns (bool) {
+        return _s().activeLabIndexPlusOne[_labId] != 0;
     }
 
     /// @dev Returns the AppStorage struct from the diamond storage slot.
@@ -42,10 +48,11 @@ contract LabQueryFacet {
 
     /// @notice Retrieves a paginated list of lab token IDs
     /// @dev Returns a subset of lab IDs to avoid gas limit issues with large datasets
+    ///      Order follows internal active index storage and may change after deletions.
     /// @param offset The starting index for pagination (0-based)
     /// @param limit The maximum number of labs to return (max 100)
     /// @return ids Array of lab token IDs for the requested page
-    /// @return total The total number of labs available
+    /// @return total The total number of existing labs available (excluding deleted/burned IDs)
     /// @custom:example To get first 50 labs: getLabsPaginated(0, 50)
     /// @custom:example To get next 50 labs: getLabsPaginated(50, 50)
     function getLabsPaginated(
@@ -55,17 +62,22 @@ contract LabQueryFacet {
         require(limit > 0 && limit <= 100, "Limit must be between 1 and 100");
 
         AppStorage storage s = _s();
-        total = s.labId; // Total minted labs
+        total = s.activeLabIds.length;
 
-        // Calculate actual number of items to return
-        uint256 remaining = total > offset ? total - offset : 0;
-        uint256 count = remaining < limit ? remaining : limit;
+        if (offset >= total) {
+            return (new uint256[](0), total);
+        }
 
+        uint256 end = offset + limit;
+        if (end > total) {
+            end = total;
+        }
+
+        uint256 count = end - offset;
         ids = new uint256[](count);
 
         for (uint256 i = 0; i < count;) {
-            // Lab IDs start at 1, so offset + i + 1
-            ids[i] = offset + i + 1;
+            ids[i] = s.activeLabIds[offset + i];
             unchecked {
                 ++i;
             }

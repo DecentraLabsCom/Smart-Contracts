@@ -57,6 +57,7 @@ library LibLabAdmin {
         s.labs[nextLabId].accessURI = _accessUri;
         s.labs[nextLabId].accessKey = _accessKey;
         s.labs[nextLabId].createdAt = uint32(block.timestamp);
+        _addActiveLabToIndex(s, nextLabId);
 
         emit LabAdded(nextLabId, msg.sender, _uri, _price, _accessUri, _accessKey);
     }
@@ -86,6 +87,7 @@ library LibLabAdmin {
         s.labs[nextLabId].accessURI = _accessUri;
         s.labs[nextLabId].accessKey = _accessKey;
         s.labs[nextLabId].createdAt = uint32(block.timestamp);
+        _addActiveLabToIndex(s, nextLabId);
 
         s.providerStakes[msg.sender].listedLabsCount = newListedCount;
         s.tokenStatus[nextLabId] = true;
@@ -142,6 +144,7 @@ library LibLabAdmin {
         }
 
         ILabFacetMint(address(this)).burnToken(_labId);
+        _removeActiveLabFromIndex(s, _labId);
         delete s.labs[_labId];
         emit LabDeleted(_labId);
     }
@@ -191,7 +194,7 @@ library LibLabAdmin {
     function _requireExists(
         uint256 _labId
     ) internal view {
-        require(_labId > 0 && _labId <= _s().labId, "Lab does not exist");
+        require(_s().activeLabIndexPlusOne[_labId] != 0, "Lab does not exist");
     }
 
     function _requireOnlyTokenOwner(
@@ -215,6 +218,36 @@ library LibLabAdmin {
     ) internal view returns (bool) {
         AppStorage storage s = _s();
         return s.labActiveReservationCount[_labId] > 0 || s.pendingProviderPayout[_labId] > 0;
+    }
+
+    function _addActiveLabToIndex(
+        AppStorage storage s,
+        uint256 labId
+    ) private {
+        s.activeLabIds.push(labId);
+        s.activeLabIndexPlusOne[labId] = s.activeLabIds.length;
+    }
+
+    function _removeActiveLabFromIndex(
+        AppStorage storage s,
+        uint256 labId
+    ) private {
+        uint256 indexPlusOne = s.activeLabIndexPlusOne[labId];
+        if (indexPlusOne == 0) {
+            return;
+        }
+
+        uint256 index = indexPlusOne - 1;
+        uint256 lastIndex = s.activeLabIds.length - 1;
+
+        if (index != lastIndex) {
+            uint256 lastLabId = s.activeLabIds[lastIndex];
+            s.activeLabIds[index] = lastLabId;
+            s.activeLabIndexPlusOne[lastLabId] = index + 1;
+        }
+
+        s.activeLabIds.pop();
+        delete s.activeLabIndexPlusOne[labId];
     }
 
     function _s() internal pure returns (AppStorage storage s) {

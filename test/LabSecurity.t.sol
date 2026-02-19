@@ -108,7 +108,7 @@ contract LabSecurityTest is BaseTest {
     /// @notice Security: External callers cannot mint directly via LabFacet helper
     function test_safeMintTo_reverts_for_external_caller() public {
         vm.prank(attacker);
-        vm.expectRevert(_onlyDiamondCanCallRevertData());
+        vm.expectRevert("Only diamond can call");
         LabFacet(address(diamond)).safeMintTo(attacker, 999);
     }
 
@@ -119,14 +119,14 @@ contract LabSecurityTest is BaseTest {
 
         uint256 labId = 1;
         vm.prank(attacker);
-        vm.expectRevert(_onlyDiamondCanCallRevertData());
+        vm.expectRevert("Only diamond can call");
         LabFacet(address(diamond)).burnToken(labId);
     }
 
     /// @notice Security: helper mint must reject external callers with exact reason
     function test_safeMintTo_reverts_with_expected_reason() public {
         vm.prank(attacker);
-        vm.expectRevert(_onlyDiamondCanCallRevertData());
+        vm.expectRevert("Only diamond can call");
         LabFacet(address(diamond)).safeMintTo(attacker, 999);
     }
 
@@ -136,7 +136,7 @@ contract LabSecurityTest is BaseTest {
         LabAdminFacet(address(diamond)).addLab("ipfs://metadata", 100 ether, "https://access.example.com", "key123");
 
         vm.prank(attacker);
-        vm.expectRevert(_onlyDiamondCanCallRevertData());
+        vm.expectRevert("Only diamond can call");
         LabFacet(address(diamond)).burnToken(1);
     }
 }

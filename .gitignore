@@ -30,3 +30,4 @@ scripts/*
 !scripts/ci-verify-selectors.ps1
 !scripts/verify-selectors.ps1
 !scripts/verify-all-facets-selectors.js
+!scripts/fix-lab-selectors-and-erc721-interfaces.js

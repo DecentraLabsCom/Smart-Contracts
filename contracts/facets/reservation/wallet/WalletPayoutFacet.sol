@@ -58,6 +58,9 @@ contract WalletPayoutFacet is ReentrancyGuardTransient {
         uint256 indexed labId, address indexed recipient, uint256 providerPayout, uint256 reservationsProcessed
     );
 
+    /// @notice Emitted when stale/invalid payout heap entries are pruned incrementally
+    event PayoutHeapPruned(uint256 indexed labId, uint256 removed, uint256 remaining);
+
     /// @dev Returns the AppStorage struct from the diamond storage slot.
     function _s() internal pure returns (AppStorage storage s) {
         s = LibAppStorage.diamondStorage();
@@ -164,6 +167,91 @@ contract WalletPayoutFacet is ReentrancyGuardTransient {
         }
 
         totalPayout = walletPayout + institutionalPayout;
+    }
+
+    /// @notice Bounded/paginated variant of getPendingLabPayout to avoid large eth_call executions.
+    /// @dev Scans payout heap entries in [offset, offset+limit). To aggregate full pending values,
+    ///      callers should iterate until hasMore=false, summing chunk outputs.
+    ///      The already-accrued provider bucket (pendingProviderPayout) is included only when offset == 0.
+    ///      NOTE: this function intentionally uses linear index scanning (instead of heap branch pruning)
+    ///      so offset pagination remains deterministic and easy to compose off-chain.
+    /// @param _labId The lab to query
+    /// @param offset Heap index offset to start scanning from
+    /// @param limit Max heap entries to scan in this call (1-1000)
+    /// @return walletPayoutChunk Provider payout found in this chunk (+pendingProviderPayout if offset==0)
+    /// @return institutionalPayoutChunk Reserved for compatibility (currently always 0)
+    /// @return totalPayoutChunk Sum of wallet and institutional chunk outputs
+    /// @return institutionalCollectorCountChunk Number of closeable reservations found in this chunk
+    /// @return nextOffset Offset to use in next page call
+    /// @return hasMore True when more heap entries remain after this chunk
+    function getPendingLabPayoutPaginated(
+        uint256 _labId,
+        uint256 offset,
+        uint256 limit
+    )
+        external
+        view
+        returns (
+            uint256 walletPayoutChunk,
+            uint256 institutionalPayoutChunk,
+            uint256 totalPayoutChunk,
+            uint256 institutionalCollectorCountChunk,
+            uint256 nextOffset,
+            bool hasMore
+        )
+    {
+        require(limit > 0 && limit <= 1000, "Invalid limit");
+
+        AppStorage storage s = _s();
+        institutionalPayoutChunk = 0;
+
+        if (offset == 0) {
+            walletPayoutChunk = s.pendingProviderPayout[_labId];
+        }
+
+        PayoutCandidate[] storage heap = s.payoutHeaps[_labId];
+        uint256 heapLength = heap.length;
+        if (offset >= heapLength) {
+            nextOffset = heapLength;
+            totalPayoutChunk = walletPayoutChunk;
+            return (
+                walletPayoutChunk,
+                institutionalPayoutChunk,
+                totalPayoutChunk,
+                institutionalCollectorCountChunk,
+                nextOffset,
+                false
+            );
+        }
+
+        uint256 end = offset + limit;
+        if (end > heapLength) {
+            end = heapLength;
+        }
+
+        uint256 currentTime = block.timestamp;
+        for (uint256 i = offset; i < end;) {
+            PayoutCandidate storage candidate = heap[i];
+            if (candidate.end <= currentTime) {
+                Reservation storage reservation = s.reservations[candidate.key];
+                if (
+                    reservation.labId == _labId
+                        && (reservation.status == _CONFIRMED
+                            || reservation.status == _IN_USE
+                            || reservation.status == _COMPLETED)
+                ) {
+                    walletPayoutChunk += reservation.providerShare;
+                    institutionalCollectorCountChunk++;
+                }
+            }
+            unchecked {
+                ++i;
+            }
+        }
+
+        nextOffset = end;
+        hasMore = end < heapLength;
+        totalPayoutChunk = walletPayoutChunk + institutionalPayoutChunk;
     }
 
     /// @dev Traverses payout heap with pruning:
@@ -318,6 +406,31 @@ contract WalletPayoutFacet is ReentrancyGuardTransient {
         emit OrphanedLabPayoutRecovered(_labId, recipient, providerPayout, processed);
     }
 
+    /// @notice Incrementally prune invalid payout heap entries to keep requestFunds gas predictable.
+    /// @dev Useful as a maintenance action when a lab accumulated many cancelled/collected heap entries.
+    ///      Complexity is O(k log n), where k is the number of removals in this call.
+    ///      Prefer this function for small/regular cleanups; large rebuilds are handled by _compactHeap.
+    /// @param _labId Lab whose payout heap should be pruned
+    /// @param maxIterations Maximum heap slots to inspect in this call (1-1000)
+    /// @return removed Number of invalid entries removed from the heap
+    function prunePayoutHeap(
+        uint256 _labId,
+        uint256 maxIterations
+    ) external nonReentrant returns (uint256 removed) {
+        if (maxIterations == 0 || maxIterations > 1000) revert("Invalid iteration limit");
+
+        AppStorage storage s = _s();
+        bool isAdmin = s.roleMembers[s.DEFAULT_ADMIN_ROLE].contains(msg.sender);
+        if (!isAdmin) {
+            address labOwner = IERC721(address(this)).ownerOf(_labId);
+            address backend = s.institutionalBackends[labOwner];
+            if (msg.sender != labOwner && msg.sender != backend) revert("Not authorized");
+        }
+
+        removed = _prunePayoutHeap(s, _labId, maxIterations);
+        emit PayoutHeapPruned(_labId, removed, s.payoutHeaps[_labId].length);
+    }
+
     // -------------------------------------------------------------------------
     // Internal helpers
     // -------------------------------------------------------------------------
@@ -449,7 +562,73 @@ contract WalletPayoutFacet is ReentrancyGuardTransient {
         }
     }
 
-    /// @dev Compacts the heap by removing all invalid entries
+    function _heapifyUp(
+        PayoutCandidate[] storage heap,
+        uint256 index
+    ) internal {
+        while (index > 0) {
+            uint256 parent = (index - 1) / 2;
+            if (heap[index].end >= heap[parent].end) {
+                break;
+            }
+            PayoutCandidate memory temp = heap[index];
+            heap[index] = heap[parent];
+            heap[parent] = temp;
+            index = parent;
+        }
+    }
+
+    function _removeHeapAt(
+        PayoutCandidate[] storage heap,
+        uint256 index
+    ) internal {
+        uint256 lastIndex = heap.length - 1;
+        if (index == lastIndex) {
+            heap.pop();
+            return;
+        }
+
+        heap[index] = heap[lastIndex];
+        heap.pop();
+        _heapifyDown(heap, index);
+        if (index < heap.length) {
+            _heapifyUp(heap, index);
+        }
+    }
+
+    function _prunePayoutHeap(
+        AppStorage storage s,
+        uint256 labId,
+        uint256 maxIterations
+    ) internal returns (uint256 removed) {
+        PayoutCandidate[] storage heap = s.payoutHeaps[labId];
+        uint256 iterations;
+        uint256 index;
+
+        while (index < heap.length && iterations < maxIterations) {
+            bytes32 key = heap[index].key;
+            Reservation storage reservation = s.reservations[key];
+            bool valid = reservation.labId == labId
+                && (reservation.status == _CONFIRMED || reservation.status == _IN_USE || reservation.status == _COMPLETED);
+
+            if (!valid) {
+                s.payoutHeapContains[key] = false;
+                _removeHeapAt(heap, index);
+                if (s.payoutHeapInvalidCount[labId] > 0) {
+                    s.payoutHeapInvalidCount[labId]--;
+                }
+                removed++;
+            } else {
+                index++;
+            }
+
+            iterations++;
+        }
+    }
+
+    /// @dev Compacts the heap by removing all invalid entries in one pass.
+    ///      This is O(n) for the compaction + heap rebuild and is triggered lazily
+    ///      when invalid density is high, with a size guard (_MAX_COMPACTION_SIZE).
     function _compactHeap(
         AppStorage storage s,
         uint256 labId

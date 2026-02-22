@@ -70,6 +70,7 @@ abstract contract ReservableToken {
     uint8 internal constant _COLLECTED = 4;
     uint8 internal constant _CANCELLED = 5;
     uint32 internal constant _RESERVATION_MARGIN = 0;
+    uint256 internal constant _MAX_STATS_PAGE_SIZE = 500;
 
     /// @notice Emitted when a reservation is requested for a token.
     /// @param renter The address of the user requesting the reservation.
@@ -566,7 +567,8 @@ abstract contract ReservableToken {
     }
 
     /// @notice Get comprehensive statistics about a lab's reservations within a date range
-    /// @dev Single tree traversal filtered by date range; reverts if more than 500 nodes are present to avoid excessive gas.
+    /// @dev Reverts if the requested range would require more than 500 reservation entries.
+    ///      Use getReservationStatsPaginated() to process larger ranges incrementally.
     /// @param _tokenId The ID of the token (lab) to get statistics for
     /// @param _startTime Start of the date range (Unix timestamp)
     /// @param _endTime End of the date range (Unix timestamp)
@@ -598,12 +600,10 @@ abstract contract ReservableToken {
             return (0, 0, 0, 0);
         }
 
-        // Safety: cap the traversal size to avoid excessive gas
-        (, bool capped) = _countNodesCapped(calendar, calendar.root, 500);
-        require(!capped, "Too many reservations for stats");
+        (StatsResult memory stats,, bool hasMore) =
+            _getReservationStatsPage(calendar, _startTime, _endTime, _startTime, _MAX_STATS_PAGE_SIZE);
+        require(!hasMore, "Use getReservationStatsPaginated");
 
-        // Traverse tree to count, sum durations, and find min/max within range
-        StatsResult memory stats = _calculateStats(calendar, calendar.root, _startTime, _endTime);
         count = stats.count;
         totalDuration = stats.duration;
         firstStart = stats.minStart;
@@ -616,87 +616,176 @@ abstract contract ReservableToken {
         return (count, firstStart, lastEnd, totalDuration);
     }
 
-    /// @dev Helper to recursively calculate count, total duration, min start and max end within date range
-    /// @param calendar The interval tree storage
-    /// @param cursor Current node being examined
-    /// @param _startTime Start of the date range filter
-    /// @param _endTime End of the date range filter
-    /// @return res Aggregated stats (count, duration, min start, max end)
-    function _calculateStats(
-        Tree storage calendar,
-        uint256 cursor,
+    /// @notice Paginated reservation statistics for large ranges.
+    /// @dev Cursor is the reservation start timestamp to resume from. Pass 0 for first page.
+    /// @param _tokenId The ID of the token (lab) to get statistics for
+    /// @param _startTime Start of the date range (Unix timestamp)
+    /// @param _endTime End of the date range (Unix timestamp)
+    /// @param _cursorStart Start timestamp cursor (0 for first page)
+    /// @param _limit Maximum entries to process in this call (1-500)
+    /// @return count Number of reservations included in this page
+    /// @return firstStart Earliest start timestamp in this page (0 if empty)
+    /// @return lastEnd Latest end timestamp in this page (0 if empty)
+    /// @return totalDuration Total overlap duration (seconds) in this page
+    /// @return nextCursorStart Next cursor to continue (0 when finished)
+    /// @return hasMore True if more entries exist in the range
+    function getReservationStatsPaginated(
+        uint256 _tokenId,
         uint32 _startTime,
-        uint32 _endTime
-    ) private view returns (StatsResult memory res) {
-        if (cursor == 0) {
-            res.minStart = type(uint32).max;
-            return res;
+        uint32 _endTime,
+        uint32 _cursorStart,
+        uint256 _limit
+    )
+        external
+        view
+        virtual
+        exists(_tokenId)
+        onlyAdmin
+        returns (
+            uint32 count,
+            uint32 firstStart,
+            uint32 lastEnd,
+            uint256 totalDuration,
+            uint32 nextCursorStart,
+            bool hasMore
+        )
+    {
+        require(_startTime < _endTime, "Invalid time range");
+        require(_limit > 0 && _limit <= _MAX_STATS_PAGE_SIZE, "Invalid limit");
+
+        uint32 cursorStart = _cursorStart == 0 ? _startTime : _cursorStart;
+        require(cursorStart >= _startTime, "Invalid cursor");
+
+        Tree storage calendar = _s().calendars[_tokenId];
+        if (calendar.root == 0 || cursorStart >= _endTime) {
+            return (0, 0, 0, 0, 0, false);
         }
 
-        // forge-lint: disable-next-line(unsafe-typecast)
-        uint32 currentStart = uint32(cursor);
-        // forge-lint: disable-next-line(unsafe-typecast)
-        uint32 currentEnd = uint32(calendar.nodes[cursor].end);
+        (StatsResult memory stats, uint32 nextCursor, bool pageHasMore) =
+            _getReservationStatsPage(calendar, _startTime, _endTime, cursorStart, _limit);
+        count = stats.count;
+        totalDuration = stats.duration;
+        hasMore = pageHasMore;
+        nextCursorStart = nextCursor;
 
-        // Check if current reservation overlaps with the requested range
-        // A reservation overlaps if: start < _endTime && end > _startTime
-        bool overlapsRange = currentStart < _endTime && currentEnd > _startTime;
-
-        // Recursively process left and right subtrees
-        StatsResult memory left = _calculateStats(calendar, calendar.nodes[cursor].left, _startTime, _endTime);
-        StatsResult memory right = _calculateStats(calendar, calendar.nodes[cursor].right, _startTime, _endTime);
-
-        // Combine results from subtrees
-        res.count = left.count + right.count;
-        res.duration = left.duration + right.duration;
-        res.minStart = left.minStart < right.minStart ? left.minStart : right.minStart;
-        res.maxEnd = left.maxEnd > right.maxEnd ? left.maxEnd : right.maxEnd;
-
-        // Include current node if it overlaps with range
-        if (overlapsRange) {
-            res.count += 1;
-            // Calculate the duration within the range
-            uint32 effectiveStart = currentStart > _startTime ? currentStart : _startTime;
-            uint32 effectiveEnd = currentEnd < _endTime ? currentEnd : _endTime;
-            res.duration += effectiveEnd - effectiveStart;
-
-            // Update min/max
-            if (currentStart < res.minStart) res.minStart = currentStart;
-            if (currentEnd > res.maxEnd) res.maxEnd = currentEnd;
+        if (count == 0) {
+            return (0, 0, 0, totalDuration, nextCursorStart, hasMore);
         }
 
-        return res;
+        firstStart = stats.minStart;
+        lastEnd = stats.maxEnd;
+        return (count, firstStart, lastEnd, totalDuration, nextCursorStart, hasMore);
     }
 
-    /// @dev Counts nodes up to a cap to guard expensive traversals (short-circuits when cap exceeded)
-    function _countNodesCapped(
+    /// @dev Collects reservation statistics in chronological order with explicit page limits.
+    function _getReservationStatsPage(
         Tree storage calendar,
-        uint256 cursor,
-        uint256 cap
-    ) private view returns (uint256 count, bool capped) {
-        if (cursor == 0 || cap == 0) {
-            return (0, false);
+        uint32 _startTime,
+        uint32 _endTime,
+        uint32 _cursorStart,
+        uint256 _limit
+    ) private view returns (StatsResult memory stats, uint32 nextCursorStart, bool hasMore) {
+        stats.minStart = type(uint32).max;
+        if (_cursorStart >= _endTime || _limit == 0 || calendar.root == 0) {
+            return (stats, 0, false);
         }
-        (count, capped) = _countNodesCappedRec(calendar, cursor, cap, 0);
+
+        uint256 cursor = _findFirstNodeAtOrAfter(calendar, _cursorStart);
+        bool includeBoundarySpanningNode = _cursorStart == _startTime;
+        uint256 processed;
+
+        if (includeBoundarySpanningNode) {
+            uint256 predecessor = _findPredecessorNode(calendar, cursor, _cursorStart);
+            if (predecessor != 0) {
+                // forge-lint: disable-next-line(unsafe-typecast)
+                uint32 predecessorStart = uint32(predecessor);
+                // forge-lint: disable-next-line(unsafe-typecast)
+                uint32 predecessorEnd = uint32(calendar.nodes[predecessor].end);
+                if (predecessorStart < _endTime && predecessorEnd > _startTime) {
+                    _appendStatsInterval(stats, predecessorStart, predecessorEnd, _startTime, _endTime);
+                    processed = 1;
+                    if (processed >= _limit) {
+                        hasMore = cursor != 0 && cursor < _endTime;
+                        if (hasMore) {
+                            // forge-lint: disable-next-line(unsafe-typecast)
+                            nextCursorStart = uint32(cursor);
+                        }
+                        return (stats, nextCursorStart, hasMore);
+                    }
+                }
+            }
+        }
+
+        while (cursor != 0 && cursor < _endTime && processed < _limit) {
+            // forge-lint: disable-next-line(unsafe-typecast)
+            uint32 currentStart = uint32(cursor);
+            // forge-lint: disable-next-line(unsafe-typecast)
+            uint32 currentEnd = uint32(calendar.nodes[cursor].end);
+            if (currentEnd > _startTime) {
+                _appendStatsInterval(stats, currentStart, currentEnd, _startTime, _endTime);
+            }
+            processed++;
+            cursor = calendar.next(cursor);
+        }
+
+        hasMore = cursor != 0 && cursor < _endTime;
+        if (hasMore) {
+            // forge-lint: disable-next-line(unsafe-typecast)
+            nextCursorStart = uint32(cursor);
+        }
     }
 
-    function _countNodesCappedRec(
+    function _appendStatsInterval(
+        StatsResult memory stats,
+        uint32 intervalStart,
+        uint32 intervalEnd,
+        uint32 rangeStart,
+        uint32 rangeEnd
+    ) private pure {
+        stats.count += 1;
+        if (intervalStart < stats.minStart) {
+            stats.minStart = intervalStart;
+        }
+        if (intervalEnd > stats.maxEnd) {
+            stats.maxEnd = intervalEnd;
+        }
+
+        uint32 effectiveStart = intervalStart > rangeStart ? intervalStart : rangeStart;
+        uint32 effectiveEnd = intervalEnd < rangeEnd ? intervalEnd : rangeEnd;
+        if (effectiveEnd > effectiveStart) {
+            stats.duration += effectiveEnd - effectiveStart;
+        }
+    }
+
+    function _findFirstNodeAtOrAfter(
         Tree storage calendar,
-        uint256 cursor,
-        uint256 cap,
-        uint256 running
-    ) private view returns (uint256 count, bool capped) {
-        if (cursor == 0) {
-            return (running, false);
+        uint32 target
+    ) private view returns (uint256 candidate) {
+        uint256 cursor = calendar.root;
+        while (cursor != 0) {
+            if (cursor >= target) {
+                candidate = cursor;
+                cursor = calendar.nodes[cursor].left;
+            } else {
+                cursor = calendar.nodes[cursor].right;
+            }
         }
-        running++;
-        if (running > cap) {
-            return (running, true);
+    }
+
+    function _findPredecessorNode(
+        Tree storage calendar,
+        uint256 firstAtOrAfter,
+        uint32 target
+    ) private view returns (uint256 predecessor) {
+        if (firstAtOrAfter == 0) {
+            predecessor = calendar.last();
+        } else {
+            predecessor = calendar.prev(firstAtOrAfter);
         }
-        (running, capped) = _countNodesCappedRec(calendar, calendar.nodes[cursor].left, cap, running);
-        if (capped) return (running, true);
-        (running, capped) = _countNodesCappedRec(calendar, calendar.nodes[cursor].right, cap, running);
-        return (running, capped);
+
+        if (predecessor != 0 && predecessor >= target) {
+            predecessor = 0;
+        }
     }
 
     /// @notice Find which reservation (if any) occupies a specific timestamp

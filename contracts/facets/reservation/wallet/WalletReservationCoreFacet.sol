@@ -52,7 +52,10 @@ contract WalletReservationCoreFacet is BaseLightReservationFacet {
             bytes32 earliestKey = s.activeReservationByTokenAndUser[_labId][msg.sender];
             if (earliestKey != bytes32(0)) {
                 Reservation storage earliestReservation = s.reservations[earliestKey];
-                if (earliestReservation.status == _CONFIRMED && earliestReservation.end < block.timestamp) {
+                if (
+                    (earliestReservation.status == _CONFIRMED || earliestReservation.status == _IN_USE)
+                        && earliestReservation.end < block.timestamp
+                ) {
                     _releaseExpiredReservationsInternal(_labId, msg.sender, _MAX_RESERVATIONS_PER_LAB_USER);
                     userActiveCount = s.activeReservationCountByTokenAndUser[_labId][msg.sender];
                 }

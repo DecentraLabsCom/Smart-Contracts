@@ -2044,6 +2044,70 @@
   {
     "inputs": [
       {
+        "internalType": "uint256",
+        "name": "_tokenId",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint32",
+        "name": "_startTime",
+        "type": "uint32"
+      },
+      {
+        "internalType": "uint32",
+        "name": "_endTime",
+        "type": "uint32"
+      },
+      {
+        "internalType": "uint32",
+        "name": "_cursorStart",
+        "type": "uint32"
+      },
+      {
+        "internalType": "uint256",
+        "name": "_limit",
+        "type": "uint256"
+      }
+    ],
+    "name": "getReservationStatsPaginated",
+    "outputs": [
+      {
+        "internalType": "uint32",
+        "name": "count",
+        "type": "uint32"
+      },
+      {
+        "internalType": "uint32",
+        "name": "firstStart",
+        "type": "uint32"
+      },
+      {
+        "internalType": "uint32",
+        "name": "lastEnd",
+        "type": "uint32"
+      },
+      {
+        "internalType": "uint256",
+        "name": "totalDuration",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint32",
+        "name": "nextCursorStart",
+        "type": "uint32"
+      },
+      {
+        "internalType": "bool",
+        "name": "hasMore",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
         "internalType": "bytes32",
         "name": "_reservationKey",
         "type": "bytes32"
@@ -5472,6 +5536,60 @@
     "type": "function"
   },
   {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "_labId",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "offset",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "limit",
+        "type": "uint256"
+      }
+    ],
+    "name": "getPendingLabPayoutPaginated",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "walletPayoutChunk",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "institutionalPayoutChunk",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "totalPayoutChunk",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "institutionalCollectorCountChunk",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "nextOffset",
+        "type": "uint256"
+      },
+      {
+        "internalType": "bool",
+        "name": "hasMore",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
     "inputs": [],
     "name": "getSafeBalance",
     "outputs": [
@@ -5504,6 +5622,30 @@
     ],
     "name": "initializeRevenueRecipients",
     "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "_labId",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "maxIterations",
+        "type": "uint256"
+      }
+    ],
+    "name": "prunePayoutHeap",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "removed",
+        "type": "uint256"
+      }
+    ],
     "stateMutability": "nonpayable",
     "type": "function"
   },
@@ -7526,6 +7668,31 @@
       }
     ],
     "name": "OrphanedLabPayoutRecovered",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "uint256",
+        "name": "labId",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "removed",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "remaining",
+        "type": "uint256"
+      }
+    ],
+    "name": "PayoutHeapPruned",
     "type": "event"
   },
   {

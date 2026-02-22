@@ -154,14 +154,8 @@ contract WalletPayoutFacet is ReentrancyGuardTransient {
 
         // Include not-yet-finalized reservations that are already eligible for collection.
         if (heapLength > 0) {
-            (uint256 pendingProviderPayout, uint256 pendingClosures) = _accumulateEligiblePayoutFromHeap(
-                s,
-                heap,
-                heapLength,
-                0,
-                currentTime,
-                _labId
-            );
+            (uint256 pendingProviderPayout, uint256 pendingClosures) =
+                _accumulateEligiblePayoutFromHeap(s, heap, heapLength, 0, currentTime, _labId);
             walletPayout += pendingProviderPayout;
             institutionalCollectorCount = pendingClosures;
         }
@@ -286,28 +280,16 @@ contract WalletPayoutFacet is ReentrancyGuardTransient {
 
         uint256 left = nodeIndex * 2 + 1;
         if (left < heapLength) {
-            (uint256 leftPayout, uint256 leftClosures) = _accumulateEligiblePayoutFromHeap(
-                s,
-                heap,
-                heapLength,
-                left,
-                currentTime,
-                labId
-            );
+            (uint256 leftPayout, uint256 leftClosures) =
+                _accumulateEligiblePayoutFromHeap(s, heap, heapLength, left, currentTime, labId);
             providerPayout += leftPayout;
             pendingClosures += leftClosures;
         }
 
         uint256 right = left + 1;
         if (right < heapLength) {
-            (uint256 rightPayout, uint256 rightClosures) = _accumulateEligiblePayoutFromHeap(
-                s,
-                heap,
-                heapLength,
-                right,
-                currentTime,
-                labId
-            );
+            (uint256 rightPayout, uint256 rightClosures) =
+                _accumulateEligiblePayoutFromHeap(s, heap, heapLength, right, currentTime, labId);
             providerPayout += rightPayout;
             pendingClosures += rightClosures;
         }
@@ -609,7 +591,9 @@ contract WalletPayoutFacet is ReentrancyGuardTransient {
             bytes32 key = heap[index].key;
             Reservation storage reservation = s.reservations[key];
             bool valid = reservation.labId == labId
-                && (reservation.status == _CONFIRMED || reservation.status == _IN_USE || reservation.status == _COMPLETED);
+                && (reservation.status == _CONFIRMED
+                    || reservation.status == _IN_USE
+                    || reservation.status == _COMPLETED);
 
             if (!valid) {
                 s.payoutHeapContains[key] = false;

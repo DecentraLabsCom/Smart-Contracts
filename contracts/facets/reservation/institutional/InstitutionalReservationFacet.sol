@@ -9,12 +9,12 @@ import {LibInstitutionalReservationRelease} from "../../../libraries/LibInstitut
 contract InstitutionalReservationFacet {
     function releaseInstitutionalExpiredReservations(
         address institutionalProvider,
-        string calldata puc,
+        bytes32 pucHash,
         uint256 _labId,
         uint256 maxBatch
     ) external returns (uint256 processed) {
         return LibInstitutionalReservationRelease.releaseInstitutionalExpiredReservations(
-            institutionalProvider, puc, _labId, maxBatch
+            institutionalProvider, pucHash, _labId, maxBatch
         );
     }
 }

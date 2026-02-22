@@ -123,7 +123,7 @@ contract WalletPayoutFacet is ReentrancyGuardTransient {
     /// @return walletPayout Amount pending for direct wallet payout to lab owner
     /// @return institutionalPayout Total amount pending for institutional treasury payouts
     /// @return totalPayout Sum of wallet and institutional payouts
-    /// @return institutionalCollectorCount Number of different institutional collectors
+    /// @return institutionalCollectorCount Number of pending closeable reservations
     function getPendingLabPayout(
         uint256 _labId
     )
@@ -138,11 +138,91 @@ contract WalletPayoutFacet is ReentrancyGuardTransient {
     {
         AppStorage storage s = _s();
 
+        // Already finalized payouts waiting to be withdrawn.
         walletPayout = s.pendingProviderPayout[_labId];
+
+        // Keep the output shape stable even though institutional payout buckets are unused.
         institutionalPayout = 0;
         institutionalCollectorCount = 0;
 
-        totalPayout = walletPayout;
+        uint256 currentTime = block.timestamp;
+        PayoutCandidate[] storage heap = s.payoutHeaps[_labId];
+        uint256 heapLength = heap.length;
+
+        // Include not-yet-finalized reservations that are already eligible for collection.
+        if (heapLength > 0) {
+            (uint256 pendingProviderPayout, uint256 pendingClosures) = _accumulateEligiblePayoutFromHeap(
+                s,
+                heap,
+                heapLength,
+                0,
+                currentTime,
+                _labId
+            );
+            walletPayout += pendingProviderPayout;
+            institutionalCollectorCount = pendingClosures;
+        }
+
+        totalPayout = walletPayout + institutionalPayout;
+    }
+
+    /// @dev Traverses payout heap with pruning:
+    ///      if node.end > currentTime, all descendants are also ineligible.
+    function _accumulateEligiblePayoutFromHeap(
+        AppStorage storage s,
+        PayoutCandidate[] storage heap,
+        uint256 heapLength,
+        uint256 nodeIndex,
+        uint256 currentTime,
+        uint256 labId
+    ) internal view returns (uint256 providerPayout, uint256 pendingClosures) {
+        if (nodeIndex >= heapLength) {
+            return (0, 0);
+        }
+
+        PayoutCandidate storage candidate = heap[nodeIndex];
+        if (candidate.end > currentTime) {
+            return (0, 0);
+        }
+
+        Reservation storage reservation = s.reservations[candidate.key];
+        if (
+            reservation.labId == labId
+                && (reservation.status == _CONFIRMED
+                    || reservation.status == _IN_USE
+                    || reservation.status == _COMPLETED)
+        ) {
+            providerPayout = reservation.providerShare;
+            pendingClosures = 1;
+        }
+
+        uint256 left = nodeIndex * 2 + 1;
+        if (left < heapLength) {
+            (uint256 leftPayout, uint256 leftClosures) = _accumulateEligiblePayoutFromHeap(
+                s,
+                heap,
+                heapLength,
+                left,
+                currentTime,
+                labId
+            );
+            providerPayout += leftPayout;
+            pendingClosures += leftClosures;
+        }
+
+        uint256 right = left + 1;
+        if (right < heapLength) {
+            (uint256 rightPayout, uint256 rightClosures) = _accumulateEligiblePayoutFromHeap(
+                s,
+                heap,
+                heapLength,
+                right,
+                currentTime,
+                labId
+            );
+            providerPayout += rightPayout;
+            pendingClosures += rightClosures;
+        }
     }
 
     /// @notice One-time initializer to set revenue recipient wallets (15% treasury, 10% subsidies, 5% governance)

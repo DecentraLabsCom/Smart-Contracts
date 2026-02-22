@@ -6,13 +6,14 @@ import {LibAppStorage, AppStorage, Reservation, INSTITUTION_ROLE} from "./LibApp
 import {LibTracking} from "./LibTracking.sol";
 import {LibReservationCancellation} from "./LibReservationCancellation.sol";
 import {LibReservationConfig} from "./LibReservationConfig.sol";
+import {LibReputation} from "./LibReputation.sol";
 
 library LibInstitutionalReservationRelease {
     using EnumerableSet for EnumerableSet.Bytes32Set;
     using EnumerableSet for EnumerableSet.AddressSet;
 
     error InvalidBatchSize();
-    error EmptyPuc();
+    error InvalidPucHash();
     error UnknownInstitution();
     error UnauthorizedInstitution();
     error BackendMissing();
@@ -20,13 +21,14 @@ library LibInstitutionalReservationRelease {
 
     uint8 internal constant _PENDING = 0;
     uint8 internal constant _CONFIRMED = 1;
+    uint8 internal constant _IN_USE = 2;
     uint8 internal constant _COLLECTED = 4;
 
     uint256 internal constant _PENDING_REQUEST_TTL = LibReservationConfig.PENDING_REQUEST_TTL;
 
     function releaseInstitutionalExpiredReservations(
         address institutionalProvider,
-        string calldata puc,
+        bytes32 pucHash,
         uint256 labId,
         uint256 maxBatch
     ) external returns (uint256 processed) {
@@ -37,9 +39,8 @@ library LibInstitutionalReservationRelease {
         if (msg.sender != backend) revert NotBackend();
 
         if (maxBatch == 0 || maxBatch > 50) revert InvalidBatchSize();
-        if (bytes(puc).length == 0) revert EmptyPuc();
+        if (pucHash == bytes32(0)) revert InvalidPucHash();
 
-        bytes32 pucHash = keccak256(bytes(puc));
         address trackingKey = LibTracking.trackingKeyFromInstitutionHash(institutionalProvider, pucHash);
         return _releaseExpiredReservationsInternal(s, labId, trackingKey, maxBatch);
     }
@@ -59,7 +60,7 @@ library LibInstitutionalReservationRelease {
             bytes32 key = userReservations.at(i);
             Reservation storage reservation = s.reservations[key];
 
-            if (reservation.end < currentTime && reservation.status == _CONFIRMED) {
+            if (reservation.end < currentTime && (reservation.status == _CONFIRMED || reservation.status == _IN_USE)) {
                 _simpleFinalizeReservation(s, key, reservation, labId, trackingKey);
                 len = userReservations.length();
                 unchecked {
@@ -96,7 +97,11 @@ library LibInstitutionalReservationRelease {
         uint256 labId,
         address trackingKey
     ) private {
+        uint8 previousStatus = reservation.status;
         reservation.status = _COLLECTED;
+        if (previousStatus == _IN_USE) {
+            LibReputation.recordCompletion(labId);
+        }
         s.reservationKeysByToken[labId].remove(key);
         s.renters[reservation.renter].remove(key);
         if (s.totalReservationsCount > 0) s.totalReservationsCount--;

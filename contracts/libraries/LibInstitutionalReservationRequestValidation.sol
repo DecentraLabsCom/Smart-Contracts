@@ -7,6 +7,7 @@ import {LibAppStorage, AppStorage, Reservation} from "./LibAppStorage.sol";
 import {LibTracking} from "./LibTracking.sol";
 import {LibReservationCancellation} from "./LibReservationCancellation.sol";
 import {LibReservationConfig} from "./LibReservationConfig.sol";
+import {LibReputation} from "./LibReputation.sol";
 
 interface IReservableTokenCalcV {
     function calculateRequiredStake(
@@ -100,7 +101,7 @@ library LibInstitutionalReservationRequestValidation {
             bytes32 key = userReservations.at(i);
             Reservation storage reservation = s.reservations[key];
 
-            if (reservation.end < currentTime && reservation.status == _CONFIRMED) {
+            if (reservation.end < currentTime && (reservation.status == _CONFIRMED || reservation.status == _IN_USE)) {
                 _simpleFinalizeReservation(s, key, reservation, labId, trackingKey);
                 len = userReservations.length();
                 unchecked {
@@ -137,7 +138,11 @@ library LibInstitutionalReservationRequestValidation {
         uint256 labId,
         address trackingKey
     ) private {
+        uint8 previousStatus = reservation.status;
         reservation.status = _COLLECTED;
+        if (previousStatus == _IN_USE) {
+            LibReputation.recordCompletion(labId);
+        }
         s.reservationKeysByToken[labId].remove(key);
         s.renters[reservation.renter].remove(key);
         if (s.totalReservationsCount > 0) s.totalReservationsCount--;

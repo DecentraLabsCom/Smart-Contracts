@@ -44,7 +44,7 @@ library LibWalletRelease {
             bytes32 key = userReservations.at(i);
             Reservation storage reservation = s.reservations[key];
 
-            if (reservation.end < currentTime && reservation.status == _CONFIRMED) {
+            if (reservation.end < currentTime && (reservation.status == _CONFIRMED || reservation.status == _IN_USE)) {
                 _finalizeReservationForPayout(s, key, reservation, labId);
                 len = userReservations.length();
                 unchecked {

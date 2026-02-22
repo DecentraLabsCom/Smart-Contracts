@@ -49,6 +49,12 @@ contract InstitutionalReservationQueryFacet {
         return address(uint160(uint256(keccak256(abi.encodePacked(institution, pucHash)))));
     }
 
+    function _pucHash(
+        string calldata puc
+    ) internal pure returns (bytes32) {
+        return keccak256(bytes(puc));
+    }
+
     /// @notice Get the count of reservations for an institutional user
     /// @param institutionalProvider The institution address
     /// @param puc The user's unique identifier within the institution
@@ -58,7 +64,7 @@ contract InstitutionalReservationQueryFacet {
         string calldata puc
     ) external view onlyInstitution(institutionalProvider) returns (uint256) {
         AppStorage storage s = _s();
-        bytes32 pucHash = keccak256(bytes(puc));
+        bytes32 pucHash = _pucHash(puc);
         address hashKey = _trackingKeyFromInstitutionHash(institutionalProvider, pucHash);
         return s.renters[hashKey].length();
     }
@@ -75,7 +81,7 @@ contract InstitutionalReservationQueryFacet {
         uint256 index
     ) external view onlyInstitution(institutionalProvider) returns (bytes32 key) {
         AppStorage storage s = _s();
-        bytes32 pucHash = keccak256(bytes(puc));
+        bytes32 pucHash = _pucHash(puc);
         address hashKey = _trackingKeyFromInstitutionHash(institutionalProvider, pucHash);
         EnumerableSet.Bytes32Set storage hashReservations = s.renters[hashKey];
         require(index < hashReservations.length(), "Index out of bounds");
@@ -96,7 +102,7 @@ contract InstitutionalReservationQueryFacet {
         require(bytes(puc).length > 0, "PUC cannot be empty");
 
         AppStorage storage s = _s();
-        bytes32 pucHash = keccak256(bytes(puc));
+        bytes32 pucHash = _pucHash(puc);
         address hashKey = _trackingKeyFromInstitutionHash(institutionalProvider, pucHash);
         bytes32 reservationKey = s.activeReservationByTokenAndUser[labId][hashKey];
 
@@ -124,7 +130,7 @@ contract InstitutionalReservationQueryFacet {
         require(bytes(puc).length > 0, "PUC cannot be empty");
 
         AppStorage storage s = _s();
-        bytes32 pucHash = keccak256(bytes(puc));
+        bytes32 pucHash = _pucHash(puc);
         address hashKey = _trackingKeyFromInstitutionHash(institutionalProvider, pucHash);
         bytes32 activeKey = s.activeReservationByTokenAndUser[labId][hashKey];
 
@@ -154,8 +160,21 @@ contract InstitutionalReservationQueryFacet {
         string calldata puc,
         uint256 labId
     ) external view onlyInstitution(institutionalProvider) returns (uint256 count) {
+        return getInstitutionalUserActiveCountByHash(institutionalProvider, _pucHash(puc), labId);
+    }
+
+    /// @notice Get the active reservation count for an institutional user by PUC hash
+    /// @param institutionalProvider The institution address
+    /// @param pucHash The hashed user identifier
+    /// @param labId The lab to check
+    /// @return count The number of active reservations (including pending)
+    function getInstitutionalUserActiveCountByHash(
+        address institutionalProvider,
+        bytes32 pucHash,
+        uint256 labId
+    ) public view onlyInstitution(institutionalProvider) returns (uint256 count) {
+        require(pucHash != bytes32(0), "PUC hash cannot be empty");
         AppStorage storage s = _s();
-        bytes32 pucHash = keccak256(bytes(puc));
         address hashKey = _trackingKeyFromInstitutionHash(institutionalProvider, pucHash);
         return s.activeReservationCountByTokenAndUser[labId][hashKey];
     }

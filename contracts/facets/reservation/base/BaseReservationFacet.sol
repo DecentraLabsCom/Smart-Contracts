@@ -247,7 +247,7 @@ abstract contract BaseReservationFacet is InstitutionalReservableTokenEnumerable
             Reservation storage reservation = s.reservations[key];
 
             // Only process expired reservations that are still _CONFIRMED
-            if (reservation.end < currentTime && reservation.status == _CONFIRMED) {
+            if (reservation.end < currentTime && (reservation.status == _CONFIRMED || reservation.status == _IN_USE)) {
                 _finalizeReservationForPayout(s, key, reservation, _labId);
                 len = userReservations.length();
                 unchecked {

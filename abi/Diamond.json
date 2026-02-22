@@ -4346,9 +4346,9 @@
         "type": "address"
       },
       {
-        "internalType": "string",
-        "name": "puc",
-        "type": "string"
+        "internalType": "bytes32",
+        "name": "pucHash",
+        "type": "bytes32"
       },
       {
         "internalType": "uint256",
@@ -4391,6 +4391,35 @@
       }
     ],
     "name": "getInstitutionalUserActiveCount",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "count",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "institutionalProvider",
+        "type": "address"
+      },
+      {
+        "internalType": "bytes32",
+        "name": "pucHash",
+        "type": "bytes32"
+      },
+      {
+        "internalType": "uint256",
+        "name": "labId",
+        "type": "uint256"
+      }
+    ],
+    "name": "getInstitutionalUserActiveCountByHash",
     "outputs": [
       {
         "internalType": "uint256",

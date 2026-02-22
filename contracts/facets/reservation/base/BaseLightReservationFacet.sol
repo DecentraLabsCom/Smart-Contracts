@@ -79,7 +79,7 @@ abstract contract BaseLightReservationFacet is ReservableTokenEnumerable {
             bytes32 key = userReservations.at(i);
             Reservation storage reservation = s.reservations[key];
 
-            if (reservation.end < currentTime && reservation.status == _CONFIRMED) {
+            if (reservation.end < currentTime && (reservation.status == _CONFIRMED || reservation.status == _IN_USE)) {
                 _simpleFinalizeReservation(s, key, reservation, _labId, _user);
                 len = userReservations.length();
                 unchecked {

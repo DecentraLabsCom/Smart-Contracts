@@ -2,6 +2,7 @@
 pragma solidity ^0.8.31;
 
 import {LibAppStorage, AppStorage, INSTITUTION_ROLE} from "../../libraries/LibAppStorage.sol";
+import {IntentMeta, IntentState} from "../../libraries/IntentTypes.sol";
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 
 /// @title TestHelperFacet
@@ -38,5 +39,30 @@ contract TestHelperFacet {
     ) external {
         AppStorage storage s = LibAppStorage.diamondStorage();
         s.institutionalTreasury[inst] = amount;
+    }
+
+    /// @notice Set a pending action intent for testing LabIntentFacet flows
+    /// @dev TEST ONLY - Bypasses EIP-712; sets intent so executor can consume it
+    function test_setPendingActionIntent(
+        bytes32 requestId,
+        address signer,
+        address executor,
+        uint8 action,
+        bytes32 payloadHash,
+        uint64 requestedAt,
+        uint64 expiresAt
+    ) external {
+        AppStorage storage s = LibAppStorage.diamondStorage();
+        s.intents[requestId] = IntentMeta({
+            requestId: requestId,
+            signer: signer,
+            executor: executor,
+            action: action,
+            payloadHash: payloadHash,
+            nonce: 0,
+            requestedAt: requestedAt,
+            expiresAt: expiresAt,
+            state: IntentState.Pending
+        });
     }
 }

@@ -143,6 +143,14 @@ library LibIntent {
     }
 
     // ---------------------------------------------------------------------
+
+    /// @notice Public wrapper for tests to compute action payload hash (EIP-712)
+    function hashActionPayloadPublic(
+        ActionIntentPayload memory payload
+    ) public pure returns (bytes32) {
+        return hashActionPayload(payload);
+    }
+
     // Registration
     // ---------------------------------------------------------------------
 

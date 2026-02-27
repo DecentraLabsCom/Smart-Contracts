@@ -2000,114 +2000,6 @@
   {
     "inputs": [
       {
-        "internalType": "uint256",
-        "name": "_tokenId",
-        "type": "uint256"
-      },
-      {
-        "internalType": "uint32",
-        "name": "_startTime",
-        "type": "uint32"
-      },
-      {
-        "internalType": "uint32",
-        "name": "_endTime",
-        "type": "uint32"
-      }
-    ],
-    "name": "getReservationStats",
-    "outputs": [
-      {
-        "internalType": "uint32",
-        "name": "count",
-        "type": "uint32"
-      },
-      {
-        "internalType": "uint32",
-        "name": "firstStart",
-        "type": "uint32"
-      },
-      {
-        "internalType": "uint32",
-        "name": "lastEnd",
-        "type": "uint32"
-      },
-      {
-        "internalType": "uint256",
-        "name": "totalDuration",
-        "type": "uint256"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "uint256",
-        "name": "_tokenId",
-        "type": "uint256"
-      },
-      {
-        "internalType": "uint32",
-        "name": "_startTime",
-        "type": "uint32"
-      },
-      {
-        "internalType": "uint32",
-        "name": "_endTime",
-        "type": "uint32"
-      },
-      {
-        "internalType": "uint32",
-        "name": "_cursorStart",
-        "type": "uint32"
-      },
-      {
-        "internalType": "uint256",
-        "name": "_limit",
-        "type": "uint256"
-      }
-    ],
-    "name": "getReservationStatsPaginated",
-    "outputs": [
-      {
-        "internalType": "uint32",
-        "name": "count",
-        "type": "uint32"
-      },
-      {
-        "internalType": "uint32",
-        "name": "firstStart",
-        "type": "uint32"
-      },
-      {
-        "internalType": "uint32",
-        "name": "lastEnd",
-        "type": "uint32"
-      },
-      {
-        "internalType": "uint256",
-        "name": "totalDuration",
-        "type": "uint256"
-      },
-      {
-        "internalType": "uint32",
-        "name": "nextCursorStart",
-        "type": "uint32"
-      },
-      {
-        "internalType": "bool",
-        "name": "hasMore",
-        "type": "bool"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
         "internalType": "bytes32",
         "name": "_reservationKey",
         "type": "bytes32"
@@ -5469,6 +5361,114 @@
     "inputs": [
       {
         "internalType": "uint256",
+        "name": "tokenId",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint32",
+        "name": "startTime",
+        "type": "uint32"
+      },
+      {
+        "internalType": "uint32",
+        "name": "endTime",
+        "type": "uint32"
+      }
+    ],
+    "name": "getReservationStats",
+    "outputs": [
+      {
+        "internalType": "uint32",
+        "name": "count",
+        "type": "uint32"
+      },
+      {
+        "internalType": "uint32",
+        "name": "firstStart",
+        "type": "uint32"
+      },
+      {
+        "internalType": "uint32",
+        "name": "lastEnd",
+        "type": "uint32"
+      },
+      {
+        "internalType": "uint256",
+        "name": "totalDuration",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "tokenId",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint32",
+        "name": "startTime",
+        "type": "uint32"
+      },
+      {
+        "internalType": "uint32",
+        "name": "endTime",
+        "type": "uint32"
+      },
+      {
+        "internalType": "uint32",
+        "name": "cursorStartInput",
+        "type": "uint32"
+      },
+      {
+        "internalType": "uint256",
+        "name": "limit",
+        "type": "uint256"
+      }
+    ],
+    "name": "getReservationStatsPaginated",
+    "outputs": [
+      {
+        "internalType": "uint32",
+        "name": "count",
+        "type": "uint32"
+      },
+      {
+        "internalType": "uint32",
+        "name": "firstStart",
+        "type": "uint32"
+      },
+      {
+        "internalType": "uint32",
+        "name": "lastEnd",
+        "type": "uint32"
+      },
+      {
+        "internalType": "uint256",
+        "name": "totalDuration",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint32",
+        "name": "nextCursorStart",
+        "type": "uint32"
+      },
+      {
+        "internalType": "bool",
+        "name": "hasMore",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
         "name": "_labId",
         "type": "uint256"
       },
@@ -6059,6 +6059,49 @@
       }
     ],
     "name": "test_setInstitutionalTreasury",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "bytes32",
+        "name": "requestId",
+        "type": "bytes32"
+      },
+      {
+        "internalType": "address",
+        "name": "signer",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "executor",
+        "type": "address"
+      },
+      {
+        "internalType": "uint8",
+        "name": "action",
+        "type": "uint8"
+      },
+      {
+        "internalType": "bytes32",
+        "name": "payloadHash",
+        "type": "bytes32"
+      },
+      {
+        "internalType": "uint64",
+        "name": "requestedAt",
+        "type": "uint64"
+      },
+      {
+        "internalType": "uint64",
+        "name": "expiresAt",
+        "type": "uint64"
+      }
+    ],
+    "name": "test_setPendingActionIntent",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"

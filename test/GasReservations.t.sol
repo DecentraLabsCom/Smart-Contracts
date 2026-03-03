@@ -52,7 +52,7 @@ contract ReservationHarness is ERC721Enumerable, WalletReservationCoreFacet, Wal
         _mint(msg.sender, id);
         s.labId = id;
         s.labs[id] = LabBase({
-            uri: "uri", price: price, accessURI: "accessURI", accessKey: "accessKey", createdAt: uint32(block.timestamp)
+            uri: "uri", price: price, accessURI: "accessURI", accessKey: "accessKey", createdAt: uint32(block.timestamp), resourceType: 0
         });
         s.providerStakes[msg.sender].listedLabsCount += 1;
         s.tokenStatus[id] = true;

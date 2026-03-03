@@ -287,7 +287,10 @@ abstract contract ReservableToken {
         bool keyExists = existingReservation.renter != address(0);
         if (keyExists && existingReservation.status != _CANCELLED) revert NotAvailable();
 
-        s.calendars[_tokenId].insert(_start, _end);
+        // Only insert into rival calendar for exclusive resources (resourceType 0)
+        if (s.labs[_tokenId].resourceType == 0) {
+            s.calendars[_tokenId].insert(_start, _end);
+        }
 
         // Direct assignment instead of struct initialization
         existingReservation.labId = _tokenId;

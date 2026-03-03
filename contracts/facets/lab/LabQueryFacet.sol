@@ -147,4 +147,14 @@ contract LabQueryFacet {
     ) external view exists(_labId) returns (uint256) {
         return block.timestamp - _s().labs[_labId].createdAt;
     }
+
+    /// @notice Returns the resource type for a lab
+    /// @dev 0 = physical lab (exclusive calendar), 1 = FMU simulation (concurrent)
+    /// @param _labId The ID of the lab
+    /// @return The resource type (uint8)
+    function getLabResourceType(
+        uint256 _labId
+    ) external view exists(_labId) returns (uint8) {
+        return _s().labs[_labId].resourceType;
+    }
 }

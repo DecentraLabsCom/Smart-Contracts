@@ -130,7 +130,9 @@ library LibInstitutionalReservationConfirmation {
         address trackingKey
     ) private {
         _setReservationSplit(r);
-        s.calendars[r.labId].insert(r.start, r.end);
+        if (s.labs[r.labId].resourceType == 0) {
+            s.calendars[r.labId].insert(r.start, r.end);
+        }
         r.status = _CONFIRMED;
         _incrementActiveReservationCounters(s, r);
         s.activeReservationCountByTokenAndUser[r.labId][trackingKey]++;

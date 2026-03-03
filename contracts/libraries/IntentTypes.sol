@@ -50,4 +50,5 @@ struct ActionIntentPayload {
     string accessURI; // access URI (for add/update)
     string accessKey; // access key (for add/update)
     string tokenURI; // token URI (for setTokenURI)
+    uint8 resourceType; // 0 = physical lab (exclusive calendar), 1 = FMU simulation (concurrent)
 }

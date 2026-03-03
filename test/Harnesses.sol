@@ -8,6 +8,7 @@ import "../contracts/libraries/LibAppStorage.sol";
 import "../contracts/libraries/LibInstitutionalReservation.sol";
 import "../contracts/libraries/LibReservationCancellation.sol";
 import "../contracts/libraries/LibWalletReservationCancellation.sol";
+import "../contracts/libraries/LibLabAdmin.sol";
 
 contract InstReservationHarness {
     using EnumerableSet for EnumerableSet.Bytes32Set;
@@ -300,5 +301,79 @@ contract ConfirmHarness is InstitutionalReservationConfirmationFacet {
     ) external view returns (uint8) {
         AppStorage storage s = LibAppStorage.diamondStorage();
         return s.reservations[key].status;
+    }
+
+    function setLabResourceType(
+        uint256 labId,
+        uint8 resourceType
+    ) external {
+        AppStorage storage s = LibAppStorage.diamondStorage();
+        s.labs[labId].resourceType = resourceType;
+    }
+}
+
+contract LabAdminResourceTypeHarness {
+    mapping(uint256 => address) public owners;
+
+    function ownerOf(
+        uint256 tokenId
+    ) external view returns (address) {
+        return owners[tokenId];
+    }
+
+    function seedLab(
+        uint256 labId,
+        address owner,
+        uint8 resourceType,
+        uint32 createdAt
+    ) external {
+        AppStorage storage s = LibAppStorage.diamondStorage();
+        owners[labId] = owner;
+
+        if (s.activeLabIndexPlusOne[labId] == 0) {
+            s.activeLabIds.push(labId);
+            s.activeLabIndexPlusOne[labId] = s.activeLabIds.length;
+        }
+
+        s.labs[labId].uri = "seed-uri";
+        s.labs[labId].price = 1;
+        s.labs[labId].accessURI = "seed-access";
+        s.labs[labId].accessKey = "seed-key";
+        s.labs[labId].createdAt = createdAt;
+        s.labs[labId].resourceType = resourceType;
+    }
+
+    function setActiveReservationCount(
+        uint256 labId,
+        uint256 count
+    ) external {
+        AppStorage storage s = LibAppStorage.diamondStorage();
+        s.labActiveReservationCount[labId] = count;
+    }
+
+    function setPendingProviderPayout(
+        uint256 labId,
+        uint256 amount
+    ) external {
+        AppStorage storage s = LibAppStorage.diamondStorage();
+        s.pendingProviderPayout[labId] = amount;
+    }
+
+    function updateLab(
+        uint256 labId,
+        string calldata uri,
+        uint96 price,
+        string calldata accessUri,
+        string calldata accessKey,
+        uint8 resourceType
+    ) external {
+        LibLabAdmin.updateLab(labId, uri, price, accessUri, accessKey, resourceType);
+    }
+
+    function getLabBase(
+        uint256 labId
+    ) external view returns (LabBase memory) {
+        AppStorage storage s = LibAppStorage.diamondStorage();
+        return s.labs[labId];
     }
 }

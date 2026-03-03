@@ -87,8 +87,8 @@ contract LabQueryTest is BaseTest {
         });
 
         bytes4[] memory labAdminSelectors = new bytes4[](5);
-        labAdminSelectors[0] = _selector("addLab(string,uint96,string,string)");
-        labAdminSelectors[1] = _selector("updateLab(uint256,string,uint96,string,string)");
+        labAdminSelectors[0] = _selector("addLab(string,uint96,string,string,uint8)");
+        labAdminSelectors[1] = _selector("updateLab(uint256,string,uint96,string,string,uint8)");
         labAdminSelectors[2] = _selector("deleteLab(uint256)");
         labAdminSelectors[3] = _selector("listLab(uint256)");
         labAdminSelectors[4] = _selector("unlistLab(uint256)");
@@ -98,7 +98,7 @@ contract LabQueryTest is BaseTest {
             functionSelectors: labAdminSelectors
         });
 
-        bytes4[] memory labQuerySelectors = new bytes4[](9);
+        bytes4[] memory labQuerySelectors = new bytes4[](10);
         labQuerySelectors[0] = _selector("getLab(uint256)");
         labQuerySelectors[1] = _selector("isLabListed(uint256)");
         labQuerySelectors[2] = _selector("getLabsPaginated(uint256,uint256)");
@@ -108,6 +108,7 @@ contract LabQueryTest is BaseTest {
         labQuerySelectors[6] = _selector("getLabAccessURI(uint256)");
         labQuerySelectors[7] = _selector("getLabAccessKey(uint256)");
         labQuerySelectors[8] = _selector("getLabAge(uint256)");
+        labQuerySelectors[9] = _selector("getLabResourceType(uint256)");
         cut2[4] = IDiamond.FacetCut({
             facetAddress: address(labQueryImpl),
             action: IDiamond.FacetCutAction.Add,
@@ -140,7 +141,7 @@ contract LabQueryTest is BaseTest {
 
     function test_getLab_returns_correct_metadata() public {
         vm.prank(provider1);
-        labAdmin.addLab("ipfs://lab1", 50 ether, "https://access.lab1.com", "key-abc");
+        labAdmin.addLab("ipfs://lab1", 50 ether, "https://access.lab1.com", "key-abc", 0);
 
         Lab memory lab = labQuery.getLab(1);
 
@@ -159,7 +160,7 @@ contract LabQueryTest is BaseTest {
 
     function test_getLab_reverts_for_deleted_lab() public {
         vm.startPrank(provider1);
-        labAdmin.addLab("ipfs://lab1", 50 ether, "https://access.lab1.com", "key1");
+        labAdmin.addLab("ipfs://lab1", 50 ether, "https://access.lab1.com", "key1", 0);
         labAdmin.deleteLab(1);
         vm.stopPrank();
 
@@ -177,9 +178,9 @@ contract LabQueryTest is BaseTest {
 
     function test_getLabCount_tracks_minted_labs() public {
         vm.startPrank(provider1);
-        labAdmin.addLab("uri1", 10 ether, "access1", "k1");
-        labAdmin.addLab("uri2", 20 ether, "access2", "k2");
-        labAdmin.addLab("uri3", 30 ether, "access3", "k3");
+        labAdmin.addLab("uri1", 10 ether, "access1", "k1", 0);
+        labAdmin.addLab("uri2", 20 ether, "access2", "k2", 0);
+        labAdmin.addLab("uri3", 30 ether, "access3", "k3", 0);
         vm.stopPrank();
 
         assertEq(labQuery.getLabCount(), 3);
@@ -187,8 +188,8 @@ contract LabQueryTest is BaseTest {
 
     function test_getLabCount_does_not_decrease_after_delete() public {
         vm.startPrank(provider1);
-        labAdmin.addLab("uri1", 10 ether, "access1", "k1");
-        labAdmin.addLab("uri2", 20 ether, "access2", "k2");
+        labAdmin.addLab("uri1", 10 ether, "access1", "k1", 0);
+        labAdmin.addLab("uri2", 20 ether, "access2", "k2", 0);
         labAdmin.deleteLab(1);
         vm.stopPrank();
 
@@ -201,14 +202,14 @@ contract LabQueryTest is BaseTest {
 
     function test_isLabListed_false_by_default() public {
         vm.prank(provider1);
-        labAdmin.addLab("uri1", 10 ether, "access1", "k1");
+        labAdmin.addLab("uri1", 10 ether, "access1", "k1", 0);
 
         assertFalse(labQuery.isLabListed(1));
     }
 
     function test_isLabListed_reflects_listing_status() public {
         vm.startPrank(provider1);
-        labAdmin.addLab("uri1", 10 ether, "access1", "k1");
+        labAdmin.addLab("uri1", 10 ether, "access1", "k1", 0);
 
         labAdmin.listLab(1);
         assertTrue(labQuery.isLabListed(1));
@@ -224,7 +225,7 @@ contract LabQueryTest is BaseTest {
 
     function test_getLabPrice_returns_correct_price() public {
         vm.prank(provider1);
-        labAdmin.addLab("uri1", 42 ether, "access1", "k1");
+        labAdmin.addLab("uri1", 42 ether, "access1", "k1", 0);
 
         assertEq(labQuery.getLabPrice(1), 42 ether);
     }
@@ -240,16 +241,16 @@ contract LabQueryTest is BaseTest {
 
     function test_getLabAuthURI_resolves_from_provider() public {
         vm.prank(provider1);
-        labAdmin.addLab("uri1", 10 ether, "access1", "k1");
+        labAdmin.addLab("uri1", 10 ether, "access1", "k1", 0);
 
         assertEq(labQuery.getLabAuthURI(1), "https://provider1.example.com/auth");
     }
 
     function test_getLabAuthURI_different_providers() public {
         vm.prank(provider1);
-        labAdmin.addLab("uri1", 10 ether, "access1", "k1");
+        labAdmin.addLab("uri1", 10 ether, "access1", "k1", 0);
         vm.prank(provider2);
-        labAdmin.addLab("uri2", 10 ether, "access2", "k2");
+        labAdmin.addLab("uri2", 10 ether, "access2", "k2", 0);
 
         assertEq(labQuery.getLabAuthURI(1), "https://provider1.example.com/auth");
         assertEq(labQuery.getLabAuthURI(2), "https://provider2.example.com/auth");
@@ -266,16 +267,35 @@ contract LabQueryTest is BaseTest {
 
     function test_getLabAccessURI_returns_correct_uri() public {
         vm.prank(provider1);
-        labAdmin.addLab("uri1", 10 ether, "https://access.lab.io", "k1");
+        labAdmin.addLab("uri1", 10 ether, "https://access.lab.io", "k1", 0);
 
         assertEq(labQuery.getLabAccessURI(1), "https://access.lab.io");
     }
 
     function test_getLabAccessKey_returns_correct_key() public {
         vm.prank(provider1);
-        labAdmin.addLab("uri1", 10 ether, "access1", "secret-key-xyz");
+        labAdmin.addLab("uri1", 10 ether, "access1", "secret-key-xyz", 0);
 
         assertEq(labQuery.getLabAccessKey(1), "secret-key-xyz");
+    }
+
+    function test_getLabResourceType_returns_zero_for_regular_lab() public {
+        vm.prank(provider1);
+        labAdmin.addLab("uri1", 10 ether, "access1", "k1", 0);
+
+        assertEq(labQuery.getLabResourceType(1), 0);
+    }
+
+    function test_getLabResourceType_returns_one_for_fmu() public {
+        vm.prank(provider1);
+        labAdmin.addLab("uri1", 10 ether, "access1", "k1", 1);
+
+        assertEq(labQuery.getLabResourceType(1), 1);
+    }
+
+    function test_getLabResourceType_reverts_for_nonexistent() public {
+        vm.expectRevert("Lab does not exist");
+        labQuery.getLabResourceType(999);
     }
 
     // ──────────────────────────────────────────────
@@ -284,7 +304,7 @@ contract LabQueryTest is BaseTest {
 
     function test_getLabAge_increases_with_time() public {
         vm.prank(provider1);
-        labAdmin.addLab("uri1", 10 ether, "access1", "k1");
+        labAdmin.addLab("uri1", 10 ether, "access1", "k1", 0);
 
         uint256 ageAtCreation = labQuery.getLabAge(1);
         assertEq(ageAtCreation, 0);
@@ -308,7 +328,7 @@ contract LabQueryTest is BaseTest {
     function test_getLabsPaginated_full_page() public {
         vm.startPrank(provider1);
         for (uint256 i = 0; i < 5; i++) {
-            labAdmin.addLab("uri", 10 ether, "access", "key");
+            labAdmin.addLab("uri", 10 ether, "access", "key", 0);
         }
         vm.stopPrank();
 
@@ -324,7 +344,7 @@ contract LabQueryTest is BaseTest {
     function test_getLabsPaginated_partial_last_page() public {
         vm.startPrank(provider1);
         for (uint256 i = 0; i < 7; i++) {
-            labAdmin.addLab("uri", 10 ether, "access", "key");
+            labAdmin.addLab("uri", 10 ether, "access", "key", 0);
         }
         vm.stopPrank();
 
@@ -338,7 +358,7 @@ contract LabQueryTest is BaseTest {
 
     function test_getLabsPaginated_offset_beyond_total_returns_empty() public {
         vm.prank(provider1);
-        labAdmin.addLab("uri", 10 ether, "access", "key");
+        labAdmin.addLab("uri", 10 ether, "access", "key", 0);
 
         (uint256[] memory ids, uint256 total) = labQuery.getLabsPaginated(100, 10);
 
@@ -358,7 +378,7 @@ contract LabQueryTest is BaseTest {
 
     function test_getLabsPaginated_max_limit_100_succeeds() public {
         vm.prank(provider1);
-        labAdmin.addLab("uri", 10 ether, "access", "key");
+        labAdmin.addLab("uri", 10 ether, "access", "key", 0);
 
         (uint256[] memory ids, uint256 total) = labQuery.getLabsPaginated(0, 100);
 

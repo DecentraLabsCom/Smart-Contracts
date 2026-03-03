@@ -121,7 +121,9 @@ library LibWalletReservationConfirmation {
             return;
         }
 
-        s.calendars[reservation.labId].insert(reservation.start, reservation.end);
+        if (s.labs[reservation.labId].resourceType == 0) {
+            s.calendars[reservation.labId].insert(reservation.start, reservation.end);
+        }
         reservation.status = _CONFIRMED;
         _incrementActiveReservationCounters(s, reservation);
 

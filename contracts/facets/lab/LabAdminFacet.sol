@@ -14,10 +14,11 @@ contract LabAdminFacet {
         string _uri,
         uint96 _price,
         string _accessUri,
-        string _accessKey
+        string _accessKey,
+        uint8 _resourceType
     );
 
-    event LabUpdated(uint256 indexed _labId, string _uri, uint96 _price, string _accessUri, string _accessKey);
+    event LabUpdated(uint256 indexed _labId, string _uri, uint96 _price, string _accessUri, string _accessKey, uint8 _resourceType);
 
     event LabDeleted(uint256 indexed _labId);
     event LabURISet(uint256 indexed _labId, string _uri);
@@ -29,10 +30,11 @@ contract LabAdminFacet {
         string calldata _uri,
         uint96 _price,
         string calldata _accessUri,
-        string calldata _accessKey
+        string calldata _accessKey,
+        uint8 _resourceType
     ) external {
         LibLabAdmin._requireLabProvider();
-        LibLabAdmin.addLab(_uri, _price, _accessUri, _accessKey);
+        LibLabAdmin.addLab(_uri, _price, _accessUri, _accessKey, _resourceType);
     }
 
     /// @notice Adds a new Lab and immediately lists it for reservations
@@ -40,10 +42,11 @@ contract LabAdminFacet {
         string calldata _uri,
         uint96 _price,
         string calldata _accessUri,
-        string calldata _accessKey
+        string calldata _accessKey,
+        uint8 _resourceType
     ) external {
         LibLabAdmin._requireLabProvider();
-        LibLabAdmin.addAndListLab(_uri, _price, _accessUri, _accessKey);
+        LibLabAdmin.addAndListLab(_uri, _price, _accessUri, _accessKey, _resourceType);
     }
 
     /// @notice Updates the Lab with the given ID
@@ -52,9 +55,10 @@ contract LabAdminFacet {
         string calldata _uri,
         uint96 _price,
         string calldata _accessUri,
-        string calldata _accessKey
+        string calldata _accessKey,
+        uint8 _resourceType
     ) external {
-        LibLabAdmin.updateLab(_labId, _uri, _price, _accessUri, _accessKey);
+        LibLabAdmin.updateLab(_labId, _uri, _price, _accessUri, _accessKey, _resourceType);
     }
 
     /// @notice Sets the token URI for a specific lab

@@ -71,7 +71,10 @@ abstract contract ReservableTokenEnumerable is ReservableToken {
             revert NotAvailable();
         }
 
-        s.calendars[_tokenId].insert(_start, _end);
+        // Only insert into rival calendar for exclusive resources (resourceType 0)
+        if (s.labs[_tokenId].resourceType == 0) {
+            s.calendars[_tokenId].insert(_start, _end);
+        }
 
         // Use EnumerableSet which maintains count internally
         s.reservationKeysByToken[_tokenId].add(reservationKey);

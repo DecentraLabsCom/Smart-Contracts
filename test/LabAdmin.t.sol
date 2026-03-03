@@ -87,8 +87,8 @@ contract LabAdminTest is BaseTest {
         });
 
         bytes4[] memory labAdminSelectors = new bytes4[](5);
-        labAdminSelectors[0] = _selector("addLab(string,uint96,string,string)");
-        labAdminSelectors[1] = _selector("updateLab(uint256,string,uint96,string,string)");
+        labAdminSelectors[0] = _selector("addLab(string,uint96,string,string,uint8)");
+        labAdminSelectors[1] = _selector("updateLab(uint256,string,uint96,string,string,uint8)");
         labAdminSelectors[2] = _selector("deleteLab(uint256)");
         labAdminSelectors[3] = _selector("listLab(uint256)");
         labAdminSelectors[4] = _selector("unlistLab(uint256)");
@@ -131,7 +131,7 @@ contract LabAdminTest is BaseTest {
     /// @notice SPEC: "ADD LAB" use case
     function test_addLab_creates_nft_with_metadata() public {
         vm.prank(provider1);
-        labAdmin.addLab("ipfs://lab-metadata", 100 ether, "https://access.example.com", "accessKey123");
+        labAdmin.addLab("ipfs://lab-metadata", 100 ether, "https://access.example.com", "accessKey123", 0);
 
         // Verify NFT was minted
         assertEq(labFacet.ownerOf(1), provider1);
@@ -147,18 +147,18 @@ contract LabAdminTest is BaseTest {
     function test_addLab_requires_provider_role() public {
         vm.prank(nonProvider);
         vm.expectRevert();
-        labAdmin.addLab("ipfs://metadata", 100 ether, "https://access.example.com", "key");
+        labAdmin.addLab("ipfs://metadata", 100 ether, "https://access.example.com", "key", 0);
     }
 
     /// @notice SPEC: "UPDATE LAB" use case
     function test_updateLab_modifies_metadata() public {
         // Setup: Create lab
         vm.prank(provider1);
-        labAdmin.addLab("uri1", 100 ether, "access1", "key1");
+        labAdmin.addLab("uri1", 100 ether, "access1", "key1", 0);
 
         // Update lab
         vm.prank(provider1);
-        labAdmin.updateLab(1, "uri2", 200 ether, "access2", "key2");
+        labAdmin.updateLab(1, "uri2", 200 ether, "access2", "key2", 0);
 
         assertEq(labFacet.tokenURI(1), "uri2");
     }
@@ -167,19 +167,19 @@ contract LabAdminTest is BaseTest {
     function test_updateLab_only_by_owner() public {
         // Setup: Provider1 creates lab
         vm.prank(provider1);
-        labAdmin.addLab("uri1", 100 ether, "access1", "key1");
+        labAdmin.addLab("uri1", 100 ether, "access1", "key1", 0);
 
         // Provider2 cannot update Provider1's lab
         vm.prank(provider2);
         vm.expectRevert();
-        labAdmin.updateLab(1, "uri2", 200 ether, "access2", "key2");
+        labAdmin.updateLab(1, "uri2", 200 ether, "access2", "key2", 0);
     }
 
     /// @notice SPEC: "DELETE LAB" use case
     function test_deleteLab_removes_nft() public {
         // Setup: Create lab
         vm.prank(provider1);
-        labAdmin.addLab("uri1", 100 ether, "access1", "key1");
+        labAdmin.addLab("uri1", 100 ether, "access1", "key1", 0);
 
         // Delete lab
         vm.prank(provider1);
@@ -194,7 +194,7 @@ contract LabAdminTest is BaseTest {
     function test_listLab_makes_available() public {
         // Setup: Create lab
         vm.prank(provider1);
-        labAdmin.addLab("uri1", 100 ether, "access1", "key1");
+        labAdmin.addLab("uri1", 100 ether, "access1", "key1", 0);
 
         // List lab
         vm.prank(provider1);
@@ -207,7 +207,7 @@ contract LabAdminTest is BaseTest {
     function test_unlistLab_makes_unavailable() public {
         // Setup: Create and list lab
         vm.prank(provider1);
-        labAdmin.addLab("uri1", 100 ether, "access1", "key1");
+        labAdmin.addLab("uri1", 100 ether, "access1", "key1", 0);
         vm.prank(provider1);
         labAdmin.listLab(1);
 
@@ -220,9 +220,9 @@ contract LabAdminTest is BaseTest {
 
     function test_getLabsPaginated_excludes_deleted_ids() public {
         vm.startPrank(provider1);
-        labAdmin.addLab("uri1", 100 ether, "access1", "key1");
-        labAdmin.addLab("uri2", 100 ether, "access2", "key2");
-        labAdmin.addLab("uri3", 100 ether, "access3", "key3");
+        labAdmin.addLab("uri1", 100 ether, "access1", "key1", 0);
+        labAdmin.addLab("uri2", 100 ether, "access2", "key2", 0);
+        labAdmin.addLab("uri3", 100 ether, "access3", "key3", 0);
         labAdmin.deleteLab(2);
         vm.stopPrank();
 

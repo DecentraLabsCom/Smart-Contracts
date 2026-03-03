@@ -44,12 +44,14 @@ struct Provider {
 /// @param accessURI The URI used to access the laboratory's services.
 /// @param accessKey A public (non-sensitive) key or ID used for routing/access to the laboratory.
 /// @param createdAt Timestamp when the lab was registered, stored as uint32.
+/// @param resourceType Type of resource: 0 = physical lab (default, exclusive calendar), 1 = FMU simulation (concurrent access).
 struct LabBase {
     string uri;
     uint96 price;
     string accessURI;
     string accessKey;
     uint32 createdAt;
+    uint8 resourceType;
 }
 
 /// @dev Represents a laboratory structure with a unique identifier and associated base information. This structure is used exclusively

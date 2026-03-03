@@ -43,7 +43,7 @@ contract LabIntentFacet {
         require(payload.labId == 0, "LAB_ADD: labId must be 0");
         _consumeLabIntent(requestId, LibIntent.ACTION_LAB_ADD, payload);
 
-        LibLabAdmin.addLab(payload.uri, payload.price, payload.accessURI, payload.accessKey);
+        LibLabAdmin.addLab(payload.uri, payload.price, payload.accessURI, payload.accessKey, payload.resourceType);
         uint256 newLabId = _s().labId;
         emit LabIntentProcessed(requestId, newLabId, "LAB_ADD", msg.sender, true, "");
     }
@@ -57,7 +57,7 @@ contract LabIntentFacet {
         require(payload.labId == 0, "LAB_ADD_AND_LIST: labId must be 0");
         _consumeLabIntent(requestId, LibIntent.ACTION_LAB_ADD_AND_LIST, payload);
 
-        LibLabAdmin.addAndListLab(payload.uri, payload.price, payload.accessURI, payload.accessKey);
+        LibLabAdmin.addAndListLab(payload.uri, payload.price, payload.accessURI, payload.accessKey, payload.resourceType);
         uint256 newLabId = _s().labId;
         emit LabIntentProcessed(requestId, newLabId, "LAB_ADD_AND_LIST", msg.sender, true, "");
     }
@@ -70,7 +70,7 @@ contract LabIntentFacet {
         require(payload.labId != 0, "LAB_UPDATE: labId required");
         _consumeLabIntent(requestId, LibIntent.ACTION_LAB_UPDATE, payload);
 
-        LibLabAdmin.updateLab(payload.labId, payload.uri, payload.price, payload.accessURI, payload.accessKey);
+        LibLabAdmin.updateLab(payload.labId, payload.uri, payload.price, payload.accessURI, payload.accessKey, payload.resourceType);
         emit LabIntentProcessed(requestId, payload.labId, "LAB_UPDATE", msg.sender, true, "");
     }
 

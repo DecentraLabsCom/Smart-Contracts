@@ -322,6 +322,9 @@ struct AppStorage {
     // Active labs index (appended to preserve storage layout)
     uint256[] activeLabIds;
     mapping(uint256 labId => uint256 indexPlusOne) activeLabIndexPlusOne;
+
+    // Lab creator identity binding (must stay at the end to preserve historical layout)
+    mapping(uint256 labId => bytes32 creatorPucHash) creatorPucHashByLab;
 }
 
 /// @title LibAppStorage

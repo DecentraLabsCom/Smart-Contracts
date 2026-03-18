@@ -65,4 +65,13 @@ contract TestHelperFacet {
             state: IntentState.Pending
         });
     }
+
+    /// @notice Set creator hash for a lab for testing
+    function test_setCreatorPucHash(
+        uint256 labId,
+        bytes32 creatorPucHash
+    ) external {
+        AppStorage storage s = LibAppStorage.diamondStorage();
+        s.creatorPucHashByLab[labId] = creatorPucHash;
+    }
 }

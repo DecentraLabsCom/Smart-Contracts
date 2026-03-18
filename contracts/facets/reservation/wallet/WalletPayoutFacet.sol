@@ -10,6 +10,7 @@ import {AppStorage, Reservation, PayoutCandidate, LibAppStorage} from "../../../
 import {LibAccessControlEnumerable} from "../../../libraries/LibAccessControlEnumerable.sol";
 import {ActionIntentPayload} from "../../../libraries/IntentTypes.sol";
 import {LibIntent} from "../../../libraries/LibIntent.sol";
+import {LibLabAdmin} from "../../../libraries/LibLabAdmin.sol";
 import {LibReputation} from "../../../libraries/LibReputation.sol";
 
 interface IStakingFacet {
@@ -101,6 +102,7 @@ contract WalletPayoutFacet is ReentrancyGuardTransient {
     ) external isLabProvider nonReentrant {
         require(payload.labId != 0, "REQUEST_FUNDS: labId required");
         require(payload.executor == msg.sender, "Executor must be caller");
+        LibLabAdmin._requireLabCreator(payload.labId, payload.puc);
         uint256 maxBatch = uint256(payload.maxBatch);
         if (maxBatch == 0 || maxBatch > 100) revert("Invalid batch size");
 

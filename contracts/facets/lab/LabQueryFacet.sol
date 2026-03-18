@@ -139,6 +139,14 @@ contract LabQueryFacet {
         return _s().labs[_labId].accessKey;
     }
 
+    /// @notice Returns the creator identity hash associated with a lab.
+    /// @dev Returns bytes32(0) for legacy labs created without creator binding.
+    function getCreatorPucHash(
+        uint256 _labId
+    ) external view exists(_labId) returns (bytes32) {
+        return _s().creatorPucHashByLab[_labId];
+    }
+
     /// @notice Returns the age of a lab in seconds since registration
     /// @param _labId The ID of the lab
     /// @return The age in seconds

@@ -17,6 +17,7 @@ contract LabIntentFacet {
     event LabIntentProcessed(
         bytes32 indexed requestId, uint256 labId, string action, address provider, bool success, string reason
     );
+    event LabCreatorBound(uint256 indexed labId, bytes32 indexed creatorPucHash);
 
     /// @dev Returns the AppStorage struct from the diamond storage slot.
     function _s() internal pure returns (AppStorage storage s) {
@@ -41,10 +42,14 @@ contract LabIntentFacet {
     ) external {
         LibLabAdmin._requireLabProvider();
         require(payload.labId == 0, "LAB_ADD: labId must be 0");
+        require(bytes(payload.puc).length > 0, "LAB_ADD: puc required");
         _consumeLabIntent(requestId, LibIntent.ACTION_LAB_ADD, payload);
 
         LibLabAdmin.addLab(payload.uri, payload.price, payload.accessURI, payload.accessKey, payload.resourceType);
         uint256 newLabId = _s().labId;
+        bytes32 creatorPucHash = keccak256(bytes(payload.puc));
+        _s().creatorPucHashByLab[newLabId] = creatorPucHash;
+        emit LabCreatorBound(newLabId, creatorPucHash);
         emit LabIntentProcessed(requestId, newLabId, "LAB_ADD", msg.sender, true, "");
     }
 
@@ -55,10 +60,14 @@ contract LabIntentFacet {
     ) external {
         LibLabAdmin._requireLabProvider();
         require(payload.labId == 0, "LAB_ADD_AND_LIST: labId must be 0");
+        require(bytes(payload.puc).length > 0, "LAB_ADD_AND_LIST: puc required");
         _consumeLabIntent(requestId, LibIntent.ACTION_LAB_ADD_AND_LIST, payload);
 
         LibLabAdmin.addAndListLab(payload.uri, payload.price, payload.accessURI, payload.accessKey, payload.resourceType);
         uint256 newLabId = _s().labId;
+        bytes32 creatorPucHash = keccak256(bytes(payload.puc));
+        _s().creatorPucHashByLab[newLabId] = creatorPucHash;
+        emit LabCreatorBound(newLabId, creatorPucHash);
         emit LabIntentProcessed(requestId, newLabId, "LAB_ADD_AND_LIST", msg.sender, true, "");
     }
 
@@ -69,6 +78,7 @@ contract LabIntentFacet {
     ) external {
         require(payload.labId != 0, "LAB_UPDATE: labId required");
         _consumeLabIntent(requestId, LibIntent.ACTION_LAB_UPDATE, payload);
+        LibLabAdmin._requireLabCreator(payload.labId, payload.puc);
 
         LibLabAdmin.updateLab(payload.labId, payload.uri, payload.price, payload.accessURI, payload.accessKey, payload.resourceType);
         emit LabIntentProcessed(requestId, payload.labId, "LAB_UPDATE", msg.sender, true, "");
@@ -81,6 +91,7 @@ contract LabIntentFacet {
     ) external {
         require(payload.labId != 0, "LAB_DELETE: labId required");
         _consumeLabIntent(requestId, LibIntent.ACTION_LAB_DELETE, payload);
+        LibLabAdmin._requireLabCreator(payload.labId, payload.puc);
 
         LibLabAdmin.deleteLab(payload.labId);
         emit LabIntentProcessed(requestId, payload.labId, "LAB_DELETE", msg.sender, true, "");
@@ -93,6 +104,7 @@ contract LabIntentFacet {
     ) external {
         require(payload.labId != 0, "LAB_SET_URI: labId required");
         _consumeLabIntent(requestId, LibIntent.ACTION_LAB_SET_URI, payload);
+        LibLabAdmin._requireLabCreator(payload.labId, payload.puc);
 
         LibLabAdmin.setTokenURI(payload.labId, payload.tokenURI);
         emit LabIntentProcessed(requestId, payload.labId, "LAB_SET_URI", msg.sender, true, "");
@@ -105,6 +117,7 @@ contract LabIntentFacet {
     ) external {
         require(payload.labId != 0, "LAB_LIST: labId required");
         _consumeLabIntent(requestId, LibIntent.ACTION_LAB_LIST, payload);
+        LibLabAdmin._requireLabCreator(payload.labId, payload.puc);
 
         LibLabAdmin.listLab(payload.labId);
         emit LabIntentProcessed(requestId, payload.labId, "LAB_LIST", msg.sender, true, "");
@@ -117,6 +130,7 @@ contract LabIntentFacet {
     ) external {
         require(payload.labId != 0, "LAB_UNLIST: labId required");
         _consumeLabIntent(requestId, LibIntent.ACTION_LAB_UNLIST, payload);
+        LibLabAdmin._requireLabCreator(payload.labId, payload.puc);
 
         LibLabAdmin.unlistLab(payload.labId);
         emit LabIntentProcessed(requestId, payload.labId, "LAB_UNLIST", msg.sender, true, "");

@@ -22,6 +22,10 @@ interface ILabFacetMint {
 library LibLabAdmin {
     using LibAccessControlEnumerable for AppStorage;
 
+    error LabLegacyNotMigrated(uint256 labId);
+    error LabCreatorMismatch(uint256 labId);
+    error LabCreatorPucRequired();
+
     event LabAdded(
         uint256 indexed _labId,
         address indexed _provider,
@@ -219,6 +223,17 @@ library LibLabAdmin {
         uint256 _labId
     ) internal view {
         require(IERC721(address(this)).ownerOf(_labId) == msg.sender, "Not the token owner");
+    }
+
+    function _requireLabCreator(
+        uint256 _labId,
+        string memory puc
+    ) internal view {
+        if (bytes(puc).length == 0) revert LabCreatorPucRequired();
+
+        bytes32 creatorHash = _s().creatorPucHashByLab[_labId];
+        if (creatorHash == bytes32(0)) revert LabLegacyNotMigrated(_labId);
+        if (creatorHash != keccak256(bytes(puc))) revert LabCreatorMismatch(_labId);
     }
 
     function _validateLabParams(

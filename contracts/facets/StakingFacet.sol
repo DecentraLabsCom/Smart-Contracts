@@ -3,13 +3,9 @@ pragma solidity ^0.8.31;
 
 import {AccessControlUpgradeable} from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
 import {LibAppStorage, AppStorage, PROVIDER_ROLE, PendingSlash} from "../libraries/LibAppStorage.sol";
-import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {LabERC20} from "../external/LabERC20.sol";
 import {ReentrancyGuardTransient} from "@openzeppelin/contracts/utils/ReentrancyGuardTransient.sol";
 import {ReservableToken} from "../abstracts/ReservableToken.sol";
-
-using SafeERC20 for IERC20;
 
 /// @title StakingFacet Contract
 /// @author Luis de la Torre Cubillo
@@ -24,23 +20,11 @@ contract StakingFacet is AccessControlUpgradeable, ReentrancyGuardTransient {
     /// @notice Initial stake lock period (180 days from auto-stake)
     uint256 public constant INITIAL_STAKE_LOCK_PERIOD = 180 days;
 
-    /// @notice Maximum slash amount per queued action (20 tokens with 6 decimals)
-    uint256 public constant MAX_SLASH_AMOUNT = 20_000_000;
+    /// @notice Maximum slash amount per queued action (20 tokens with 1 decimal)
+    uint256 public constant MAX_SLASH_AMOUNT = 200;
 
     /// @notice Delay before an admin slash can be executed
     uint256 public constant SLASH_TIMELOCK = 48 hours;
-
-    /// @notice Emitted when a provider stakes tokens
-    /// @param provider The address of the provider
-    /// @param amount The amount of tokens staked
-    /// @param newTotalStake The total amount staked by the provider after this operation
-    event TokensStaked(address indexed provider, uint256 indexed amount, uint256 newTotalStake);
-
-    /// @notice Emitted when a provider unstakes tokens
-    /// @param provider The address of the provider
-    /// @param amount The amount of tokens unstaked
-    /// @param remainingStake The remaining staked amount
-    event TokensUnstaked(address indexed provider, uint256 indexed amount, uint256 remainingStake);
 
     /// @notice Emitted when a provider is slashed for misconduct
     /// @param provider The address of the provider being slashed
@@ -67,13 +51,6 @@ contract StakingFacet is AccessControlUpgradeable, ReentrancyGuardTransient {
     /// @param requiredStake The minimum required stake (800 tokens)
     event ProviderStakeInsufficient(address indexed provider, uint256 remainingStake, uint256 requiredStake);
 
-    /// @notice Emitted when a provider's stake reaches or exceeds the required minimum
-    /// @dev This event signals that the provider can now list labs
-    /// @param provider The address of the provider with sufficient stake
-    /// @param newTotalStake The current staked amount after the operation
-    /// @param requiredStake The minimum required stake (800 tokens)
-    event ProviderStakeSufficient(address indexed provider, uint256 newTotalStake, uint256 requiredStake);
-
     /// @notice Emitted when a slash is queued and waiting for timelock
     event SlashQueued(address indexed provider, uint256 amount, uint256 executeAfter, string reason);
 
@@ -93,203 +70,6 @@ contract StakingFacet is AccessControlUpgradeable, ReentrancyGuardTransient {
 
     /// @dev Constructor for the StakingFacet contract.
     constructor() {}
-
-    /// @notice Provider stakes tokens to be eligible to offer services
-    /// @dev Transfers tokens from provider to this contract
-    /// @param amount The amount of tokens to stake
-    function stakeTokens(
-        uint256 amount
-    ) external onlyRole(PROVIDER_ROLE) nonReentrant {
-        require(amount > 0, "StakingFacet: amount must be greater than 0");
-
-        AppStorage storage s = _s();
-
-        uint256 previousStake = s.providerStakes[msg.sender].stakedAmount;
-        uint256 requiredStake = getRequiredStake(msg.sender);
-
-        // Transfer tokens from provider to Diamond contract using SafeERC20
-        IERC20(s.labTokenAddress).safeTransferFrom(msg.sender, address(this), amount);
-
-        // If this is the first stake (no auto-stake), record timestamp
-        if (s.providerStakes[msg.sender].initialStakeTimestamp == 0 && previousStake == 0) {
-            s.providerStakes[msg.sender].initialStakeTimestamp = block.timestamp;
-        }
-
-        uint256 newTotalStake = previousStake + amount;
-        s.providerStakes[msg.sender].stakedAmount = newTotalStake;
-
-        emit TokensStaked(msg.sender, amount, newTotalStake);
-
-        // If stake was insufficient but now is sufficient, emit event
-        // This signals that provider can now list labs
-        if (previousStake < requiredStake && newTotalStake >= requiredStake) {
-            emit ProviderStakeSufficient(msg.sender, newTotalStake, requiredStake);
-        }
-    }
-
-    /// @notice Provider unstakes tokens after lock period
-    /// @dev Can only unstake if:
-    ///      1. Initial stake lock period (180 days) has passed since auto-stake, AND
-    ///      2. Lock period (30 days) has passed since last reservation
-    /// @param amount The amount of tokens to unstake
-    function unstakeTokens(
-        uint256 amount
-    ) external onlyRole(PROVIDER_ROLE) nonReentrant {
-        AppStorage storage s = _s();
-
-        require(amount > 0, "StakingFacet: amount must be greater than 0");
-        require(s.providerStakes[msg.sender].stakedAmount >= amount, "StakingFacet: insufficient staked balance");
-
-        // Check initial stake lock period (180 days from auto-stake)
-        uint256 initialStakeTime = s.providerStakes[msg.sender].initialStakeTimestamp;
-        if (initialStakeTime > 0) {
-            require(
-                block.timestamp >= initialStakeTime + INITIAL_STAKE_LOCK_PERIOD,
-                "StakingFacet: initial stake locked for 180 days from provider creation"
-            );
-        }
-
-        // Check lock period (30 days from last reservation)
-        uint256 lastReservation = s.providerStakes[msg.sender].lastReservationTimestamp;
-        if (lastReservation > 0) {
-            require(
-                block.timestamp >= lastReservation + LOCK_PERIOD,
-                "StakingFacet: tokens locked for 30 days after last reservation"
-            );
-        }
-
-        // Check minimum stake requirement (if provider received initial tokens)
-        uint256 remainingStake = s.providerStakes[msg.sender].stakedAmount - amount;
-        uint256 requiredStake = getRequiredStake(msg.sender);
-        uint256 listedLabs = s.providerStakes[msg.sender].listedLabsCount;
-
-        // If provider has listed labs, they must maintain required stake
-        if (listedLabs > 0) {
-            require(
-                remainingStake >= requiredStake,
-                "StakingFacet: cannot unstake below required minimum while labs are listed"
-            );
-        } else {
-            uint256 activeReservations = s.providerActiveReservationCount[msg.sender];
-            if (activeReservations > 0) {
-                require(
-                    remainingStake >= requiredStake,
-                    "StakingFacet: cannot unstake below minimum with active reservations"
-                );
-            } else {
-                require(
-                    remainingStake >= requiredStake || remainingStake == 0,
-                    "StakingFacet: cannot unstake below required minimum"
-                );
-            }
-        }
-
-        s.providerStakes[msg.sender].stakedAmount = remainingStake;
-
-        // Transfer tokens back to provider using SafeERC20
-        IERC20(s.labTokenAddress).safeTransfer(msg.sender, amount);
-
-        emit TokensUnstaked(msg.sender, amount, remainingStake);
-
-        // If stake falls below required minimum, emit warning event
-        // This signals that provider's labs are automatically unlisted
-        if (remainingStake > 0 && remainingStake < requiredStake) {
-            emit ProviderStakeInsufficient(msg.sender, remainingStake, requiredStake);
-        }
-    }
-
-    /// @notice Queue a slash against a provider; executable after timelock
-    function slashProvider(
-        address provider,
-        uint256 amount,
-        string calldata reason
-    ) external onlyDefaultAdminRole {
-        require(provider != address(0), "StakingFacet: invalid provider address");
-
-        AppStorage storage s = _s();
-        require(amount > 0, "StakingFacet: amount must be greater than 0");
-        require(amount <= MAX_SLASH_AMOUNT, "StakingFacet: exceeds slash cap");
-        require(s.pendingSlashes[provider].executeAfter == 0, "StakingFacet: slash pending");
-        require(s.providerStakes[provider].stakedAmount >= amount, "StakingFacet: insufficient stake to slash");
-
-        uint256 executeAfter = block.timestamp + SLASH_TIMELOCK;
-        s.pendingSlashes[provider] = PendingSlash({amount: amount, executeAfter: executeAfter, reason: reason});
-
-        emit SlashQueued(provider, amount, executeAfter, reason);
-    }
-
-    /// @notice Cancel a queued slash (provider self-defense or admin override)
-    function cancelQueuedSlash(
-        address provider
-    ) external {
-        AppStorage storage s = _s();
-        PendingSlash storage pending = s.pendingSlashes[provider];
-        require(pending.executeAfter != 0, "StakingFacet: no queued slash");
-        require(
-            msg.sender == provider || hasRole(DEFAULT_ADMIN_ROLE, msg.sender), "StakingFacet: not authorized to cancel"
-        );
-
-        delete s.pendingSlashes[provider];
-        emit SlashCancelled(provider, msg.sender);
-    }
-
-    /// @notice Execute a queued slash after the timelock has expired
-    function executeQueuedSlash(
-        address provider
-    ) external onlyDefaultAdminRole nonReentrant {
-        AppStorage storage s = _s();
-        PendingSlash storage pending = s.pendingSlashes[provider];
-        require(pending.executeAfter != 0, "StakingFacet: no queued slash");
-        require(block.timestamp >= pending.executeAfter, "StakingFacet: timelock active");
-
-        uint256 amount = pending.amount;
-        require(amount > 0, "StakingFacet: invalid slash amount");
-        require(amount <= MAX_SLASH_AMOUNT, "StakingFacet: exceeds slash cap");
-        require(s.providerStakes[provider].stakedAmount >= amount, "StakingFacet: insufficient stake to slash");
-
-        string memory reason = pending.reason;
-        delete s.pendingSlashes[provider];
-
-        uint256 remainingStake = s.providerStakes[provider].stakedAmount - amount;
-        s.providerStakes[provider].stakedAmount = remainingStake;
-        s.providerStakes[provider].slashedAmount += amount;
-
-        // Burn the slashed tokens
-        LabERC20(s.labTokenAddress).burn(amount);
-
-        emit ProviderSlashed(provider, amount, reason, remainingStake);
-
-        // If stake falls below required minimum, emit warning event
-        uint256 requiredStake = getRequiredStake(provider);
-        if (remainingStake > 0 && remainingStake < requiredStake) {
-            emit ProviderStakeInsufficient(provider, remainingStake, requiredStake);
-        }
-    }
-
-    /// @notice Burns entire stake when a provider is removed from the system
-    /// @dev Called by ProviderFacet when removeProvider is executed
-    /// @param provider The address of the provider being removed
-    function burnStakeOnRemoval(
-        address provider
-    ) external onlyDefaultAdminRole nonReentrant {
-        require(provider != address(0), "StakingFacet: invalid provider address");
-
-        AppStorage storage s = _s();
-
-        uint256 stakedAmount = s.providerStakes[provider].stakedAmount;
-
-        // EFFECTS: Update all state BEFORE external call (CEI pattern)
-        if (stakedAmount > 0) {
-            s.providerStakes[provider].stakedAmount = 0;
-        }
-        delete s.providerStakes[provider];
-
-        // INTERACTIONS: Execute external call AFTER state updates
-        if (stakedAmount > 0) {
-            LabERC20(s.labTokenAddress).burn(stakedAmount);
-            emit StakeBurned(provider, stakedAmount, "Provider removed from system");
-        }
-    }
 
     /// @notice Updates the last reservation timestamp for lock period calculation
     /// @dev Should be called by reservation facets when a reservation is completed/cancelled

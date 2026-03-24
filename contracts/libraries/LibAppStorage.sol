@@ -77,7 +77,7 @@ struct Lab {
 /// @param renter Address of the user making the reservation
 /// @param price Total cost of the reservation in LAB base units (uint96)
 /// @param labProvider Address of the lab provider (owner at reservation time)
-/// @param status Current state of the reservation (0=_PENDING, 1=_CONFIRMED, 2=_IN_USE, 3=_COMPLETED, 4=_COLLECTED, 5=_CANCELLED)
+/// @param status Current state of the reservation (0=_PENDING, 1=_CONFIRMED, 2=_IN_USE, 3=_COMPLETED, 4=_SETTLED, 5=_CANCELLED)
 /// @param start Starting timestamp of the reservation (as uint32)
 /// @param end Ending timestamp of the reservation (as uint32)
 /// @param puc schacPersonalUniqueCode for institutional reservations (empty for wallet reservations)
@@ -208,7 +208,7 @@ struct InstitutionalUserSpending {
 /// @notice
 /// @custom:storage-layout This struct defines the storage layout for the diamond contract
 /// @custom:member DEFAULT_ADMIN_ROLE Stores the keccak256 hash for admin role
-/// @custom:member labTokenAddress Address of the LAB token contract
+/// @custom:member labTokenAddress Address of the service-credit ledger contract
 /// @custom:member roleMembers Mapping of roles to set of addresses that have that role
 /// @custom:member providers Mapping of provider addresses to their base information
 /// @custom:member labId Counter for lab tokens
@@ -238,14 +238,14 @@ struct AppStorage {
     // forge-lint: disable-next-line(mixed-case-variable)
     bytes32 DEFAULT_ADMIN_ROLE;
     address labTokenAddress;
-    address projectTreasuryWallet;
-    address subsidiesWallet;
-    address governanceWallet;
-    address liquidityWallet;
-    address ecosystemGrowthWallet;
-    address treasuryTimelock;
-    address teamVestingWallet;
-    address liquidityTimelock;
+    address projectTreasuryWallet; // @deprecated write-only (initializeRevenueRecipients), never read
+    address subsidiesWallet; // @deprecated write-only, never read
+    address governanceWallet; // @deprecated write-only, never read
+    address liquidityWallet; // @deprecated dead — DistributionFacet removed
+    address ecosystemGrowthWallet; // @deprecated dead — DistributionFacet removed
+    address treasuryTimelock; // @deprecated dead — DistributionFacet removed
+    address teamVestingWallet; // @deprecated dead — DistributionFacet removed
+    address liquidityTimelock; // @deprecated dead — DistributionFacet removed
 
     mapping(bytes32 role => EnumerableSet.AddressSet) roleMembers;
     mapping(address => ProviderBase) providers;
@@ -287,27 +287,28 @@ struct AppStorage {
     mapping(bytes32 orgHash => address wallet) organizationInstitutionWallet;
     mapping(address institution => EnumerableSet.Bytes32Set orgs) institutionSchacHomeOrganizations;
 
-    // Revenue split buckets (new split replaces legacy pendingLabPayout/pendingInstitutionalLabPayout)
-    mapping(uint256 => uint256) pendingProviderPayout; // per lab pending amount for provider withdrawals
+    // Revenue split buckets
+    mapping(uint256 => uint256) providerReceivableAccrued; // per-lab provider debt accrued onchain and not yet queued
+    mapping(uint256 => uint256) providerSettlementQueue; // per-lab provider debt already queued for off-chain settlement
     uint256 pendingProjectTreasury; // global pending amount for project treasury
     uint256 pendingSubsidies; // global pending amount for student subsidies
     uint256 pendingGovernance; // global pending amount for governance incentives
-    // Tokenomics accounting
-    uint256 providerPoolMinted;
-    uint256 treasuryPoolMinted;
-    uint256 subsidiesPoolMinted;
-    uint256 liquidityPoolMinted;
-    uint256 ecosystemPoolMinted;
-    uint256 teamPoolMinted;
-    uint256 reservePoolMinted;
-    bool tokenPoolsInitialized;
+    // @deprecated Tokenomics accounting — all dead after DistributionFacet removal
+    uint256 providerPoolMinted; // @deprecated dead
+    uint256 treasuryPoolMinted; // @deprecated dead
+    uint256 subsidiesPoolMinted; // @deprecated dead
+    uint256 liquidityPoolMinted; // @deprecated dead
+    uint256 ecosystemPoolMinted; // @deprecated dead
+    uint256 teamPoolMinted; // @deprecated dead
+    uint256 reservePoolMinted; // @deprecated dead
+    bool tokenPoolsInitialized; // @deprecated dead
 
     // Intent registry
     mapping(bytes32 => IntentMeta) intents; // requestId -> intent meta
     mapping(address => uint256) intentNonces; // per-signer nonce
 
     // Admin recovery helpers
-    mapping(uint256 => uint256) pendingProviderLastUpdated; // labId -> last accrual timestamp for pending provider payout
+    mapping(uint256 => uint256) providerReceivableLastAccruedAt; // labId -> last accrual timestamp for provider debt
 
     // Slashing timelock queue
     mapping(address => PendingSlash) pendingSlashes; // provider => pending slash data
@@ -325,8 +326,75 @@ struct AppStorage {
     uint256[] activeLabIds;
     mapping(uint256 labId => uint256 indexPlusOne) activeLabIndexPlusOne;
 
-    // Lab creator identity binding (must stay at the end to preserve historical layout)
+    // Closed customer credit ledger
+    mapping(address account => uint256 balance) serviceCreditBalance;
+
+    // Lab creator identity binding (historical tail preserved; append new fields after this point only)
     mapping(uint256 labId => bytes32 creatorPucHash) creatorPucHashByLab;
+
+    // Provider receivable lifecycle buckets
+    mapping(uint256 labId => uint256 amount) providerReceivableInvoiced;
+    mapping(uint256 labId => uint256 amount) providerReceivableApproved;
+    mapping(uint256 labId => uint256 amount) providerReceivablePaid;
+    mapping(uint256 labId => uint256 amount) providerReceivableReversed;
+    mapping(uint256 labId => uint256 amount) providerReceivableDisputed;
+
+    // Limited-network participation status (appended to preserve storage layout)
+    mapping(address provider => ProviderNetworkStatus status) providerNetworkStatus;
+
+    // ── Credit-lot ledger (8.3.A + 8.3.B) ──────────────────────────────────
+    // Locked credit balance (reserved for pending reservations, not yet captured)
+    mapping(address account => uint256 locked) creditLockedBalance;
+    // Per-account array of funding lots
+    mapping(address account => CreditLot[]) creditLots;
+    // Global auto-incrementing lot ID counter
+    uint256 creditLotNextId;
+    // Per-account credit movement log
+    mapping(address account => CreditMovement[]) creditMovements;
+}
+
+/// @notice Provider participation status within the limited service network
+/// @dev NONE = default (not activated); ACTIVE = contracted and active;
+///      SUSPENDED = temporarily removed from active network; TERMINATED = permanently deactivated
+enum ProviderNetworkStatus {
+    NONE,
+    ACTIVE,
+    SUSPENDED,
+    TERMINATED
+}
+
+/// @notice A funding lot representing a discrete credit issuance with traceability
+/// @dev Lots are consumed FIFO by remaining amount. Expired lots can be swept.
+struct CreditLot {
+    uint256 lotId;             // Unique lot identifier
+    bytes32 fundingOrderId;    // External funding order reference
+    uint256 creditAmount;      // Original credit amount issued
+    uint256 remaining;         // Remaining unconsumed credits
+    uint256 eurGrossAmount;    // EUR gross amount that funded this lot (informational, 1 decimal)
+    uint48  issuedAt;          // Timestamp of lot creation
+    uint48  expiresAt;         // Expiry timestamp (0 = no expiry)
+    bool    expired;           // Whether the lot has been marked expired
+}
+
+/// @notice Type of credit movement for audit trail
+enum CreditMovementKind {
+    MINT,
+    LOCK,
+    CAPTURE,
+    RELEASE,
+    CANCEL,
+    EXPIRE,
+    ADJUST
+}
+
+/// @notice An auditable credit movement entry
+struct CreditMovement {
+    CreditMovementKind kind;
+    uint256 amount;
+    uint256 balanceAfter;      // Available balance after movement
+    uint256 lockedAfter;       // Locked balance after movement
+    bytes32 ref;               // External reference (reservation key, funding order, etc.)
+    uint48  timestamp;
 }
 
 /// @title LibAppStorage
@@ -342,34 +410,19 @@ struct AppStorage {
 ///     This library is essential for maintaining consistency and efficiency in Diamond contracts.
 library LibAppStorage {
     /// @notice Base stake required for providers who received initial tokens
-    uint256 internal constant BASE_STAKE = 800_000_000; // 800 tokens with 6 decimals
+    uint256 internal constant BASE_STAKE = 8_000; // 800 tokens with 1 decimal
 
     /// @notice Number of labs included in base stake (free labs)
     uint256 internal constant FREE_LABS_COUNT = 10;
 
     /// @notice Additional stake required per lab beyond the free count
-    uint256 internal constant STAKE_PER_ADDITIONAL_LAB = 200_000_000; // 200 tokens with 6 decimals
+    uint256 internal constant STAKE_PER_ADDITIONAL_LAB = 2_000; // 200 tokens with 1 decimal
 
     /// @notice Default spending limit for institutional users
-    uint256 internal constant DEFAULT_INSTITUTIONAL_USER_LIMIT = 10_000_000; // 10 tokens with 6 decimals
+    uint256 internal constant DEFAULT_INSTITUTIONAL_USER_LIMIT = 100; // 10 tokens with 1 decimal
 
     /// @notice Default spending period duration (120 days in seconds)
     uint256 internal constant DEFAULT_SPENDING_PERIOD = 120 days;
-
-    // Tokenomics caps (base units, 6 decimals)
-    uint256 internal constant MAX_SUPPLY_BASE = 1_000_000_000_000; // 1,000,000 * 1e6
-    uint256 internal constant PROVIDER_POOL_CAP = 200_000_000_000; // 20%
-    uint256 internal constant TREASURY_POOL_CAP = 150_000_000_000; // 15%
-    uint256 internal constant SUBSIDIES_POOL_CAP = 150_000_000_000; // 15%
-    uint256 internal constant LIQUIDITY_POOL_CAP = 120_000_000_000; // 12%
-    uint256 internal constant ECOSYSTEM_POOL_CAP = 100_000_000_000; // 10%
-    uint256 internal constant TEAM_POOL_CAP = 100_000_000_000; // 10%
-    uint256 internal constant RESERVE_POOL_CAP = 180_000_000_000; // 18%
-
-    uint256 internal constant SUBSIDIES_TOPUP_TRANCHE = 30_000_000_000; // 3%
-    uint256 internal constant SUBSIDIES_TOPUP_THRESHOLD = 1_000_000_000; // 1,000 tokens (base units)
-    uint256 internal constant ECOSYSTEM_TOPUP_TRANCHE = 20_000_000_000; // 2%
-    uint256 internal constant ECOSYSTEM_TOPUP_THRESHOLD = 1_000_000_000; // 1,000 tokens (base units)
 
     /// @dev Provides access to the `AppStorage` struct stored at a specific slot in contract storage.
     /// This function uses inline assembly to set the storage pointer to the predefined `APP_STORAGE_POSITION`.

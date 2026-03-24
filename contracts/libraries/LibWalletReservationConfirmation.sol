@@ -1,15 +1,15 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-pragma solidity ^0.8.31;
+pragma solidity ^0.8.33;
 
-import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import {RivalIntervalTreeLibrary, Tree} from "./RivalIntervalTreeLibrary.sol";
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
-import {LibAppStorage, AppStorage, Reservation} from "./LibAppStorage.sol";
+import {LibAppStorage, AppStorage, Reservation, ProviderNetworkStatus} from "./LibAppStorage.sol";
 import {LibRevenue} from "./LibRevenue.sol";
 import {LibHeap} from "./LibHeap.sol";
 import {LibReservationCancellation} from "./LibReservationCancellation.sol";
 import {LibReservationDenyReason} from "./LibReservationDenyReason.sol";
+import {LibCreditLedger} from "./LibCreditLedger.sol";
 
 interface IStakingFacetWalletConfirm {
     function updateLastReservation(
@@ -98,7 +98,7 @@ library LibWalletReservationConfirmation {
             return;
         }
 
-        // enforce per-user cap before transferring funds
+        // enforce per-user cap before collecting locked service credits
         if (
             s.activeReservationCountByTokenAndUser[reservation.labId][reservation.renter]
                 >= _MAX_RESERVATIONS_PER_LAB_USER
@@ -108,18 +108,12 @@ library LibWalletReservationConfirmation {
 
         _setReservationSplit(reservation);
 
-        (bool success, bytes memory data) = s.labTokenAddress
-            .call(
-                abi.encodeWithSelector(
-                    IERC20.transferFrom.selector, reservation.renter, address(this), uint256(reservation.price)
-                )
-            );
-
-        if (!success || (data.length != 0 && !abi.decode(data, (bool)))) {
+        if (LibCreditLedger.availableBalanceOf(reservation.renter) < reservation.price) {
             LibReservationCancellation.cancelReservation(reservationKey);
             emit ReservationRequestDenied(reservationKey, reservation.labId, LibReservationDenyReason.PAYMENT_FAILED);
             return;
         }
+        LibCreditLedger.lockCredits(reservation.renter, uint256(reservation.price), reservationKey);
 
         if (s.labs[reservation.labId].resourceType == 0) {
             s.calendars[reservation.labId].insert(reservation.start, reservation.end);
@@ -154,6 +148,7 @@ library LibWalletReservationConfirmation {
         uint256 labId
     ) private view returns (bool) {
         if (!s.tokenStatus[labId]) return false;
+        if (s.providerNetworkStatus[labProvider] != ProviderNetworkStatus.ACTIVE) return false;
         uint256 listedLabsCount = s.providerStakes[labProvider].listedLabsCount;
         uint256 requiredStake =
             IReservableTokenCalcW(address(this)).calculateRequiredStake(labProvider, listedLabsCount);

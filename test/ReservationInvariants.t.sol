@@ -2,7 +2,7 @@
 pragma solidity ^0.8.33;
 
 import "forge-std/Test.sol";
-import {ReservationHarness, MockERC20} from "./GasReservations.t.sol";
+import {ReservationHarness} from "./GasReservations.t.sol";
 import "../contracts/libraries/LibAppStorage.sol";
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import "../contracts/facets/reservation/institutional/InstitutionalReservationRequestValidationFacet.sol";
@@ -102,20 +102,16 @@ contract ReservationInvariantsTest is Test {
     using EnumerableSet for EnumerableSet.Bytes32Set;
 
     ReservationHarness harness;
-    MockERC20 token;
     address renter = address(0xBEEF);
     uint256 labId;
 
     function setUp() public {
-        token = new MockERC20();
         harness = new ReservationHarness();
-        harness.initializeHarness(address(token));
+        harness.initializeHarness(address(0));
         labId = harness.mintAndList(1e6);
 
-        // prepare funds
-        token.mint(renter, 10 ether);
-        vm.prank(renter);
-        token.approve(address(harness), type(uint256).max);
+        // prepare closed service credits
+        harness.setServiceCreditBalance(renter, 10 ether);
     }
 
     function _key(
@@ -278,9 +274,7 @@ contract ReservationInvariantsTest is Test {
 
         // a new request should trigger auto-release and succeed
         vm.prank(renter);
-        token.mint(renter, 1 ether);
-        vm.prank(renter);
-        token.approve(address(harness), type(uint256).max);
+        harness.setServiceCreditBalance(renter, 1 ether);
 
         uint32 newStart = uint32(block.timestamp + 3600);
         vm.prank(renter);

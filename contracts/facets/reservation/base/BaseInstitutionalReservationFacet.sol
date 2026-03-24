@@ -4,14 +4,15 @@ pragma solidity ^0.8.31;
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import {InstitutionalReservableTokenEnumerable} from "../../../abstracts/InstitutionalReservableTokenEnumerable.sol";
 import {ProviderFacet} from "../../ProviderFacet.sol";
-import {AppStorage, Reservation, INSTITUTION_ROLE} from "../../../libraries/LibAppStorage.sol";
+import {AppStorage, Reservation, INSTITUTION_ROLE, ProviderNetworkStatus} from "../../../libraries/LibAppStorage.sol";
 import {LibAccessControlEnumerable} from "../../../libraries/LibAccessControlEnumerable.sol";
 import {LibHeap} from "../../../libraries/LibHeap.sol";
 import {LibRevenue} from "../../../libraries/LibRevenue.sol";
 import {LibReservationConfig} from "../../../libraries/LibReservationConfig.sol";
 import {LibReputation} from "../../../libraries/LibReputation.sol";
+import {LibProviderReceivable} from "../../../libraries/LibProviderReceivable.sol";
 
-/// @dev Interface for StakingFacet to update reservation timestamps
+/// @dev Interface for ProviderNetworkFacet to update reservation timestamps
 interface IStakingFacetI {
     function updateLastReservation(
         address provider
@@ -226,6 +227,7 @@ abstract contract BaseInstitutionalReservationFacet is InstitutionalReservableTo
         uint256 labId
     ) internal view returns (bool) {
         if (!s.tokenStatus[labId]) return false;
+        if (s.providerNetworkStatus[labProvider] != ProviderNetworkStatus.ACTIVE) return false;
         uint256 listedLabsCount = s.providerStakes[labProvider].listedLabsCount;
         uint256 requiredStake = calculateRequiredStake(labProvider, listedLabsCount);
         return s.providerStakes[labProvider].stakedAmount >= requiredStake;
@@ -237,7 +239,7 @@ abstract contract BaseInstitutionalReservationFacet is InstitutionalReservableTo
         Reservation storage reservation,
         uint256 labId
     ) internal returns (bool) {
-        if (reservation.status == _COLLECTED || reservation.status == _CANCELLED) return false;
+        if (reservation.status == _SETTLED || reservation.status == _CANCELLED) return false;
 
         address trackingKey = _computeTrackingKey(key, reservation);
         uint256 reservationPrice = reservation.price;
@@ -251,13 +253,13 @@ abstract contract BaseInstitutionalReservationFacet is InstitutionalReservableTo
         }
 
         uint8 previousStatus = reservation.status;
-        reservation.status = _COLLECTED;
+        reservation.status = _SETTLED;
         if (previousStatus == _IN_USE) {
             LibReputation.recordCompletion(labId);
         }
 
         if (reservationPrice > 0) {
-            _creditRevenueBuckets(s, reservation);
+            _creditRevenueBuckets(s, reservation, key);
         }
 
         _recordPast(s, labId, trackingKey, key, reservation.end);
@@ -291,14 +293,15 @@ abstract contract BaseInstitutionalReservationFacet is InstitutionalReservableTo
         uint256 labId,
         uint256 timestamp
     ) internal {
-        if (timestamp > s.pendingProviderLastUpdated[labId]) {
-            s.pendingProviderLastUpdated[labId] = timestamp;
+        if (timestamp > s.providerReceivableLastAccruedAt[labId]) {
+            s.providerReceivableLastAccruedAt[labId] = timestamp;
         }
     }
 
     function _creditRevenueBuckets(
         AppStorage storage s,
-        Reservation storage reservation
+        Reservation storage reservation,
+        bytes32 reservationKey
     ) internal {
         uint96 providerShare = reservation.providerShare;
         uint96 treasuryShare = reservation.projectTreasuryShare;
@@ -306,8 +309,8 @@ abstract contract BaseInstitutionalReservationFacet is InstitutionalReservableTo
         uint96 governanceShare = reservation.governanceShare;
 
         if (providerShare > 0) {
-            s.pendingProviderPayout[reservation.labId] += providerShare;
-            _updatePendingProviderTimestamp(s, reservation.labId, reservation.end);
+            LibProviderReceivable.accrueReceivable(reservation.labId, providerShare, reservationKey);
+            LibProviderReceivable.updateAccruedTimestamp(reservation.labId, reservation.end);
         }
         if (treasuryShare > 0) s.pendingProjectTreasury += treasuryShare;
         if (subsidiesShare > 0) s.pendingSubsidies += subsidiesShare;
@@ -346,11 +349,12 @@ abstract contract BaseInstitutionalReservationFacet is InstitutionalReservableTo
         uint256 labId,
         uint96 providerFee,
         uint96 treasuryFee,
-        uint96 governanceFee
+        uint96 governanceFee,
+        bytes32 reservationKey
     ) internal {
         if (providerFee > 0) {
-            s.pendingProviderPayout[labId] += providerFee;
-            _updatePendingProviderTimestamp(s, labId, block.timestamp);
+            LibProviderReceivable.accrueReceivable(labId, providerFee, reservationKey);
+            LibProviderReceivable.updateAccruedTimestamp(labId, block.timestamp);
         }
         if (treasuryFee > 0) s.pendingProjectTreasury += treasuryFee;
         if (governanceFee > 0) s.pendingGovernance += governanceFee;

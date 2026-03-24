@@ -22,7 +22,7 @@ library LibInstitutionalReservationRelease {
     uint8 internal constant _PENDING = 0;
     uint8 internal constant _CONFIRMED = 1;
     uint8 internal constant _IN_USE = 2;
-    uint8 internal constant _COLLECTED = 4;
+    uint8 internal constant _SETTLED = 4;
 
     uint256 internal constant _PENDING_REQUEST_TTL = LibReservationConfig.PENDING_REQUEST_TTL;
 
@@ -98,7 +98,7 @@ library LibInstitutionalReservationRelease {
         address trackingKey
     ) private {
         uint8 previousStatus = reservation.status;
-        reservation.status = _COLLECTED;
+        reservation.status = _SETTLED;
         if (previousStatus == _IN_USE) {
             LibReputation.recordCompletion(labId);
         }

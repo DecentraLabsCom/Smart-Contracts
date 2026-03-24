@@ -2,6 +2,7 @@
 pragma solidity ^0.8.33;
 
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
+import {LibProviderReceivable} from "./LibProviderReceivable.sol";
 import {
     LibAppStorage,
     AppStorage,
@@ -20,7 +21,7 @@ library LibReservationCancellation {
     uint8 internal constant _CONFIRMED = 1;
     uint8 internal constant _IN_USE = 2;
     uint8 internal constant _COMPLETED = 3;
-    uint8 internal constant _COLLECTED = 4;
+    uint8 internal constant _SETTLED = 4;
     uint8 internal constant _CANCELLED = 5;
 
     uint8 internal constant _TOKEN_BUFFER_CAP = 40;
@@ -83,14 +84,13 @@ library LibReservationCancellation {
         uint256 labId,
         uint96 providerFee,
         uint96 treasuryFee,
-        uint96 governanceFee
+        uint96 governanceFee,
+        bytes32 reservationKey
     ) internal {
         AppStorage storage s = LibAppStorage.diamondStorage();
         if (providerFee > 0) {
-            s.pendingProviderPayout[labId] += providerFee;
-            if (block.timestamp > s.pendingProviderLastUpdated[labId]) {
-                s.pendingProviderLastUpdated[labId] = block.timestamp;
-            }
+            LibProviderReceivable.accrueReceivable(labId, providerFee, reservationKey);
+            LibProviderReceivable.updateAccruedTimestamp(labId, block.timestamp);
         }
         if (treasuryFee > 0) {
             s.pendingProjectTreasury += treasuryFee;

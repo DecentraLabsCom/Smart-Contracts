@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-pragma solidity ^0.8.31;
+pragma solidity ^0.8.33;
 
-import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import {BaseLightReservationFacet} from "../base/BaseLightReservationFacet.sol";
 import {AppStorage, Reservation} from "../../../libraries/LibAppStorage.sol";
+import {LibCreditLedger} from "../../../libraries/LibCreditLedger.sol";
 import {ReservableToken} from "../../../abstracts/ReservableToken.sol";
 
 /// @title WalletReservationCoreFacet
@@ -20,7 +20,6 @@ contract WalletReservationCoreFacet is BaseLightReservationFacet {
     error LabNotListed();
     error InsufficientStake();
     error InvalidRange();
-    error LowAllowance();
     error SlotUnavailable();
     error ReservationPriceOverflow();
 
@@ -74,15 +73,13 @@ contract WalletReservationCoreFacet is BaseLightReservationFacet {
         if (totalPrice > type(uint96).max) revert ReservationPriceOverflow();
         uint96 price = uint96(totalPrice);
 
-        uint256 balance = IERC20(s.labTokenAddress).balanceOf(msg.sender);
+        uint256 balance = LibCreditLedger.availableBalanceOf(msg.sender);
         if (balance < totalPrice) revert InsufficientFunds();
-
-        if (IERC20(s.labTokenAddress).allowance(msg.sender, address(this)) < totalPrice) revert LowAllowance();
 
         bytes32 reservationKey = _getReservationKey(_labId, _start);
 
         Reservation storage existing = s.reservations[reservationKey];
-        if (existing.renter != address(0) && existing.status != _CANCELLED && existing.status != _COLLECTED) {
+        if (existing.renter != address(0) && existing.status != _CANCELLED && existing.status != _SETTLED) {
             bool isStalePending = existing.status == _PENDING
                 && (existing.requestPeriodStart == 0
                     || block.timestamp >= existing.requestPeriodStart + _PENDING_REQUEST_TTL);

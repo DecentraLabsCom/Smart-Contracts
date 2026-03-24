@@ -19,25 +19,12 @@ contract ProviderStakeBoundaryTest is BaseTest {
         token = new DummyReservable();
     }
 
-    function test_free_count_and_additional_lab_boundaries() public {
-        AppStorage storage s = LibAppStorage.diamondStorage();
-        address p = makeAddr("providerX");
-
-        // initial: no received initial tokens and listedLabsCount == 0 -> should be 0
-        s.providerStakes[p].receivedInitialTokens = false;
-        assertEq(token.calculateRequiredStake(p, 0), 0);
-
-        // once provider lists 1 lab but still hasn't received initial tokens, requirement should be base stake
-        assertEq(token.calculateRequiredStake(p, 1), LibAppStorage.BASE_STAKE);
-
-        // at free labs count boundary
-        uint256 freeCount = LibAppStorage.FREE_LABS_COUNT;
-        assertEq(token.calculateRequiredStake(p, freeCount), LibAppStorage.BASE_STAKE);
-
-        // one beyond free count
-        assertEq(
-            token.calculateRequiredStake(p, freeCount + 1),
-            LibAppStorage.BASE_STAKE + LibAppStorage.STAKE_PER_ADDITIONAL_LAB
-        );
+    function test_calculateRequiredStake_always_returns_zero() public {
+        // In the service-credit model, calculateRequiredStake always returns 0
+        assertEq(token.calculateRequiredStake(address(1), 0), 0);
+        assertEq(token.calculateRequiredStake(address(1), 1), 0);
+        assertEq(token.calculateRequiredStake(address(1), 10), 0);
+        assertEq(token.calculateRequiredStake(address(1), 11), 0);
+        assertEq(token.calculateRequiredStake(address(1), 100), 0);
     }
 }

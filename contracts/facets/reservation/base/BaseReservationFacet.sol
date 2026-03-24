@@ -4,12 +4,13 @@ pragma solidity ^0.8.31;
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import {InstitutionalReservableTokenEnumerable} from "../../../abstracts/InstitutionalReservableTokenEnumerable.sol";
 import {ProviderFacet} from "../../ProviderFacet.sol";
-import {AppStorage, Reservation, PayoutCandidate} from "../../../libraries/LibAppStorage.sol";
+import {AppStorage, Reservation, PayoutCandidate, ProviderNetworkStatus} from "../../../libraries/LibAppStorage.sol";
 import {LibAccessControlEnumerable} from "../../../libraries/LibAccessControlEnumerable.sol";
 import {LibReputation} from "../../../libraries/LibReputation.sol";
 import {LibReservationConfig} from "../../../libraries/LibReservationConfig.sol";
+import {LibProviderReceivable} from "../../../libraries/LibProviderReceivable.sol";
 
-/// @dev Interface for StakingFacet to update reservation timestamps
+/// @dev Interface for ProviderNetworkFacet to update reservation timestamps
 interface IStakingFacet {
     function updateLastReservation(
         address provider
@@ -68,7 +69,7 @@ abstract contract BaseReservationFacet is InstitutionalReservableTokenEnumerable
     uint256 internal constant _CANCEL_FEE_PROVIDER = 1;
     uint256 internal constant _CANCEL_FEE_TREASURY = 1;
     uint256 internal constant _CANCEL_FEE_GOVERNANCE = 1;
-    uint256 internal constant _MIN_CANCELLATION_FEE = 10_000; // 0.01 tokens assuming 6 decimals
+    uint256 internal constant _MIN_CANCELLATION_FEE = 1; // 0.1 tokens assuming 1 decimal
     uint256 internal constant _ORPHAN_PAYOUT_DELAY = 90 days;
 
     /// @dev Modifier to restrict access to functions callable only by accounts with DEFAULT_ADMIN_ROLE
@@ -291,6 +292,9 @@ abstract contract BaseReservationFacet is InstitutionalReservableTokenEnumerable
         if (!s.tokenStatus[labId]) {
             return false;
         }
+        if (s.providerNetworkStatus[labProvider] != ProviderNetworkStatus.ACTIVE) {
+            return false;
+        }
 
         uint256 listedLabsCount = s.providerStakes[labProvider].listedLabsCount;
         uint256 requiredStake = calculateRequiredStake(labProvider, listedLabsCount);
@@ -304,7 +308,7 @@ abstract contract BaseReservationFacet is InstitutionalReservableTokenEnumerable
         Reservation storage reservation,
         uint256 labId
     ) internal returns (bool) {
-        if (reservation.status == _COLLECTED || reservation.status == _CANCELLED) {
+        if (reservation.status == _SETTLED || reservation.status == _CANCELLED) {
             return false;
         }
 
@@ -320,13 +324,13 @@ abstract contract BaseReservationFacet is InstitutionalReservableTokenEnumerable
         }
 
         uint8 previousStatus = reservation.status;
-        reservation.status = _COLLECTED;
+        reservation.status = _SETTLED;
         if (previousStatus == _IN_USE) {
             LibReputation.recordCompletion(labId);
         }
 
         if (reservationPrice > 0) {
-            _creditRevenueBuckets(s, reservation);
+            _creditRevenueBuckets(s, reservation, key);
         }
 
         // Track as past reservation using scheduled end time for ordering
@@ -365,14 +369,15 @@ abstract contract BaseReservationFacet is InstitutionalReservableTokenEnumerable
         uint256 labId,
         uint256 timestamp
     ) internal {
-        if (timestamp > s.pendingProviderLastUpdated[labId]) {
-            s.pendingProviderLastUpdated[labId] = timestamp;
+        if (timestamp > s.providerReceivableLastAccruedAt[labId]) {
+            s.providerReceivableLastAccruedAt[labId] = timestamp;
         }
     }
 
     function _creditRevenueBuckets(
         AppStorage storage s,
-        Reservation storage reservation
+        Reservation storage reservation,
+        bytes32 reservationKey
     ) internal {
         uint96 providerShare = reservation.providerShare;
         uint96 treasuryShare = reservation.projectTreasuryShare;
@@ -380,8 +385,8 @@ abstract contract BaseReservationFacet is InstitutionalReservableTokenEnumerable
         uint96 governanceShare = reservation.governanceShare;
 
         if (providerShare > 0) {
-            s.pendingProviderPayout[reservation.labId] += providerShare;
-            _updatePendingProviderTimestamp(s, reservation.labId, reservation.end);
+            LibProviderReceivable.accrueReceivable(reservation.labId, providerShare, reservationKey);
+            LibProviderReceivable.updateAccruedTimestamp(reservation.labId, reservation.end);
         }
         if (treasuryShare > 0) {
             s.pendingProjectTreasury += treasuryShare;
@@ -442,7 +447,7 @@ abstract contract BaseReservationFacet is InstitutionalReservableTokenEnumerable
         // forge-lint: disable-next-line(unsafe-typecast)
         uint96 totalFee = uint96((uint256(price) * _CANCEL_FEE_TOTAL) / _REVENUE_DENOMINATOR);
 
-        // Enforce minimum fee of 0.01 tokens (6 decimals) but never exceed the price
+        // Enforce minimum fee of 0.1 tokens (1 decimal) but never exceed the price
         // forge-lint: disable-next-line(unsafe-typecast)
         uint96 minFee = price < _MIN_CANCELLATION_FEE ? price : uint96(_MIN_CANCELLATION_FEE);
         if (totalFee < minFee) {
@@ -475,11 +480,12 @@ abstract contract BaseReservationFacet is InstitutionalReservableTokenEnumerable
         uint256 labId,
         uint96 providerFee,
         uint96 treasuryFee,
-        uint96 governanceFee
+        uint96 governanceFee,
+        bytes32 reservationKey
     ) internal {
         if (providerFee > 0) {
-            s.pendingProviderPayout[labId] += providerFee;
-            _updatePendingProviderTimestamp(s, labId, block.timestamp);
+            LibProviderReceivable.accrueReceivable(labId, providerFee, reservationKey);
+            LibProviderReceivable.updateAccruedTimestamp(labId, block.timestamp);
         }
         if (treasuryFee > 0) {
             s.pendingProjectTreasury += treasuryFee;

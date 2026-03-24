@@ -2,7 +2,7 @@
 pragma solidity ^0.8.33;
 
 import {Test} from "forge-std/Test.sol";
-import {ReservationHarness, MockERC20} from "./GasReservations.t.sol";
+import {ReservationHarness} from "./GasReservations.t.sol";
 
 contract GasReservationsScalingTest is Test {
     uint96 price = 1e6;
@@ -14,18 +14,15 @@ contract GasReservationsScalingTest is Test {
         for (uint256 si = 0; si < sizes.length; ++si) {
             uint256 n = sizes[si];
 
-            // Deploy fresh harness + token for isolation
-            MockERC20 token = new MockERC20();
+            // Deploy fresh harness for isolation
             ReservationHarness harness = new ReservationHarness();
-            harness.initializeHarness(address(token));
+            harness.initializeHarness(address(0));
             uint256 labId = harness.mintAndList(price);
 
             // create n distinct pending reservations (distinct users to avoid user caps)
             for (uint256 i = 0; i < n; ++i) {
                 address u = address(uint160(0x100 + i));
-                token.mint(u, 1 ether);
-                vm.prank(u);
-                token.approve(address(harness), type(uint256).max);
+                harness.setServiceCreditBalance(u, 1 ether);
 
                 uint32 s = startBase + uint32(i + 1);
                 vm.prank(u);

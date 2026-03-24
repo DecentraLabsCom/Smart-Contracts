@@ -28,12 +28,6 @@ contract InstitutionalTreasuryFacet is ReentrancyGuardTransient {
     /// @notice Emitted when an institution revokes backend authorization
     event BackendRevoked(address indexed institution, address indexed backend);
 
-    /// @notice Emitted when tokens are deposited to institutional treasury
-    event InstitutionalTreasuryDeposit(address indexed institution, uint256 indexed amount, uint256 newBalance);
-
-    /// @notice Emitted when tokens are withdrawn from institutional treasury
-    event InstitutionalTreasuryWithdrawal(address indexed institution, uint256 indexed amount, uint256 newBalance);
-
     /// @notice Emitted when institutional user spending limit is updated
     event InstitutionalUserLimitUpdated(address indexed institution, uint256 newLimit);
 
@@ -212,42 +206,6 @@ contract InstitutionalTreasuryFacet is ReentrancyGuardTransient {
             s.institutionalBackends[institution] = newBackend;
             emit BackendAuthorized(institution, newBackend);
         }
-    }
-
-    /// @notice Deposit tokens to the institution's institutional treasury (global)
-    /// @dev Institution must approve tokens before calling this function
-    /// @param amount Amount of tokens to deposit
-    /// @custom:security nonReentrant modifier protects against reentrancy attacks
-    function depositToInstitutionalTreasury(
-        uint256 amount
-    ) external nonReentrant onlyInstitutionCaller {
-        AppStorage storage s = LibAppStorage.diamondStorage();
-        require(amount > 0, "Amount must be > 0");
-
-        // Transfer tokens from institution to Diamond contract using SafeERC20
-        IERC20(s.labTokenAddress).safeTransferFrom(msg.sender, address(this), amount);
-
-        s.institutionalTreasury[msg.sender] += amount;
-        emit InstitutionalTreasuryDeposit(msg.sender, amount, s.institutionalTreasury[msg.sender]);
-    }
-
-    /// @notice Withdraw tokens from the institution's institutional treasury
-    /// @dev Allows institution to retrieve unspent funds from their treasury
-    /// @param amount Amount of tokens to withdraw
-    /// @custom:security nonReentrant modifier protects against reentrancy attacks
-    function withdrawFromInstitutionalTreasury(
-        uint256 amount
-    ) external nonReentrant onlyInstitutionCaller {
-        AppStorage storage s = LibAppStorage.diamondStorage();
-        require(amount > 0, "Amount must be > 0");
-        require(s.institutionalTreasury[msg.sender] >= amount, "Insufficient treasury balance");
-
-        s.institutionalTreasury[msg.sender] -= amount;
-
-        // Transfer tokens back to institution using SafeERC20
-        IERC20(s.labTokenAddress).safeTransfer(msg.sender, amount);
-
-        emit InstitutionalTreasuryWithdrawal(msg.sender, amount, s.institutionalTreasury[msg.sender]);
     }
 
     /// @notice Set the spending limit per institutional user (global for institution)

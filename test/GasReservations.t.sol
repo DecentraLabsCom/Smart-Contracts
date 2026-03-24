@@ -7,7 +7,7 @@ import {WalletReservationReleaseFacet} from "../contracts/facets/reservation/wal
 import {
     WalletReservationConfirmationFacet
 } from "../contracts/facets/reservation/wallet/WalletReservationConfirmationFacet.sol";
-import {AppStorage, LabBase, LibAppStorage} from "../contracts/libraries/LibAppStorage.sol";
+import {AppStorage, LabBase, LibAppStorage, ProviderNetworkStatus} from "../contracts/libraries/LibAppStorage.sol";
 import {LibWalletReservationConfirmation} from "../contracts/libraries/LibWalletReservationConfirmation.sol";
 import {ReservableTokenEnumerable} from "../contracts/abstracts/ReservableTokenEnumerable.sol";
 import {LibAccessControlEnumerable} from "../contracts/libraries/LibAccessControlEnumerable.sol";
@@ -42,6 +42,15 @@ contract ReservationHarness is ERC721Enumerable, WalletReservationCoreFacet, Wal
         s.DEFAULT_ADMIN_ROLE = keccak256("DEFAULT_ADMIN_ROLE");
         s._addProviderRole(msg.sender, "provider", "provider@example.com", "ES", "");
         s.providerStakes[msg.sender].stakedAmount = type(uint256).max;
+        s.providerNetworkStatus[msg.sender] = ProviderNetworkStatus.ACTIVE;
+    }
+
+    function setServiceCreditBalance(
+        address account,
+        uint256 amount
+    ) external {
+        AppStorage storage s = LibAppStorage.diamondStorage();
+        s.serviceCreditBalance[account] = amount;
     }
 
     function mintAndList(
@@ -143,22 +152,18 @@ contract ReservationHarness is ERC721Enumerable, WalletReservationCoreFacet, Wal
 
 contract GasReservationsTest is Test {
     ReservationHarness harness;
-    MockERC20 token;
     address user = address(0xBEEF);
     uint256 labId;
     uint96 price = 1e6;
 
     function setUp() public {
-        token = new MockERC20();
         harness = new ReservationHarness();
-        harness.initializeHarness(address(token));
+        harness.initializeHarness(address(0));
 
         labId = harness.mintAndList(price);
 
-        // Give user funds and approval
-        token.mint(user, 10 ether);
-        vm.prank(user);
-        token.approve(address(harness), type(uint256).max);
+        // Seed closed service credits for the renter
+        harness.setServiceCreditBalance(user, 10 ether);
     }
 
     function _reservationKey(

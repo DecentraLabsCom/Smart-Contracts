@@ -7,40 +7,6 @@ import "./Harnesses.sol";
 import "../contracts/facets/reservation/wallet/WalletReservationCoreFacet.sol";
 import "../contracts/libraries/LibAppStorage.sol";
 
-// Minimal ERC20 used for tests
-contract DummyERC20 {
-    mapping(address => uint256) public balances;
-    mapping(address => mapping(address => uint256)) public allowances;
-
-    function setBalance(
-        address who,
-        uint256 amount
-    ) external {
-        balances[who] = amount;
-    }
-
-    function setAllowance(
-        address owner,
-        address spender,
-        uint256 amount
-    ) external {
-        allowances[owner][spender] = amount;
-    }
-
-    function balanceOf(
-        address who
-    ) external view returns (uint256) {
-        return balances[who];
-    }
-
-    function allowance(
-        address owner,
-        address spender
-    ) external view returns (uint256) {
-        return allowances[owner][spender];
-    }
-}
-
 contract WalletRequestHarness is WalletReservationCoreFacet {
     mapping(uint256 => address) public owners;
 
@@ -73,19 +39,20 @@ contract WalletRequestHarness is WalletReservationCoreFacet {
         s.labs[tokenId].price = price;
     }
 
-    function setLabTokenAddress(
-        address addr
-    ) external {
-        AppStorage storage s = LibAppStorage.diamondStorage();
-        s.labTokenAddress = addr;
-    }
-
     function setProviderStake(
         address p,
         uint256 v
     ) external {
         AppStorage storage s = LibAppStorage.diamondStorage();
         s.providerStakes[p].stakedAmount = v;
+    }
+
+    function setServiceCreditBalance(
+        address account,
+        uint256 amount
+    ) external {
+        AppStorage storage s = LibAppStorage.diamondStorage();
+        s.serviceCreditBalance[account] = amount;
     }
 
     function request(
@@ -113,12 +80,10 @@ contract WalletRequestHarness is WalletReservationCoreFacet {
 
 contract WalletReservationRequestTest is BaseTest {
     WalletRequestHarness public harness;
-    DummyERC20 public token;
 
     function setUp() public override {
         super.setUp();
         harness = new WalletRequestHarness();
-        token = new DummyERC20();
     }
 
     function test_reservationRequest_reverts_when_lab_not_listed() public {
@@ -137,28 +102,9 @@ contract WalletReservationRequestTest is BaseTest {
         harness.setProviderStake(address(this), 1_000_000); // keep stake high enough
 
         harness.setLabPrice(labId, 1000);
-        harness.setLabTokenAddress(address(token));
 
-        // set balance lower than price
-        token.setBalance(address(this), 10);
-        token.setAllowance(address(this), address(harness), 1000);
-
-        vm.expectRevert();
-        harness.request(labId, uint32(block.timestamp + 100), uint32(block.timestamp + 200));
-    }
-
-    function test_reservationRequest_low_allowance_reverts() public {
-        uint256 labId = 13;
-        harness.setOwner(labId, address(this));
-        harness.setTokenStatus(labId, true);
-        harness.setProviderStake(address(this), 1_000_000);
-
-        harness.setLabPrice(labId, 1); // 1 unit per second
-        harness.setLabTokenAddress(address(token));
-
-        // ensure balance covers total price (duration=100 -> total=100)
-        token.setBalance(address(this), 2000);
-        token.setAllowance(address(this), address(harness), 10); // too low
+        // set managed balance lower than price
+        harness.setServiceCreditBalance(address(this), 10);
 
         vm.expectRevert();
         harness.request(labId, uint32(block.timestamp + 100), uint32(block.timestamp + 200));
@@ -171,11 +117,9 @@ contract WalletReservationRequestTest is BaseTest {
         harness.setProviderStake(address(this), 1_000_000);
 
         harness.setLabPrice(labId, 500);
-        harness.setLabTokenAddress(address(token));
 
         // total price = 500 * 3600 = 1,800,000
-        token.setBalance(address(harness), 2_000_000);
-        token.setAllowance(address(harness), address(harness), 2_000_000);
+        harness.setServiceCreditBalance(address(harness), 2_000_000);
 
         uint32 start = uint32(block.timestamp + 3600);
         uint32 end = start + 3600;

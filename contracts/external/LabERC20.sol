@@ -3,9 +3,6 @@ pragma solidity ^0.8.31;
 
 import {ERC20Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
 import {
-    ERC20BurnableUpgradeable
-} from "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC20BurnableUpgradeable.sol";
-import {
     ERC20PausableUpgradeable
 } from "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC20PausableUpgradeable.sol";
 import {
@@ -21,16 +18,18 @@ import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Ini
 /// @author
 /// - Juan Luis Ramos Villalón
 /// - Luis de la Torre Cubillo
-/// @notice A secure ERC20 token implementation with role-based access control, burning, emergency pause, and supply cap
-/// @dev Inherits from Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, ERC20PausableUpgradeable, ERC20CappedUpgradeable, and AccessControlUpgradeable
+/// @notice A restricted ERC20 token used only within the DecentraLabs limited network.
+///         External transfers, approvals, and permit operations are disabled.
+///         Only protocol-internal operations (mint, pause) are allowed.
+/// @dev Inherits from Initializable, ERC20Upgradeable, ERC20PausableUpgradeable, ERC20CappedUpgradeable, and AccessControlUpgradeable
 /// @dev Uses MINTER_ROLE to restrict token minting and PAUSER_ROLE for emergency pause functionality
-/// @dev Maximum supply is capped at 1,000,000 tokens (1,000,000,000,000 base units with 6 decimals)
+/// @dev Maximum supply is capped at 1,000,000 tokens (10,000,000 base units with 1 decimal)
+/// @dev Non-transferability is enforced technically: transfer, transferFrom, approve, and permit all revert unconditionally.
 
 contract LabERC20 is
     Initializable,
     ERC20Upgradeable,
     ERC20PermitUpgradeable,
-    ERC20BurnableUpgradeable,
     ERC20PausableUpgradeable,
     ERC20CappedUpgradeable,
     AccessControlUpgradeable
@@ -43,9 +42,9 @@ contract LabERC20 is
     /// @dev This role is required to call pause() and unpause() functions
     bytes32 public constant PAUSER_ROLE = keccak256("PAUSER_ROLE");
 
-    /// @notice Maximum supply cap for the token (1,000,000 tokens = 1,000,000,000,000 base units)
+    /// @notice Maximum supply cap for the token (1,000,000 tokens = 10,000,000 base units)
     /// @dev This cap prevents infinite inflation and limits total supply
-    uint256 private constant _MAX_SUPPLY = 1_000_000_000_000; // 1M tokens with 6 decimals
+    uint256 private constant _MAX_SUPPLY = 10_000_000; // 1M tokens with 1 decimal
 
     /// @notice Emitted when tokens are minted by an authorized minter
     /// @param to The address that received the minted tokens
@@ -53,12 +52,6 @@ contract LabERC20 is
     /// @param minter The address that performed the mint operation
     /// @param totalSupply The new total supply after minting
     event TokensMinted(address indexed to, uint256 amount, address indexed minter, uint256 totalSupply);
-
-    /// @notice Emitted when tokens are burned
-    /// @param from The address whose tokens were burned
-    /// @param amount The amount of tokens burned (in base units)
-    /// @param totalSupply The new total supply after burning
-    event TokensBurned(address indexed from, uint256 amount, uint256 totalSupply);
 
     /// @notice Emitted when the contract is paused by an authorized address
     /// @param account The address that triggered the pause
@@ -85,7 +78,6 @@ contract LabERC20 is
 
         __ERC20_init(string.concat("$", _symbol), _symbol);
         __ERC20Permit_init(string.concat("$", _symbol));
-        __ERC20Burnable_init();
         __ERC20Pausable_init();
         __ERC20Capped_init(_MAX_SUPPLY);
         __AccessControl_init();
@@ -113,28 +105,6 @@ contract LabERC20 is
         emit TokensMinted(account, amount, msg.sender, totalSupply());
     }
 
-    /// @notice Burns tokens from the caller's account
-    /// @dev Overrides ERC20Burnable to add extended event
-    /// @param amount The amount of tokens to burn
-    function burn(
-        uint256 amount
-    ) public override {
-        super.burn(amount);
-        emit TokensBurned(msg.sender, amount, totalSupply());
-    }
-
-    /// @notice Burns tokens from a specified account (requires allowance)
-    /// @dev Overrides ERC20Burnable to add extended event
-    /// @param account The account from which to burn tokens
-    /// @param amount The amount of tokens to burn
-    function burnFrom(
-        address account,
-        uint256 amount
-    ) public override {
-        super.burnFrom(account, amount);
-        emit TokensBurned(account, amount, totalSupply());
-    }
-
     /// @notice Pauses all token transfers and operations
     /// @dev Can only be called by addresses with PAUSER_ROLE
     /// @param reason The reason for pausing (e.g., "Security exploit detected")
@@ -155,10 +125,10 @@ contract LabERC20 is
     }
 
     /// @notice Returns the number of decimal places used in token amounts
-    /// @dev This implementation uses 6 decimal places for token precision
-    /// @return uint8 The number of decimal places (6)
+    /// @dev This implementation uses 1 decimal place for token precision (1 EUR = 10 credits)
+    /// @return uint8 The number of decimal places (1)
     function decimals() public pure override returns (uint8) {
-        return 6;
+        return 1;
     }
 
     /// @notice Internal function called on transfers/mints/burns
@@ -169,5 +139,34 @@ contract LabERC20 is
         uint256 amount
     ) internal override(ERC20Upgradeable, ERC20PausableUpgradeable, ERC20CappedUpgradeable) {
         super._update(from, to, amount);
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // Non-transferability enforcement
+    // ═══════════════════════════════════════════════════════════════════════════
+    // The following overrides disable all external token movement and approval
+    // functions. Only protocol-internal operations (mint via MINTER_ROLE)
+    // are permitted. This enforces the limited-network posture
+    // required by MiCA article 4.3.d.
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    /// @notice Disabled — token is non-transferable
+    function transfer(address, uint256) public pure override returns (bool) {
+        revert("LabERC20: transfers disabled");
+    }
+
+    /// @notice Disabled — token is non-transferable
+    function transferFrom(address, address, uint256) public pure override returns (bool) {
+        revert("LabERC20: transfers disabled");
+    }
+
+    /// @notice Disabled — token is non-transferable
+    function approve(address, uint256) public pure override returns (bool) {
+        revert("LabERC20: approvals disabled");
+    }
+
+    /// @notice Disabled — token is non-transferable
+    function permit(address, address, uint256, uint256, uint8, bytes32, bytes32) public pure override {
+        revert("LabERC20: permit disabled");
     }
 }

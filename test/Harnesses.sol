@@ -111,24 +111,6 @@ contract WalletCancellationHarness is WalletReservationCancellationFacet {
         return owners[tokenId];
     }
 
-    // minimal ERC20 transfer stub so SafeERC20 calls succeed in tests
-    function transfer(
-        address to,
-        uint256 amount
-    ) external pure returns (bool) {
-        // succeed silently
-        to;
-        amount;
-        return true;
-    }
-
-    function setLabTokenAddress(
-        address addr
-    ) external {
-        AppStorage storage s = LibAppStorage.diamondStorage();
-        s.labTokenAddress = addr;
-    }
-
     function setReservation(
         bytes32 key,
         address renter,
@@ -158,6 +140,29 @@ contract WalletCancellationHarness is WalletReservationCancellationFacet {
         r.requestPeriodDuration = uint64(d);
 
         // reservation index sets are not required by these unit tests and are omitted in the harness
+    }
+
+    function setServiceCreditBalance(
+        address account,
+        uint256 amount
+    ) external {
+        AppStorage storage s = LibAppStorage.diamondStorage();
+        s.serviceCreditBalance[account] = amount;
+    }
+
+    function setCreditLockedBalance(
+        address account,
+        uint256 amount
+    ) external {
+        AppStorage storage s = LibAppStorage.diamondStorage();
+        s.creditLockedBalance[account] = amount;
+    }
+
+    function getServiceCreditBalance(
+        address account
+    ) external view returns (uint256) {
+        AppStorage storage s = LibAppStorage.diamondStorage();
+        return s.serviceCreditBalance[account];
     }
 
     // public wrapper to call internal cancel booking
@@ -294,6 +299,7 @@ contract ConfirmHarness is InstitutionalReservationConfirmationFacet {
     ) external {
         AppStorage storage s = LibAppStorage.diamondStorage();
         s.providerStakes[p].stakedAmount = amount;
+        s.providerNetworkStatus[p] = ProviderNetworkStatus.ACTIVE;
     }
 
     function getReservationStatus(
@@ -356,7 +362,7 @@ contract LabAdminResourceTypeHarness {
         uint256 amount
     ) external {
         AppStorage storage s = LibAppStorage.diamondStorage();
-        s.pendingProviderPayout[labId] = amount;
+        s.providerReceivableAccrued[labId] = amount;
     }
 
     function updateLab(

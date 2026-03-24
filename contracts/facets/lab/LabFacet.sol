@@ -6,6 +6,7 @@ import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet
 import {AppStorage} from "../../libraries/LibAppStorage.sol";
 import {LibAccessControlEnumerable} from "../../libraries/LibAccessControlEnumerable.sol";
 import {LibLabTransfer} from "../../libraries/LibLabTransfer.sol";
+import {LibProviderReceivable} from "../../libraries/LibProviderReceivable.sol";
 import {ReservableToken} from "../../abstracts/ReservableToken.sol";
 
 using EnumerableSet for EnumerableSet.Bytes32Set;
@@ -195,6 +196,10 @@ contract LabFacet is ERC721Upgradeable, ReservableToken {
         // from != address(0) means it's not a mint
         // to != address(0) means it's not a burn
         if (from != address(0) && to != address(0)) {
+            require(
+                !LibProviderReceivable.hasUnsettledReceivable(tokenId),
+                "Lab has unsettled receivables"
+            );
             LibLabTransfer.handleListingOnTransfer(from, to, tokenId);
             LibLabTransfer.migrateReservationsOnTransfer(from, to, tokenId, _MAX_CLEANUP_PER_TRANSFER);
         }

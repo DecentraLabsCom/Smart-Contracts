@@ -40,13 +40,32 @@ contract WalletReservationCancellationTest is BaseTest {
 
         // set owner so ownerOf calls succeed in the harness
         harness.setOwner(labId, user1);
-        // set token to harness so SafeERC20.safeTransfer succeeds
-        harness.setLabTokenAddress(address(harness));
 
         vm.prank(user1);
         harness.ext_cancelBooking(key);
 
         // reservation should be cancelled
         assertEq(harness.getReservationStatus(key), uint8(5)); // _CANCELLED
+        assertEq(harness.getServiceCreditBalance(user1), 0);
+    }
+
+    function test_cancelBooking_wallet_refunds_service_credit() public {
+        uint256 labId = 57;
+        uint32 start = 6000;
+        bytes32 key = keccak256(abi.encodePacked(labId, start));
+
+        harness.setReservation(key, user1, 1_000_000, _CONFIRMED, labId, start, address(0x0), "");
+        harness.setOwner(labId, user1);
+        // Simulate the lock that happens on confirmation in the new credit ledger model
+        harness.setServiceCreditBalance(user1, 1_000_000);
+        harness.setCreditLockedBalance(user1, 1_000_000);
+
+        vm.prank(user1);
+        harness.ext_cancelBooking(key);
+
+        assertEq(harness.getReservationStatus(key), uint8(5));
+        // Refund = 970_000 (97% of price), fee captured = 30_000 (3%)
+        // Total balance = 1_000_000 - 30_000 (captured) = 970_000
+        assertEq(harness.getServiceCreditBalance(user1), 970_000);
     }
 }

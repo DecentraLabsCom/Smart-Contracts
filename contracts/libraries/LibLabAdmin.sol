@@ -250,7 +250,8 @@ library LibLabAdmin {
         uint256 _labId
     ) internal view returns (bool) {
         AppStorage storage s = _s();
-        return s.labActiveReservationCount[_labId] > 0 || s.pendingProviderPayout[_labId] > 0;
+        return s.labActiveReservationCount[_labId] > 0 || s.providerReceivableAccrued[_labId] > 0
+            || s.providerSettlementQueue[_labId] > 0;
     }
 
     function _addActiveLabToIndex(

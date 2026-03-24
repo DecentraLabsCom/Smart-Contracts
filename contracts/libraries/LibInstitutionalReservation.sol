@@ -128,7 +128,7 @@ library LibInstitutionalReservation {
         LibReservationCancellation.cancelReservation(reservationKey);
 
         if (price > 0) {
-            LibReservationCancellation.applyCancellationFees(labId, providerFee, treasuryFee, governanceFee);
+            LibReservationCancellation.applyCancellationFees(labId, providerFee, treasuryFee, governanceFee, reservationKey);
         }
 
         IInstitutionalTreasuryFacet(address(this))

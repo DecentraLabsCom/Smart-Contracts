@@ -8,13 +8,14 @@ import {
     PROVIDER_ROLE,
     INSTITUTION_ROLE,
     Provider,
-    ProviderBase
+    ProviderBase,
+    ProviderNetworkStatus
 } from "../libraries/LibAppStorage.sol";
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import {LibDiamond} from "../libraries/LibDiamond.sol";
 import {ReentrancyGuardTransient} from "@openzeppelin/contracts/utils/ReentrancyGuardTransient.sol";
 import {LibAccessControlEnumerable} from "../libraries/LibAccessControlEnumerable.sol";
-import {LabERC20} from "../external/LabERC20.sol"; // Import the LabERC20 contract, no yet implemented
+import {LabERC20} from "../external/LabERC20.sol";
 
 /// @title ProviderFacet Contract
 /// @author Juan Luis Ramos Villalón
@@ -22,17 +23,17 @@ import {LabERC20} from "../external/LabERC20.sol"; // Import the LabERC20 contra
 /// @notice This contract is part of a diamond architecture.
 /// @dev This contract manages the providers in the system, allowing for the addition, removal, and updating of provider information.
 ///      It also includes role-based access control to restrict certain actions to administrators or providers.
-///      The contract integrates with the LabERC20 token to mint initial tokens for new providers.
+///      Provider onboarding now issues non-monetary service credits instead of ERC-20 tokens.
 /// @notice The contract uses the Diamond Standard (EIP-2535) for modularity and extensibility, enabling seamless upgrades and modular design.
 /// @custom:security Only accounts with the appropriate roles can perform restricted actions.
 contract ProviderFacet is AccessControlUpgradeable, ReentrancyGuardTransient {
     using LibAccessControlEnumerable for AppStorage;
     using EnumerableSet for EnumerableSet.AddressSet;
 
-    /// @dev Represents the initial amount of LAB tokens minted to new providers.
-    /// Total: 1000 tokens (1,000,000,000 units with 6 decimals)
-    /// Distribution: 800 tokens automatically staked + 200 tokens to institutional treasury
-    uint32 constant INITIAL_LAB_TOKENS = 1_000_000_000;
+    /// @dev Represents the initial service credits issued to new providers for onboarding.
+    /// These are non-monetary credits, not ERC-20 tokens.
+    /// Distribution: credits used for platform familiarization only.
+    uint32 constant INITIAL_SERVICE_CREDITS = 10_000; // 1000 credits with 1 decimal
 
     /// @dev Emitted when a new provider is added to the system.
     /// @param _account The address of the provider being added.
@@ -41,16 +42,10 @@ contract ProviderFacet is AccessControlUpgradeable, ReentrancyGuardTransient {
     /// @param _country The country of the provider.
     event ProviderAdded(address indexed _account, string _name, string _email, string _country);
 
-    /// @dev Emitted when a provider is added but initial tokens cannot be minted due to cap
+    /// @dev Emitted when a provider is added with initial service credits
     /// @param _account The address of the provider being added.
-    /// @param reason The reason why tokens could not be minted.
-    event ProviderAddedWithoutTokens(address indexed _account, string reason);
-
-    /// @dev Emitted when initial institutional treasury is set for a provider
-    /// @param provider The address of the provider.
-    /// @param amount The amount deposited to institutional treasury.
-    /// @param limit The default spending limit per user.
-    event InstitutionalTreasuryInitialized(address indexed provider, uint256 amount, uint256 limit);
+    /// @param credits The amount of service credits issued.
+    event ProviderServiceCreditsIssued(address indexed _account, uint256 credits);
 
     /// @dev Emitted when a provider authorizes a backend address
     /// @param provider The provider address
@@ -72,6 +67,16 @@ contract ProviderFacet is AccessControlUpgradeable, ReentrancyGuardTransient {
     /// @param _provider The address of the provider.
     /// @param _authURI The authentication service base URL.
     event ProviderAuthURIUpdated(address indexed _provider, string _authURI);
+
+    /// @dev Emitted when a provider's limited-network participation status changes.
+    /// @param provider The address of the provider.
+    /// @param previousStatus The previous network status.
+    /// @param newStatus The new network status.
+    event ProviderNetworkStatusChanged(
+        address indexed provider,
+        ProviderNetworkStatus previousStatus,
+        ProviderNetworkStatus newStatus
+    );
 
     /// @dev Modifier to restrict access to functions that can only be executed by accounts
     ///      with the `DEFAULT_ADMIN_ROLE`. Ensures that the caller of the function has the
@@ -115,14 +120,12 @@ contract ProviderFacet is AccessControlUpgradeable, ReentrancyGuardTransient {
 
     /// @notice Adds a new provider to the system.
     /// @dev Grants the `PROVIDER_ROLE` to the specified account and initializes the provider's details.
-    ///      Mints 1000 tokens: 800 to Diamond (automatically staked) + 200 to institutional treasury.
-    ///      Sets default institutional user spending limit (10 tokens).
-    ///      If minting fails (e.g., supply cap reached), the provider is still added without tokens.
-    ///      Marks whether the provider received initial tokens for staking requirements.
+    ///      Issues non-monetary service credits for platform familiarization.
+    ///      Sets default institutional user spending limit.
+    ///      No ERC-20 tokens are minted — provider economics use service credits only.
     ///      Optionally sets the provider's authentication URI during registration.
-    ///      Emits a `ProviderAdded` event upon successful addition with tokens.
-    ///      Emits a `ProviderAddedWithoutTokens` event if tokens cannot be minted.
-    ///      Emits a `ProviderAuthURIUpdated` event if authURI is provided.
+    ///      Emits a `ProviderAdded` event upon successful addition.
+    ///      Emits a `ProviderServiceCreditsIssued` event when credits are issued.
     ///      Reverts if the provider already exists.
     /// @param _name The name of the provider.
     /// @param _account The address of the provider's account.
@@ -160,80 +163,27 @@ contract ProviderFacet is AccessControlUpgradeable, ReentrancyGuardTransient {
             emit ProviderAuthURIUpdated(_account, _authURI);
         }
 
-        // Try to mint initial tokens (1000 total), but don't revert if it fails (e.g., cap reached)
-        uint256 treasuryAmount = 200_000_000; // 200 tokens to institutional treasury
-        uint256 stakeAmount = 800_000_000; // 800 tokens to Diamond (staked)
-        uint256 totalAmount = treasuryAmount + stakeAmount;
+        // Issue non-monetary service credits for platform familiarization
+        AppStorage storage s = _s();
+        s.serviceCreditBalance[_account] = INITIAL_SERVICE_CREDITS;
 
-        bool canMintProvider = _s().providerPoolMinted + totalAmount <= LibAppStorage.PROVIDER_POOL_CAP;
+        // Activate provider in the limited network
+        s.providerNetworkStatus[_account] = ProviderNetworkStatus.ACTIVE;
 
-        if (canMintProvider) {
-            // EFFECTS: Update all state BEFORE external mint calls (CEI pattern)
-            AppStorage storage s = _s();
-            s.providerStakes[_account].receivedInitialTokens = true;
-            s.providerStakes[_account].stakedAmount = stakeAmount;
-            s.providerStakes[_account].initialStakeTimestamp = block.timestamp;
-            s.institutionalTreasury[_account] = treasuryAmount;
-            s.providerPoolMinted += totalAmount;
-            s.institutionalUserLimit[_account] = LibAppStorage.DEFAULT_INSTITUTIONAL_USER_LIMIT;
-            s.institutionalSpendingPeriod[_account] = LibAppStorage.DEFAULT_SPENDING_PERIOD;
-            s.institutionalBackends[_account] = _account;
+        // Set institutional defaults (spending limits, period, backend)
+        s.institutionalUserLimit[_account] = LibAppStorage.DEFAULT_INSTITUTIONAL_USER_LIMIT;
+        s.institutionalSpendingPeriod[_account] = LibAppStorage.DEFAULT_SPENDING_PERIOD;
+        s.institutionalBackends[_account] = _account;
 
-            // INTERACTIONS: Execute external calls AFTER state updates
-            try LabERC20(s.labTokenAddress).mint(address(this), treasuryAmount) {
-                try LabERC20(s.labTokenAddress).mint(address(this), stakeAmount) {
-                    emit InstitutionalTreasuryInitialized(
-                        _account, treasuryAmount, LibAppStorage.DEFAULT_INSTITUTIONAL_USER_LIMIT
-                    );
-                    emit BackendAuthorized(_account, _account);
-                    emit ProviderAdded(_account, _name, _email, _country);
-                } catch {
-                    // If stake mint fails, revert state changes
-                    s.providerStakes[_account].receivedInitialTokens = false;
-                    s.providerStakes[_account].stakedAmount = 0;
-                    s.providerStakes[_account].initialStakeTimestamp = 0;
-                    s.institutionalTreasury[_account] = 0;
-                    s.providerPoolMinted -= totalAmount;
-                    revert("Failed to mint stake tokens");
-                }
-            } catch Error(string memory reason) {
-                // Revert state changes if treasury mint fails
-                s.providerStakes[_account].receivedInitialTokens = false;
-                s.providerStakes[_account].stakedAmount = 0;
-                s.providerStakes[_account].initialStakeTimestamp = 0;
-                s.institutionalTreasury[_account] = 0;
-                s.providerPoolMinted -= totalAmount;
-
-                emit ProviderAddedWithoutTokens(_account, reason);
-            } catch {
-                // Revert state changes if minting fails
-                s.providerStakes[_account].receivedInitialTokens = false;
-                s.providerStakes[_account].stakedAmount = 0;
-                s.providerStakes[_account].initialStakeTimestamp = 0;
-                s.institutionalTreasury[_account] = 0;
-                s.providerPoolMinted -= totalAmount;
-
-                emit ProviderAddedWithoutTokens(_account, "Token minting failed: supply cap reached or other error");
-            }
-        } else {
-            // Not enough tokens left in provider pool cap, add provider without tokens
-            _s().providerStakes[_account].receivedInitialTokens = false;
-            _s().institutionalTreasury[_account] = 0;
-            _s().institutionalUserLimit[_account] = LibAppStorage.DEFAULT_INSTITUTIONAL_USER_LIMIT;
-            _s().institutionalSpendingPeriod[_account] = LibAppStorage.DEFAULT_SPENDING_PERIOD;
-            _s().institutionalBackends[_account] = _account;
-
-            emit InstitutionalTreasuryInitialized(_account, 0, LibAppStorage.DEFAULT_INSTITUTIONAL_USER_LIMIT);
-
-            emit BackendAuthorized(_account, _account);
-
-            emit ProviderAddedWithoutTokens(_account, "Provider pool exhausted");
-        }
+        emit BackendAuthorized(_account, _account);
+        emit ProviderServiceCreditsIssued(_account, INITIAL_SERVICE_CREDITS);
+        emit ProviderNetworkStatusChanged(_account, ProviderNetworkStatus.NONE, ProviderNetworkStatus.ACTIVE);
+        emit ProviderAdded(_account, _name, _email, _country);
     }
 
     /// @notice Removes a provider from the system by revoking their PROVIDER_ROLE.
     /// @dev This function can only be called by an account with the DEFAULT_ADMIN_ROLE.
-    ///      Burns all staked tokens but keeps institutional configuration untouched.
+    ///      Clears provider service credits and stake data.
     ///      If the provider does not have the PROVIDER_ROLE, the transaction reverts with an error.
     ///      Emits a `ProviderRemoved` event upon successful removal.
     /// @param _provider The address of the provider to be removed.
@@ -246,19 +196,14 @@ contract ProviderFacet is AccessControlUpgradeable, ReentrancyGuardTransient {
         _revokeRole(PROVIDER_ROLE, _provider);
         AppStorage storage s = _s();
 
-        // EFFECTS: Update state BEFORE external call (CEI pattern)
-        uint256 stakedAmount = s.providerStakes[_provider].stakedAmount;
-        if (stakedAmount > 0) {
-            s.providerStakes[_provider].stakedAmount = 0;
-        }
+        // Clear provider data
         delete s.providerStakes[_provider];
+        s.serviceCreditBalance[_provider] = 0;
+        ProviderNetworkStatus prevStatus = s.providerNetworkStatus[_provider];
+        s.providerNetworkStatus[_provider] = ProviderNetworkStatus.TERMINATED;
         s._removeProviderRole(_provider);
 
-        // INTERACTIONS: Execute external call AFTER state updates
-        if (stakedAmount > 0) {
-            LabERC20(s.labTokenAddress).burn(stakedAmount);
-        }
-
+        emit ProviderNetworkStatusChanged(_provider, prevStatus, ProviderNetworkStatus.TERMINATED);
         emit ProviderRemoved(_provider);
     }
 
@@ -359,6 +304,46 @@ contract ProviderFacet is AccessControlUpgradeable, ReentrancyGuardTransient {
         uint256 limit
     ) external view returns (Provider[] memory providers, uint256 total) {
         return _s()._getLabProvidersPaginated(offset, limit);
+    }
+
+    /// @notice Sets the network participation status for an existing provider.
+    /// @dev Only callable by DEFAULT_ADMIN_ROLE. Valid transitions:
+    ///      ACTIVE -> SUSPENDED, SUSPENDED -> ACTIVE, any -> TERMINATED.
+    ///      Cannot set to NONE or revive a TERMINATED provider.
+    /// @param _provider The address of the provider.
+    /// @param _newStatus The new network status to assign.
+    function setProviderNetworkStatus(
+        address _provider,
+        ProviderNetworkStatus _newStatus
+    ) external onlyDefaultAdminRole {
+        require(hasRole(PROVIDER_ROLE, _provider), "Provider does not exist");
+        require(_newStatus != ProviderNetworkStatus.NONE, "Cannot set status to NONE");
+
+        AppStorage storage s = _s();
+        ProviderNetworkStatus current = s.providerNetworkStatus[_provider];
+        require(current != ProviderNetworkStatus.TERMINATED, "Cannot change status of terminated provider");
+        require(current != _newStatus, "Status already set");
+
+        s.providerNetworkStatus[_provider] = _newStatus;
+        emit ProviderNetworkStatusChanged(_provider, current, _newStatus);
+    }
+
+    /// @notice Returns the network participation status of a provider.
+    /// @param _provider The address of the provider.
+    /// @return The current ProviderNetworkStatus.
+    function getProviderNetworkStatus(
+        address _provider
+    ) external view returns (ProviderNetworkStatus) {
+        return _s().providerNetworkStatus[_provider];
+    }
+
+    /// @notice Returns whether a provider is active in the limited network.
+    /// @param _provider The address of the provider.
+    /// @return True if the provider status is ACTIVE.
+    function isProviderNetworkActive(
+        address _provider
+    ) external view returns (bool) {
+        return _s().providerNetworkStatus[_provider] == ProviderNetworkStatus.ACTIVE;
     }
 
     function _grantRole(

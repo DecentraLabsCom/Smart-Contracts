@@ -41,26 +41,25 @@ abstract contract ReservableToken {
     /// - _CONFIRMED: Reservation confirmed and paid. Blocks calendar slot. Actively reserving the lab.
     /// - _IN_USE: User is actively using the lab (optional state for analytics/check-in systems).
     /// - _COMPLETED: Reservation time expired, waiting for the system to finalize payout.
-    /// - _COLLECTED: Funds have been credited to the provider's pending balance (withdrawn later via requestFunds()).
+    /// - _SETTLED: Service credits have been captured and provider receivable accrued for settlement processing.
     /// - _CANCELLED: Reservation cancelled by user, admin, or provider.
     /// @dev The status is represented as an 8-bit unsigned integer for gas efficiency.
     /// @dev State transition rules:
-    ///      _PENDING → _CONFIRMED (on admin confirmation with payment)
+    ///      _PENDING → _CONFIRMED (on admin confirmation with credit lock)
     ///      _PENDING → _CANCELLED (on denial or user cancellation)
     ///      _CONFIRMED → _IN_USE (optional, on check-in)
-    ///      _CONFIRMED → _COMPLETED (when expired, via releaseExpiredReservations)
-    ///      _CONFIRMED → _COLLECTED (when provider collects before expiry release)
-    ///      _CONFIRMED → _CANCELLED (on cancellation with refund)
+    ///      _CONFIRMED → _SETTLED (when expired, via releaseExpiredReservations — credits captured)
+    ///      _CONFIRMED → _CANCELLED (on cancellation with partial release/capture)
     ///      _IN_USE → _COMPLETED (when expired)
-    ///      _IN_USE → _CANCELLED (on cancellation with refund)
-    ///      _COMPLETED → _COLLECTED (when provider finally collects)
-    ///      _COLLECTED, _CANCELLED are terminal states
+    ///      _IN_USE → _CANCELLED (on cancellation with partial release/capture)
+    ///      _COMPLETED → _SETTLED (when finalized — credits captured)
+    ///      _SETTLED, _CANCELLED are terminal states
 
     uint8 internal constant _PENDING = 0;
     uint8 internal constant _CONFIRMED = 1;
     uint8 internal constant _IN_USE = 2;
     uint8 internal constant _COMPLETED = 3;
-    uint8 internal constant _COLLECTED = 4;
+    uint8 internal constant _SETTLED = 4;
     uint8 internal constant _CANCELLED = 5;
     uint32 internal constant _RESERVATION_MARGIN = 0;
 
@@ -185,8 +184,7 @@ abstract contract ReservableToken {
 
     /// @notice Marks a token as listed by updating its status so it's possible to reserve.
     /// @dev This function can only be called by the owner of the token.
-    /// @dev Requires the provider to have sufficient staked tokens based on listed labs count.
-    ///      Formula: 800 base + max(0, listedLabs - 10) * 200
+    ///      Staking requirements have been removed — providers are eligible through service credits and admin operations.
     /// @param _tokenId The unique identifier of the token to be listed.
     function listToken(
         uint256 _tokenId
@@ -198,16 +196,8 @@ abstract contract ReservableToken {
             revert("Lab already listed");
         }
 
-        // Calculate required stake for new count (including this lab)
-        uint256 newListedCount = s.providerStakes[msg.sender].listedLabsCount + 1;
-        uint256 requiredStake = calculateRequiredStake(msg.sender, newListedCount);
-
-        if (s.providerStakes[msg.sender].stakedAmount < requiredStake) {
-            revert("Insufficient stake to list lab");
-        }
-
-        // Update listed count and status
-        s.providerStakes[msg.sender].listedLabsCount = newListedCount;
+        // Update listed count and status (no stake check — service credit model)
+        s.providerStakes[msg.sender].listedLabsCount += 1;
         s.tokenStatus[_tokenId] = true;
 
         emit LabListed(_tokenId, msg.sender);
@@ -861,35 +851,20 @@ abstract contract ReservableToken {
         }
     }
 
-    /// @notice Calculates required stake for a provider based on listed labs count
-    /// @dev Formula: BASE_STAKE + max(0, listedLabs - FREE_LABS_COUNT) * STAKE_PER_ADDITIONAL_LAB
-    ///      - First 10 labs: 800 tokens (included in base)
-    ///      - Each additional lab: +200 tokens
-    /// @dev This function is public to allow access from non-inheriting facets
-    /// @param provider The address of the provider
-    /// @param listedLabsCount The number of labs that will be listed
-    /// @return uint256 The required stake amount
+    /// @notice Returns the required stake for a provider — always 0 in the service-credit model
+    /// @dev Staking requirements are isolated from launch scope. This function is kept
+    ///      for ABI compatibility but no longer enforces any stake requirement.
+    /// @param provider The address of the provider (unused)
+    /// @param listedLabsCount The number of labs that will be listed (unused)
+    /// @return uint256 Always returns 0
     function calculateRequiredStake(
         address provider,
         uint256 listedLabsCount
-    ) public view returns (uint256) {
-        AppStorage storage s = _s();
-
-        // Only bypass stake requirement if provider has NO listed labs
-        // This prevents the exploit where providers could list unlimited labs with zero stake
-        // by never receiving initial tokens
-        if (!s.providerStakes[provider].receivedInitialTokens && listedLabsCount == 0) {
-            return 0;
-        }
-
-        // Base stake covers first 10 labs
-        if (listedLabsCount <= LibAppStorage.FREE_LABS_COUNT) {
-            return LibAppStorage.BASE_STAKE;
-        }
-
-        // Additional stake for labs beyond the free count
-        uint256 additionalLabs = listedLabsCount - LibAppStorage.FREE_LABS_COUNT;
-        return LibAppStorage.BASE_STAKE + (additionalLabs * LibAppStorage.STAKE_PER_ADDITIONAL_LAB);
+    ) public pure returns (uint256) {
+        // Suppress unused variable warnings
+        provider;
+        listedLabsCount;
+        return 0;
     }
 
     /// @dev Internal pure function to retrieve the application storage structure.

@@ -2,7 +2,6 @@
 pragma solidity ^0.8.31;
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import {ReentrancyGuardTransient} from "@openzeppelin/contracts/utils/ReentrancyGuardTransient.sol";
@@ -12,23 +11,16 @@ import {ActionIntentPayload} from "../../../libraries/IntentTypes.sol";
 import {LibIntent} from "../../../libraries/LibIntent.sol";
 import {LibLabAdmin} from "../../../libraries/LibLabAdmin.sol";
 import {LibReputation} from "../../../libraries/LibReputation.sol";
-
-interface IStakingFacet {
-    function updateLastReservation(
-        address provider
-    ) external;
-}
+import {LibProviderReceivable, SETTLEMENT_OPERATOR_ROLE} from "../../../libraries/LibProviderReceivable.sol";
 
 /// @title WalletPayoutFacet
 /// @author
 /// - Luis de la Torre Cubillo
 /// - Juan Luis Ramos Villalón
-/// @dev Facet contract to manage fund collection and payouts for lab providers.
-/// Provides functions for collecting reservation funds, withdrawing revenue shares,
-/// and administrative recovery of orphaned payouts.
+/// @dev Facet contract to manage provider receivable accrual and settlement requests.
+/// Reservation completion accrues provider debt onchain; settlement remains a separate workflow.
 
 contract WalletPayoutFacet is ReentrancyGuardTransient {
-    using SafeERC20 for IERC20;
     using EnumerableSet for EnumerableSet.Bytes32Set;
     using EnumerableSet for EnumerableSet.AddressSet;
     using LibAccessControlEnumerable for AppStorage;
@@ -38,29 +30,37 @@ contract WalletPayoutFacet is ReentrancyGuardTransient {
     uint8 internal constant _CONFIRMED = 1;
     uint8 internal constant _IN_USE = 2;
     uint8 internal constant _COMPLETED = 3;
-    uint8 internal constant _COLLECTED = 4;
+    uint8 internal constant _SETTLED = 4;
     uint8 internal constant _CANCELLED = 5;
 
-    /// @dev Delay before admin can recover orphaned payouts (30 days)
-    uint256 internal constant _ORPHAN_PAYOUT_DELAY = 30 days;
+    /// @dev Provider receivable lifecycle buckets
+    uint8 internal constant _RECEIVABLE_ACCRUED = 1;
+    uint8 internal constant _RECEIVABLE_QUEUED = 2;
+    uint8 internal constant _RECEIVABLE_INVOICED = 3;
+    uint8 internal constant _RECEIVABLE_APPROVED = 4;
+    uint8 internal constant _RECEIVABLE_PAID = 5;
+    uint8 internal constant _RECEIVABLE_REVERSED = 6;
+    uint8 internal constant _RECEIVABLE_DISPUTED = 7;
 
     /// @notice Event emitted when a lab intent is processed
     event LabIntentProcessed(
         bytes32 indexed requestId, uint256 labId, string action, address provider, bool success, string reason
     );
 
-    /// @notice Emitted when funds are collected for a lab
-    event FundsCollected(
+    /// @notice Emitted when a provider payout request queues newly accrued provider receivable for settlement
+    event ProviderPayoutRequested(
         address indexed provider, uint256 indexed labId, uint256 amount, uint256 reservationsProcessed
     );
 
-    /// @notice Emitted when default admin recovers stale payouts for a lab
-    event OrphanedLabPayoutRecovered(
-        uint256 indexed labId, address indexed recipient, uint256 providerPayout, uint256 reservationsProcessed
+    /// @notice Emitted when provider receivable moves between lifecycle buckets
+    event ProviderReceivableLifecycleTransition(
+        address indexed operator,
+        uint256 indexed labId,
+        uint8 indexed fromState,
+        uint8 toState,
+        uint256 amount,
+        bytes32 referenceHash
     );
-
-    /// @notice Emitted when stale/invalid payout heap entries are pruned incrementally
-    event PayoutHeapPruned(uint256 indexed labId, uint256 removed, uint256 remaining);
 
     /// @dev Returns the AppStorage struct from the diamond storage slot.
     function _s() internal pure returns (AppStorage storage s) {
@@ -88,29 +88,30 @@ contract WalletPayoutFacet is ReentrancyGuardTransient {
         require(s.roleMembers[s.DEFAULT_ADMIN_ROLE].contains(msg.sender), "Only admin");
     }
 
-    function requestFunds(
+    /// @notice Requests settlement of the currently accrued provider receivable for a lab
+    function requestProviderPayout(
         uint256 _labId,
         uint256 maxBatch
     ) external isLabProvider nonReentrant {
-        _requestFunds(_labId, maxBatch);
+        _requestProviderPayout(_labId, maxBatch);
     }
 
-    /// @notice Collects funds via intent (institutional flow) while keeping direct call available
-    function requestFundsWithIntent(
+    /// @notice Requests provider payout via intent while using provider-payout terminology externally
+    function requestProviderPayoutWithIntent(
         bytes32 requestId,
         ActionIntentPayload calldata payload
     ) external isLabProvider nonReentrant {
-        require(payload.labId != 0, "REQUEST_FUNDS: labId required");
+        require(payload.labId != 0, "REQUEST_PAYOUT: labId required");
         require(payload.executor == msg.sender, "Executor must be caller");
         LibLabAdmin._requireLabCreator(payload.labId, payload.puc);
         uint256 maxBatch = uint256(payload.maxBatch);
         if (maxBatch == 0 || maxBatch > 100) revert("Invalid batch size");
 
         bytes32 payloadHash = LibIntent.hashActionPayload(payload);
-        LibIntent.consumeIntent(requestId, LibIntent.ACTION_REQUEST_FUNDS, payloadHash, msg.sender);
+        LibIntent.consumeIntent(requestId, LibIntent.ACTION_REQUEST_PROVIDER_PAYOUT, payloadHash, msg.sender);
 
-        _requestFunds(payload.labId, maxBatch);
-        emit LabIntentProcessed(requestId, payload.labId, "REQUEST_FUNDS", msg.sender, true, "");
+        _requestProviderPayout(payload.labId, maxBatch);
+        emit LabIntentProcessed(requestId, payload.labId, "REQUEST_PROVIDER_PAYOUT", msg.sender, true, "");
     }
 
     function getLabTokenAddress() external view returns (address) {
@@ -121,66 +122,55 @@ contract WalletPayoutFacet is ReentrancyGuardTransient {
         return IERC20(_s().labTokenAddress).balanceOf(address(this));
     }
 
-    /// @notice Returns the total pending payout amount for a lab (wallet + institutional)
-    /// @dev Useful for backends/frontends to decide when to call requestFunds()
-    ///      and to display total collectable funds in provider dashboard
-    /// @param _labId The ID of the lab to query
-    /// @return walletPayout Amount pending for direct wallet payout to lab owner
-    /// @return institutionalPayout Total amount pending for institutional treasury payouts
-    /// @return totalPayout Sum of wallet and institutional payouts
-    /// @return institutionalCollectorCount Number of pending closeable reservations
-    function getPendingLabPayout(
+    /// @notice Returns the provider receivable currently accrued or immediately settleable for a lab
+    function getLabProviderReceivable(
         uint256 _labId
     )
         external
         view
         returns (
-            uint256 walletPayout,
-            uint256 institutionalPayout,
-            uint256 totalPayout,
-            uint256 institutionalCollectorCount
+            uint256 providerReceivable,
+            uint256 deferredInstitutionalReceivable,
+            uint256 totalReceivable,
+            uint256 eligibleReservationCount
         )
     {
         AppStorage storage s = _s();
 
-        // Already finalized payouts waiting to be withdrawn.
-        walletPayout = s.pendingProviderPayout[_labId];
-
-        // Keep the output shape stable even though institutional payout buckets are unused.
-        institutionalPayout = 0;
-        institutionalCollectorCount = 0;
+        providerReceivable = _outstandingProviderReceivable(s, _labId);
+        deferredInstitutionalReceivable = 0;
+        eligibleReservationCount = 0;
 
         uint256 currentTime = block.timestamp;
         PayoutCandidate[] storage heap = s.payoutHeaps[_labId];
         uint256 heapLength = heap.length;
 
-        // Include not-yet-finalized reservations that are already eligible for collection.
         if (heapLength > 0) {
-            (uint256 pendingProviderPayout, uint256 pendingClosures) =
+            (uint256 pendingProviderReceivable, uint256 pendingClosures) =
                 _accumulateEligiblePayoutFromHeap(s, heap, heapLength, 0, currentTime, _labId);
-            walletPayout += pendingProviderPayout;
-            institutionalCollectorCount = pendingClosures;
+            providerReceivable += pendingProviderReceivable;
+            eligibleReservationCount = pendingClosures;
         }
 
-        totalPayout = walletPayout + institutionalPayout;
+        totalReceivable = providerReceivable + deferredInstitutionalReceivable;
     }
 
-    /// @notice Bounded/paginated variant of getPendingLabPayout to avoid large eth_call executions.
+    /// @notice Bounded/paginated variant of getLabProviderReceivable to avoid large eth_call executions.
     /// @dev Scans payout heap entries in [offset, offset+limit). To aggregate full pending values,
     ///      callers should iterate until hasMore=false, summing chunk outputs.
-    ///      The already-accrued provider bucket (pendingProviderPayout) is included only when offset == 0.
+    ///      The already-accrued + already-requested provider receivable buckets are included only when offset == 0.
     ///      NOTE: this function intentionally uses linear index scanning (instead of heap branch pruning)
     ///      so offset pagination remains deterministic and easy to compose off-chain.
     /// @param _labId The lab to query
     /// @param offset Heap index offset to start scanning from
     /// @param limit Max heap entries to scan in this call (1-1000)
-    /// @return walletPayoutChunk Provider payout found in this chunk (+pendingProviderPayout if offset==0)
-    /// @return institutionalPayoutChunk Reserved for compatibility (currently always 0)
-    /// @return totalPayoutChunk Sum of wallet and institutional chunk outputs
-    /// @return institutionalCollectorCountChunk Number of closeable reservations found in this chunk
+    /// @return providerReceivableChunk Provider receivable found in this chunk (+fixed onchain buckets if offset==0)
+    /// @return deferredInstitutionalReceivableChunk Reserved for compatibility (currently always 0)
+    /// @return totalReceivableChunk Sum of provider and institutional chunk outputs
+    /// @return eligibleReservationCountChunk Number of closeable reservations found in this chunk
     /// @return nextOffset Offset to use in next page call
     /// @return hasMore True when more heap entries remain after this chunk
-    function getPendingLabPayoutPaginated(
+    function getLabProviderReceivablePaginated(
         uint256 _labId,
         uint256 offset,
         uint256 limit
@@ -188,10 +178,10 @@ contract WalletPayoutFacet is ReentrancyGuardTransient {
         external
         view
         returns (
-            uint256 walletPayoutChunk,
-            uint256 institutionalPayoutChunk,
-            uint256 totalPayoutChunk,
-            uint256 institutionalCollectorCountChunk,
+            uint256 providerReceivableChunk,
+            uint256 deferredInstitutionalReceivableChunk,
+            uint256 totalReceivableChunk,
+            uint256 eligibleReservationCountChunk,
             uint256 nextOffset,
             bool hasMore
         )
@@ -199,22 +189,22 @@ contract WalletPayoutFacet is ReentrancyGuardTransient {
         require(limit > 0 && limit <= 1000, "Invalid limit");
 
         AppStorage storage s = _s();
-        institutionalPayoutChunk = 0;
+        deferredInstitutionalReceivableChunk = 0;
 
         if (offset == 0) {
-            walletPayoutChunk = s.pendingProviderPayout[_labId];
+            providerReceivableChunk = _outstandingProviderReceivable(s, _labId);
         }
 
         PayoutCandidate[] storage heap = s.payoutHeaps[_labId];
         uint256 heapLength = heap.length;
         if (offset >= heapLength) {
             nextOffset = heapLength;
-            totalPayoutChunk = walletPayoutChunk;
+            totalReceivableChunk = providerReceivableChunk;
             return (
-                walletPayoutChunk,
-                institutionalPayoutChunk,
-                totalPayoutChunk,
-                institutionalCollectorCountChunk,
+                providerReceivableChunk,
+                deferredInstitutionalReceivableChunk,
+                totalReceivableChunk,
+                eligibleReservationCountChunk,
                 nextOffset,
                 false
             );
@@ -236,8 +226,8 @@ contract WalletPayoutFacet is ReentrancyGuardTransient {
                             || reservation.status == _IN_USE
                             || reservation.status == _COMPLETED)
                 ) {
-                    walletPayoutChunk += reservation.providerShare;
-                    institutionalCollectorCountChunk++;
+                    providerReceivableChunk += reservation.providerShare;
+                    eligibleReservationCountChunk++;
                 }
             }
             unchecked {
@@ -247,7 +237,57 @@ contract WalletPayoutFacet is ReentrancyGuardTransient {
 
         nextOffset = end;
         hasMore = end < heapLength;
-        totalPayoutChunk = walletPayoutChunk + institutionalPayoutChunk;
+        totalReceivableChunk = providerReceivableChunk + deferredInstitutionalReceivableChunk;
+    }
+
+    /// @notice Returns explicit provider receivable lifecycle buckets for a lab.
+    function getLabProviderReceivableLifecycle(
+        uint256 _labId
+    )
+        external
+        view
+        returns (
+            uint256 accruedReceivable,
+            uint256 settlementQueued,
+            uint256 invoicedReceivable,
+            uint256 approvedReceivable,
+            uint256 paidReceivable,
+            uint256 reversedReceivable,
+            uint256 disputedReceivable,
+            uint256 lastAccruedAt
+        )
+    {
+        AppStorage storage s = _s();
+        accruedReceivable = s.providerReceivableAccrued[_labId];
+        settlementQueued = s.providerSettlementQueue[_labId];
+        invoicedReceivable = s.providerReceivableInvoiced[_labId];
+        approvedReceivable = s.providerReceivableApproved[_labId];
+        paidReceivable = s.providerReceivablePaid[_labId];
+        reversedReceivable = s.providerReceivableReversed[_labId];
+        disputedReceivable = s.providerReceivableDisputed[_labId];
+        lastAccruedAt = s.providerReceivableLastAccruedAt[_labId];
+    }
+
+    /// @notice Moves provider receivable amount between explicit lifecycle buckets.
+    /// @dev Writable only by the lab owner, its configured backend, or protocol admin.
+    function transitionProviderReceivableState(
+        uint256 _labId,
+        uint8 fromState,
+        uint8 toState,
+        uint256 amount,
+        bytes32 referenceHash
+    ) external nonReentrant {
+        require(amount > 0, "Amount required");
+
+        AppStorage storage s = _s();
+        _requireSettlementOperator(s, _labId);
+        require(_isSupportedReceivableState(fromState) && _isSupportedReceivableState(toState), "Invalid state");
+        require(_isValidReceivableTransition(fromState, toState), "Invalid transition");
+
+        _decreaseReceivableBucket(s, _labId, fromState, amount);
+        _increaseReceivableBucket(s, _labId, toState, amount);
+
+        emit ProviderReceivableLifecycleTransition(msg.sender, _labId, fromState, toState, amount, referenceHash);
     }
 
     /// @dev Traverses payout heap with pruning:
@@ -313,108 +353,6 @@ contract WalletPayoutFacet is ReentrancyGuardTransient {
         s.governanceWallet = governance;
     }
 
-    /// @notice Withdraw accumulated project treasury share
-    function withdrawProjectTreasury() external {
-        AppStorage storage s = _s();
-        require(msg.sender == s.projectTreasuryWallet, "Not treasury wallet");
-        uint256 amount = s.pendingProjectTreasury;
-        require(amount > 0, "No funds");
-        s.pendingProjectTreasury = 0;
-        IERC20(s.labTokenAddress).safeTransfer(msg.sender, amount);
-    }
-
-    /// @notice Withdraw accumulated subsidies share
-    function withdrawSubsidies() external {
-        AppStorage storage s = _s();
-        require(msg.sender == s.subsidiesWallet, "Not subsidies wallet");
-        uint256 amount = s.pendingSubsidies;
-        require(amount > 0, "No funds");
-        s.pendingSubsidies = 0;
-        IERC20(s.labTokenAddress).safeTransfer(msg.sender, amount);
-    }
-
-    /// @notice Withdraw accumulated governance incentives share
-    function withdrawGovernance() external {
-        AppStorage storage s = _s();
-        require(msg.sender == s.governanceWallet, "Not governance wallet");
-        uint256 amount = s.pendingGovernance;
-        require(amount > 0, "No funds");
-        s.pendingGovernance = 0;
-        IERC20(s.labTokenAddress).safeTransfer(msg.sender, amount);
-    }
-
-    /// @notice Admin path to recover stale lab payouts when the provider is inactive or lost access
-    /// @dev Processes only reservations whose end time passed the timelock and withdraws matured provider bucket
-    /// @param _labId Lab whose payouts should be recovered
-    /// @param maxBatch Maximum reservations to process in this call (1-100)
-    /// @param recipient Address that will receive the provider share once unlocked
-    function adminRecoverOrphanedPayouts(
-        uint256 _labId,
-        uint256 maxBatch,
-        address recipient
-    ) external onlyDefaultAdminRole nonReentrant {
-        if (recipient == address(0)) revert("Invalid recipient");
-        if (maxBatch == 0 || maxBatch > 100) revert("Invalid batch size");
-
-        AppStorage storage s = _s();
-        uint256 processed;
-        uint256 cutoffTime = block.timestamp - _ORPHAN_PAYOUT_DELAY;
-
-        // Only finalize reservations that ended before cutoffTime
-        while (processed < maxBatch) {
-            bytes32 key = _popEligiblePayoutCandidate(s, _labId, cutoffTime);
-            if (key == bytes32(0)) {
-                break;
-            }
-            Reservation storage reservation = s.reservations[key];
-            if (_finalizeReservationForPayout(s, key, reservation, _labId)) {
-                unchecked {
-                    ++processed;
-                }
-            }
-        }
-
-        uint256 providerPayout = s.pendingProviderPayout[_labId];
-        bool payoutUnlocked = providerPayout > 0 && s.pendingProviderLastUpdated[_labId] > 0
-            && block.timestamp >= s.pendingProviderLastUpdated[_labId] + _ORPHAN_PAYOUT_DELAY;
-
-        if (payoutUnlocked) {
-            s.pendingProviderPayout[_labId] = 0;
-            IERC20(s.labTokenAddress).safeTransfer(recipient, providerPayout);
-        } else {
-            providerPayout = 0;
-        }
-
-        if (providerPayout == 0 && processed == 0) revert("Nothing to recover");
-
-        emit OrphanedLabPayoutRecovered(_labId, recipient, providerPayout, processed);
-    }
-
-    /// @notice Incrementally prune invalid payout heap entries to keep requestFunds gas predictable.
-    /// @dev Useful as a maintenance action when a lab accumulated many cancelled/collected heap entries.
-    ///      Complexity is O(k log n), where k is the number of removals in this call.
-    ///      Prefer this function for small/regular cleanups; large rebuilds are handled by _compactHeap.
-    /// @param _labId Lab whose payout heap should be pruned
-    /// @param maxIterations Maximum heap slots to inspect in this call (1-1000)
-    /// @return removed Number of invalid entries removed from the heap
-    function prunePayoutHeap(
-        uint256 _labId,
-        uint256 maxIterations
-    ) external nonReentrant returns (uint256 removed) {
-        if (maxIterations == 0 || maxIterations > 1000) revert("Invalid iteration limit");
-
-        AppStorage storage s = _s();
-        bool isAdmin = s.roleMembers[s.DEFAULT_ADMIN_ROLE].contains(msg.sender);
-        if (!isAdmin) {
-            address labOwner = IERC721(address(this)).ownerOf(_labId);
-            address backend = s.institutionalBackends[labOwner];
-            if (msg.sender != labOwner && msg.sender != backend) revert("Not authorized");
-        }
-
-        removed = _prunePayoutHeap(s, _labId, maxIterations);
-        emit PayoutHeapPruned(_labId, removed, s.payoutHeaps[_labId].length);
-    }
-
     // -------------------------------------------------------------------------
     // Internal helpers
     // -------------------------------------------------------------------------
@@ -422,7 +360,7 @@ contract WalletPayoutFacet is ReentrancyGuardTransient {
     /// @dev Max heap entries to compact in a single call
     uint256 internal constant _MAX_COMPACTION_SIZE = 200;
 
-    function _requestFunds(
+    function _requestProviderPayout(
         uint256 _labId,
         uint256 maxBatch
     ) internal {
@@ -452,19 +390,169 @@ contract WalletPayoutFacet is ReentrancyGuardTransient {
             }
         }
 
-        uint256 providerPayout = s.pendingProviderPayout[_labId];
+        uint256 providerPayout = s.providerReceivableAccrued[_labId];
         if (providerPayout == 0 && processed == 0) revert("No completed reservations");
 
         if (providerPayout > 0) {
-            IERC20(s.labTokenAddress).safeTransfer(labOwner, providerPayout);
-            s.pendingProviderPayout[_labId] = 0;
+            _decreaseReceivableBucket(s, _labId, _RECEIVABLE_ACCRUED, providerPayout);
+            _increaseReceivableBucket(s, _labId, _RECEIVABLE_QUEUED, providerPayout);
+            emit ProviderReceivableLifecycleTransition(
+                msg.sender, _labId, _RECEIVABLE_ACCRUED, _RECEIVABLE_QUEUED, providerPayout, bytes32(0)
+            );
         }
 
-        if (processed > 0) {
-            IStakingFacet(address(this)).updateLastReservation(labOwner);
+        emit ProviderPayoutRequested(labOwner, _labId, providerPayout, processed);
+    }
+
+    function _requireSettlementOperator(
+        AppStorage storage s,
+        uint256 labId
+    ) internal view {
+        bool isAdmin = s.roleMembers[s.DEFAULT_ADMIN_ROLE].contains(msg.sender);
+        if (isAdmin) return;
+
+        bool isSettlementOp = s.roleMembers[SETTLEMENT_OPERATOR_ROLE].contains(msg.sender);
+        if (isSettlementOp) return;
+
+        address labOwner = IERC721(address(this)).ownerOf(labId);
+        address backend = s.institutionalBackends[labOwner];
+        if (msg.sender != labOwner && msg.sender != backend) {
+            revert("Not authorized");
+        }
+    }
+
+    function _outstandingProviderReceivable(
+        AppStorage storage s,
+        uint256 labId
+    ) internal view returns (uint256) {
+        return s.providerReceivableAccrued[labId] + s.providerSettlementQueue[labId] + s.providerReceivableInvoiced[labId]
+            + s.providerReceivableApproved[labId] + s.providerReceivableDisputed[labId];
+    }
+
+    function _isSupportedReceivableState(
+        uint8 state
+    ) internal pure returns (bool) {
+        return state >= _RECEIVABLE_ACCRUED && state <= _RECEIVABLE_DISPUTED;
+    }
+
+    function _isValidReceivableTransition(
+        uint8 fromState,
+        uint8 toState
+    ) internal pure returns (bool) {
+        if (fromState == toState || fromState == _RECEIVABLE_PAID || fromState == _RECEIVABLE_REVERSED) {
+            return false;
         }
 
-        emit FundsCollected(labOwner, _labId, providerPayout, processed);
+        if (fromState == _RECEIVABLE_ACCRUED) {
+            return toState == _RECEIVABLE_QUEUED || toState == _RECEIVABLE_DISPUTED || toState == _RECEIVABLE_REVERSED;
+        }
+        if (fromState == _RECEIVABLE_QUEUED) {
+            return toState == _RECEIVABLE_INVOICED || toState == _RECEIVABLE_APPROVED || toState == _RECEIVABLE_DISPUTED
+                || toState == _RECEIVABLE_REVERSED;
+        }
+        if (fromState == _RECEIVABLE_INVOICED) {
+            return toState == _RECEIVABLE_APPROVED || toState == _RECEIVABLE_DISPUTED
+                || toState == _RECEIVABLE_REVERSED;
+        }
+        if (fromState == _RECEIVABLE_APPROVED) {
+            return toState == _RECEIVABLE_PAID || toState == _RECEIVABLE_DISPUTED || toState == _RECEIVABLE_REVERSED;
+        }
+        if (fromState == _RECEIVABLE_DISPUTED) {
+            return toState == _RECEIVABLE_INVOICED || toState == _RECEIVABLE_APPROVED
+                || toState == _RECEIVABLE_REVERSED;
+        }
+
+        return false;
+    }
+
+    function _bucketAmount(
+        AppStorage storage s,
+        uint256 labId,
+        uint8 state
+    ) internal view returns (uint256) {
+        if (state == _RECEIVABLE_ACCRUED) return s.providerReceivableAccrued[labId];
+        if (state == _RECEIVABLE_QUEUED) return s.providerSettlementQueue[labId];
+        if (state == _RECEIVABLE_INVOICED) return s.providerReceivableInvoiced[labId];
+        if (state == _RECEIVABLE_APPROVED) return s.providerReceivableApproved[labId];
+        if (state == _RECEIVABLE_PAID) return s.providerReceivablePaid[labId];
+        if (state == _RECEIVABLE_REVERSED) return s.providerReceivableReversed[labId];
+        if (state == _RECEIVABLE_DISPUTED) return s.providerReceivableDisputed[labId];
+        revert("Invalid state");
+    }
+
+    function _decreaseReceivableBucket(
+        AppStorage storage s,
+        uint256 labId,
+        uint8 state,
+        uint256 amount
+    ) internal {
+        uint256 current = _bucketAmount(s, labId, state);
+        require(current >= amount, "Insufficient bucket balance");
+
+        if (state == _RECEIVABLE_ACCRUED) {
+            s.providerReceivableAccrued[labId] = current - amount;
+            return;
+        }
+        if (state == _RECEIVABLE_QUEUED) {
+            s.providerSettlementQueue[labId] = current - amount;
+            return;
+        }
+        if (state == _RECEIVABLE_INVOICED) {
+            s.providerReceivableInvoiced[labId] = current - amount;
+            return;
+        }
+        if (state == _RECEIVABLE_APPROVED) {
+            s.providerReceivableApproved[labId] = current - amount;
+            return;
+        }
+        if (state == _RECEIVABLE_PAID) {
+            s.providerReceivablePaid[labId] = current - amount;
+            return;
+        }
+        if (state == _RECEIVABLE_REVERSED) {
+            s.providerReceivableReversed[labId] = current - amount;
+            return;
+        }
+
+        s.providerReceivableDisputed[labId] = current - amount;
+    }
+
+    function _increaseReceivableBucket(
+        AppStorage storage s,
+        uint256 labId,
+        uint8 state,
+        uint256 amount
+    ) internal {
+        if (state == _RECEIVABLE_ACCRUED) {
+            s.providerReceivableAccrued[labId] += amount;
+            return;
+        }
+        if (state == _RECEIVABLE_QUEUED) {
+            s.providerSettlementQueue[labId] += amount;
+            return;
+        }
+        if (state == _RECEIVABLE_INVOICED) {
+            s.providerReceivableInvoiced[labId] += amount;
+            return;
+        }
+        if (state == _RECEIVABLE_APPROVED) {
+            s.providerReceivableApproved[labId] += amount;
+            return;
+        }
+        if (state == _RECEIVABLE_PAID) {
+            s.providerReceivablePaid[labId] += amount;
+            return;
+        }
+        if (state == _RECEIVABLE_REVERSED) {
+            s.providerReceivableReversed[labId] += amount;
+            return;
+        }
+        if (state == _RECEIVABLE_DISPUTED) {
+            s.providerReceivableDisputed[labId] += amount;
+            return;
+        }
+
+        revert("Invalid state");
     }
 
     /// @dev Pops the first eligible reservation from the heap if its end <= cutoff
@@ -580,38 +668,6 @@ contract WalletPayoutFacet is ReentrancyGuardTransient {
         }
     }
 
-    function _prunePayoutHeap(
-        AppStorage storage s,
-        uint256 labId,
-        uint256 maxIterations
-    ) internal returns (uint256 removed) {
-        PayoutCandidate[] storage heap = s.payoutHeaps[labId];
-        uint256 iterations;
-        uint256 index;
-
-        while (index < heap.length && iterations < maxIterations) {
-            bytes32 key = heap[index].key;
-            Reservation storage reservation = s.reservations[key];
-            bool valid = reservation.labId == labId
-                && (reservation.status == _CONFIRMED
-                    || reservation.status == _IN_USE
-                    || reservation.status == _COMPLETED);
-
-            if (!valid) {
-                s.payoutHeapContains[key] = false;
-                _removeHeapAt(heap, index);
-                if (s.payoutHeapInvalidCount[labId] > 0) {
-                    s.payoutHeapInvalidCount[labId]--;
-                }
-                removed++;
-            } else {
-                index++;
-            }
-
-            iterations++;
-        }
-    }
-
     /// @dev Compacts the heap by removing all invalid entries in one pass.
     ///      This is O(n) for the compaction + heap rebuild and is triggered lazily
     ///      when invalid density is high, with a size guard (_MAX_COMPACTION_SIZE).
@@ -658,11 +714,10 @@ contract WalletPayoutFacet is ReentrancyGuardTransient {
         s.payoutHeapInvalidCount[labId] = 0;
     }
 
-    /// @dev Finalizes a reservation for payout: marks as _COLLECTED, updates counters, accrues shares
+    /// @dev Finalizes a reservation for settlement processing: marks as _SETTLED, updates counters, accrues shares
     function _finalizeReservationForPayout(
         AppStorage storage s,
-        bytes32,
-        /* key */
+        bytes32 key,
         Reservation storage reservation,
         uint256 labId
     ) internal returns (bool) {
@@ -672,9 +727,9 @@ contract WalletPayoutFacet is ReentrancyGuardTransient {
             return false;
         }
 
-        // Mark as collected
+        // Mark as settled
         uint8 previousStatus = reservation.status;
-        reservation.status = _COLLECTED;
+        reservation.status = _SETTLED;
         if (previousStatus == _IN_USE) {
             LibReputation.recordCompletion(labId);
         }
@@ -689,9 +744,9 @@ contract WalletPayoutFacet is ReentrancyGuardTransient {
             s.providerActiveReservationCount[labProvider]--;
         }
 
-        // Accrue shares to pending buckets
-        s.pendingProviderPayout[labId] += reservation.providerShare;
-        s.pendingProviderLastUpdated[labId] = block.timestamp;
+        // Accrue shares to canonical on-chain provider debt buckets.
+        LibProviderReceivable.accrueReceivable(labId, reservation.providerShare, key);
+        LibProviderReceivable.updateAccruedTimestamp(labId, block.timestamp);
         s.pendingProjectTreasury += reservation.projectTreasuryShare;
         s.pendingSubsidies += reservation.subsidiesShare;
         s.pendingGovernance += reservation.governanceShare;

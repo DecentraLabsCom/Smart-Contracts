@@ -9,7 +9,7 @@ DecentraLabs provides a blockchain infrastructure for managing access, reservati
 - **Lab Providers** to register and manage their laboratory equipment as NFTs
 - **Users** to discover, reserve, and access laboratory equipment worldwide
 - **Administrators** to oversee the platform and manage roles
-- **Transparent payments** using the native $LAB ERC20 token
+- **Managed service credits** — a closed, non-transferable prepaid credit ledger for lab usage
 
 ## 🏗️ Architecture
 
@@ -22,13 +22,14 @@ Diamond Proxy (Main Contract)
 ├── DiamondCutFacet       (Upgrade management)
 ├── DiamondLoupeFacet     (Introspection)
 ├── OwnershipFacet        (Ownership management)
-├── DistributionFacet     (Tokenomics distribution and subsidies)
+├── ServiceCreditFacet    (Lot-based credit ledger: mint, lock, capture, release, expire, adjust)
 ├── IntentRegistryFacet   (EIP-712 intent registration and consumption)
-├── ProviderFacet         (Provider & institutional treasury management)
+├── ProviderFacet         (Provider & institutional management)
 ├── LabFacet              (Lab/NFT management)
-├── StakingFacet          (Staking, slashing, and unstaking)
-├── Reservation Facets    (Booking & payments for labs)
-└── LabERC20              (External: $LAB token)
+├── ProviderNetworkFacet  (Provider eligibility enforcement)
+├── Reservation Facets    (Booking & credit settlement for labs)
+├── WalletPayoutFacet     (Provider receivable lifecycle and settlement)
+└── LabERC20              (External: restricted ERC-20 — non-transferable, non-approvable)
 ```
 
 ## ✨ Key Features
@@ -51,28 +52,36 @@ Diamond Proxy (Main Contract)
 - **Interval tree calendar**: Efficient O(log n) calendar conflict detection
 - **Multi-state workflow**: 
   - `PENDING` - User requests reservation
-  - `CONFIRMED` - Admin confirms reservation
+  - `CONFIRMED` - Admin confirms reservation, credits locked
   - `IN_USE` - Reservation is active
-  - `COMPLETED` - Reservation finished, ready for collection
-  - `COLLECTED` - Provider claims payment after use
-  - `CANCELLED` - Cancelled by user or provider
-- **Automatic refunds**: Failed or cancelled reservations are automatically refunded
-- **Batch processing**: Providers can claim multiple completed reservations in batches
+  - `COMPLETED` - Reservation finished, ready for settlement
+  - `SETTLED` - Provider receivable accrued after use
+  - `CANCELLED` - Cancelled by user or provider, credits released
+- **Credit lock/capture/release**: Reservation lifecycle uses lot-based credit operations
+- **Batch processing**: Providers can settle multiple completed reservations
 
-### 4. $LAB Token (LabERC20)
-- **ERC-20 compliant**: Standard token interface
-- **Supply cap**: Maximum supply of 1,000,000 tokens (1M tokens with 6 decimals)
-- **Burnable**: Token holders can burn their tokens
-- **Pausable**: Emergency pause functionality for security incidents
-- **Role-based minting**: Only authorized contracts can mint new tokens
-- **Initial distribution**: New providers receive initial token allocation
+### 4. Service Credit Ledger (ServiceCreditFacet)
+- **Lot-based issuance**: Credits minted in lots with EUR funding-order reference, amount, and expiry
+- **Non-transferable**: No `transfer`, `transferFrom`, or `approve` operations
+- **Lock/capture/release**: Credits are locked on confirmation, captured on settlement, released on cancellation
+- **Auditable movements**: Every credit operation recorded as a `CreditMovement` with kind, amount, balance, ref, and timestamp
+- **Expiry support**: Individual lots can expire; batch expiry operations available
+- **Administrative adjustments**: Signed ledger adjustments with audit trail
 
 ### 5. Provider Management (ProviderFacet)
 - **Role-based access control**: Distinct roles for admins, providers, and institutions
 - **Provider registry**: Track provider information (name, email, country)
-- **Institutional treasury**: Manage token balances for institutional users
-- **Automatic token grants**: New providers receive initial $LAB tokens
+- **Institutional credit management**: Manage credit balances for institutional users
+- **Onboarding credit grants**: New providers receive non-monetary onboarding credits
 - **Provider updates**: Providers can update their information
+- **Limited-network eligibility**: Providers must be ACTIVE in the provider network to fulfill reservations
+
+### 6. Provider Receivable & Settlement (WalletPayoutFacet)
+- **EUR-denominated receivables**: Provider monetization through separate receivable lifecycle
+- **Lifecycle buckets**: ACCRUED → QUEUED → INVOICED → APPROVED → PAID (with DISPUTED / REVERSED)
+- **Settlement operator role**: Only authorized actors can transition receivable lifecycle states
+- **Deterministic audit linkage**: Each accrual linked to reservation key via `ProviderReceivableAccrued` event
+- **Transfer guard**: Lab NFT transfer blocked while unsettled receivables exist
 
 ### 6. Advanced Calendar Management
 - **Red-Black Tree**: Self-balancing binary search tree for O(log n) operations
@@ -103,12 +112,8 @@ Provides introspection into the Diamond's structure, allowing queries about avai
 #### OwnershipFacet
 Manages the Diamond contract ownership following EIP-173.
 
-#### DistributionFacet
-Handles initial tokenomics distribution and controlled subsidies:
-- One-time mint of treasury, subsidies, and ecosystem funds
-- Admin-controlled top-ups with caps
-- Timelock and vesting for large distributions
-- Emergency pause for distribution controls
+#### DistributionFacet (Deprecated)
+All distribution functions have been deprecated with unconditional revert. Treasury minting, subsidies, and ecosystem fund operations are no longer part of the target model.
 
 #### IntentRegistryFacet
 Manages EIP-712 based intent system for gasless operations:
@@ -118,11 +123,11 @@ Manages EIP-712 based intent system for gasless operations:
 - Support for reservation and provider actions
 
 #### ProviderFacet
-Manages lab providers, roles, and institutional treasuries:
+Manages lab providers, roles, and institutional credit management:
 - Add/remove providers and institutions
-- Institutional treasury management for SAML users
+- Institutional credit management for SAML users
 - Role-based access control (admin, provider, institution)
-- Automatic token grants for new providers
+- Onboarding credit grants for new providers
 
 #### LabFacet
 Implements ERC-721 for laboratory NFTs with additional features:
@@ -130,7 +135,7 @@ Implements ERC-721 for laboratory NFTs with additional features:
 - Set token URIs and metadata
 - Paginated lab queries
 - Provider-only transfer restrictions
-- Staking requirements for listing labs
+- Provider-network eligibility enforcement for listing labs
 
 **Sub-facets:**
 - **LabAdminFacet**: Admin operations for lab management (minting, burning)
@@ -138,28 +143,24 @@ Implements ERC-721 for laboratory NFTs with additional features:
 - **LabQueryFacet**: Read-only queries for lab data
 - **LabReputationFacet**: Reputation-based lab features
 
-#### StakingFacet
-Implements provider staking mechanism for quality assurance:
-- Token staking requirements for providers
-- Slashing for misconduct with timelock recovery
-- Unstaking with lock periods
-- Reputation-based mechanisms
+#### StakingFacet (Deprecated)
+Staking, unstaking, and slashing functions have been deprecated with unconditional revert. Provider eligibility is now enforced through the provider-network status model rather than token staking.
 
 #### Reservation Facets
 Handles the complete reservation lifecycle for labs:
 - Reservation requests and admin confirmations
 - Calendar conflict detection using interval trees
-- Multi-state workflow (PENDING → CONFIRMED → IN_USE → COMPLETED → COLLECTED)
-- Automatic refunds and batch fund collection
+- Multi-state workflow (PENDING → CONFIRMED → IN_USE → COMPLETED → SETTLED)
+- Credit lock on confirmation, capture on settlement, release on cancellation
 - Support for institutional and wallet reservations
 
 **Sub-facets:**
-- **WalletReservationReleaseFacet**: Releases expired reservations paid from user wallets
+- **WalletReservationReleaseFacet**: Releases expired reservations, captures locked credits
 - **WalletReservationCoreFacet**: Core reservation request flow for wallet users
-- **WalletReservationConfirmationFacet**: Confirms wallet reservation requests
+- **WalletReservationConfirmationFacet**: Confirms wallet reservation requests, locks credits
 - **ReservationDenialFacet**: Denies reservation requests (wallet + institutional)
-- **WalletReservationCancellationFacet**: Cancellation logic for wallet reservations
-- **WalletPayoutFacet**: Provider payout collection for wallet reservations
+- **WalletReservationCancellationFacet**: Cancellation logic — captures fees, releases remainder
+- **WalletPayoutFacet**: Provider receivable accrual, lifecycle transitions, and settlement
 - **InstitutionalReservationFacet**: Releases expired institutional reservations
 - **InstitutionalReservationRequestFacet**: Entry point for institutional reservation requests
 - **InstitutionalReservationRequestValidationFacet**: Validates institutional reservation requests
@@ -177,7 +178,7 @@ Handles the complete reservation lifecycle for labs:
 
 #### LabERC20
 The native platform token with:
-- 6 decimal precision
+- 1 decimal precision
 - 1,000,000 token supply cap
 - Minter role (granted to Diamond)
 - Pauser role (for emergencies)

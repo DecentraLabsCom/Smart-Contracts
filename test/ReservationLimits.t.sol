@@ -4,7 +4,7 @@ pragma solidity ^0.8.33;
 import "forge-std/Test.sol";
 import "./BaseTest.sol";
 import "./Harnesses.sol";
-import {ReservationHarness, MockERC20} from "./GasReservations.t.sol";
+import {ReservationHarness} from "./GasReservations.t.sol";
 import "../contracts/facets/reservation/institutional/InstitutionalReservationRequestValidationFacet.sol";
 import "../contracts/libraries/LibAppStorage.sol";
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
@@ -116,11 +116,8 @@ contract ConfirmStub {
 }
 
 contract ReservationLimitsTest is BaseTest {
-    DummyERC20 public token;
-
     function setUp() public override {
         super.setUp();
-        token = new DummyERC20();
     }
 
     function test_institutional_reservation_reverts_when_tracked_user_at_max() public {
@@ -157,10 +154,9 @@ contract ReservationLimitsTest is BaseTest {
 
     function test_wallet_confirm_reverts_when_user_at_max_real_facet() public {
         // Use the real harness + confirm flow instead of a storage stub
-        // Reuse ReservationHarness and MockERC20 from GasReservations tests
+        // Reuse ReservationHarness from GasReservations tests
         ReservationHarness harness = new ReservationHarness();
-        MockERC20 token = new MockERC20();
-        harness.initializeHarness(address(token));
+        harness.initializeHarness(address(0));
 
         uint256 labId = harness.mintAndList(500);
         address renter = address(0xCAFE);
@@ -170,9 +166,7 @@ contract ReservationLimitsTest is BaseTest {
 
         // create pending reservation entry for the renter
         vm.prank(renter);
-        token.mint(renter, 10 ether);
-        vm.prank(renter);
-        token.approve(address(harness), type(uint256).max);
+        harness.setServiceCreditBalance(renter, 10 ether);
         vm.prank(renter);
         harness.reservationRequest(labId, start, end);
 
@@ -189,16 +183,13 @@ contract ReservationLimitsTest is BaseTest {
 
     function test_wallet_request_reverts_when_user_at_max() public {
         ReservationHarness harness = new ReservationHarness();
-        MockERC20 token = new MockERC20();
-        harness.initializeHarness(address(token));
+        harness.initializeHarness(address(0));
 
         uint256 labId = harness.mintAndList(500);
         address renter = address(0xF00D);
 
-        // give user funds and approval
-        token.mint(renter, 1 ether);
-        vm.prank(renter);
-        token.approve(address(harness), type(uint256).max);
+        // give user closed service credits
+        harness.setServiceCreditBalance(renter, 1 ether);
 
         // set active count to cap
         harness.setActiveCount(labId, renter, 10);
@@ -213,8 +204,7 @@ contract ReservationLimitsTest is BaseTest {
 
     function test_wallet_auto_release_allows_request_when_expired() public {
         ReservationHarness harness = new ReservationHarness();
-        MockERC20 token = new MockERC20();
-        harness.initializeHarness(address(token));
+        harness.initializeHarness(address(0));
 
         uint256 labId = harness.mintAndList(500);
         address renter = address(0xD00D);
@@ -224,9 +214,7 @@ contract ReservationLimitsTest is BaseTest {
         for (uint256 i = 0; i < 9; ++i) {
             uint32 s = startBase + uint32(i * 1000);
             uint32 e = s + 100;
-            token.mint(renter, 1 ether);
-            vm.prank(renter);
-            token.approve(address(harness), type(uint256).max);
+            harness.setServiceCreditBalance(renter, 1 ether);
             vm.prank(renter);
             harness.reservationRequest(labId, s, e);
             bytes32 key = keccak256(abi.encodePacked(labId, s));
@@ -244,9 +232,7 @@ contract ReservationLimitsTest is BaseTest {
         vm.warp(block.timestamp + 1_000_000);
 
         // Now attempt a new reservation; auto-release should free expired ones and allow the request
-        token.mint(renter, 1 ether);
-        vm.prank(renter);
-        token.approve(address(harness), type(uint256).max);
+        harness.setServiceCreditBalance(renter, 1 ether);
 
         uint32 newStart = uint32(block.timestamp + 3600);
         vm.prank(renter);
@@ -267,8 +253,7 @@ contract ReservationLimitsTest is BaseTest {
         vm.assume(uint256(nonExpiredCount) <= MAX);
 
         ReservationHarness harness = new ReservationHarness();
-        MockERC20 token = new MockERC20();
-        harness.initializeHarness(address(token));
+        harness.initializeHarness(address(0));
 
         uint256 labId = harness.mintAndList(500);
         address renter = address(0xBAAD);
@@ -280,9 +265,7 @@ contract ReservationLimitsTest is BaseTest {
         for (i = 0; i < expiredCount; ++i) {
             uint32 sT = startBase + uint32(i * 1000);
             uint32 eT = sT + 10;
-            token.mint(renter, 1 ether);
-            vm.prank(renter);
-            token.approve(address(harness), type(uint256).max);
+            harness.setServiceCreditBalance(renter, 1 ether);
             vm.prank(renter);
             harness.reservationRequest(labId, sT, eT);
             bytes32 key = keccak256(abi.encodePacked(labId, sT));
@@ -294,9 +277,7 @@ contract ReservationLimitsTest is BaseTest {
         for (i = 0; i < nonExpiredCount; ++i) {
             uint32 sT = startBase + uint32(100_000 + i * 1000);
             uint32 eT = sT + 1000;
-            token.mint(renter, 1 ether);
-            vm.prank(renter);
-            token.approve(address(harness), type(uint256).max);
+            harness.setServiceCreditBalance(renter, 1 ether);
             vm.prank(renter);
             harness.reservationRequest(labId, sT, eT);
             bytes32 key = keccak256(abi.encodePacked(labId, sT));
@@ -307,13 +288,10 @@ contract ReservationLimitsTest is BaseTest {
         // Warp past the expired ones
         vm.warp(block.timestamp + 20_000);
 
-        AppStorage storage s = LibAppStorage.diamondStorage();
         uint256 nonExpired = nonExpiredCount;
 
         // Try a new reservation
-        token.mint(renter, 1 ether);
-        vm.prank(renter);
-        token.approve(address(harness), type(uint256).max);
+        harness.setServiceCreditBalance(renter, 1 ether);
 
         uint32 newStart = uint32(block.timestamp + 3600);
         vm.prank(renter);

@@ -87,16 +87,16 @@ contract ProviderTest is BaseTest {
         providerFacet = ProviderFacet(address(diamond));
     }
 
-    /// @notice SPEC: "ADD PROVIDER" use case
-    function test_addProvider_grants_role_and_mints_tokens() public {
+    /// @notice SPEC: "ADD PROVIDER" use case — now issues service credits instead of minting tokens
+    function test_addProvider_grants_role_and_issues_service_credits() public {
         vm.prank(admin);
         providerFacet.addProvider("NewProvider", provider1, "new@provider.com", "US", "");
 
         // Verify provider role granted
         assertTrue(providerFacet.isLabProvider(provider1));
 
-        // Provider token allocation is minted to Diamond treasury/stake buckets
-        assertEq(token.balanceOf(address(diamond)), 1000 * 10 ** 6);
+        // Provider no longer mints ERC-20 tokens — Diamond balance should be 0
+        assertEq(token.balanceOf(address(diamond)), 0);
     }
 
     /// @notice SPEC: Only admin can add providers

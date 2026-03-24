@@ -8,6 +8,8 @@ import {LibRevenue} from "./LibRevenue.sol";
 import {LibReputation} from "./LibReputation.sol";
 import {LibReservationCancellation} from "./LibReservationCancellation.sol";
 import {LibReservationConfig} from "./LibReservationConfig.sol";
+import {LibCreditLedger} from "./LibCreditLedger.sol";
+import {LibProviderReceivable} from "./LibProviderReceivable.sol";
 
 library LibWalletRelease {
     using EnumerableSet for EnumerableSet.Bytes32Set;
@@ -19,7 +21,7 @@ library LibWalletRelease {
     uint8 internal constant _CONFIRMED = 1;
     uint8 internal constant _IN_USE = 2;
     uint8 internal constant _COMPLETED = 3;
-    uint8 internal constant _COLLECTED = 4;
+    uint8 internal constant _SETTLED = 4;
     uint8 internal constant _CANCELLED = 5;
 
     uint256 internal constant _PENDING_REQUEST_TTL = LibReservationConfig.PENDING_REQUEST_TTL;
@@ -83,7 +85,7 @@ library LibWalletRelease {
         Reservation storage reservation,
         uint256 labId
     ) private returns (bool) {
-        if (reservation.status == _COLLECTED || reservation.status == _CANCELLED) return false;
+        if (reservation.status == _SETTLED || reservation.status == _CANCELLED) return false;
 
         address trackingKey = reservation.renter;
         uint256 reservationPrice = reservation.price;
@@ -97,13 +99,14 @@ library LibWalletRelease {
         }
 
         uint8 previousStatus = reservation.status;
-        reservation.status = _COLLECTED;
+        reservation.status = _SETTLED;
         if (previousStatus == _IN_USE) {
             LibReputation.recordCompletion(labId);
         }
 
         if (reservationPrice > 0) {
-            _creditRevenueBuckets(s, reservation);
+            LibCreditLedger.captureLockedCredits(trackingKey, uint256(reservationPrice), key);
+            _creditRevenueBuckets(s, reservation, key);
         }
 
         _recordPast(s, labId, trackingKey, key, reservation.end);
@@ -132,14 +135,15 @@ library LibWalletRelease {
         uint256 labId,
         uint256 timestamp
     ) private {
-        if (timestamp > s.pendingProviderLastUpdated[labId]) {
-            s.pendingProviderLastUpdated[labId] = timestamp;
+        if (timestamp > s.providerReceivableLastAccruedAt[labId]) {
+            s.providerReceivableLastAccruedAt[labId] = timestamp;
         }
     }
 
     function _creditRevenueBuckets(
         AppStorage storage s,
-        Reservation storage reservation
+        Reservation storage reservation,
+        bytes32 reservationKey
     ) private {
         uint96 providerShare = reservation.providerShare;
         uint96 treasuryShare = reservation.projectTreasuryShare;
@@ -147,7 +151,7 @@ library LibWalletRelease {
         uint96 governanceShare = reservation.governanceShare;
 
         if (providerShare > 0) {
-            s.pendingProviderPayout[reservation.labId] += providerShare;
+            LibProviderReceivable.accrueReceivable(reservation.labId, providerShare, reservationKey);
             _updatePendingProviderTimestamp(s, reservation.labId, reservation.end);
         }
         if (treasuryShare > 0) s.pendingProjectTreasury += treasuryShare;

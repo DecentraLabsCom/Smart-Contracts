@@ -1,17 +1,14 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-pragma solidity ^0.8.31;
+pragma solidity ^0.8.33;
 
-import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import {LibAppStorage, AppStorage, Reservation} from "./LibAppStorage.sol";
 import {LibRevenue} from "./LibRevenue.sol";
 import {LibReservationCancellation} from "./LibReservationCancellation.sol";
 import {LibReputation} from "./LibReputation.sol";
+import {LibCreditLedger} from "./LibCreditLedger.sol";
 
 library LibWalletReservationCancellation {
-    using SafeERC20 for IERC20;
-
     error ReservationNotFound();
     error OnlyRenter();
     error ReservationNotPending();
@@ -75,14 +72,24 @@ library LibWalletReservationCancellation {
         LibReservationCancellation.cancelReservation(reservationKey);
 
         if (price > 0) {
-            LibReservationCancellation.applyCancellationFees(labId, providerFee, treasuryFee, governanceFee);
+            // Capture the fee portion from locked credits (consumes lots FIFO)
+            uint96 feeTotal = providerFee + treasuryFee + governanceFee;
+            if (feeTotal > 0) {
+                LibCreditLedger.captureLockedCredits(renter, uint256(feeTotal), reservationKey);
+            }
+            // Release the refund portion back to available
+            if (refundAmount > 0) {
+                LibCreditLedger.releaseLockedCredits(renter, uint256(refundAmount), reservationKey);
+            }
+            LibReservationCancellation.applyCancellationFees(labId, providerFee, treasuryFee, governanceFee, reservationKey);
+        } else {
+            // No price — just release any locked amount (defensive)
+            // Nothing locked for zero-price reservations
         }
 
         if (cancelledByOwner) {
             LibReputation.recordOwnerCancellation(labId);
         }
-
-        IERC20(s.labTokenAddress).safeTransfer(renter, refundAmount);
         emit BookingCanceled(reservationKey, labId);
     }
 }

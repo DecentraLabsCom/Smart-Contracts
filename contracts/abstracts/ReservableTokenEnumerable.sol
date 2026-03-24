@@ -67,7 +67,7 @@ abstract contract ReservableTokenEnumerable is ReservableToken {
 
         // Optimized availability check
         Reservation storage existing = s.reservations[reservationKey];
-        if (existing.renter != address(0) && existing.status != _CANCELLED && existing.status != _COLLECTED) {
+        if (existing.renter != address(0) && existing.status != _CANCELLED && existing.status != _SETTLED) {
             revert NotAvailable();
         }
 

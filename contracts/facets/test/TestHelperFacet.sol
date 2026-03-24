@@ -74,4 +74,14 @@ contract TestHelperFacet {
         AppStorage storage s = LibAppStorage.diamondStorage();
         s.creatorPucHashByLab[labId] = creatorPucHash;
     }
+
+    /// @notice Set provider stake amount for testing
+    /// @dev TEST ONLY - Directly sets the staked amount for a provider
+    function test_setProviderStake(
+        address provider,
+        uint256 amount
+    ) external {
+        AppStorage storage s = LibAppStorage.diamondStorage();
+        s.providerStakes[provider].stakedAmount = amount;
+    }
 }

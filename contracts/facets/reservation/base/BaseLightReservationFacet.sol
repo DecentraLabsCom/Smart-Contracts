@@ -3,12 +3,14 @@ pragma solidity ^0.8.31;
 
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import {ReservableTokenEnumerable} from "../../../abstracts/ReservableTokenEnumerable.sol";
-import {AppStorage, Reservation, UserActiveReservation, INSTITUTION_ROLE} from "../../../libraries/LibAppStorage.sol";
+import {AppStorage, Reservation, UserActiveReservation, INSTITUTION_ROLE, ProviderNetworkStatus} from "../../../libraries/LibAppStorage.sol";
 import {LibTracking} from "../../../libraries/LibTracking.sol";
 import {LibRevenue} from "../../../libraries/LibRevenue.sol";
 import {LibHeap} from "../../../libraries/LibHeap.sol";
 import {LibReputation} from "../../../libraries/LibReputation.sol";
 import {LibReservationConfig} from "../../../libraries/LibReservationConfig.sol";
+import {LibCreditLedger} from "../../../libraries/LibCreditLedger.sol";
+import {LibProviderReceivable} from "../../../libraries/LibProviderReceivable.sol";
 
 /// @title BaseLightReservationFacet - Minimal base for size-constrained facets
 /// @notice Provides only essential functionality without heavy helpers
@@ -116,10 +118,29 @@ abstract contract BaseLightReservationFacet is ReservableTokenEnumerable {
         address trackingKey
     ) internal {
         uint8 previousStatus = reservation.status;
-        reservation.status = _COLLECTED;
+        reservation.status = _SETTLED;
         if (previousStatus == _IN_USE) {
             LibReputation.recordCompletion(labId);
         }
+
+        // Capture locked credits and credit revenue buckets
+        uint256 reservationPrice = reservation.price;
+        if (reservationPrice > 0) {
+            LibCreditLedger.captureLockedCredits(reservation.renter, reservationPrice, key);
+            if (reservation.providerShare > 0) {
+                LibProviderReceivable.accrueReceivable(labId, reservation.providerShare, key);
+            }
+            if (reservation.projectTreasuryShare > 0) {
+                s.pendingProjectTreasury += reservation.projectTreasuryShare;
+            }
+            if (reservation.subsidiesShare > 0) {
+                s.pendingSubsidies += reservation.subsidiesShare;
+            }
+            if (reservation.governanceShare > 0) {
+                s.pendingGovernance += reservation.governanceShare;
+            }
+        }
+
         s.reservationKeysByToken[labId].remove(key);
         s.renters[reservation.renter].remove(key);
         if (s.totalReservationsCount > 0) s.totalReservationsCount--;
@@ -136,6 +157,7 @@ abstract contract BaseLightReservationFacet is ReservableTokenEnumerable {
         uint256 labId
     ) internal view returns (bool) {
         if (!s.tokenStatus[labId]) return false;
+        if (s.providerNetworkStatus[labProvider] != ProviderNetworkStatus.ACTIVE) return false;
         uint256 listedLabsCount = s.providerStakes[labProvider].listedLabsCount;
         uint256 requiredStake = calculateRequiredStake(labProvider, listedLabsCount);
         return s.providerStakes[labProvider].stakedAmount >= requiredStake;

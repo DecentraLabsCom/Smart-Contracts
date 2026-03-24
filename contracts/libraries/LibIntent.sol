@@ -54,6 +54,7 @@ library LibIntent {
     uint8 internal constant ACTION_CANCEL_REQUEST_BOOKING = 9;
     uint8 internal constant ACTION_CANCEL_BOOKING = 10;
     uint8 internal constant ACTION_REQUEST_FUNDS = 11;
+    uint8 internal constant ACTION_REQUEST_PROVIDER_PAYOUT = 11;
 
     event IntentRegistered(bytes32 indexed requestId, address indexed signer, uint8 action, bytes32 payloadHash);
     event IntentCancelled(bytes32 indexed requestId, address indexed signer);
@@ -177,7 +178,8 @@ library LibIntent {
             meta.action == ACTION_LAB_ADD || meta.action == ACTION_LAB_ADD_AND_LIST || meta.action == ACTION_LAB_SET_URI
                 || meta.action == ACTION_LAB_UPDATE || meta.action == ACTION_LAB_DELETE
                 || meta.action == ACTION_LAB_LIST || meta.action == ACTION_LAB_UNLIST
-                || meta.action == ACTION_CANCEL_BOOKING || meta.action == ACTION_REQUEST_FUNDS,
+                || meta.action == ACTION_CANCEL_BOOKING || meta.action == ACTION_REQUEST_FUNDS
+                || meta.action == ACTION_REQUEST_PROVIDER_PAYOUT,
             "Invalid action intent"
         );
         bytes32 payloadHash = hashActionPayload(payload);

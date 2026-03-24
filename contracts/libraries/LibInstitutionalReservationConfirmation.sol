@@ -4,7 +4,7 @@ pragma solidity ^0.8.31;
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import {RivalIntervalTreeLibrary, Tree} from "./RivalIntervalTreeLibrary.sol";
-import {LibAppStorage, AppStorage, Reservation, UserActiveReservation, INSTITUTION_ROLE} from "./LibAppStorage.sol";
+import {LibAppStorage, AppStorage, Reservation, UserActiveReservation, INSTITUTION_ROLE, ProviderNetworkStatus} from "./LibAppStorage.sol";
 import {LibTracking} from "./LibTracking.sol";
 import {LibRevenue} from "./LibRevenue.sol";
 import {LibHeap} from "./LibHeap.sol";
@@ -154,6 +154,7 @@ library LibInstitutionalReservationConfirmation {
         uint256 labId
     ) private view returns (bool) {
         if (!s.tokenStatus[labId]) return false;
+        if (s.providerNetworkStatus[labProvider] != ProviderNetworkStatus.ACTIVE) return false;
         uint256 listedLabsCount = s.providerStakes[labProvider].listedLabsCount;
         uint256 requiredStake =
             IReservableTokenCalcI(address(this)).calculateRequiredStake(labProvider, listedLabsCount);

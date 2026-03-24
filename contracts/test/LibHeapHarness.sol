@@ -85,12 +85,4 @@ contract LibHeapHarness {
         return s.payoutHeapInvalidCount[labId];
     }
 
-    // Expose prune/maintenance for tests: remove up to maxIterations invalid entries
-    function pruneViaLib(
-        uint256 labId,
-        uint256 maxIterations
-    ) external returns (uint256) {
-        AppStorage storage s = _s();
-        return LibHeap.prunePayoutHeap(s, labId, maxIterations);
-    }
 }

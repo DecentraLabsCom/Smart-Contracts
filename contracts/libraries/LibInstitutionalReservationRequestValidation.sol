@@ -27,7 +27,7 @@ library LibInstitutionalReservationRequestValidation {
     uint8 internal constant _PENDING = 0;
     uint8 internal constant _CONFIRMED = 1;
     uint8 internal constant _IN_USE = 2;
-    uint8 internal constant _COLLECTED = 4;
+    uint8 internal constant _SETTLED = 4;
     uint8 internal constant _CANCELLED = 5;
 
     uint32 internal constant _RESERVATION_MARGIN = 0;
@@ -72,7 +72,7 @@ library LibInstitutionalReservationRequestValidation {
         if (count >= _MAX_RESERVATIONS_PER_LAB_USER) revert MaxReservationsReached();
 
         Reservation storage existing = s.reservations[key];
-        if (existing.renter != address(0) && existing.status != _CANCELLED && existing.status != _COLLECTED) {
+        if (existing.renter != address(0) && existing.status != _CANCELLED && existing.status != _SETTLED) {
             if (existing.status == _PENDING) {
                 uint256 ttl = existing.requestPeriodDuration;
                 if (ttl == 0) ttl = _PENDING_REQUEST_TTL;
@@ -139,7 +139,7 @@ library LibInstitutionalReservationRequestValidation {
         address trackingKey
     ) private {
         uint8 previousStatus = reservation.status;
-        reservation.status = _COLLECTED;
+        reservation.status = _SETTLED;
         if (previousStatus == _IN_USE) {
             LibReputation.recordCompletion(labId);
         }

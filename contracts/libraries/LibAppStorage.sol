@@ -238,14 +238,6 @@ struct AppStorage {
     // forge-lint: disable-next-line(mixed-case-variable)
     bytes32 DEFAULT_ADMIN_ROLE;
     address labTokenAddress;
-    address projectTreasuryWallet; // @deprecated write-only (initializeRevenueRecipients), never read
-    address subsidiesWallet; // @deprecated write-only, never read
-    address governanceWallet; // @deprecated write-only, never read
-    address liquidityWallet; // @deprecated dead — DistributionFacet removed
-    address ecosystemGrowthWallet; // @deprecated dead — DistributionFacet removed
-    address treasuryTimelock; // @deprecated dead — DistributionFacet removed
-    address teamVestingWallet; // @deprecated dead — DistributionFacet removed
-    address liquidityTimelock; // @deprecated dead — DistributionFacet removed
 
     mapping(bytes32 role => EnumerableSet.AddressSet) roleMembers;
     mapping(address => ProviderBase) providers;
@@ -293,15 +285,6 @@ struct AppStorage {
     uint256 pendingProjectTreasury; // global pending amount for project treasury
     uint256 pendingSubsidies; // global pending amount for student subsidies
     uint256 pendingGovernance; // global pending amount for governance incentives
-    // @deprecated Tokenomics accounting — all dead after DistributionFacet removal
-    uint256 providerPoolMinted; // @deprecated dead
-    uint256 treasuryPoolMinted; // @deprecated dead
-    uint256 subsidiesPoolMinted; // @deprecated dead
-    uint256 liquidityPoolMinted; // @deprecated dead
-    uint256 ecosystemPoolMinted; // @deprecated dead
-    uint256 teamPoolMinted; // @deprecated dead
-    uint256 reservePoolMinted; // @deprecated dead
-    bool tokenPoolsInitialized; // @deprecated dead
 
     // Intent registry
     mapping(bytes32 => IntentMeta) intents; // requestId -> intent meta

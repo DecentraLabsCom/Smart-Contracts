@@ -337,22 +337,6 @@ contract WalletPayoutFacet is ReentrancyGuardTransient {
         }
     }
 
-    /// @notice One-time initializer to set revenue recipient wallets (15% treasury, 10% subsidies, 5% governance)
-    /// @dev Can only be called once by default admin. Addresses are immutable afterwards.
-    function initializeRevenueRecipients(
-        address projectTreasury,
-        address subsidies,
-        address governance
-    ) external onlyDefaultAdminRole {
-        AppStorage storage s = _s();
-        require(s.projectTreasuryWallet == address(0), "Revenue recipients already set");
-        require(projectTreasury != address(0) && subsidies != address(0) && governance != address(0), "Invalid address");
-
-        s.projectTreasuryWallet = projectTreasury;
-        s.subsidiesWallet = subsidies;
-        s.governanceWallet = governance;
-    }
-
     // -------------------------------------------------------------------------
     // Internal helpers
     // -------------------------------------------------------------------------

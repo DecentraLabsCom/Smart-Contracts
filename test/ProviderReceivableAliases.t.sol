@@ -2,38 +2,20 @@
 pragma solidity ^0.8.33;
 
 import {Test} from "forge-std/Test.sol";
-import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {ERC721} from "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
-import {WalletPayoutFacet} from "../contracts/facets/reservation/wallet/WalletPayoutFacet.sol";
+import {ProviderSettlementFacet} from "../contracts/facets/reservation/ProviderSettlementFacet.sol";
 import {AppStorage, LibAppStorage} from "../contracts/libraries/LibAppStorage.sol";
 import {LibAccessControlEnumerable} from "../contracts/libraries/LibAccessControlEnumerable.sol";
 
-contract ProviderReceivableMockToken is ERC20 {
-    constructor() ERC20("Mock Lab Token", "MLAB") {}
-
-    function mint(
-        address to,
-        uint256 amount
-    ) external {
-        _mint(to, amount);
-    }
-}
-
-contract ProviderReceivableHarness is ERC721, WalletPayoutFacet {
+contract ProviderReceivableHarness is ERC721, ProviderSettlementFacet {
     using LibAccessControlEnumerable for AppStorage;
     using EnumerableSet for EnumerableSet.AddressSet;
 
     constructor() ERC721("Labs", "LAB") {}
 
-    function initialize(
-        address labToken,
-        address admin,
-        address provider,
-        uint256 labId
-    ) external {
+    function initialize(address admin, address provider, uint256 labId) external {
         AppStorage storage s = LibAppStorage.diamondStorage();
-        s.labTokenAddress = labToken;
         s.DEFAULT_ADMIN_ROLE = keccak256("DEFAULT_ADMIN_ROLE");
         s.roleMembers[s.DEFAULT_ADMIN_ROLE].add(admin);
         s._addProviderRole(provider, "provider", "provider@example.com", "ES", "");
@@ -70,16 +52,14 @@ contract ProviderReceivableHarness is ERC721, WalletPayoutFacet {
 }
 
 contract ProviderReceivableAliasesTest is Test {
-    ProviderReceivableMockToken internal token;
     ProviderReceivableHarness internal harness;
 
     address internal constant PROVIDER = address(0xABCD);
     uint256 internal constant LAB_ID = 7;
 
     function setUp() public {
-        token = new ProviderReceivableMockToken();
         harness = new ProviderReceivableHarness();
-        harness.initialize(address(token), address(this), PROVIDER, LAB_ID);
+        harness.initialize(address(this), PROVIDER, LAB_ID);
     }
 
     function test_getLabProviderReceivable_exposes_pending_provider_bucket() public {
@@ -99,9 +79,6 @@ contract ProviderReceivableAliasesTest is Test {
 
         vm.prank(PROVIDER);
         harness.requestProviderPayout(LAB_ID, 10);
-
-        assertEq(token.balanceOf(PROVIDER), 0);
-        assertEq(token.balanceOf(address(harness)), 0);
 
         (uint256 providerReceivable,, uint256 totalReceivable,) = harness.getLabProviderReceivable(LAB_ID);
         assertEq(providerReceivable, 12e6);

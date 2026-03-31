@@ -10,7 +10,6 @@ import "../contracts/facets/ProviderFacet.sol";
 import "../contracts/facets/lab/LabFacet.sol";
 import "../contracts/facets/lab/LabAdminFacet.sol";
 import "../contracts/facets/lab/LabQueryFacet.sol";
-import "../contracts/external/LabERC20.sol";
 import {IDiamondCut} from "../contracts/interfaces/IDiamondCut.sol";
 import "../contracts/interfaces/IDiamond.sol";
 import {Lab, LabBase} from "../contracts/libraries/LibAppStorage.sol";
@@ -24,7 +23,6 @@ contract LabQueryTest is BaseTest {
     LabFacet labFacet;
     LabQueryFacet labQuery;
     ProviderFacet providerFacet;
-    LabERC20 token;
 
     address admin = address(0xA11CE);
     address provider1 = address(0xDEAD);
@@ -60,13 +58,13 @@ contract LabQueryTest is BaseTest {
         IDiamond.FacetCut[] memory cut2 = new IDiamond.FacetCut[](5);
 
         bytes4[] memory initSelectors = new bytes4[](1);
-        initSelectors[0] = _selector("initializeDiamond(string,string,string,address,string,string)");
+        initSelectors[0] = _selector("initializeDiamond(string,string,string,string,string)");
         cut2[0] = IDiamond.FacetCut({
             facetAddress: address(initFacet), action: IDiamond.FacetCutAction.Add, functionSelectors: initSelectors
         });
 
         bytes4[] memory providerSelectors = new bytes4[](3);
-        providerSelectors[0] = _selector("initialize(string,string,string,address)");
+        providerSelectors[0] = _selector("initialize(string,string,string)");
         providerSelectors[1] = _selector("addProvider(string,address,string,string,string)");
         providerSelectors[2] = _selector("isLabProvider(address)");
         cut2[1] = IDiamond.FacetCut({
@@ -118,11 +116,8 @@ contract LabQueryTest is BaseTest {
         vm.prank(admin);
         IDiamondCut(address(diamond)).diamondCut(cut2, address(0), "");
 
-        token = new LabERC20();
-        token.initialize("LS", address(diamond));
-
         vm.prank(admin);
-        InitFacet(address(diamond)).initializeDiamond("Admin", "admin@x", "ES", address(token), "Labs", "LS");
+        InitFacet(address(diamond)).initializeDiamond("Admin", "admin@x", "ES", "Labs", "LS");
 
         providerFacet = ProviderFacet(address(diamond));
         labFacet = LabFacet(address(diamond));

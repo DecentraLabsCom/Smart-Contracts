@@ -9,7 +9,6 @@ import "../contracts/facets/diamond/DiamondLoupeFacet.sol";
 import "../contracts/facets/InitFacet.sol";
 import "../contracts/facets/ProviderFacet.sol";
 import "../contracts/facets/lab/LabFacet.sol";
-import "../contracts/external/LabERC20.sol";
 import "../contracts/libraries/LibAppStorage.sol";
 import {IDiamondCut} from "../contracts/interfaces/IDiamondCut.sol";
 import "../contracts/interfaces/IDiamond.sol";
@@ -58,14 +57,14 @@ contract InitIntegrationTest is BaseTest {
 
         InitFacet initFacet = new InitFacet();
         bytes4[] memory initSels = new bytes4[](1);
-        initSels[0] = _selector("initializeDiamond(string,string,string,address,string,string)");
+        initSels[0] = _selector("initializeDiamond(string,string,string,string,string)");
         cut2[0] = IDiamond.FacetCut({
             facetAddress: address(initFacet), action: IDiamond.FacetCutAction.Add, functionSelectors: initSels
         });
 
         ProviderFacet prov = new ProviderFacet();
         bytes4[] memory provSels = new bytes4[](1);
-        provSels[0] = _selector("initialize(string,string,string,address)");
+        provSels[0] = _selector("initialize(string,string,string)");
         cut2[1] = IDiamond.FacetCut({
             facetAddress: address(prov), action: IDiamond.FacetCutAction.Add, functionSelectors: provSels
         });
@@ -81,20 +80,15 @@ contract InitIntegrationTest is BaseTest {
         vm.prank(admin);
         IDiamondCut(address(d)).diamondCut(cut2, address(0), "");
 
-        // Deploy token and initialize it granting MINTER to diamond
-        LabERC20 token = new LabERC20();
-        token.initialize("LS", address(d));
-
         // Call initializeDiamond via InitFacet on diamond as admin
         vm.prank(admin);
-        InitFacet(address(d)).initializeDiamond("Admin", "admin@x", "ES", address(token), "LN", "LS");
+        InitFacet(address(d)).initializeDiamond("Admin", "admin@x", "ES", "LN", "LS");
 
         // Add a test-only reader facet to fetch diamond storage and verify initialization
         TestReaderFacet reader = new TestReaderFacet();
         IDiamond.FacetCut[] memory addReader = new IDiamond.FacetCut[](1);
-        bytes4[] memory readerSels = new bytes4[](2);
-        readerSels[0] = _selector("readLabTokenAddress()");
-        readerSels[1] = _selector("isDefaultAdmin(address)");
+        bytes4[] memory readerSels = new bytes4[](1);
+        readerSels[0] = _selector("isDefaultAdmin(address)");
         addReader[0] = IDiamond.FacetCut({
             facetAddress: address(reader), action: IDiamond.FacetCutAction.Add, functionSelectors: readerSels
         });
@@ -102,9 +96,6 @@ contract InitIntegrationTest is BaseTest {
         vm.prank(admin);
         IDiamondCut(address(d)).diamondCut(addReader, address(0), "");
 
-        // Verify via reader
-        address readToken = TestReaderFacet(address(d)).readLabTokenAddress();
-        assertEq(readToken, address(token));
         assertTrue(TestReaderFacet(address(d)).isDefaultAdmin(admin));
     }
 }

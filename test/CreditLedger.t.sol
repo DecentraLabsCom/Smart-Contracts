@@ -9,7 +9,6 @@ import "../contracts/facets/InitFacet.sol";
 import "../contracts/facets/ProviderFacet.sol";
 import "../contracts/facets/ServiceCreditFacet.sol";
 import "../contracts/facets/lab/LabFacet.sol";
-import "../contracts/external/LabERC20.sol";
 import {IDiamondCut} from "../contracts/interfaces/IDiamondCut.sol";
 import "../contracts/interfaces/IDiamond.sol";
 import {CreditLot, CreditMovement, CreditMovementKind} from "../contracts/libraries/LibAppStorage.sol";
@@ -19,7 +18,6 @@ import {CreditLot, CreditMovement, CreditMovementKind} from "../contracts/librar
 contract CreditLedgerTest is BaseTest {
     Diamond diamond;
     ServiceCreditFacet creditFacet;
-    LabERC20 token;
 
     address admin = address(0xA11CE);
     address alice = address(0xA1);
@@ -54,14 +52,14 @@ contract CreditLedgerTest is BaseTest {
 
         // InitFacet
         bytes4[] memory initSelectors = new bytes4[](1);
-        initSelectors[0] = _selector("initializeDiamond(string,string,string,address,string,string)");
+        initSelectors[0] = _selector("initializeDiamond(string,string,string,string,string)");
         cut2[0] = IDiamond.FacetCut({
             facetAddress: address(initFacet), action: IDiamond.FacetCutAction.Add, functionSelectors: initSelectors
         });
 
         // ProviderFacet (minimal)
         bytes4[] memory provSelectors = new bytes4[](1);
-        provSelectors[0] = _selector("initialize(string,string,string,address)");
+        provSelectors[0] = _selector("initialize(string,string,string)");
         cut2[1] = IDiamond.FacetCut({
             facetAddress: address(providerFacetImpl), action: IDiamond.FacetCutAction.Add, functionSelectors: provSelectors
         });
@@ -98,11 +96,8 @@ contract CreditLedgerTest is BaseTest {
         vm.prank(admin);
         IDiamondCut(address(diamond)).diamondCut(cut2, address(0), "");
 
-        token = new LabERC20();
-        token.initialize("LS", address(diamond));
-
         vm.prank(admin);
-        InitFacet(address(diamond)).initializeDiamond("Admin", "admin@x", "ES", address(token), "Labs", "LS");
+        InitFacet(address(diamond)).initializeDiamond("Admin", "admin@x", "ES", "Labs", "LS");
 
         creditFacet = ServiceCreditFacet(address(diamond));
     }

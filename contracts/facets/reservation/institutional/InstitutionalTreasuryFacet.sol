@@ -8,17 +8,13 @@ import {
     InstitutionalUserSpending
 } from "../../../libraries/LibAppStorage.sol";
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
-import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {ReentrancyGuardTransient} from "@openzeppelin/contracts/utils/ReentrancyGuardTransient.sol";
-
-using SafeERC20 for IERC20;
 
 /// @title InstitutionalTreasuryFacet Contract
 /// @author Luis de la Torre Cubillo
 /// @author Juan Luis Ramos Villalón
-/// @notice Allows institutions to assign and manage token balances for institutional users (SAML2 schacPersonalUniqueCode)
-/// @dev Uses LabERC20 token for deposits and spending. Implements backend authorization pattern for institutional users.
+/// @notice Allows institutions to assign and manage treasury balances for institutional users (SAML2 schacPersonalUniqueCode)
+/// @dev Implements backend authorization pattern for institutional users over the internal credit ledger.
 contract InstitutionalTreasuryFacet is ReentrancyGuardTransient {
     using EnumerableSet for EnumerableSet.AddressSet;
 
@@ -37,7 +33,7 @@ contract InstitutionalTreasuryFacet is ReentrancyGuardTransient {
     /// @notice Emitted when an institution manually resets their period anchor
     event InstitutionalSpendingPeriodReset(address indexed institution, uint256 newPeriodStart);
 
-    /// @notice Emitted when an institutional user spends tokens
+    /// @notice Emitted when an institutional user spends treasury balance
     /// @dev The puc parameter is indexed as keccak256 hash for efficient filtering
     event InstitutionalUserSpent(
         address indexed institution, string indexed puc, uint256 amount, uint256 totalSpent, uint256 periodStart
@@ -281,11 +277,10 @@ contract InstitutionalTreasuryFacet is ReentrancyGuardTransient {
         require(newSpent <= _getSpendingLimit(institution), "User spending limit exceeded for period");
     }
 
-    /// @notice Spend tokens from the institution's institutional treasury as an institutional user
+    /// @notice Spend treasury balance from the institution's institutional treasury as an institutional user
     /// @dev Only callable by the institution's authorized backend or internal Diamond calls
     ///      This function marks the spending for accounting purposes with automatic period reset.
-    ///      The actual token transfer is coordinated by reservation facets/libraries (diamond internal calls).
-    ///      Tokens remain in Diamond contract until explicitly transferred by another facet.
+    ///      No ERC-20 transfer occurs; this updates internal accounting only.
     ///      Spending resets automatically when a new period begins.
     /// @param institution The institution who owns the treasury
     /// @param puc The schacPersonalUniqueCode of the user
@@ -321,7 +316,7 @@ contract InstitutionalTreasuryFacet is ReentrancyGuardTransient {
         emit InstitutionalUserSpent(institution, puc, amount, newSpent, periodStart);
     }
 
-    /// @notice Refund tokens back to the institution's institutional treasury (e.g., when canceling a reservation)
+    /// @notice Refund balance back to the institution's institutional treasury (e.g., when canceling a reservation)
     /// @dev Only internal Diamond calls from reservation facets/libraries can invoke this
     ///      This reverses a previous spend, incrementing treasury and decrementing user's spent amount
     ///      Allows refunds from past periods

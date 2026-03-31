@@ -10,16 +10,11 @@ contract InitFacet is Initializable {
         string calldata adminName,
         string calldata adminEmail,
         string calldata adminCountry,
-        address labToken,
         string calldata labName,
         string calldata labSymbol
     ) external reinitializer(2) {
         LibDiamond.enforceIsContractOwner();
-        _delegateInit(
-            abi.encodeWithSignature(
-                "initialize(string,string,string,address)", adminName, adminEmail, adminCountry, labToken
-            )
-        );
+        _delegateInit(abi.encodeWithSignature("initialize(string,string,string)", adminName, adminEmail, adminCountry));
         _delegateInit(abi.encodeWithSignature("initialize(string,string)", labName, labSymbol));
     }
 

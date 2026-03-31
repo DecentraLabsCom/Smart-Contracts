@@ -80,10 +80,10 @@ struct Lab {
 /// @param status Current state of the reservation (0=_PENDING, 1=_CONFIRMED, 2=_IN_USE, 3=_COMPLETED, 4=_SETTLED, 5=_CANCELLED)
 /// @param start Starting timestamp of the reservation (as uint32)
 /// @param end Ending timestamp of the reservation (as uint32)
-/// @param puc schacPersonalUniqueCode for institutional reservations (empty for wallet reservations)
-/// @param requestPeriodStart Period start timestamp when institutional reservation was requested (0 for wallet, used for slippage protection)
-/// @param payerInstitution Address of the institution paying for the reservation (zero for wallet payments)
-/// @param collectorInstitution Address of the institution that should receive the payout (zero for direct wallet payouts)
+/// @param puc schacPersonalUniqueCode for institutional reservations
+/// @param requestPeriodStart Period start timestamp when institutional reservation was requested, used for slippage protection
+/// @param payerInstitution Address of the institution paying for the reservation
+/// @param collectorInstitution Address of the institution that should receive the payout
 struct Reservation {
     uint256 labId; // Slot 0: 32 bytes
     address renter; // Slot 1: 20 bytes
@@ -93,13 +93,10 @@ struct Reservation {
     uint32 start; // Slot 2: +4 bytes
     uint32 end; // Slot 2: +4 bytes = 29 bytes total
     uint64 requestPeriodStart; // Slot 3: 8 bytes
-    uint64 requestPeriodDuration; // Slot 3: +8 bytes (0 for wallet reservations)
+    uint64 requestPeriodDuration; // Slot 3: +8 bytes
     address payerInstitution; // Slot 4: 20 bytes
     address collectorInstitution; // Slot 4: +20 bytes (stored in separate slot)
     uint96 providerShare; // Slot 5: Provider allocation cached at confirmation
-    uint96 projectTreasuryShare; // Slot 5: +12 bytes
-    uint96 subsidiesShare; // Slot 6: Allocation for subsidies pool
-    uint96 governanceShare; // Slot 6: +12 bytes
 }
 
 struct PayoutCandidate {
@@ -208,7 +205,6 @@ struct InstitutionalUserSpending {
 /// @notice
 /// @custom:storage-layout This struct defines the storage layout for the diamond contract
 /// @custom:member DEFAULT_ADMIN_ROLE Stores the keccak256 hash for admin role
-/// @custom:member labTokenAddress Address of the service-credit ledger contract
 /// @custom:member roleMembers Mapping of roles to set of addresses that have that role
 /// @custom:member providers Mapping of provider addresses to their base information
 /// @custom:member labId Counter for lab tokens
@@ -237,7 +233,6 @@ struct InstitutionalUserSpending {
 struct AppStorage {
     // forge-lint: disable-next-line(mixed-case-variable)
     bytes32 DEFAULT_ADMIN_ROLE;
-    address labTokenAddress;
 
     mapping(bytes32 role => EnumerableSet.AddressSet) roleMembers;
     mapping(address => ProviderBase) providers;
@@ -282,9 +277,6 @@ struct AppStorage {
     // Revenue split buckets
     mapping(uint256 => uint256) providerReceivableAccrued; // per-lab provider debt accrued onchain and not yet queued
     mapping(uint256 => uint256) providerSettlementQueue; // per-lab provider debt already queued for off-chain settlement
-    uint256 pendingProjectTreasury; // global pending amount for project treasury
-    uint256 pendingSubsidies; // global pending amount for student subsidies
-    uint256 pendingGovernance; // global pending amount for governance incentives
 
     // Intent registry
     mapping(bytes32 => IntentMeta) intents; // requestId -> intent meta

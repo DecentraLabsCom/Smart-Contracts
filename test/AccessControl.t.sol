@@ -4,7 +4,6 @@ pragma solidity ^0.8.33;
 import "forge-std/Test.sol";
 import "../contracts/facets/ProviderFacet.sol";
 import "../contracts/facets/reservation/institutional/InstitutionalTreasuryFacet.sol";
-import "../contracts/external/LabERC20.sol";
 import "../contracts/facets/InitFacet.sol";
 import "../contracts/libraries/LibDiamond.sol";
 import "../contracts/libraries/LibAppStorage.sol";
@@ -26,11 +25,10 @@ contract ProviderInitializeCaller is Initializable {
         address providerAddr,
         string memory name,
         string memory email,
-        string memory country,
-        address labToken
+        string memory country
     ) public reinitializer(1) {
         (bool ok, bytes memory res) = providerAddr.delegatecall(
-            abi.encodeWithSignature("initialize(string,string,string,address)", name, email, country, labToken)
+            abi.encodeWithSignature("initialize(string,string,string)", name, email, country)
         );
         if (!ok) {
             // bubble up revert
@@ -104,7 +102,6 @@ contract AccessControlTest is Test {
     ProviderInitializeCaller initializerCaller;
     ProviderFacet provider;
     InstitutionalTreasuryFacet instFacet;
-    LabERC20 lab;
 
     address admin = address(0xA11CE);
     address nonAdmin = address(0xB0B);
@@ -115,7 +112,6 @@ contract AccessControlTest is Test {
         initializerCaller = new ProviderInitializeCaller();
         provider = new ProviderFacet();
         instFacet = new InstitutionalTreasuryFacet();
-        lab = new LabERC20();
     }
 
     function test_onlyAdmin_can_initialize_provider() public {
@@ -126,7 +122,7 @@ contract AccessControlTest is Test {
         InitFacet initFacet = new InitFacet();
         vm.prank(nonAdmin);
         vm.expectRevert();
-        initFacet.initializeDiamond("x", "x", "x", address(0), "LN", "LS");
+        initFacet.initializeDiamond("x", "x", "x", "LN", "LS");
 
         // TODO: add diamond harness to exercise successful init end-to-end
 

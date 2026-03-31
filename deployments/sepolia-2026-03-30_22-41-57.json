@@ -1,0 +1,24 @@
+﻿{
+    "network":  "sepolia",
+    "timestamp":  "2026-03-30T22:41:57.7855615+02:00",
+    "chainId":  11155111,
+    "contracts":  {
+                      "Diamond":  "0x509a9BD94A9b76dcc3DFA8a5c426A499Ce6513cf",
+                      "DiamondCutFacet":  "0x4c9DCa8eD195728575F03f06F56954903207e23d",
+                      "DiamondInit":  "0x63027594E78456477aB6B6a991871447816A1Ed7",
+                      "RivalIntervalTreeLibrary":  "0xCAe2d78aa07d35b5bF426818F996AD04d81AB313"
+                  },
+    "deployer":  "0x183f062b6a8c39b9a9e71898741acf8f25e11561",
+    "configuration":  {
+                          "adminName":  "Luis",
+                          "adminEmail":  "ldelatorre@dia.uned.es",
+                          "adminCountry":  "Spain",
+                          "deploymentModel":  "credit-ledger",
+                          "accountingBuckets":  [
+                                                    "providerReceivable",
+                                                    "platformOperations",
+                                                    "subsidyProgram",
+                                                    "governanceProgram"
+                                                ]
+                      }
+}

@@ -36,7 +36,7 @@ interface IInstitutionalTreasuryFacet {
     ) external;
 }
 
-/// @title BaseReservationFacet - Shared internal logic for wallet and institutional reservation facets
+/// @title BaseReservationFacet - Shared internal logic for reservation facets
 /// @author
 /// - Juan Luis Ramos Villalón
 /// - Luis de la Torre Cubillo
@@ -58,17 +58,12 @@ abstract contract BaseReservationFacet is InstitutionalReservableTokenEnumerable
     );
 
     uint256 internal constant _REVENUE_DENOMINATOR = 100;
-    uint256 internal constant _REVENUE_PROVIDER = 70;
-    uint256 internal constant _REVENUE_TREASURY = 15;
-    uint256 internal constant _REVENUE_SUBSIDIES = 10;
-    uint256 internal constant _REVENUE_GOVERNANCE = 5;
+    uint256 internal constant _REVENUE_PROVIDER = 75;
     uint256 internal constant _MAX_COMPACTION_SIZE = 500;
     uint256 internal constant _PENDING_REQUEST_TTL = LibReservationConfig.PENDING_REQUEST_TTL;
 
-    uint256 internal constant _CANCEL_FEE_TOTAL = 3;
+    uint256 internal constant _CANCEL_FEE_TOTAL = 2;
     uint256 internal constant _CANCEL_FEE_PROVIDER = 1;
-    uint256 internal constant _CANCEL_FEE_TREASURY = 1;
-    uint256 internal constant _CANCEL_FEE_GOVERNANCE = 1;
     uint256 internal constant _MIN_CANCELLATION_FEE = 1; // 0.1 tokens assuming 1 decimal
     uint256 internal constant _ORPHAN_PAYOUT_DELAY = 90 days;
 
@@ -95,7 +90,7 @@ abstract contract BaseReservationFacet is InstitutionalReservableTokenEnumerable
     }
 
     // ---------------------------------------------------------------------
-    // Abstract hooks implemented by reservation facets (wallet/institutional variants)
+    // Abstract hooks implemented by reservation facets
     // ---------------------------------------------------------------------
 
     function _reservationRequest(
@@ -168,14 +163,6 @@ abstract contract BaseReservationFacet is InstitutionalReservableTokenEnumerable
         /* _labId */
         uint256 /* maxBatch */
     ) internal virtual {
-        revert NotImplemented();
-    }
-
-    function _getLabTokenAddress() internal view virtual returns (address) {
-        revert NotImplemented();
-    }
-
-    function _getSafeBalance() internal view virtual returns (uint256) {
         revert NotImplemented();
     }
 
@@ -375,27 +362,15 @@ abstract contract BaseReservationFacet is InstitutionalReservableTokenEnumerable
     }
 
     function _creditRevenueBuckets(
-        AppStorage storage s,
+        AppStorage storage,
         Reservation storage reservation,
         bytes32 reservationKey
     ) internal {
         uint96 providerShare = reservation.providerShare;
-        uint96 treasuryShare = reservation.projectTreasuryShare;
-        uint96 subsidiesShare = reservation.subsidiesShare;
-        uint96 governanceShare = reservation.governanceShare;
 
         if (providerShare > 0) {
             LibProviderReceivable.accrueReceivable(reservation.labId, providerShare, reservationKey);
             LibProviderReceivable.updateAccruedTimestamp(reservation.labId, reservation.end);
-        }
-        if (treasuryShare > 0) {
-            s.pendingProjectTreasury += treasuryShare;
-        }
-        if (subsidiesShare > 0) {
-            s.pendingSubsidies += subsidiesShare;
-        }
-        if (governanceShare > 0) {
-            s.pendingGovernance += governanceShare;
         }
     }
 
@@ -404,44 +379,32 @@ abstract contract BaseReservationFacet is InstitutionalReservableTokenEnumerable
     )
         internal
         pure
-        returns (uint96 providerShare, uint96 treasuryShare, uint96 subsidiesShare, uint96 governanceShare)
+        returns (uint96 providerShare)
     {
         if (price == 0) {
-            return (0, 0, 0, 0);
+            return 0;
         }
 
         // casting to uint96 is safe because price is already uint96 and multipliers are bounded by _REVENUE_DENOMINATOR
         // forge-lint: disable-next-line(unsafe-typecast)
         providerShare = uint96((uint256(price) * _REVENUE_PROVIDER) / _REVENUE_DENOMINATOR);
-        // forge-lint: disable-next-line(unsafe-typecast)
-        treasuryShare = uint96((uint256(price) * _REVENUE_TREASURY) / _REVENUE_DENOMINATOR);
-        // forge-lint: disable-next-line(unsafe-typecast)
-        subsidiesShare = uint96((uint256(price) * _REVENUE_SUBSIDIES) / _REVENUE_DENOMINATOR);
-        // forge-lint: disable-next-line(unsafe-typecast)
-        governanceShare = uint96((uint256(price) * _REVENUE_GOVERNANCE) / _REVENUE_DENOMINATOR);
-
-        uint96 allocated = providerShare + treasuryShare + subsidiesShare + governanceShare;
-        uint96 remainder = price - allocated;
-        treasuryShare += remainder; // round remainder to treasury as agreed
     }
 
     function _setReservationSplit(
         Reservation storage reservation
     ) internal {
-        (uint96 providerShare, uint96 treasuryShare, uint96 subsidiesShare, uint96 governanceShare) =
-            _calculateRevenueSplit(reservation.price);
-
-        reservation.providerShare = providerShare;
-        reservation.projectTreasuryShare = treasuryShare;
-        reservation.subsidiesShare = subsidiesShare;
-        reservation.governanceShare = governanceShare;
+        reservation.providerShare = _calculateRevenueSplit(reservation.price);
     }
 
     function _computeCancellationFee(
         uint96 price
-    ) internal pure returns (uint96 providerFee, uint96 treasuryFee, uint96 governanceFee, uint96 refundAmount) {
+    )
+        internal
+        pure
+        returns (uint96 providerFee, uint96 refundAmount)
+    {
         if (price == 0) {
-            return (0, 0, 0, 0);
+            return (0, 0);
         }
 
         // forge-lint: disable-next-line(unsafe-typecast)
@@ -452,46 +415,21 @@ abstract contract BaseReservationFacet is InstitutionalReservableTokenEnumerable
         uint96 minFee = price < _MIN_CANCELLATION_FEE ? price : uint96(_MIN_CANCELLATION_FEE);
         if (totalFee < minFee) {
             totalFee = minFee;
-            // forge-lint: disable-next-line(unsafe-typecast)
-            providerFee = uint96((uint256(totalFee) * _CANCEL_FEE_PROVIDER) / _CANCEL_FEE_TOTAL);
-            // forge-lint: disable-next-line(unsafe-typecast)
-            treasuryFee = uint96((uint256(totalFee) * _CANCEL_FEE_TREASURY) / _CANCEL_FEE_TOTAL);
-            governanceFee = totalFee - providerFee - treasuryFee; // assign any remainder
-        } else {
-            // forge-lint: disable-next-line(unsafe-typecast)
-            providerFee = uint96((uint256(price) * _CANCEL_FEE_PROVIDER) / _REVENUE_DENOMINATOR);
-            // forge-lint: disable-next-line(unsafe-typecast)
-            treasuryFee = uint96((uint256(price) * _CANCEL_FEE_TREASURY) / _REVENUE_DENOMINATOR);
-            // forge-lint: disable-next-line(unsafe-typecast)
-            governanceFee = uint96((uint256(price) * _CANCEL_FEE_GOVERNANCE) / _REVENUE_DENOMINATOR);
-
-            uint96 allocated = providerFee + treasuryFee + governanceFee;
-            if (allocated < totalFee) {
-                uint96 remainder = totalFee - allocated;
-                treasuryFee += remainder; // round fee remainder to treasury bucket
-            }
         }
 
+        // forge-lint: disable-next-line(unsafe-typecast)
+        providerFee = uint96((uint256(totalFee) * _CANCEL_FEE_PROVIDER) / _CANCEL_FEE_TOTAL);
         refundAmount = price - totalFee;
     }
 
     function _applyCancellationFees(
-        AppStorage storage s,
         uint256 labId,
         uint96 providerFee,
-        uint96 treasuryFee,
-        uint96 governanceFee,
         bytes32 reservationKey
     ) internal {
         if (providerFee > 0) {
             LibProviderReceivable.accrueReceivable(labId, providerFee, reservationKey);
             LibProviderReceivable.updateAccruedTimestamp(labId, block.timestamp);
-        }
-        if (treasuryFee > 0) {
-            s.pendingProjectTreasury += treasuryFee;
-        }
-        if (governanceFee > 0) {
-            s.pendingGovernance += governanceFee;
         }
     }
 

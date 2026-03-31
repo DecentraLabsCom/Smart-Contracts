@@ -9,7 +9,6 @@ import "../contracts/facets/InitFacet.sol";
 import "../contracts/facets/ProviderFacet.sol";
 import "../contracts/facets/lab/LabFacet.sol";
 import "../contracts/facets/lab/LabAdminFacet.sol";
-import "../contracts/external/LabERC20.sol";
 import {IDiamondCut} from "../contracts/interfaces/IDiamondCut.sol";
 import "../contracts/interfaces/IDiamond.sol";
 
@@ -21,7 +20,6 @@ contract LabSecurityTest is BaseTest {
     LabFacet labFacet;
     LabAdminFacet labAdminFacet;
     ProviderFacet providerFacet;
-    LabERC20 token;
 
     address admin = address(0xA11CE);
     address provider1 = address(0xDEAD);
@@ -63,13 +61,13 @@ contract LabSecurityTest is BaseTest {
         IDiamond.FacetCut[] memory cut2 = new IDiamond.FacetCut[](4);
 
         bytes4[] memory initSels = new bytes4[](1);
-        initSels[0] = _selector("initializeDiamond(string,string,string,address,string,string)");
+        initSels[0] = _selector("initializeDiamond(string,string,string,string,string)");
         cut2[0] = IDiamond.FacetCut({
             facetAddress: address(initFacet), action: IDiamond.FacetCutAction.Add, functionSelectors: initSels
         });
 
         bytes4[] memory provSels = new bytes4[](2);
-        provSels[0] = _selector("initialize(string,string,string,address)");
+        provSels[0] = _selector("initialize(string,string,string)");
         provSels[1] = _selector("addProvider(string,address,string,string,string)");
         cut2[1] = IDiamond.FacetCut({
             facetAddress: address(providerFacet), action: IDiamond.FacetCutAction.Add, functionSelectors: provSels
@@ -92,13 +90,9 @@ contract LabSecurityTest is BaseTest {
         vm.prank(admin);
         IDiamondCut(address(diamond)).diamondCut(cut2, address(0), "");
 
-        // Deploy and initialize token
-        token = new LabERC20();
-        token.initialize("LS", address(diamond));
-
         // Initialize diamond
         vm.prank(admin);
-        InitFacet(address(diamond)).initializeDiamond("Admin", "admin@x", "ES", address(token), "LN", "LS");
+        InitFacet(address(diamond)).initializeDiamond("Admin", "admin@x", "ES", "LN", "LS");
 
         // Add a provider for legitimate operations
         vm.prank(admin);

@@ -299,22 +299,16 @@ abstract contract BaseInstitutionalReservationFacet is InstitutionalReservableTo
     }
 
     function _creditRevenueBuckets(
-        AppStorage storage s,
+        AppStorage storage,
         Reservation storage reservation,
         bytes32 reservationKey
     ) internal {
         uint96 providerShare = reservation.providerShare;
-        uint96 treasuryShare = reservation.projectTreasuryShare;
-        uint96 subsidiesShare = reservation.subsidiesShare;
-        uint96 governanceShare = reservation.governanceShare;
 
         if (providerShare > 0) {
             LibProviderReceivable.accrueReceivable(reservation.labId, providerShare, reservationKey);
             LibProviderReceivable.updateAccruedTimestamp(reservation.labId, reservation.end);
         }
-        if (treasuryShare > 0) s.pendingProjectTreasury += treasuryShare;
-        if (subsidiesShare > 0) s.pendingSubsidies += subsidiesShare;
-        if (governanceShare > 0) s.pendingGovernance += governanceShare;
     }
 
     function _calculateRevenueSplit(
@@ -322,7 +316,7 @@ abstract contract BaseInstitutionalReservationFacet is InstitutionalReservableTo
     )
         internal
         pure
-        returns (uint96 providerShare, uint96 treasuryShare, uint96 subsidiesShare, uint96 governanceShare)
+        returns (uint96 providerShare)
     {
         return LibRevenue.calculateRevenueSplit(price);
     }
@@ -330,34 +324,24 @@ abstract contract BaseInstitutionalReservationFacet is InstitutionalReservableTo
     function _setReservationSplit(
         Reservation storage reservation
     ) internal {
-        (uint96 providerShare, uint96 treasuryShare, uint96 subsidiesShare, uint96 governanceShare) =
-            LibRevenue.calculateRevenueSplit(reservation.price);
-        reservation.providerShare = providerShare;
-        reservation.projectTreasuryShare = treasuryShare;
-        reservation.subsidiesShare = subsidiesShare;
-        reservation.governanceShare = governanceShare;
+        reservation.providerShare = LibRevenue.calculateRevenueSplit(reservation.price);
     }
 
     function _computeCancellationFee(
         uint96 price
-    ) internal pure returns (uint96 providerFee, uint96 treasuryFee, uint96 governanceFee, uint96 refundAmount) {
+    ) internal pure returns (uint96 providerFee, uint96 refundAmount) {
         return LibRevenue.computeCancellationFee(price);
     }
 
     function _applyCancellationFees(
-        AppStorage storage s,
         uint256 labId,
         uint96 providerFee,
-        uint96 treasuryFee,
-        uint96 governanceFee,
         bytes32 reservationKey
     ) internal {
         if (providerFee > 0) {
             LibProviderReceivable.accrueReceivable(labId, providerFee, reservationKey);
             LibProviderReceivable.updateAccruedTimestamp(labId, block.timestamp);
         }
-        if (treasuryFee > 0) s.pendingProjectTreasury += treasuryFee;
-        if (governanceFee > 0) s.pendingGovernance += governanceFee;
     }
 
     function _enqueuePayoutCandidate(

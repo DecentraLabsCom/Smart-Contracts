@@ -83,20 +83,12 @@ library LibReservationCancellation {
     function applyCancellationFees(
         uint256 labId,
         uint96 providerFee,
-        uint96 treasuryFee,
-        uint96 governanceFee,
         bytes32 reservationKey
     ) internal {
         AppStorage storage s = LibAppStorage.diamondStorage();
         if (providerFee > 0) {
             LibProviderReceivable.accrueReceivable(labId, providerFee, reservationKey);
             LibProviderReceivable.updateAccruedTimestamp(labId, block.timestamp);
-        }
-        if (treasuryFee > 0) {
-            s.pendingProjectTreasury += treasuryFee;
-        }
-        if (governanceFee > 0) {
-            s.pendingGovernance += governanceFee;
         }
     }
 

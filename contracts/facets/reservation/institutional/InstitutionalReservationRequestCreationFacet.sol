@@ -3,7 +3,7 @@ pragma solidity ^0.8.31;
 
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import {BaseMinimalReservationFacet} from "../base/BaseMinimalReservationFacet.sol";
-import {LibAppStorage, AppStorage, Reservation} from "../../../libraries/LibAppStorage.sol";
+import {AppStorage, Reservation} from "../../../libraries/LibAppStorage.sol";
 
 interface IInstitutionalTreasuryFacetLight {
     function checkInstitutionalTreasuryAvailability(
@@ -68,9 +68,6 @@ contract InstitutionalReservationRequestCreationFacet is BaseMinimalReservationF
         r.payerInstitution = i.p;
         r.collectorInstitution = hc != address(0) ? i.o : address(0);
         r.providerShare = 0;
-        r.projectTreasuryShare = 0;
-        r.subsidiesShare = 0;
-        r.governanceShare = 0;
         s.reservationPucHash[i.k] = pucHash;
 
         s.totalReservationsCount++;

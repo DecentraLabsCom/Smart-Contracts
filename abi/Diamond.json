@@ -1977,21 +1977,6 @@
                                                    "internalType":  "uint96",
                                                    "name":  "providerShare",
                                                    "type":  "uint96"
-                                               },
-                                               {
-                                                   "internalType":  "uint96",
-                                                   "name":  "projectTreasuryShare",
-                                                   "type":  "uint96"
-                                               },
-                                               {
-                                                   "internalType":  "uint96",
-                                                   "name":  "subsidiesShare",
-                                                   "type":  "uint96"
-                                               },
-                                               {
-                                                   "internalType":  "uint96",
-                                                   "name":  "governanceShare",
-                                                   "type":  "uint96"
                                                }
                                            ],
                             "internalType":  "struct Reservation",

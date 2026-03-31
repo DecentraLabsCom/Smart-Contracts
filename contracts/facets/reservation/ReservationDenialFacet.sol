@@ -2,15 +2,15 @@
 pragma solidity ^0.8.31;
 
 import {ReentrancyGuardTransient} from "@openzeppelin/contracts/utils/ReentrancyGuardTransient.sol";
-import {LibWalletReservationConfirmation} from "../../libraries/LibWalletReservationConfirmation.sol";
+import {LibReservationConfirmation} from "../../libraries/LibReservationConfirmation.sol";
 
 /// @title ReservationDenialFacet
 /// @notice Denial function for reservation requests (wallet + institutional)
-/// @dev Uses provider/backend authorization in LibWalletReservationConfirmation
+/// @dev Uses provider/backend authorization in LibReservationConfirmation
 contract ReservationDenialFacet is ReentrancyGuardTransient {
     function denyReservationRequest(
         bytes32 _reservationKey
     ) external nonReentrant {
-        LibWalletReservationConfirmation.denyReservationRequest(_reservationKey);
+        LibReservationConfirmation.denyReservationRequest(_reservationKey);
     }
 }

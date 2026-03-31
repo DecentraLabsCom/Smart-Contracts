@@ -7,11 +7,6 @@ import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet
 contract TestReaderFacet {
     using EnumerableSet for EnumerableSet.AddressSet;
 
-    function readLabTokenAddress() external view returns (address) {
-        AppStorage storage s = LibAppStorage.diamondStorage();
-        return s.labTokenAddress;
-    }
-
     function isDefaultAdmin(
         address who
     ) external view returns (bool) {

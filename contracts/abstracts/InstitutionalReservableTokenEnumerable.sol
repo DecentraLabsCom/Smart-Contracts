@@ -13,7 +13,7 @@ import {AppStorage, Reservation, UserActiveReservation} from "../libraries/LibAp
 /// @notice Extends ReservableTokenEnumerable with institutional user support (SAML2 schacPersonalUniqueCode)
 ///
 /// @dev This contract is marked abstract to enforce inheritance-only usage, even though it has
-///      no pending abstract functions. It extends wallet reservation logic with institutional features.
+///      no pending abstract functions. It extends the shared reservation base with institutional features.
 ///      Should only be inherited by institutional reservation facets.
 abstract contract InstitutionalReservableTokenEnumerable is ReservableTokenEnumerable {
     using EnumerableSet for EnumerableSet.Bytes32Set;

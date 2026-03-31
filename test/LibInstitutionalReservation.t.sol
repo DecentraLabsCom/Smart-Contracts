@@ -56,7 +56,7 @@ contract LibInstitutionalReservationTest is BaseTest {
         uint256 returned = harness.cancelBookingWrapper(inst, puc, key);
         assertEq(returned, labId);
 
-        (uint96 providerFee, uint96 treasuryFee, uint96 governanceFee, uint96 refundAmount) =
+        (uint96 providerFee, uint96 refundAmount) =
             LibRevenue.computeCancellationFee(price);
         assertEq(harness.lastRefundAmount(), refundAmount);
         assertEq(harness.lastRefundProvider(), inst);

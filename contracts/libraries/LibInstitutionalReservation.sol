@@ -117,18 +117,16 @@ library LibInstitutionalReservation {
 
         uint96 price = reservation.price;
         uint96 providerFee;
-        uint96 treasuryFee;
-        uint96 governanceFee;
         uint96 refundAmount = price;
 
         if (price > 0) {
-            (providerFee, treasuryFee, governanceFee, refundAmount) = LibRevenue.computeCancellationFee(price);
+            (providerFee, refundAmount) = LibRevenue.computeCancellationFee(price);
         }
 
         LibReservationCancellation.cancelReservation(reservationKey);
 
         if (price > 0) {
-            LibReservationCancellation.applyCancellationFees(labId, providerFee, treasuryFee, governanceFee, reservationKey);
+            LibReservationCancellation.applyCancellationFees(labId, providerFee, reservationKey);
         }
 
         IInstitutionalTreasuryFacet(address(this))

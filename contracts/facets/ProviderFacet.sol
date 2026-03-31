@@ -15,7 +15,6 @@ import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet
 import {LibDiamond} from "../libraries/LibDiamond.sol";
 import {ReentrancyGuardTransient} from "@openzeppelin/contracts/utils/ReentrancyGuardTransient.sol";
 import {LibAccessControlEnumerable} from "../libraries/LibAccessControlEnumerable.sol";
-import {LabERC20} from "../external/LabERC20.sol";
 
 /// @title ProviderFacet Contract
 /// @author Juan Luis Ramos Villalón
@@ -100,12 +99,10 @@ contract ProviderFacet is AccessControlUpgradeable, ReentrancyGuardTransient {
     /// @param _name The name of the initial admin.
     /// @param _email The email of the initial admin.
     /// @param _country The country of the initial admin.
-    /// @param _labErc20 The address of the LabERC20 token contract.
     function initialize(
         string memory _name,
         string memory _email,
-        string memory _country,
-        address _labErc20
+        string memory _country
     ) public onlyInitializing {
         LibDiamond.enforceIsContractOwner();
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
@@ -114,7 +111,6 @@ contract ProviderFacet is AccessControlUpgradeable, ReentrancyGuardTransient {
         _s()._addProviderRole(msg.sender, _name, _email, _country, "");
 
         _s().DEFAULT_ADMIN_ROLE = DEFAULT_ADMIN_ROLE;
-        _s().labTokenAddress = _labErc20;
         _s().labId = 0;
     }
 

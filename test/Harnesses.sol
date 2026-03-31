@@ -2,12 +2,9 @@
 pragma solidity ^0.8.33;
 
 import "../contracts/facets/reservation/institutional/InstitutionalReservationCancellationFacet.sol";
-import "../contracts/facets/reservation/wallet/WalletReservationCancellationFacet.sol";
 import "../contracts/facets/reservation/institutional/InstitutionalReservationConfirmationFacet.sol";
 import "../contracts/libraries/LibAppStorage.sol";
 import "../contracts/libraries/LibInstitutionalReservation.sol";
-import "../contracts/libraries/LibReservationCancellation.sol";
-import "../contracts/libraries/LibWalletReservationCancellation.sol";
 import "../contracts/libraries/LibLabAdmin.sol";
 
 contract InstReservationHarness {
@@ -86,92 +83,6 @@ contract InstReservationHarness {
     }
 
     // helper to read reservation status from the harness storage
-    function getReservationStatus(
-        bytes32 key
-    ) external view returns (uint8) {
-        AppStorage storage s = LibAppStorage.diamondStorage();
-        return s.reservations[key].status;
-    }
-}
-
-contract WalletCancellationHarness is WalletReservationCancellationFacet {
-    // simple ERC721 ownerOf stub
-    mapping(uint256 => address) public owners;
-
-    function setOwner(
-        uint256 tokenId,
-        address owner
-    ) external {
-        owners[tokenId] = owner;
-    }
-
-    function ownerOf(
-        uint256 tokenId
-    ) external view returns (address) {
-        return owners[tokenId];
-    }
-
-    function setReservation(
-        bytes32 key,
-        address renter,
-        uint96 price,
-        uint8 status,
-        uint256 labId,
-        uint32 start,
-        address payerInstitution,
-        string calldata puc
-    ) external {
-        AppStorage storage s = LibAppStorage.diamondStorage();
-        Reservation storage r = s.reservations[key];
-        r.renter = renter;
-        r.price = price;
-        r.status = status;
-        r.labId = labId;
-        r.start = start;
-        r.end = start + 3600; // default 1 hour
-        r.payerInstitution = payerInstitution;
-        if (bytes(puc).length > 0) s.reservationPucHash[key] = keccak256(bytes(puc));
-
-        // set the request period to avoid confirmation being denied due to period slippage
-        uint256 d = s.institutionalSpendingPeriod[payerInstitution];
-        if (d == 0) d = LibAppStorage.DEFAULT_SPENDING_PERIOD;
-        uint256 rsAligned = block.timestamp - (block.timestamp % d);
-        r.requestPeriodStart = uint64(rsAligned);
-        r.requestPeriodDuration = uint64(d);
-
-        // reservation index sets are not required by these unit tests and are omitted in the harness
-    }
-
-    function setServiceCreditBalance(
-        address account,
-        uint256 amount
-    ) external {
-        AppStorage storage s = LibAppStorage.diamondStorage();
-        s.serviceCreditBalance[account] = amount;
-    }
-
-    function setCreditLockedBalance(
-        address account,
-        uint256 amount
-    ) external {
-        AppStorage storage s = LibAppStorage.diamondStorage();
-        s.creditLockedBalance[account] = amount;
-    }
-
-    function getServiceCreditBalance(
-        address account
-    ) external view returns (uint256) {
-        AppStorage storage s = LibAppStorage.diamondStorage();
-        return s.serviceCreditBalance[account];
-    }
-
-    // public wrapper to call internal cancel booking
-    function ext_cancelBooking(
-        bytes32 key
-    ) external {
-        LibWalletReservationCancellation.cancelBooking(key);
-    }
-
     function getReservationStatus(
         bytes32 key
     ) external view returns (uint8) {

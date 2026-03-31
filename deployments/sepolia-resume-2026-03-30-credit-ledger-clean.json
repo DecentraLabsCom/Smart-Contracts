@@ -1,0 +1,43 @@
+{
+  "network": "sepolia",
+  "updated": "2026-03-30T22:41:57.7855615+02:00",
+  "base": {
+    "DiamondCutFacet": "0x4c9DCa8eD195728575F03f06F56954903207e23d",
+    "DiamondInit": "0x63027594E78456477aB6B6a991871447816A1Ed7",
+    "Diamond": "0x509a9BD94A9b76dcc3DFA8a5c426A499Ce6513cf",
+    "RivalIntervalTreeLibrary": "0xCAe2d78aa07d35b5bF426818F996AD04d81AB313",
+    "LibLabTransfer": "0x4f0b6E9010124b46e00EdB98cc94dA613fBd17c8",
+    "LibReservationConfirmation": "0x673EC2Ca72351DD0b045027653Fb8DA8dd9787E2",
+    "LibInstitutionalReservationConfirmation": "0x4eb6898093c52a68a2A52392eF99872fCe3eC030",
+    "LibInstitutionalReservationRequestValidation": "0xA01D2bb30dA678a1551c8b8815C8907CFd774333",
+    "LibInstitutionalReservationRelease": "0x6eCFA45489645Aa5FEaC8bCA47a138b9127D12bB"
+  },
+  "facets": {
+    "contracts/facets/diamond/DiamondLoupeFacet.sol:DiamondLoupeFacet": "0xBbe19e72bE15c5D5D860C2bA8181351a5452794e",
+    "contracts/facets/diamond/OwnershipFacet.sol:OwnershipFacet": "0x4e79F2E4B9Cd8D2852a7647198Fa08E3358D4284",
+    "contracts/facets/InitFacet.sol:InitFacet": "0x4C924b5Ae3a116FE25e80ED939a43632D7C3eeCC",
+    "contracts/facets/ProviderFacet.sol:ProviderFacet": "0xd8330414aDB4f4527Fc3D80394f857875B6A60ad",
+    "contracts/facets/StakingFacet.sol:StakingFacet": "0xAc1bA7f682Db5B18A6695375298cEC95082b4A66",
+    "contracts/facets/IntentRegistryFacet.sol:IntentRegistryFacet": "0x56288666aD186C2745F0CD33862f3C786B2cf588",
+    "contracts/facets/lab/LabFacet.sol:LabFacet": "0x3170e22Eb11A3a9d561718CB035f8dEb98780005",
+    "contracts/facets/lab/LabAdminFacet.sol:LabAdminFacet": "0xB961963B500B191922c60bEFbCfC7E13474Da2b3",
+    "contracts/facets/lab/LabIntentFacet.sol:LabIntentFacet": "0x4c0F2FA78cf086c6C185fBB3a1bb46caE59b836a",
+    "contracts/facets/lab/LabQueryFacet.sol:LabQueryFacet": "0x1034119dDC0D8f48ac9cc4b2397Ec18Af3296464",
+    "contracts/facets/lab/LabReputationFacet.sol:LabReputationFacet": "0xb36593091512C6714e2948e609e49A7B4F7f32f0",
+    "contracts/facets/reservation/ProviderSettlementFacet.sol:ProviderSettlementFacet": "0x065305D7bF4D12275e9046F8C595A7B2e18fEb16",
+    "contracts/facets/reservation/ReservationCheckInFacet.sol:ReservationCheckInFacet": "0xA93218Cf8Dc857B9A65411B795376Aabe54420cf",
+    "contracts/facets/reservation/ReservationStatsFacet.sol:ReservationStatsFacet": "0xc1C733B55143cD197b80ba7b41CF5028036e457e",
+    "contracts/facets/reservation/ReservationDenialFacet.sol:ReservationDenialFacet": "0x793532ae55c8E58a83D824b705e5d981731826c6",
+    "contracts/facets/reservation/ReservationIntentFacet.sol:ReservationIntentFacet": "0xbde8f0Fe5a953824bAEEc86073D629C831A95b63",
+    "contracts/facets/reservation/institutional/InstitutionFacet.sol:InstitutionFacet": "0x56270154570E8394cF10699feDEBf51f6d1760d9",
+    "contracts/facets/reservation/institutional/InstitutionalOrgRegistryFacet.sol:InstitutionalOrgRegistryFacet": "0x32558b43Dc81DC0a19cF01733f965268f1D0574D",
+    "contracts/facets/reservation/institutional/InstitutionalTreasuryFacet.sol:InstitutionalTreasuryFacet": "0x26B283ea524D8aB0673F1567794EAfA6629AdD20",
+    "contracts/facets/reservation/institutional/InstitutionalReservationRequestValidationFacet.sol:InstitutionalReservationRequestValidationFacet": "0x656ef85A1A2261BC35A6D1FAe535F28fbb570039",
+    "contracts/facets/reservation/institutional/InstitutionalReservationRequestCreationFacet.sol:InstitutionalReservationRequestCreationFacet": "0xF1f1B252357EF164131E5dc6490f6fA68D1a40bA",
+    "contracts/facets/reservation/institutional/InstitutionalReservationRequestFacet.sol:InstitutionalReservationRequestFacet": "0x7195c482ba0aD0859f96ABB63f2E1efb4A4E34c4",
+    "contracts/facets/reservation/institutional/InstitutionalReservationConfirmationFacet.sol:InstitutionalReservationConfirmationFacet": "0x7a4E9cb48ef8A4546541D548947245899De9d5C9",
+    "contracts/facets/reservation/institutional/InstitutionalReservationCancellationFacet.sol:InstitutionalReservationCancellationFacet": "0xAE384f50702Af55ABe167a689F81f25781cd6541",
+    "contracts/facets/reservation/institutional/InstitutionalReservationQueryFacet.sol:InstitutionalReservationQueryFacet": "0xc93B1bED345F4f8349E58081F67398aD6f090f29",
+    "contracts/facets/reservation/institutional/InstitutionalReservationFacet.sol:InstitutionalReservationFacet": "0xAeFa45C4605908177765CB0C0a51A74bC812e006"
+  }
+}

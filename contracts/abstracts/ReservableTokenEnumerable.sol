@@ -18,11 +18,11 @@ import {RivalIntervalTreeLibrary, Tree} from "../libraries/RivalIntervalTreeLibr
 /// - Juan Luis Ramos Villalón
 /// - Luis de la Torre Cubillo
 /// @dev Abstract contract by design (prevents direct deployment in Diamond pattern)
-/// @notice Provides complete wallet reservation implementation with enumerable functionality
+/// @notice Provides base reservation functionality with enumerable tracking
 ///
 /// @dev This contract fully implements all abstract functions from ReservableToken but is marked
 ///      as abstract to enforce inheritance-only usage. It should never be deployed directly,
-///      only inherited by reservation facets (wallet/institutional variants).
+///      only inherited by reservation facets.
 abstract contract ReservableTokenEnumerable is ReservableToken {
     using RivalIntervalTreeLibrary for Tree;
     using EnumerableSet for EnumerableSet.Bytes32Set;

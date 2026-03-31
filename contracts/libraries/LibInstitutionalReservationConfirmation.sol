@@ -164,11 +164,7 @@ library LibInstitutionalReservationConfirmation {
     function _setReservationSplit(
         Reservation storage reservation
     ) private {
-        (uint96 prov, uint96 treas, uint96 subs, uint96 gov) = LibRevenue.calculateRevenueSplit(reservation.price);
-        reservation.providerShare = prov;
-        reservation.projectTreasuryShare = treas;
-        reservation.subsidiesShare = subs;
-        reservation.governanceShare = gov;
+        reservation.providerShare = LibRevenue.calculateRevenueSplit(reservation.price);
     }
 
     function _incrementActiveReservationCounters(

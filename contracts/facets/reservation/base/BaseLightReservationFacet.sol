@@ -130,15 +130,6 @@ abstract contract BaseLightReservationFacet is ReservableTokenEnumerable {
             if (reservation.providerShare > 0) {
                 LibProviderReceivable.accrueReceivable(labId, reservation.providerShare, key);
             }
-            if (reservation.projectTreasuryShare > 0) {
-                s.pendingProjectTreasury += reservation.projectTreasuryShare;
-            }
-            if (reservation.subsidiesShare > 0) {
-                s.pendingSubsidies += reservation.subsidiesShare;
-            }
-            if (reservation.governanceShare > 0) {
-                s.pendingGovernance += reservation.governanceShare;
-            }
         }
 
         s.reservationKeysByToken[labId].remove(key);
@@ -167,11 +158,7 @@ abstract contract BaseLightReservationFacet is ReservableTokenEnumerable {
     function _setReservationSplit(
         Reservation storage reservation
     ) internal {
-        (uint96 prov, uint96 treas, uint96 subs, uint96 gov) = LibRevenue.calculateRevenueSplit(reservation.price);
-        reservation.providerShare = prov;
-        reservation.projectTreasuryShare = treas;
-        reservation.subsidiesShare = subs;
-        reservation.governanceShare = gov;
+        reservation.providerShare = LibRevenue.calculateRevenueSplit(reservation.price);
     }
 
     // === Payout Heap ===

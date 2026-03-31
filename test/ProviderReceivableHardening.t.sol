@@ -4,16 +4,16 @@ pragma solidity ^0.8.33;
 import {Test} from "forge-std/Test.sol";
 import {ERC721} from "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
-import {WalletPayoutFacet} from "../contracts/facets/reservation/wallet/WalletPayoutFacet.sol";
+import {ProviderSettlementFacet} from "../contracts/facets/reservation/ProviderSettlementFacet.sol";
 import {AppStorage, LibAppStorage} from "../contracts/libraries/LibAppStorage.sol";
 import {LibAccessControlEnumerable} from "../contracts/libraries/LibAccessControlEnumerable.sol";
 import {LibProviderReceivable, SETTLEMENT_OPERATOR_ROLE} from "../contracts/libraries/LibProviderReceivable.sol";
 
 // ---------------------------------------------------------------------------
-// Harness: exposes LibProviderReceivable helpers + WalletPayoutFacet for role
+// Harness: exposes LibProviderReceivable helpers + ProviderSettlementFacet for role
 // and lifecycle tests, plus ERC721 transfer for the unsettled-receivable guard.
 // ---------------------------------------------------------------------------
-contract ReceivableHardeningHarness is ERC721, WalletPayoutFacet {
+contract ReceivableHardeningHarness is ERC721, ProviderSettlementFacet {
     using LibAccessControlEnumerable for AppStorage;
     using EnumerableSet for EnumerableSet.AddressSet;
 
@@ -21,14 +21,8 @@ contract ReceivableHardeningHarness is ERC721, WalletPayoutFacet {
 
     // ---- Setup helpers ----
 
-    function initialize(
-        address labToken,
-        address admin,
-        address provider,
-        uint256 labId
-    ) external {
+    function initialize(address admin, address provider, uint256 labId) external {
         AppStorage storage s = LibAppStorage.diamondStorage();
-        s.labTokenAddress = labToken;
         s.DEFAULT_ADMIN_ROLE = keccak256("DEFAULT_ADMIN_ROLE");
         s.roleMembers[s.DEFAULT_ADMIN_ROLE].add(admin);
         s._addProviderRole(provider, "provider", "p@x.com", "ES", "");
@@ -84,7 +78,7 @@ contract ReceivableHardeningHarness is ERC721, WalletPayoutFacet {
         _transfer(from, to, tokenId);
     }
 
-    // ---- Staking stub required by WalletPayoutFacet ----
+    // ---- Staking stub required by ProviderSettlementFacet ----
 
     function updateLastReservation(address) external {}
 }
@@ -117,8 +111,7 @@ contract ProviderReceivableHardeningTest is Test {
 
     function setUp() public {
         h = new ReceivableHardeningHarness();
-        MockERC20 tok = new MockERC20();
-        h.initialize(address(tok), ADMIN, PROVIDER, LAB);
+        h.initialize(ADMIN, PROVIDER, LAB);
         h.addProvider(PROVIDER2);
     }
 

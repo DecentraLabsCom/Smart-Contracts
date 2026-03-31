@@ -1,26 +1,25 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 pragma solidity ^0.8.31;
 
-import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import {ReentrancyGuardTransient} from "@openzeppelin/contracts/utils/ReentrancyGuardTransient.sol";
-import {AppStorage, Reservation, PayoutCandidate, LibAppStorage} from "../../../libraries/LibAppStorage.sol";
-import {LibAccessControlEnumerable} from "../../../libraries/LibAccessControlEnumerable.sol";
-import {ActionIntentPayload} from "../../../libraries/IntentTypes.sol";
-import {LibIntent} from "../../../libraries/LibIntent.sol";
-import {LibLabAdmin} from "../../../libraries/LibLabAdmin.sol";
-import {LibReputation} from "../../../libraries/LibReputation.sol";
-import {LibProviderReceivable, SETTLEMENT_OPERATOR_ROLE} from "../../../libraries/LibProviderReceivable.sol";
+import {AppStorage, Reservation, PayoutCandidate, LibAppStorage} from "../../libraries/LibAppStorage.sol";
+import {LibAccessControlEnumerable} from "../../libraries/LibAccessControlEnumerable.sol";
+import {ActionIntentPayload} from "../../libraries/IntentTypes.sol";
+import {LibIntent} from "../../libraries/LibIntent.sol";
+import {LibLabAdmin} from "../../libraries/LibLabAdmin.sol";
+import {LibReputation} from "../../libraries/LibReputation.sol";
+import {LibProviderReceivable, SETTLEMENT_OPERATOR_ROLE} from "../../libraries/LibProviderReceivable.sol";
 
-/// @title WalletPayoutFacet
+/// @title ProviderSettlementFacet
 /// @author
 /// - Luis de la Torre Cubillo
 /// - Juan Luis Ramos Villalón
 /// @dev Facet contract to manage provider receivable accrual and settlement requests.
 /// Reservation completion accrues provider debt onchain; settlement remains a separate workflow.
 
-contract WalletPayoutFacet is ReentrancyGuardTransient {
+contract ProviderSettlementFacet is ReentrancyGuardTransient {
     using EnumerableSet for EnumerableSet.Bytes32Set;
     using EnumerableSet for EnumerableSet.AddressSet;
     using LibAccessControlEnumerable for AppStorage;
@@ -112,14 +111,6 @@ contract WalletPayoutFacet is ReentrancyGuardTransient {
 
         _requestProviderPayout(payload.labId, maxBatch);
         emit LabIntentProcessed(requestId, payload.labId, "REQUEST_PROVIDER_PAYOUT", msg.sender, true, "");
-    }
-
-    function getLabTokenAddress() external view returns (address) {
-        return _s().labTokenAddress;
-    }
-
-    function getSafeBalance() external view returns (uint256) {
-        return IERC20(_s().labTokenAddress).balanceOf(address(this));
     }
 
     /// @notice Returns the provider receivable currently accrued or immediately settleable for a lab
@@ -731,9 +722,6 @@ contract WalletPayoutFacet is ReentrancyGuardTransient {
         // Accrue shares to canonical on-chain provider debt buckets.
         LibProviderReceivable.accrueReceivable(labId, reservation.providerShare, key);
         LibProviderReceivable.updateAccruedTimestamp(labId, block.timestamp);
-        s.pendingProjectTreasury += reservation.projectTreasuryShare;
-        s.pendingSubsidies += reservation.subsidiesShare;
-        s.pendingGovernance += reservation.governanceShare;
 
         return true;
     }

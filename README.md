@@ -67,7 +67,7 @@ Primary deployment artifacts:
 
 - `deployments/sepolia-resume.json`
 - `deployments/sepolia-latest.json`
-- `deployments/sepolia-mica-open-2026-03-30.json`
+- `deployments/sepolia-mica-open-2026-03-31.json`
 
 ## Validation
 

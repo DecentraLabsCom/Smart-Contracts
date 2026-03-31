@@ -1,78 +1,75 @@
-{
-  "network": "sepolia",
-  "scenario": "mica-open-limited-network",
-  "timestamp": "2026-03-30T22:41:57.7855615+02:00",
-  "chainId": 11155111,
-  "contracts": {
-    "Diamond": "0x509a9BD94A9b76dcc3DFA8a5c426A499Ce6513cf",
-    "DiamondCutFacet": "0x4c9DCa8eD195728575F03f06F56954903207e23d",
-    "DiamondInit": "0x63027594E78456477aB6B6a991871447816A1Ed7"
-  },
-  "libraries": {
-    "RivalIntervalTreeLibrary": "0xCAe2d78aa07d35b5bF426818F996AD04d81AB313",
-    "LibLabTransfer": "0x4f0b6E9010124b46e00EdB98cc94dA613fBd17c8",
-    "LibReservationConfirmation": "0x673EC2Ca72351DD0b045027653Fb8DA8dd9787E2",
-    "LibInstitutionalReservationConfirmation": "0x4eb6898093c52a68a2A52392eF99872fCe3eC030",
-    "LibInstitutionalReservationRequestValidation": "0xA01D2bb30dA678a1551c8b8815C8907CFd774333",
-    "LibInstitutionalReservationRelease": "0x6eCFA45489645Aa5FEaC8bCA47a138b9127D12bB"
-  },
-  "facets": {
-    "DiamondLoupeFacet": "0xBbe19e72bE15c5D5D860C2bA8181351a5452794e",
-    "OwnershipFacet": "0x4e79F2E4B9Cd8D2852a7647198Fa08E3358D4284",
-    "InitFacet": "0x4C924b5Ae3a116FE25e80ED939a43632D7C3eeCC",
-    "ProviderFacet": "0xd8330414aDB4f4527Fc3D80394f857875B6A60ad",
-    "StakingFacet": "0xAc1bA7f682Db5B18A6695375298cEC95082b4A66",
-    "IntentRegistryFacet": "0x56288666aD186C2745F0CD33862f3C786B2cf588",
-    "InstitutionFacet": "0x56270154570E8394cF10699feDEBf51f6d1760d9",
-    "InstitutionalOrgRegistryFacet": "0x32558b43Dc81DC0a19cF01733f965268f1D0574D",
-    "InstitutionalTreasuryFacet": "0x26B283ea524D8aB0673F1567794EAfA6629AdD20",
-    "LabFacet": "0x3170e22Eb11A3a9d561718CB035f8dEb98780005",
-    "LabAdminFacet": "0xB961963B500B191922c60bEFbCfC7E13474Da2b3",
-    "LabIntentFacet": "0x4c0F2FA78cf086c6C185fBB3a1bb46caE59b836a",
-    "LabQueryFacet": "0x1034119dDC0D8f48ac9cc4b2397Ec18Af3296464",
-    "LabReputationFacet": "0xb36593091512C6714e2948e609e49A7B4F7f32f0",
-    "ProviderSettlementFacet": "0x065305D7bF4D12275e9046F8C595A7B2e18fEb16",
-    "InstitutionalReservationRequestValidationFacet": "0x656ef85A1A2261BC35A6D1FAe535F28fbb570039",
-    "InstitutionalReservationRequestCreationFacet": "0xF1f1B252357EF164131E5dc6490f6fA68D1a40bA",
-    "InstitutionalReservationRequestFacet": "0x7195c482ba0aD0859f96ABB63f2E1efb4A4E34c4",
-    "InstitutionalReservationConfirmationFacet": "0x7a4E9cb48ef8A4546541D548947245899De9d5C9",
-    "InstitutionalReservationCancellationFacet": "0xAE384f50702Af55ABe167a689F81f25781cd6541",
-    "InstitutionalReservationQueryFacet": "0xc93B1bED345F4f8349E58081F67398aD6f090f29",
-    "InstitutionalReservationFacet": "0xAeFa45C4605908177765CB0C0a51A74bC812e006",
-    "ReservationCheckInFacet": "0xA93218Cf8Dc857B9A65411B795376Aabe54420cf",
-    "ReservationStatsFacet": "0xc1C733B55143cD197b80ba7b41CF5028036e457e",
-    "ReservationDenialFacet": "0x793532ae55c8E58a83D824b705e5d981731826c6",
-    "ReservationIntentFacet": "0xbde8f0Fe5a953824bAEEc86073D629C831A95b63"
-  },
-  "deployer": "0x183f062b6a8c39b9a9e71898741acf8f25e11561",
-  "configuration": {
-    "adminName": "Luis",
-    "adminEmail": "ldelatorre@dia.uned.es",
-    "adminCountry": "Spain",
-    "diamondName": "DecentraLabs",
-    "diamondSymbol": "dLAB",
-    "deploymentModel": "credit-ledger",
-    "accountingBuckets": [
-      "providerReceivable",
-      "platformOperations",
-      "subsidyProgram",
-      "governanceProgram"
-    ]
-  },
-  "verification": {
-    "forgeTestsPassed": 225,
-    "diamondOwner": "0x183F062B6A8C39B9A9e71898741ACf8f25E11561",
-    "diamondName": "DecentraLabs",
-    "diamondSymbol": "dLAB",
-    "initializeDiamondExecuted": true,
-    "registerActionIntentSelector": "0xbc825e1d",
-    "registerReservationIntentSelector": "0x01955839"
-  },
-  "notes": [
-    "Clean Sepolia redeploy completed through scripts/deploy_credits.ps1.",
-    "The deployment is token-free and uses only the internal credit-ledger architecture.",
-    "The deployment excludes wallet reservation facets and wallet-only benchmarks.",
-    "Provider settlement is exposed through ProviderSettlementFacet in the active target deployment.",
-    "On-chain accounting buckets are named platformOperations, subsidyProgram, and governanceProgram."
-  ]
+﻿{
+    "network":  "sepolia",
+    "scenario":  "mica-open-limited-network",
+    "timestamp":  "2026-03-31T13:54:11.8038225+02:00",
+    "chainId":  11155111,
+    "contracts":  {
+                      "Diamond":  "0xB544Ba7A31f67D8d8FD5b4B7036CDD6d00876407",
+                      "DiamondCutFacet":  "0x8284aB60d3113E26764694E18Ca148eD5F71283c",
+                      "DiamondInit":  "0xbfBF4a25AD2d70E1e7b623Ec608850330eB2BA76"
+                  },
+    "libraries":  {
+                      "RivalIntervalTreeLibrary":  "0xf0c6e51B9826b7BAFdDC3892588772E1f08AeC12",
+                      "LibLabTransfer":  "0x8EAA979D81a14A175513d7B54Af1b05137c6C316",
+                      "LibReservationConfirmation":  "0xDba53470fD8d963df494e50cab4Fa36F75Fb0BFC",
+                      "LibInstitutionalReservationConfirmation":  "0xb8A91aDCD15b6acDECD3e410199C455b5a185f94",
+                      "LibInstitutionalReservationRequestValidation":  "0xdE327b7F4135b6E07B4B9535a2c5A1b4f3B537C9",
+                      "LibInstitutionalReservationRelease":  "0x3AcBC2Dc582deF05F4c749e2bB0e06CD4EBB3934"
+                  },
+    "facets":  {
+                   "DiamondLoupeFacet":  "0xD00ba9f42e543E00F33105C002C75878E42d9a18",
+                   "OwnershipFacet":  "0x675b78D6310a3BCd833102bC8f3E67c33788c91d",
+                   "InitFacet":  "0x71Ff2058030014372F98eADA260348bd09c5Ab80",
+                   "ProviderFacet":  "0x24010F961C87eF66dC9CcE96e058C885A7255887",
+                   "StakingFacet":  "0xC3D315275d0648b3fDfbd9D5614F6Fe4A980e264",
+                   "IntentRegistryFacet":  "0x14955f6CB2BA991EE22FF8cAeAD6341A068DAbD3",
+                   "InstitutionFacet":  "0xB9AE299Af7913b512c5c524FB3Fc8C96C57A1C26",
+                   "InstitutionalOrgRegistryFacet":  "0x895B091604FB1cDFc5E5a6bC893E01bA3e32f90a",
+                   "InstitutionalTreasuryFacet":  "0xDCbee9cdEd3F4A3313C6c735FA44496B0d6F2F74",
+                   "LabFacet":  "0x1C9ADF2a48cdbfa6ed873C0Cf5c809D06F0871aA",
+                   "LabAdminFacet":  "0xCc6568C0B348e7E58B04690B8F33949F71C00E48",
+                   "LabIntentFacet":  "0xA628e9fAAEE0Abb560d3EbEA8f5B45D6AdB8A327",
+                   "LabQueryFacet":  "0xc03D4aD2Ba2BBEE0a3d0433837E99958294244d6",
+                   "LabReputationFacet":  "0x07bb79582c5d0DF8C4fefB128da7B5C7A90f389A",
+                   "ProviderSettlementFacet":  "0xd7E9e253cd25950d77587125259A3309b3BD6DD9",
+                   "InstitutionalReservationRequestValidationFacet":  "0xeAf67B86fEC877B50ce097572ad56F1d9d36bcB2",
+                   "InstitutionalReservationRequestCreationFacet":  "0xa0569d40c4246C7Ca9B9080a1d4C7275B2d466D1",
+                   "InstitutionalReservationRequestFacet":  "0x0A7e9c7e6316E0DF126bBBE1a7460Bf95bcdF764",
+                   "InstitutionalReservationConfirmationFacet":  "0x628F4cf563294983eD47F8979922b82DCda2aA10",
+                   "InstitutionalReservationCancellationFacet":  "0xE9d15a61189Be75205d8162416be77D45480efa9",
+                   "InstitutionalReservationQueryFacet":  "0xcee3A4E150C7c840AAeE1c3bfA978cf1b8007090",
+                   "InstitutionalReservationFacet":  "0xd7BFCC760E681c05D60feb0049Dc4E85E40a6c8e",
+                   "ReservationCheckInFacet":  "0x95cff2D68C2ceF456C31547e99C30eDD5a733e77",
+                   "ReservationStatsFacet":  "0x3e5dA6df693830a18727B49CEe34E959FE24a64D",
+                   "ReservationDenialFacet":  "0xe9c1b9248932214Ad2040a78DBED1D27816165c4",
+                   "ReservationIntentFacet":  "0xEcfE067A65676a8E6ABf1a038140c32D90fcb7D1"
+               },
+    "deployer":  "0x183f062b6a8c39b9a9e71898741acf8f25e11561",
+    "configuration":  {
+                          "adminName":  "Luis",
+                          "adminEmail":  "ldelatorre@dia.uned.es",
+                          "adminCountry":  "Spain",
+                          "diamondName":  "DecentraLabs",
+                          "diamondSymbol":  "dLAB",
+                          "deploymentModel":  "credit-ledger",
+                          "accountingBuckets":  [
+                                                    "providerReceivable"
+                                                ]
+                      },
+    "verification":  {
+                         "forgeTestsPassed":  225,
+                         "diamondOwner":  "0x183F062B6A8C39B9A9e71898741ACf8f25E11561",
+                         "diamondName":  "DecentraLabs",
+                         "diamondSymbol":  "dLAB",
+                         "initializeDiamondExecuted":  true,
+                         "registerActionIntentSelector":  "0xbc825e1d",
+                         "registerReservationIntentSelector":  "0x01955839"
+                     },
+    "notes":  [
+                  "Clean Sepolia redeploy completed on March 31, 2026 through scripts/deploy_credits.ps1.",
+                  "The deployment is token-free and uses only the internal credit-ledger architecture.",
+                  "The deployment excludes wallet reservation facets and wallet-only benchmarks.",
+                  "Provider settlement is exposed through ProviderSettlementFacet in the active target deployment.",
+                  "On-chain accounting tracks provider receivable only; platform margin is implicit (price - providerShare)."
+              ]
 }

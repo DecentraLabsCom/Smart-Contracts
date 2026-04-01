@@ -93,7 +93,7 @@ contract ServiceCreditFacet {
     /// @param account Recipient address
     /// @param creditAmount Amount of credits to issue
     /// @param fundingOrderId External funding order reference
-    /// @param eurGrossAmount EUR gross amount that funded this lot (1 decimal, informational)
+    /// @param eurGrossAmount EUR gross amount that funded this lot (euro cents, informational)
     /// @param expiresAt Expiry timestamp (0 = no expiry)
     /// @return lotId The ID of the newly created lot
     function mintCredits(

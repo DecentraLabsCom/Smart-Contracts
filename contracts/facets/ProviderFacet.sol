@@ -32,7 +32,7 @@ contract ProviderFacet is AccessControlUpgradeable, ReentrancyGuardTransient {
     /// @dev Represents the initial service credits issued to new providers for onboarding.
     /// These are non-monetary credits, not ERC-20 tokens.
     /// Distribution: credits used for platform familiarization only.
-    uint32 constant INITIAL_SERVICE_CREDITS = 10_000; // 1000 credits with 1 decimal
+    uint256 constant INITIAL_SERVICE_CREDITS = 100_000_000; // 1000 credits with 5 decimals
 
     /// @dev Emitted when a new provider is added to the system.
     /// @param _account The address of the provider being added.

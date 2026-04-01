@@ -158,7 +158,7 @@ struct Tree {
 /// @param stakedAmount Current amount of tokens staked by the provider
 /// @param slashedAmount Total amount of tokens slashed historically (for tracking)
 /// @param lastReservationTimestamp Timestamp of the provider's last completed reservation
-/// @param receivedInitialTokens Whether the provider received the initial 1000 token mint
+/// @param receivedInitialTokens Whether the provider received the initial 1000-credit mint
 ///        (false if added after cap was reached)
 struct ProviderStake {
     uint256 stakedAmount;
@@ -345,7 +345,7 @@ struct CreditLot {
     bytes32 fundingOrderId;    // External funding order reference
     uint256 creditAmount;      // Original credit amount issued
     uint256 remaining;         // Remaining unconsumed credits
-    uint256 eurGrossAmount;    // EUR gross amount that funded this lot (informational, 1 decimal)
+    uint256 eurGrossAmount;    // EUR gross amount that funded this lot (informational, euro cents)
     uint48  issuedAt;          // Timestamp of lot creation
     uint48  expiresAt;         // Expiry timestamp (0 = no expiry)
     bool    expired;           // Whether the lot has been marked expired
@@ -384,17 +384,32 @@ struct CreditMovement {
 ///
 ///     This library is essential for maintaining consistency and efficiency in Diamond contracts.
 library LibAppStorage {
-    /// @notice Base stake required for providers who received initial tokens
-    uint256 internal constant BASE_STAKE = 8_000; // 800 tokens with 1 decimal
+    /// @notice Number of decimal places used by service credits
+    uint8 internal constant CREDIT_DECIMALS = 5;
+
+    /// @notice Number of raw units that make up one full service credit
+    uint256 internal constant RAW_PER_CREDIT = 100_000;
+
+    /// @notice Fixed commercial exchange rate used off-chain and for accounting
+    uint256 internal constant CREDITS_PER_EUR = 10;
+
+    /// @notice Number of raw credit units equivalent to one full EUR
+    uint256 internal constant RAW_PER_EUR = RAW_PER_CREDIT * CREDITS_PER_EUR; // 1_000_000
+
+    /// @notice Number of raw credit units equivalent to one euro cent
+    uint256 internal constant RAW_PER_EUR_CENT = RAW_PER_EUR / 100; // 10_000
+
+    /// @notice Base stake required for providers who received initial credits
+    uint256 internal constant BASE_STAKE = 80_000_000; // 800 credits with 5 decimals
 
     /// @notice Number of labs included in base stake (free labs)
     uint256 internal constant FREE_LABS_COUNT = 10;
 
     /// @notice Additional stake required per lab beyond the free count
-    uint256 internal constant STAKE_PER_ADDITIONAL_LAB = 2_000; // 200 tokens with 1 decimal
+    uint256 internal constant STAKE_PER_ADDITIONAL_LAB = 20_000_000; // 200 credits with 5 decimals
 
     /// @notice Default spending limit for institutional users
-    uint256 internal constant DEFAULT_INSTITUTIONAL_USER_LIMIT = 100; // 10 tokens with 1 decimal
+    uint256 internal constant DEFAULT_INSTITUTIONAL_USER_LIMIT = 1_000_000; // 10 credits with 5 decimals
 
     /// @notice Default spending period duration (120 days in seconds)
     uint256 internal constant DEFAULT_SPENDING_PERIOD = 120 days;

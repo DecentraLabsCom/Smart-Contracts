@@ -41,6 +41,11 @@ contract LabIntentTest is BaseTest {
     uint8 constant ACTION_LAB_LIST = 6;
     uint8 constant ACTION_LAB_UNLIST = 7;
 
+    uint96 constant PRICE_10 = 1_000_000;
+    uint96 constant PRICE_50 = 5_000_000;
+    uint96 constant PRICE_100 = 10_000_000;
+    uint96 constant PRICE_200 = 20_000_000;
+
     function _selector(
         string memory sig
     ) internal pure returns (bytes4) {
@@ -226,7 +231,7 @@ contract LabIntentTest is BaseTest {
     function test_addLabWithIntent_creates_lab() public {
         bytes32 requestId = keccak256("add-lab-1");
         ActionIntentPayload memory payload =
-            _makePayload(provider1, 0, "ipfs://intent-lab", 100 ether, "https://access.example.com", "key1", "");
+            _makePayload(provider1, 0, "ipfs://intent-lab", PRICE_100, "https://access.example.com", "key1", "");
         _setPendingIntent(requestId, provider1, ACTION_LAB_ADD, payload);
 
         vm.prank(provider1);
@@ -234,14 +239,14 @@ contract LabIntentTest is BaseTest {
 
         assertEq(labFacet.ownerOf(1), provider1);
         assertEq(labFacet.tokenURI(1), "ipfs://intent-lab");
-        assertEq(labQuery.getLab(1).base.price, 100 ether);
+        assertEq(labQuery.getLab(1).base.price, PRICE_100);
         assertEq(labQuery.getCreatorPucHash(1), keccak256(bytes(payload.puc)));
     }
 
     function test_addLabWithIntent_requires_provider_role() public {
         address nonProvider = address(0xBAD);
         bytes32 requestId = keccak256("add-lab-bad");
-        ActionIntentPayload memory payload = _makePayload(nonProvider, 0, "ipfs://x", 10 ether, "a", "k", "");
+        ActionIntentPayload memory payload = _makePayload(nonProvider, 0, "ipfs://x", PRICE_10, "a", "k", "");
         _setPendingIntent(requestId, nonProvider, ACTION_LAB_ADD, payload);
 
         vm.prank(nonProvider);
@@ -251,7 +256,7 @@ contract LabIntentTest is BaseTest {
 
     function test_addLabWithIntent_reverts_when_labId_nonzero() public {
         bytes32 requestId = keccak256("add-lab-bad-id");
-        ActionIntentPayload memory payload = _makePayload(provider1, 1, "ipfs://x", 10 ether, "a", "k", "");
+        ActionIntentPayload memory payload = _makePayload(provider1, 1, "ipfs://x", PRICE_10, "a", "k", "");
         _setPendingIntent(requestId, provider1, ACTION_LAB_ADD, payload);
 
         vm.prank(provider1);
@@ -261,7 +266,7 @@ contract LabIntentTest is BaseTest {
 
     function test_addLabWithIntent_reverts_when_puc_empty() public {
         bytes32 requestId = keccak256("add-lab-empty-puc");
-        ActionIntentPayload memory payload = _makePayload(provider1, 0, "ipfs://x", 10 ether, "a", "k", "");
+        ActionIntentPayload memory payload = _makePayload(provider1, 0, "ipfs://x", PRICE_10, "a", "k", "");
         payload.puc = "";
         _setPendingIntent(requestId, provider1, ACTION_LAB_ADD, payload);
 
@@ -272,7 +277,7 @@ contract LabIntentTest is BaseTest {
 
     function test_addAndListLabWithIntent_succeeds_and_lists_lab() public {
         bytes32 requestId = keccak256("add-list-1");
-        ActionIntentPayload memory payload = _makePayload(provider1, 0, "ipfs://add-list", 10 ether, "a", "k", "");
+        ActionIntentPayload memory payload = _makePayload(provider1, 0, "ipfs://add-list", PRICE_10, "a", "k", "");
         _setPendingIntent(requestId, provider1, ACTION_LAB_ADD_AND_LIST, payload);
 
         vm.prank(provider1);
@@ -285,7 +290,7 @@ contract LabIntentTest is BaseTest {
     function test_updateLabWithIntent_updates_metadata() public {
         bytes32 addRequestId = keccak256("add-before-update");
         ActionIntentPayload memory addPayload =
-            _makePayload(provider1, 0, "ipfs://original", 50 ether, "https://old", "key-old", "");
+            _makePayload(provider1, 0, "ipfs://original", PRICE_50, "https://old", "key-old", "");
         _setPendingIntent(addRequestId, provider1, ACTION_LAB_ADD, addPayload);
 
         vm.prank(provider1);
@@ -293,24 +298,24 @@ contract LabIntentTest is BaseTest {
 
         bytes32 updateRequestId = keccak256("update-1");
         ActionIntentPayload memory payload =
-            _makePayload(provider1, 1, "ipfs://updated", 200 ether, "https://new", "key-new", "");
+            _makePayload(provider1, 1, "ipfs://updated", PRICE_200, "https://new", "key-new", "");
         _setPendingIntent(updateRequestId, provider1, ACTION_LAB_UPDATE, payload);
 
         vm.prank(provider1);
         labIntent.updateLabWithIntent(updateRequestId, payload);
 
         assertEq(labFacet.tokenURI(1), "ipfs://updated");
-        assertEq(labQuery.getLab(1).base.price, 200 ether);
+        assertEq(labQuery.getLab(1).base.price, PRICE_200);
     }
 
     function test_updateLabWithIntent_reverts_for_non_creator_same_provider() public {
         vm.prank(provider1);
-        labAdmin.addLab("ipfs://original", 50 ether, "https://old", "key-old", 0);
+        labAdmin.addLab("ipfs://original", PRICE_50, "https://old", "key-old", 0);
         testHelper.test_setCreatorPucHash(1, keccak256(bytes("creator@institution.example")));
 
         bytes32 requestId = keccak256("update-wrong-creator");
         ActionIntentPayload memory payload =
-            _makePayload(provider1, 1, "ipfs://updated", 200 ether, "https://new", "key-new", "");
+            _makePayload(provider1, 1, "ipfs://updated", PRICE_200, "https://new", "key-new", "");
         payload.puc = "other@institution.example";
         _setPendingIntent(requestId, provider1, ACTION_LAB_UPDATE, payload);
 
@@ -321,11 +326,11 @@ contract LabIntentTest is BaseTest {
 
     function test_updateLabWithIntent_reverts_for_legacy_lab_without_creator_hash() public {
         vm.prank(provider1);
-        labAdmin.addLab("ipfs://original", 50 ether, "https://old", "key-old", 0);
+        labAdmin.addLab("ipfs://original", PRICE_50, "https://old", "key-old", 0);
 
         bytes32 requestId = keccak256("update-legacy");
         ActionIntentPayload memory payload =
-            _makePayload(provider1, 1, "ipfs://updated", 200 ether, "https://new", "key-new", "");
+            _makePayload(provider1, 1, "ipfs://updated", PRICE_200, "https://new", "key-new", "");
         _setPendingIntent(requestId, provider1, ACTION_LAB_UPDATE, payload);
 
         vm.prank(provider1);
@@ -335,7 +340,7 @@ contract LabIntentTest is BaseTest {
 
     function test_updateLabWithIntent_reverts_when_labId_zero() public {
         bytes32 requestId = keccak256("update-bad");
-        ActionIntentPayload memory payload = _makePayload(provider1, 0, "ipfs://x", 10 ether, "a", "k", "");
+        ActionIntentPayload memory payload = _makePayload(provider1, 0, "ipfs://x", PRICE_10, "a", "k", "");
         _setPendingIntent(requestId, provider1, ACTION_LAB_UPDATE, payload);
 
         vm.prank(provider1);
@@ -345,7 +350,7 @@ contract LabIntentTest is BaseTest {
 
     function test_deleteLabWithIntent_burns_lab() public {
         vm.prank(provider1);
-        labAdmin.addLab("ipfs://to-delete", 10 ether, "a", "k", 0);
+        labAdmin.addLab("ipfs://to-delete", PRICE_10, "a", "k", 0);
         testHelper.test_setCreatorPucHash(1, keccak256(bytes("creator@institution.example")));
 
         bytes32 requestId = keccak256("delete-1");
@@ -371,7 +376,7 @@ contract LabIntentTest is BaseTest {
 
     function test_setTokenURIWithIntent_updates_uri() public {
         vm.prank(provider1);
-        labAdmin.addLab("ipfs://original", 10 ether, "a", "k", 0);
+        labAdmin.addLab("ipfs://original", PRICE_10, "a", "k", 0);
         testHelper.test_setCreatorPucHash(1, keccak256(bytes("creator@institution.example")));
 
         bytes32 requestId = keccak256("set-uri-1");
@@ -396,7 +401,7 @@ contract LabIntentTest is BaseTest {
 
     function test_listLabWithIntent_lists_lab() public {
         vm.prank(provider1);
-        labAdmin.addLab("ipfs://lab", 10 ether, "a", "k", 0);
+        labAdmin.addLab("ipfs://lab", PRICE_10, "a", "k", 0);
         testHelper.test_setCreatorPucHash(1, keccak256(bytes("creator@institution.example")));
         assertFalse(labQuery.isLabListed(1));
 
@@ -422,7 +427,7 @@ contract LabIntentTest is BaseTest {
 
     function test_unlistLabWithIntent_unlists_lab() public {
         vm.startPrank(provider1);
-        labAdmin.addLab("ipfs://lab", 10 ether, "a", "k", 0);
+        labAdmin.addLab("ipfs://lab", PRICE_10, "a", "k", 0);
         testHelper.test_setCreatorPucHash(1, keccak256(bytes("creator@institution.example")));
         labAdmin.listLab(1);
         vm.stopPrank();
@@ -450,11 +455,11 @@ contract LabIntentTest is BaseTest {
 
     function test_consumeIntent_requires_executor_as_caller() public {
         vm.prank(provider1);
-        labAdmin.addLab("ipfs://lab", 10 ether, "a", "k", 0);
+        labAdmin.addLab("ipfs://lab", PRICE_10, "a", "k", 0);
 
         bytes32 requestId = keccak256("update-wrong-caller");
         ActionIntentPayload memory payload =
-            _makePayload(provider1, 1, "ipfs://updated", 200 ether, "https://new", "key-new", "");
+            _makePayload(provider1, 1, "ipfs://updated", PRICE_200, "https://new", "key-new", "");
         _setPendingIntent(requestId, provider1, ACTION_LAB_UPDATE, payload);
 
         vm.prank(provider2);

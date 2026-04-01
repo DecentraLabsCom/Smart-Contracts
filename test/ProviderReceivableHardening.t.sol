@@ -102,6 +102,15 @@ contract ProviderReceivableHardeningTest is Test {
     address internal constant SETTLER = address(0x5E77);
     address internal constant NOBODY = address(0xDEAD);
     uint256 internal constant LAB = 7;
+    uint256 internal constant ONE_CREDIT = 100_000;
+    uint256 internal constant THREE_CREDITS = 300_000;
+    uint256 internal constant FIVE_CREDITS = 500_000;
+    uint256 internal constant SEVEN_CREDITS = 700_000;
+    uint256 internal constant TEN_CREDITS = 1_000_000;
+    uint256 internal constant FORTY_TWO_CREDITS = 4_200_000;
+    uint256 internal constant FIFTY_CREDITS = 5_000_000;
+    uint256 internal constant NINETY_NINE_CREDITS = 9_900_000;
+    uint256 internal constant ONE_HUNDRED_CREDITS = 10_000_000;
 
     event ProviderReceivableAccrued(
         uint256 indexed labId,
@@ -120,27 +129,27 @@ contract ProviderReceivableHardeningTest is Test {
     // =====================================================================
 
     function test_hasUnsettled_accrued() public {
-        h.setReceivableBucket(LAB, 1, 1e6);
+        h.setReceivableBucket(LAB, 1, ONE_CREDIT);
         assertTrue(h.hasUnsettledReceivable(LAB));
     }
 
     function test_hasUnsettled_queued() public {
-        h.setReceivableBucket(LAB, 2, 1e6);
+        h.setReceivableBucket(LAB, 2, ONE_CREDIT);
         assertTrue(h.hasUnsettledReceivable(LAB));
     }
 
     function test_hasUnsettled_invoiced() public {
-        h.setReceivableBucket(LAB, 3, 1e6);
+        h.setReceivableBucket(LAB, 3, ONE_CREDIT);
         assertTrue(h.hasUnsettledReceivable(LAB));
     }
 
     function test_hasUnsettled_approved() public {
-        h.setReceivableBucket(LAB, 4, 1e6);
+        h.setReceivableBucket(LAB, 4, ONE_CREDIT);
         assertTrue(h.hasUnsettledReceivable(LAB));
     }
 
     function test_hasUnsettled_disputed() public {
-        h.setReceivableBucket(LAB, 7, 1e6);
+        h.setReceivableBucket(LAB, 7, ONE_CREDIT);
         assertTrue(h.hasUnsettledReceivable(LAB));
     }
 
@@ -153,18 +162,18 @@ contract ProviderReceivableHardeningTest is Test {
     }
 
     function test_noUnsettled_paid_only() public {
-        h.setReceivableBucket(LAB, 5, 99e6);
+        h.setReceivableBucket(LAB, 5, NINETY_NINE_CREDITS);
         assertFalse(h.hasUnsettledReceivable(LAB));
     }
 
     function test_noUnsettled_reversed_only() public {
-        h.setReceivableBucket(LAB, 6, 42e6);
+        h.setReceivableBucket(LAB, 6, FORTY_TWO_CREDITS);
         assertFalse(h.hasUnsettledReceivable(LAB));
     }
 
     function test_noUnsettled_both_terminal() public {
-        h.setReceivableBucket(LAB, 5, 50e6);
-        h.setReceivableBucket(LAB, 6, 10e6);
+        h.setReceivableBucket(LAB, 5, FIFTY_CREDITS);
+        h.setReceivableBucket(LAB, 6, TEN_CREDITS);
         assertFalse(h.hasUnsettledReceivable(LAB));
     }
 
@@ -204,7 +213,7 @@ contract ProviderReceivableHardeningTest is Test {
     }
 
     function test_transfer_allowed_only_paid() public {
-        h.setReceivableBucket(LAB, 5, 100e6);
+        h.setReceivableBucket(LAB, 5, ONE_HUNDRED_CREDITS);
         vm.prank(PROVIDER);
         h.transferLabToken(PROVIDER, PROVIDER2, LAB);
         assertEq(h.ownerOf(LAB), PROVIDER2);
@@ -218,16 +227,16 @@ contract ProviderReceivableHardeningTest is Test {
         bytes32 key = keccak256(abi.encodePacked(uint256(LAB), uint256(1000)));
 
         vm.expectEmit(true, true, false, true);
-        emit ProviderReceivableAccrued(LAB, 5e6, key);
-        h.accrueReceivable(LAB, 5e6, key);
+        emit ProviderReceivableAccrued(LAB, FIVE_CREDITS, key);
+        h.accrueReceivable(LAB, FIVE_CREDITS, key);
     }
 
     function test_accrueReceivable_increments_bucket() public {
         bytes32 key = bytes32("r1");
-        h.accrueReceivable(LAB, 3e6, key);
-        h.accrueReceivable(LAB, 7e6, bytes32("r2"));
+        h.accrueReceivable(LAB, THREE_CREDITS, key);
+        h.accrueReceivable(LAB, SEVEN_CREDITS, bytes32("r2"));
 
-        // Bucket should now total 10e6
+        // Bucket should now total 10 credits.
         assertTrue(h.hasUnsettledReceivable(LAB));
     }
 
@@ -249,11 +258,11 @@ contract ProviderReceivableHardeningTest is Test {
     // =====================================================================
 
     function test_settlementOperatorRole_allows_transition() public {
-        h.setReceivableBucket(LAB, 2, 10e6);
+        h.setReceivableBucket(LAB, 2, TEN_CREDITS);
         h.grantSettlementOperatorRole(SETTLER);
 
         vm.prank(SETTLER);
-        h.transitionProviderReceivableState(LAB, 2, 3, 5e6, bytes32("inv-001"));
+        h.transitionProviderReceivableState(LAB, 2, 3, FIVE_CREDITS, bytes32("inv-001"));
 
         (
             ,
@@ -261,15 +270,15 @@ contract ProviderReceivableHardeningTest is Test {
             uint256 invoiced,
             ,,,,
         ) = h.getLabProviderReceivableLifecycle(LAB);
-        assertEq(queued, 5e6);
-        assertEq(invoiced, 5e6);
+        assertEq(queued, FIVE_CREDITS);
+        assertEq(invoiced, FIVE_CREDITS);
     }
 
     function test_settlementOperatorRole_unauthorized_blocked() public {
-        h.setReceivableBucket(LAB, 2, 10e6);
+        h.setReceivableBucket(LAB, 2, TEN_CREDITS);
 
         vm.prank(NOBODY);
         vm.expectRevert("Not authorized");
-        h.transitionProviderReceivableState(LAB, 2, 3, 1e6, bytes32("bad"));
+        h.transitionProviderReceivableState(LAB, 2, 3, ONE_CREDIT, bytes32("bad"));
     }
 }

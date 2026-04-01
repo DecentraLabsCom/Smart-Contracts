@@ -64,7 +64,7 @@ abstract contract BaseReservationFacet is InstitutionalReservableTokenEnumerable
 
     uint256 internal constant _CANCEL_FEE_TOTAL = 2;
     uint256 internal constant _CANCEL_FEE_PROVIDER = 1;
-    uint256 internal constant _MIN_CANCELLATION_FEE = 1; // 0.1 tokens assuming 1 decimal
+    uint256 internal constant _MIN_CANCELLATION_FEE = 10_000; // 0.1 credits with 5 decimals
     uint256 internal constant _ORPHAN_PAYOUT_DELAY = 90 days;
 
     /// @dev Modifier to restrict access to functions callable only by accounts with DEFAULT_ADMIN_ROLE
@@ -410,7 +410,7 @@ abstract contract BaseReservationFacet is InstitutionalReservableTokenEnumerable
         // forge-lint: disable-next-line(unsafe-typecast)
         uint96 totalFee = uint96((uint256(price) * _CANCEL_FEE_TOTAL) / _REVENUE_DENOMINATOR);
 
-        // Enforce minimum fee of 0.1 tokens (1 decimal) but never exceed the price
+        // Enforce minimum fee of 0.1 credits but never exceed the price
         // forge-lint: disable-next-line(unsafe-typecast)
         uint96 minFee = price < _MIN_CANCELLATION_FEE ? price : uint96(_MIN_CANCELLATION_FEE);
         if (totalFee < minFee) {

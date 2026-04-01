@@ -56,6 +56,16 @@ contract ProviderReceivableAliasesTest is Test {
 
     address internal constant PROVIDER = address(0xABCD);
     uint256 internal constant LAB_ID = 7;
+    uint256 internal constant ONE_CREDIT = 100_000;
+    uint256 internal constant FIVE_CREDITS = 500_000;
+    uint256 internal constant SEVEN_CREDITS = 700_000;
+    uint256 internal constant TEN_CREDITS = 1_000_000;
+    uint256 internal constant ELEVEN_CREDITS = 1_100_000;
+    uint256 internal constant TWELVE_CREDITS = 1_200_000;
+    uint256 internal constant THIRTEEN_CREDITS = 1_300_000;
+    uint256 internal constant SEVENTEEN_CREDITS = 1_700_000;
+    uint256 internal constant NINETEEN_CREDITS = 1_900_000;
+    uint256 internal constant TWENTY_THREE_CREDITS = 2_300_000;
 
     function setUp() public {
         harness = new ProviderReceivableHarness();
@@ -63,26 +73,26 @@ contract ProviderReceivableAliasesTest is Test {
     }
 
     function test_getLabProviderReceivable_exposes_pending_provider_bucket() public {
-        harness.setPendingProviderPayout(LAB_ID, 5e6);
+        harness.setPendingProviderPayout(LAB_ID, FIVE_CREDITS);
 
         (uint256 providerReceivable, uint256 deferredInstitutionalReceivable, uint256 totalReceivable, uint256 eligibleCount)
         = harness.getLabProviderReceivable(LAB_ID);
 
-        assertEq(providerReceivable, 5e6);
+        assertEq(providerReceivable, FIVE_CREDITS);
         assertEq(deferredInstitutionalReceivable, 0);
-        assertEq(totalReceivable, 5e6);
+        assertEq(totalReceivable, FIVE_CREDITS);
         assertEq(eligibleCount, 0);
     }
 
     function test_requestProviderPayout_moves_accrued_receivable_into_settlement_queue_without_token_transfer() public {
-        harness.setPendingProviderPayout(LAB_ID, 12e6);
+        harness.setPendingProviderPayout(LAB_ID, TWELVE_CREDITS);
 
         vm.prank(PROVIDER);
         harness.requestProviderPayout(LAB_ID, 10);
 
         (uint256 providerReceivable,, uint256 totalReceivable,) = harness.getLabProviderReceivable(LAB_ID);
-        assertEq(providerReceivable, 12e6);
-        assertEq(totalReceivable, 12e6);
+        assertEq(providerReceivable, TWELVE_CREDITS);
+        assertEq(totalReceivable, TWELVE_CREDITS);
 
         (
             uint256 accruedReceivable,
@@ -95,7 +105,7 @@ contract ProviderReceivableAliasesTest is Test {
         ) = _getLifecycleWithoutTimestamp();
 
         assertEq(accruedReceivable, 0);
-        assertEq(settlementQueued, 12e6);
+        assertEq(settlementQueued, TWELVE_CREDITS);
         assertEq(invoicedReceivable, 0);
         assertEq(approvedReceivable, 0);
         assertEq(paidReceivable, 0);
@@ -104,24 +114,24 @@ contract ProviderReceivableAliasesTest is Test {
     }
 
     function test_getLabProviderReceivable_includes_unsettled_lifecycle_buckets() public {
-        harness.setProviderReceivableBucket(LAB_ID, 1, 5e6);
-        harness.setProviderReceivableBucket(LAB_ID, 2, 7e6);
-        harness.setProviderReceivableBucket(LAB_ID, 3, 11e6);
-        harness.setProviderReceivableBucket(LAB_ID, 4, 13e6);
-        harness.setProviderReceivableBucket(LAB_ID, 7, 17e6);
-        harness.setProviderReceivableBucket(LAB_ID, 5, 19e6);
-        harness.setProviderReceivableBucket(LAB_ID, 6, 23e6);
+        harness.setProviderReceivableBucket(LAB_ID, 1, FIVE_CREDITS);
+        harness.setProviderReceivableBucket(LAB_ID, 2, SEVEN_CREDITS);
+        harness.setProviderReceivableBucket(LAB_ID, 3, ELEVEN_CREDITS);
+        harness.setProviderReceivableBucket(LAB_ID, 4, THIRTEEN_CREDITS);
+        harness.setProviderReceivableBucket(LAB_ID, 7, SEVENTEEN_CREDITS);
+        harness.setProviderReceivableBucket(LAB_ID, 5, NINETEEN_CREDITS);
+        harness.setProviderReceivableBucket(LAB_ID, 6, TWENTY_THREE_CREDITS);
 
         (uint256 providerReceivable,, uint256 totalReceivable,) = harness.getLabProviderReceivable(LAB_ID);
-        assertEq(providerReceivable, 53e6);
-        assertEq(totalReceivable, 53e6);
+        assertEq(providerReceivable, 5_300_000);
+        assertEq(totalReceivable, 5_300_000);
     }
 
     function test_transitionProviderReceivableState_moves_between_lifecycle_buckets() public {
-        harness.setProviderReceivableBucket(LAB_ID, 2, 12e6);
+        harness.setProviderReceivableBucket(LAB_ID, 2, TWELVE_CREDITS);
 
         vm.prank(PROVIDER);
-        harness.transitionProviderReceivableState(LAB_ID, 2, 3, 5e6, bytes32("invoice-001"));
+        harness.transitionProviderReceivableState(LAB_ID, 2, 3, FIVE_CREDITS, bytes32("invoice-001"));
 
         (
             uint256 accruedReceivable,
@@ -134,32 +144,32 @@ contract ProviderReceivableAliasesTest is Test {
         ) = _getLifecycleWithoutTimestamp();
 
         assertEq(accruedReceivable, 0);
-        assertEq(settlementQueued, 7e6);
-        assertEq(invoicedReceivable, 5e6);
+        assertEq(settlementQueued, SEVEN_CREDITS);
+        assertEq(invoicedReceivable, FIVE_CREDITS);
         assertEq(approvedReceivable, 0);
         assertEq(paidReceivable, 0);
         assertEq(reversedReceivable, 0);
         assertEq(disputedReceivable, 0);
 
         (uint256 providerReceivable,, uint256 totalReceivable,) = harness.getLabProviderReceivable(LAB_ID);
-        assertEq(providerReceivable, 12e6);
-        assertEq(totalReceivable, 12e6);
+        assertEq(providerReceivable, TWELVE_CREDITS);
+        assertEq(totalReceivable, TWELVE_CREDITS);
     }
 
     function test_transitionProviderReceivableState_reverts_for_invalid_transition() public {
-        harness.setProviderReceivableBucket(LAB_ID, 2, 10e6);
+        harness.setProviderReceivableBucket(LAB_ID, 2, TEN_CREDITS);
 
         vm.prank(PROVIDER);
         vm.expectRevert("Invalid transition");
-        harness.transitionProviderReceivableState(LAB_ID, 2, 5, 1e6, bytes32("bad"));
+        harness.transitionProviderReceivableState(LAB_ID, 2, 5, ONE_CREDIT, bytes32("bad"));
     }
 
     function test_transitionProviderReceivableState_reverts_for_unauthorized_caller() public {
-        harness.setProviderReceivableBucket(LAB_ID, 2, 10e6);
+        harness.setProviderReceivableBucket(LAB_ID, 2, TEN_CREDITS);
 
         vm.prank(address(0xDEAD));
         vm.expectRevert("Not authorized");
-        harness.transitionProviderReceivableState(LAB_ID, 2, 3, 1e6, bytes32("nope"));
+        harness.transitionProviderReceivableState(LAB_ID, 2, 3, ONE_CREDIT, bytes32("nope"));
     }
 
     function _getLifecycleWithoutTimestamp()

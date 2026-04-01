@@ -19,8 +19,8 @@ contract StakingFacet is AccessControlUpgradeable, ReentrancyGuardTransient {
     /// @notice Initial stake lock period (180 days from auto-stake)
     uint256 public constant INITIAL_STAKE_LOCK_PERIOD = 180 days;
 
-    /// @notice Maximum slash amount per queued action (20 tokens with 1 decimal)
-    uint256 public constant MAX_SLASH_AMOUNT = 200;
+    /// @notice Maximum slash amount per queued action (20 credits with 5 decimals)
+    uint256 public constant MAX_SLASH_AMOUNT = 2_000_000;
 
     /// @notice Delay before an admin slash can be executed
     uint256 public constant SLASH_TIMELOCK = 48 hours;
@@ -47,7 +47,7 @@ contract StakingFacet is AccessControlUpgradeable, ReentrancyGuardTransient {
     /// @dev This event signals that the provider's labs are automatically unlisted
     /// @param provider The address of the provider with insufficient stake
     /// @param remainingStake The current staked amount after the operation
-    /// @param requiredStake The minimum required stake (800 tokens)
+    /// @param requiredStake The minimum required stake (800 credits)
     event ProviderStakeInsufficient(address indexed provider, uint256 remainingStake, uint256 requiredStake);
 
     /// @notice Emitted when a slash is queued and waiting for timelock
@@ -102,8 +102,8 @@ contract StakingFacet is AccessControlUpgradeable, ReentrancyGuardTransient {
     /// @notice Gets the required stake for a provider based on listed labs count
     /// @dev Delegates to ReservableToken's calculation logic
     ///      Formula: 800 base + max(0, listedLabs - 10) * 200
-    ///      - First 10 labs: 800 tokens (included in base)
-    ///      - Each additional lab: +200 tokens
+    ///      - First 10 labs: 800 credits (included in base)
+    ///      - Each additional lab: +200 credits
     /// @param provider The address of the provider
     /// @return uint256 The required stake amount
     function getRequiredStake(

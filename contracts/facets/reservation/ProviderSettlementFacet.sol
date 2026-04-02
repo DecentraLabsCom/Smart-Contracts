@@ -6,9 +6,6 @@ import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet
 import {ReentrancyGuardTransient} from "@openzeppelin/contracts/utils/ReentrancyGuardTransient.sol";
 import {AppStorage, Reservation, PayoutCandidate, LibAppStorage} from "../../libraries/LibAppStorage.sol";
 import {LibAccessControlEnumerable} from "../../libraries/LibAccessControlEnumerable.sol";
-import {ActionIntentPayload} from "../../libraries/IntentTypes.sol";
-import {LibIntent} from "../../libraries/LibIntent.sol";
-import {LibLabAdmin} from "../../libraries/LibLabAdmin.sol";
 import {LibReputation} from "../../libraries/LibReputation.sol";
 import {LibProviderReceivable, SETTLEMENT_OPERATOR_ROLE} from "../../libraries/LibProviderReceivable.sol";
 
@@ -40,11 +37,6 @@ contract ProviderSettlementFacet is ReentrancyGuardTransient {
     uint8 internal constant _RECEIVABLE_PAID = 5;
     uint8 internal constant _RECEIVABLE_REVERSED = 6;
     uint8 internal constant _RECEIVABLE_DISPUTED = 7;
-
-    /// @notice Event emitted when a lab intent is processed
-    event LabIntentProcessed(
-        bytes32 indexed requestId, uint256 labId, string action, address provider, bool success, string reason
-    );
 
     /// @notice Emitted when a provider payout request queues newly accrued provider receivable for settlement
     event ProviderPayoutRequested(
@@ -93,24 +85,6 @@ contract ProviderSettlementFacet is ReentrancyGuardTransient {
         uint256 maxBatch
     ) external isLabProvider nonReentrant {
         _requestProviderPayout(_labId, maxBatch);
-    }
-
-    /// @notice Requests provider payout via intent while using provider-payout terminology externally
-    function requestProviderPayoutWithIntent(
-        bytes32 requestId,
-        ActionIntentPayload calldata payload
-    ) external isLabProvider nonReentrant {
-        require(payload.labId != 0, "REQUEST_PAYOUT: labId required");
-        require(payload.executor == msg.sender, "Executor must be caller");
-        LibLabAdmin._requireLabCreator(payload.labId, payload.puc);
-        uint256 maxBatch = uint256(payload.maxBatch);
-        if (maxBatch == 0 || maxBatch > 100) revert("Invalid batch size");
-
-        bytes32 payloadHash = LibIntent.hashActionPayload(payload);
-        LibIntent.consumeIntent(requestId, LibIntent.ACTION_REQUEST_PROVIDER_PAYOUT, payloadHash, msg.sender);
-
-        _requestProviderPayout(payload.labId, maxBatch);
-        emit LabIntentProcessed(requestId, payload.labId, "REQUEST_PROVIDER_PAYOUT", msg.sender, true, "");
     }
 
     /// @notice Returns the provider receivable currently accrued or immediately settleable for a lab

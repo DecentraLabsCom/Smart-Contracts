@@ -46,7 +46,7 @@ struct ActionIntentPayload {
     bytes32 reservationKey; // optional (for booking cancellation)
     string uri; // lab URI (for add/update)
     uint96 price; // lab price (for add/update)
-    uint96 maxBatch; // batch size for provider payout request intent (reuses action payload)
+    uint96 maxBatch; // reserved batch-size slot in the shared action payload
     string accessURI; // access URI (for add/update)
     string accessKey; // access key (for add/update)
     string tokenURI; // token URI (for setTokenURI)

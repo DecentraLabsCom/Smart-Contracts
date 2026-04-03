@@ -62,8 +62,8 @@ abstract contract BaseReservationFacet is InstitutionalReservableTokenEnumerable
     uint256 internal constant _MAX_COMPACTION_SIZE = 500;
     uint256 internal constant _PENDING_REQUEST_TTL = LibReservationConfig.PENDING_REQUEST_TTL;
 
-    uint256 internal constant _CANCEL_FEE_TOTAL = 2;
-    uint256 internal constant _CANCEL_FEE_PROVIDER = 1;
+    uint256 internal constant _CANCEL_FEE_TOTAL = 5;
+    uint256 internal constant _CANCEL_FEE_PROVIDER = 3;
     uint256 internal constant _MIN_CANCELLATION_FEE = 10_000; // 0.1 credits with 5 decimals
     uint256 internal constant _ORPHAN_PAYOUT_DELAY = 90 days;
 

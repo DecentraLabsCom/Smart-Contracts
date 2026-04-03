@@ -55,6 +55,12 @@ Reservation settlement computes the provider allocation on-chain:
 The platform margin (25%) is implicit (`price − providerShare`) and not
 tracked as a separate on-chain bucket.
 
+For cancellation penalties:
+
+- `cancelFee` (5% of price, minimum 0.1 credits)
+- `provider` receives 3% of price as cancellation fee
+- platform receives 2% of price as cancellation fee (implicit by difference)
+
 These are internal accounting entries, not token wallets.
 
 ## Deployment

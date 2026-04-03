@@ -9,8 +9,8 @@ library LibRevenue {
     uint256 internal constant REVENUE_DENOMINATOR = 100;
     uint256 internal constant REVENUE_PROVIDER = 75;
 
-    uint256 internal constant CANCEL_FEE_TOTAL = 2;
-    uint256 internal constant CANCEL_FEE_PROVIDER = 1;
+    uint256 internal constant CANCEL_FEE_TOTAL = 5;
+    uint256 internal constant CANCEL_FEE_PROVIDER = 3;
     uint256 internal constant MIN_CANCELLATION_FEE = 10_000;
 
     /// @dev Computes a scaled share and clamps to uint96 to avoid unsafe downcasts.

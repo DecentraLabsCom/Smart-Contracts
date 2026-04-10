@@ -28,6 +28,7 @@ import {LibAccessControlEnumerable} from "../libraries/LibAccessControlEnumerabl
 contract ProviderFacet is AccessControlUpgradeable, ReentrancyGuardTransient {
     using LibAccessControlEnumerable for AppStorage;
     using EnumerableSet for EnumerableSet.AddressSet;
+    using EnumerableSet for EnumerableSet.Bytes32Set;
 
     /// @dev Represents the initial service credits issued to new providers for onboarding.
     /// These are non-monetary credits, not ERC-20 tokens.
@@ -188,13 +189,25 @@ contract ProviderFacet is AccessControlUpgradeable, ReentrancyGuardTransient {
     ) external onlyRole(DEFAULT_ADMIN_ROLE) nonReentrant {
         // Check if provider exists (prevents removing non-existent providers)
         require(hasRole(PROVIDER_ROLE, _provider), "Provider does not exist");
+        AppStorage storage s = _s();
+        require(s.creditLockedBalance[_provider] == 0, "Provider has locked credits");
 
         _revokeRole(PROVIDER_ROLE, _provider);
-        AppStorage storage s = _s();
+        if (hasRole(INSTITUTION_ROLE, _provider)) {
+            _revokeRole(INSTITUTION_ROLE, _provider);
+        }
+
+        _clearInstitutionalOrganizationState(s, _provider);
 
         // Clear provider data
         delete s.providerStakes[_provider];
-        s.serviceCreditBalance[_provider] = 0;
+        delete s.serviceCreditBalance[_provider];
+        delete s.creditLots[_provider];
+        delete s.creditMovements[_provider];
+        delete s.institutionalBackends[_provider];
+        delete s.institutionalUserLimit[_provider];
+        delete s.institutionalSpendingPeriod[_provider];
+        delete s.institutionalSpendingPeriodAnchor[_provider];
         ProviderNetworkStatus prevStatus = s.providerNetworkStatus[_provider];
         s.providerNetworkStatus[_provider] = ProviderNetworkStatus.TERMINATED;
         s._removeProviderRole(_provider);
@@ -214,6 +227,10 @@ contract ProviderFacet is AccessControlUpgradeable, ReentrancyGuardTransient {
         string calldata _email,
         string calldata _country
     ) external onlyRole(PROVIDER_ROLE) {
+        require(bytes(_name).length > 0 && bytes(_name).length <= 100, "Invalid name length");
+        require(bytes(_email).length > 0 && bytes(_email).length <= 100, "Invalid email length");
+        require(bytes(_country).length > 0 && bytes(_country).length <= 50, "Invalid country length");
+
         ProviderBase storage provider = _s().providers[msg.sender];
         provider.name = _name;
         provider.email = _email;
@@ -340,6 +357,17 @@ contract ProviderFacet is AccessControlUpgradeable, ReentrancyGuardTransient {
         address _provider
     ) external view returns (bool) {
         return _s().providerNetworkStatus[_provider] == ProviderNetworkStatus.ACTIVE;
+    }
+
+    function _clearInstitutionalOrganizationState(AppStorage storage s, address institution) internal {
+        EnumerableSet.Bytes32Set storage organizations = s.institutionSchacHomeOrganizations[institution];
+        while (organizations.length() > 0) {
+            bytes32 orgHash = organizations.at(organizations.length() - 1);
+            delete s.organizationInstitutionWallet[orgHash];
+            delete s.schacHomeOrganizationNames[orgHash];
+            delete s.organizationBackendUrls[orgHash];
+            organizations.remove(orgHash);
+        }
     }
 
     function _grantRole(

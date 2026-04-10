@@ -12,6 +12,7 @@ import "../contracts/facets/lab/LabFacet.sol";
 import {IDiamondCut} from "../contracts/interfaces/IDiamondCut.sol";
 import "../contracts/interfaces/IDiamond.sol";
 import {CreditLot, CreditMovement, CreditMovementKind} from "../contracts/libraries/LibAppStorage.sol";
+import {LibCreditLedger} from "../contracts/libraries/LibCreditLedger.sol";
 
 /// @title Credit Ledger Tests (MiCA 4.3.d — Lot-based credit model)
 /// @notice Tests lot-based mint, lock, capture, release, cancel, expire, adjust
@@ -326,6 +327,24 @@ contract CreditLedgerTest is BaseTest {
 
         assertEq(expired, 700);
         assertEq(creditFacet.totalBalanceOf(alice), 0);
+    }
+
+    function test_expire_reverts_when_lot_balance_is_locked() public {
+        vm.startPrank(admin);
+        uint48 expiry = uint48(block.timestamp + 100);
+        creditFacet.mintCredits(alice, 1000, bytes32(0), 0, expiry);
+        creditFacet.lockCredits(alice, 400, bytes32("RES-LOCKED"));
+        vm.stopPrank();
+
+        vm.warp(block.timestamp + 200);
+
+        vm.prank(admin);
+        vm.expectRevert(LibCreditLedger.InsufficientAvailableCredits.selector);
+        creditFacet.expireCredits(alice, 0);
+
+        assertEq(creditFacet.totalBalanceOf(alice), 1000);
+        assertEq(creditFacet.availableBalanceOf(alice), 600);
+        assertEq(creditFacet.lockedBalanceOf(alice), 400);
     }
 
     function test_expire_reverts_if_not_expired_yet() public {

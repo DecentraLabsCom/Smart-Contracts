@@ -7,7 +7,10 @@ import "../contracts/Diamond.sol";
 import "../contracts/facets/diamond/DiamondCutFacet.sol";
 import "../contracts/facets/InitFacet.sol";
 import "../contracts/facets/ProviderFacet.sol";
+import "../contracts/facets/ServiceCreditFacet.sol";
 import "../contracts/facets/lab/LabFacet.sol";
+import "../contracts/facets/reservation/institutional/InstitutionalTreasuryFacet.sol";
+import "../contracts/facets/reservation/institutional/InstitutionalOrgRegistryFacet.sol";
 import {IDiamondCut} from "../contracts/interfaces/IDiamondCut.sol";
 import "../contracts/interfaces/IDiamond.sol";
 
@@ -17,9 +20,13 @@ import "../contracts/interfaces/IDiamond.sol";
 contract ProviderTest is BaseTest {
     Diamond diamond;
     ProviderFacet providerFacet;
+    ServiceCreditFacet creditFacet;
+    InstitutionalTreasuryFacet treasuryFacet;
+    InstitutionalOrgRegistryFacet orgRegistryFacet;
 
     address admin = address(0xA11CE);
     address provider1 = address(0xDEAD);
+    address backend = address(0xBEEF);
     address nonAdmin = address(0xBAD);
 
     function _selector(
@@ -45,9 +52,12 @@ contract ProviderTest is BaseTest {
 
         InitFacet initFacet = new InitFacet();
         ProviderFacet providerFacetImpl = new ProviderFacet();
+        ServiceCreditFacet creditFacetImpl = new ServiceCreditFacet();
         LabFacet labFacet = new LabFacet();
+        InstitutionalTreasuryFacet treasuryFacetImpl = new InstitutionalTreasuryFacet();
+        InstitutionalOrgRegistryFacet orgRegistryFacetImpl = new InstitutionalOrgRegistryFacet();
 
-        IDiamond.FacetCut[] memory cut2 = new IDiamond.FacetCut[](3);
+        IDiamond.FacetCut[] memory cut2 = new IDiamond.FacetCut[](6);
 
         bytes4[] memory initSelectors = new bytes4[](1);
         initSelectors[0] = _selector("initializeDiamond(string,string,string,string,string)");
@@ -73,6 +83,29 @@ contract ProviderTest is BaseTest {
             facetAddress: address(labFacet), action: IDiamond.FacetCutAction.Add, functionSelectors: labSelectors
         });
 
+        bytes4[] memory creditSelectors = new bytes4[](3);
+        creditSelectors[0] = _selector("lockCredits(address,uint256,bytes32)");
+        creditSelectors[1] = _selector("lockedBalanceOf(address)");
+        creditSelectors[2] = _selector("totalBalanceOf(address)");
+        cut2[3] = IDiamond.FacetCut({
+            facetAddress: address(creditFacetImpl), action: IDiamond.FacetCutAction.Add, functionSelectors: creditSelectors
+        });
+
+        bytes4[] memory treasurySelectors = new bytes4[](2);
+        treasurySelectors[0] = _selector("authorizeBackend(address)");
+        treasurySelectors[1] = _selector("getAuthorizedBackend(address)");
+        cut2[4] = IDiamond.FacetCut({
+            facetAddress: address(treasuryFacetImpl), action: IDiamond.FacetCutAction.Add, functionSelectors: treasurySelectors
+        });
+
+        bytes4[] memory orgSelectors = new bytes4[](3);
+        orgSelectors[0] = _selector("registerSchacHomeOrganization(string)");
+        orgSelectors[1] = _selector("resolveSchacHomeOrganization(string)");
+        orgSelectors[2] = _selector("getRegisteredSchacHomeOrganizations(address)");
+        cut2[5] = IDiamond.FacetCut({
+            facetAddress: address(orgRegistryFacetImpl), action: IDiamond.FacetCutAction.Add, functionSelectors: orgSelectors
+        });
+
         vm.prank(admin);
         IDiamondCut(address(diamond)).diamondCut(cut2, address(0), "");
 
@@ -80,6 +113,9 @@ contract ProviderTest is BaseTest {
         InitFacet(address(diamond)).initializeDiamond("Admin", "admin@x", "ES", "Labs", "LS");
 
         providerFacet = ProviderFacet(address(diamond));
+        creditFacet = ServiceCreditFacet(address(diamond));
+        treasuryFacet = InstitutionalTreasuryFacet(address(diamond));
+        orgRegistryFacet = InstitutionalOrgRegistryFacet(address(diamond));
     }
 
     /// @notice SPEC: "ADD PROVIDER" use case — now issues service credits instead of minting tokens
@@ -113,22 +149,14 @@ contract ProviderTest is BaseTest {
         // TODO: Verify provider info updated (need getter function)
     }
 
-    /// @notice MEDIUM SEVERITY: Test missing string length validation
-    function test_updateProvider_missing_length_validation() public {
-        // Setup: Add provider
+    function test_updateProvider_reverts_on_invalid_name_length() public {
         vm.prank(admin);
         providerFacet.addProvider("Provider1", provider1, "p1@x", "ES", "");
 
-        // Create very long string (potential DoS)
         string memory longString = new string(10_000);
-        // TODO: Fill with data
-
-        // This SHOULD revert with length check, but currently doesn't
         vm.prank(provider1);
-        // vm.expectRevert("String too long");
+        vm.expectRevert(bytes("Invalid name length"));
         providerFacet.updateProvider(longString, "p1@x", "ES");
-
-        // This test documents the vulnerability
     }
 
     /// @notice SPEC: "REMOVE SPECIFIC PROVIDER" use case
@@ -145,9 +173,45 @@ contract ProviderTest is BaseTest {
         assertFalse(providerFacet.isLabProvider(provider1));
     }
 
-    /// @notice Test cannot remove provider with active labs
-    function test_removeProvider_fails_with_labs() public {
-        // TODO: Setup - Add provider and create a lab
-        // Then try to remove provider - should fail
+    function test_removeProvider_clears_institutional_access_and_registry() public {
+        vm.prank(admin);
+        providerFacet.addProvider("Provider1", provider1, "p1@x", "ES", "");
+
+        vm.startPrank(provider1);
+        treasuryFacet.authorizeBackend(backend);
+        orgRegistryFacet.registerSchacHomeOrganization("Example.EDU");
+        vm.stopPrank();
+
+        assertEq(treasuryFacet.getAuthorizedBackend(provider1), backend);
+        assertEq(orgRegistryFacet.resolveSchacHomeOrganization("example.edu"), provider1);
+        assertEq(orgRegistryFacet.getRegisteredSchacHomeOrganizations(provider1).length, 1);
+
+        vm.prank(admin);
+        providerFacet.removeProvider(provider1);
+
+        assertEq(treasuryFacet.getAuthorizedBackend(provider1), address(0));
+        assertEq(orgRegistryFacet.resolveSchacHomeOrganization("example.edu"), address(0));
+        assertEq(orgRegistryFacet.getRegisteredSchacHomeOrganizations(provider1).length, 0);
+
+        vm.prank(provider1);
+        vm.expectRevert(bytes("Unknown institution"));
+        treasuryFacet.authorizeBackend(backend);
+    }
+
+    function test_removeProvider_reverts_when_credits_are_locked() public {
+        vm.prank(admin);
+        providerFacet.addProvider("Provider1", provider1, "p1@x", "ES", "");
+
+        vm.prank(admin);
+        creditFacet.lockCredits(provider1, 1, keccak256("locked"));
+
+        assertEq(creditFacet.lockedBalanceOf(provider1), 1);
+
+        vm.prank(admin);
+        vm.expectRevert(bytes("Provider has locked credits"));
+        providerFacet.removeProvider(provider1);
+
+        assertTrue(providerFacet.isLabProvider(provider1));
+        assertEq(creditFacet.totalBalanceOf(provider1), 100_000_000);
     }
 }

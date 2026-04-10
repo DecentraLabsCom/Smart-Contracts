@@ -201,6 +201,13 @@ library LibCreditLedger {
         expiredAmount = lot.remaining;
         if (expiredAmount == 0) return 0;
 
+        uint256 totalBalance = s.serviceCreditBalance[account];
+        uint256 lockedBalance = s.creditLockedBalance[account];
+        if (totalBalance < lockedBalance) revert InsufficientAvailableCredits();
+
+        uint256 available = totalBalance - lockedBalance;
+        if (available < expiredAmount) revert InsufficientAvailableCredits();
+
         lot.remaining = 0;
         lot.expired = true;
 

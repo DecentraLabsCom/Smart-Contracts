@@ -58,16 +58,6 @@ contract ProviderSettlementFacet is ReentrancyGuardTransient {
         s = LibAppStorage.diamondStorage();
     }
 
-    /// @dev Modifier to restrict access to functions that can only be executed by the LabProvider.
-    modifier isLabProvider() {
-        _isLabProvider();
-        _;
-    }
-
-    function _isLabProvider() internal view {
-        require(_s()._isLabProvider(msg.sender), "Only one LabProvider can perform this action");
-    }
-
     /// @dev Modifier to restrict access to functions that can only be executed by the DEFAULT_ADMIN_ROLE.
     modifier onlyDefaultAdminRole() {
         _onlyDefaultAdminRole();
@@ -83,7 +73,7 @@ contract ProviderSettlementFacet is ReentrancyGuardTransient {
     function requestProviderPayout(
         uint256 _labId,
         uint256 maxBatch
-    ) external isLabProvider nonReentrant {
+    ) external nonReentrant {
         _requestProviderPayout(_labId, maxBatch);
     }
 

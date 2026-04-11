@@ -9,6 +9,7 @@ import "../contracts/facets/InitFacet.sol";
 import "../contracts/facets/ProviderFacet.sol";
 import "../contracts/facets/ServiceCreditFacet.sol";
 import "../contracts/facets/lab/LabFacet.sol";
+import "../contracts/facets/lab/LabAdminFacet.sol";
 import "../contracts/facets/reservation/institutional/InstitutionalTreasuryFacet.sol";
 import "../contracts/facets/reservation/institutional/InstitutionalOrgRegistryFacet.sol";
 import {IDiamondCut} from "../contracts/interfaces/IDiamondCut.sol";
@@ -21,6 +22,7 @@ contract ProviderTest is BaseTest {
     Diamond diamond;
     ProviderFacet providerFacet;
     ServiceCreditFacet creditFacet;
+    LabAdminFacet labAdminFacet;
     InstitutionalTreasuryFacet treasuryFacet;
     InstitutionalOrgRegistryFacet orgRegistryFacet;
 
@@ -54,10 +56,11 @@ contract ProviderTest is BaseTest {
         ProviderFacet providerFacetImpl = new ProviderFacet();
         ServiceCreditFacet creditFacetImpl = new ServiceCreditFacet();
         LabFacet labFacet = new LabFacet();
+        LabAdminFacet labAdminFacetImpl = new LabAdminFacet();
         InstitutionalTreasuryFacet treasuryFacetImpl = new InstitutionalTreasuryFacet();
         InstitutionalOrgRegistryFacet orgRegistryFacetImpl = new InstitutionalOrgRegistryFacet();
 
-        IDiamond.FacetCut[] memory cut2 = new IDiamond.FacetCut[](6);
+        IDiamond.FacetCut[] memory cut2 = new IDiamond.FacetCut[](7);
 
         bytes4[] memory initSelectors = new bytes4[](1);
         initSelectors[0] = _selector("initializeDiamond(string,string,string,string,string)");
@@ -77,24 +80,32 @@ contract ProviderTest is BaseTest {
             functionSelectors: providerSelectors
         });
 
-        bytes4[] memory labSelectors = new bytes4[](1);
+        bytes4[] memory labSelectors = new bytes4[](3);
         labSelectors[0] = _selector("initialize(string,string)");
+        labSelectors[1] = _selector("safeMintTo(address,uint256)");
+        labSelectors[2] = _selector("balanceOf(address)");
         cut2[2] = IDiamond.FacetCut({
             facetAddress: address(labFacet), action: IDiamond.FacetCutAction.Add, functionSelectors: labSelectors
+        });
+
+        bytes4[] memory labAdminSelectors = new bytes4[](1);
+        labAdminSelectors[0] = _selector("addLab(string,uint96,string,string,uint8)");
+        cut2[3] = IDiamond.FacetCut({
+            facetAddress: address(labAdminFacetImpl), action: IDiamond.FacetCutAction.Add, functionSelectors: labAdminSelectors
         });
 
         bytes4[] memory creditSelectors = new bytes4[](3);
         creditSelectors[0] = _selector("lockCredits(address,uint256,bytes32)");
         creditSelectors[1] = _selector("lockedBalanceOf(address)");
         creditSelectors[2] = _selector("totalBalanceOf(address)");
-        cut2[3] = IDiamond.FacetCut({
+        cut2[4] = IDiamond.FacetCut({
             facetAddress: address(creditFacetImpl), action: IDiamond.FacetCutAction.Add, functionSelectors: creditSelectors
         });
 
         bytes4[] memory treasurySelectors = new bytes4[](2);
         treasurySelectors[0] = _selector("authorizeBackend(address)");
         treasurySelectors[1] = _selector("getAuthorizedBackend(address)");
-        cut2[4] = IDiamond.FacetCut({
+        cut2[5] = IDiamond.FacetCut({
             facetAddress: address(treasuryFacetImpl), action: IDiamond.FacetCutAction.Add, functionSelectors: treasurySelectors
         });
 
@@ -102,7 +113,7 @@ contract ProviderTest is BaseTest {
         orgSelectors[0] = _selector("registerSchacHomeOrganization(string)");
         orgSelectors[1] = _selector("resolveSchacHomeOrganization(string)");
         orgSelectors[2] = _selector("getRegisteredSchacHomeOrganizations(address)");
-        cut2[5] = IDiamond.FacetCut({
+        cut2[6] = IDiamond.FacetCut({
             facetAddress: address(orgRegistryFacetImpl), action: IDiamond.FacetCutAction.Add, functionSelectors: orgSelectors
         });
 
@@ -114,6 +125,7 @@ contract ProviderTest is BaseTest {
 
         providerFacet = ProviderFacet(address(diamond));
         creditFacet = ServiceCreditFacet(address(diamond));
+        labAdminFacet = LabAdminFacet(address(diamond));
         treasuryFacet = InstitutionalTreasuryFacet(address(diamond));
         orgRegistryFacet = InstitutionalOrgRegistryFacet(address(diamond));
     }
@@ -161,16 +173,19 @@ contract ProviderTest is BaseTest {
 
     /// @notice SPEC: "REMOVE SPECIFIC PROVIDER" use case
     function test_removeProvider_requires_no_labs() public {
-        // Setup: Add provider
         vm.prank(admin);
         providerFacet.addProvider("Provider1", provider1, "p1@x", "ES", "");
 
-        // Remove provider (should succeed - no labs)
+        vm.prank(provider1);
+        labAdminFacet.addLab("ipfs://lab-1", 100, "https://lab.example/access", "key-1", 0);
+
         vm.prank(admin);
+        vm.expectRevert(
+            abi.encodeWithSelector(ProviderFacet.ProviderOwnsLabs.selector, provider1, 1)
+        );
         providerFacet.removeProvider(provider1);
 
-        // Verify provider role revoked
-        assertFalse(providerFacet.isLabProvider(provider1));
+        assertTrue(providerFacet.isLabProvider(provider1));
     }
 
     function test_removeProvider_clears_institutional_access_and_registry() public {

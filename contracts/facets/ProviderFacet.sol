@@ -78,6 +78,8 @@ contract ProviderFacet is AccessControlUpgradeable, ReentrancyGuardTransient {
         ProviderNetworkStatus newStatus
     );
 
+    error ProviderOwnsLabs(address provider, uint256 labBalance);
+
     /// @dev Modifier to restrict access to functions that can only be executed by accounts
     ///      with the `DEFAULT_ADMIN_ROLE`. Ensures that the caller of the function has the
     ///      required role before proceeding with the execution of the function.
@@ -191,6 +193,10 @@ contract ProviderFacet is AccessControlUpgradeable, ReentrancyGuardTransient {
         require(hasRole(PROVIDER_ROLE, _provider), "Provider does not exist");
         AppStorage storage s = _s();
         require(s.creditLockedBalance[_provider] == 0, "Provider has locked credits");
+        uint256 labBalance = _ownedLabBalance(_provider);
+        if (labBalance > 0) {
+            revert ProviderOwnsLabs(_provider, labBalance);
+        }
 
         _revokeRole(PROVIDER_ROLE, _provider);
         if (hasRole(INSTITUTION_ROLE, _provider)) {
@@ -368,6 +374,17 @@ contract ProviderFacet is AccessControlUpgradeable, ReentrancyGuardTransient {
             delete s.organizationBackendUrls[orgHash];
             organizations.remove(orgHash);
         }
+    }
+
+    function _ownedLabBalance(
+        address provider
+    ) internal view returns (uint256 balance) {
+        (bool ok, bytes memory data) =
+            address(this).staticcall(abi.encodeWithSignature("balanceOf(address)", provider));
+        if (!ok || data.length < 32) {
+            return 0;
+        }
+        balance = abi.decode(data, (uint256));
     }
 
     function _grantRole(

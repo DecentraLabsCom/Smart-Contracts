@@ -158,7 +158,9 @@ contract LabFacet is ERC721Upgradeable, ReservableToken {
         address _to,
         uint256 _tokenId
     ) public virtual override(ERC721Upgradeable) {
-        require(_s()._isLabProvider(_to), "Only one LabProvider can be approved");
+        if (_to != address(0)) {
+            require(_s()._isLabProvider(_to), "Only one LabProvider can be approved");
+        }
         // Proceed with the standard approval process
         super.approve(_to, _tokenId);
     }
@@ -173,7 +175,9 @@ contract LabFacet is ERC721Upgradeable, ReservableToken {
         address _operator,
         bool _approved
     ) public virtual override(ERC721Upgradeable) {
-        require(_s()._isLabProvider(_operator), "Only one LabProvider can be approved");
+        if (_approved) {
+            require(_s()._isLabProvider(_operator), "Only one LabProvider can be approved");
+        }
         // Proceed with the standard approval process
         super.setApprovalForAll(_operator, _approved);
     }

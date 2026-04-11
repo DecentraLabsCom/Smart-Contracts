@@ -46,6 +46,11 @@ contract ProviderReceivableHarness is ERC721, ProviderSettlementFacet {
         else revert("invalid state");
     }
 
+    function setAuthorizedBackend(address institution, address backend) external {
+        AppStorage storage s = LibAppStorage.diamondStorage();
+        s.institutionalBackends[institution] = backend;
+    }
+
     function updateLastReservation(
         address
     ) external {}
@@ -55,6 +60,7 @@ contract ProviderReceivableAliasesTest is Test {
     ProviderReceivableHarness internal harness;
 
     address internal constant PROVIDER = address(0xABCD);
+    address internal constant BACKEND = address(0xBEEF);
     uint256 internal constant LAB_ID = 7;
     uint256 internal constant ONE_CREDIT = 100_000;
     uint256 internal constant FIVE_CREDITS = 500_000;
@@ -106,6 +112,33 @@ contract ProviderReceivableAliasesTest is Test {
 
         assertEq(accruedReceivable, 0);
         assertEq(settlementQueued, TWELVE_CREDITS);
+        assertEq(invoicedReceivable, 0);
+        assertEq(approvedReceivable, 0);
+        assertEq(paidReceivable, 0);
+        assertEq(reversedReceivable, 0);
+        assertEq(disputedReceivable, 0);
+    }
+
+    function test_requestProviderPayout_allows_authorized_backend() public {
+        harness.setPendingProviderPayout(LAB_ID, FIVE_CREDITS);
+
+        harness.setAuthorizedBackend(PROVIDER, BACKEND);
+
+        vm.prank(BACKEND);
+        harness.requestProviderPayout(LAB_ID, 10);
+
+        (
+            uint256 accruedReceivable,
+            uint256 settlementQueued,
+            uint256 invoicedReceivable,
+            uint256 approvedReceivable,
+            uint256 paidReceivable,
+            uint256 reversedReceivable,
+            uint256 disputedReceivable
+        ) = _getLifecycleWithoutTimestamp();
+
+        assertEq(accruedReceivable, 0);
+        assertEq(settlementQueued, FIVE_CREDITS);
         assertEq(invoicedReceivable, 0);
         assertEq(approvedReceivable, 0);
         assertEq(paidReceivable, 0);

@@ -2,19 +2,12 @@
 pragma solidity ^0.8.31;
 
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
-import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
-import {LibAppStorage, AppStorage, Reservation} from "./LibAppStorage.sol";
+import {LibAppStorage, AppStorage, Reservation, ProviderNetworkStatus} from "./LibAppStorage.sol";
+import {LibERC721Storage} from "./LibERC721Storage.sol";
 import {LibTracking} from "./LibTracking.sol";
 import {LibReservationCancellation} from "./LibReservationCancellation.sol";
 import {LibReservationConfig} from "./LibReservationConfig.sol";
 import {LibReputation} from "./LibReputation.sol";
-
-interface IReservableTokenCalcV {
-    function calculateRequiredStake(
-        address provider,
-        uint256 listedLabsCount
-    ) external view returns (uint256);
-}
 
 library LibInstitutionalReservationRequestValidation {
     using EnumerableSet for EnumerableSet.Bytes32Set;
@@ -51,12 +44,8 @@ library LibInstitutionalReservationRequestValidation {
         if (bytes(userId).length == 0 || bytes(userId).length > 256) revert InvalidInstitutionalUserId();
         if (!s.tokenStatus[labId]) revert();
 
-        owner = IERC721(address(this)).ownerOf(labId);
-        if (
-            s.providerStakes[owner].stakedAmount
-                < IReservableTokenCalcV(address(this))
-                    .calculateRequiredStake(owner, s.providerStakes[owner].listedLabsCount)
-        ) {
+        owner = LibERC721Storage.ownerOf(labId);
+        if (s.providerNetworkStatus[owner] != ProviderNetworkStatus.ACTIVE) {
             revert();
         }
         if (start >= end || start <= block.timestamp + _RESERVATION_MARGIN) revert();

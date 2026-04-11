@@ -9,6 +9,7 @@ import {InstitutionalReservationRequestValidationFacet} from "../contracts/facet
 import {LibInstitutionalReservation} from "../contracts/libraries/LibInstitutionalReservation.sol";
 import {ReservationDenialFacet} from "../contracts/facets/reservation/ReservationDenialFacet.sol";
 import {AppStorage, LabBase, LibAppStorage, Reservation, INSTITUTION_ROLE, ProviderNetworkStatus} from "../contracts/libraries/LibAppStorage.sol";
+import {LibERC721Storage} from "../contracts/libraries/LibERC721Storage.sol";
 import {ConfirmHarness, InstReservationHarness} from "./Harnesses.sol";
 
 contract InstitutionalRequestGasHarness is
@@ -39,8 +40,6 @@ contract InstitutionalRequestGasHarness is
     ) external {
         AppStorage storage s = LibAppStorage.diamondStorage();
         s.providerNetworkStatus[provider] = ProviderNetworkStatus.ACTIVE;
-        s.providerStakes[provider].stakedAmount = type(uint256).max;
-        s.providerStakes[provider].listedLabsCount = 1;
     }
 
     function seedLab(
@@ -50,6 +49,7 @@ contract InstitutionalRequestGasHarness is
     ) external {
         AppStorage storage s = LibAppStorage.diamondStorage();
         owners[labId] = provider;
+        LibERC721Storage.setOwnerForTest(labId, provider);
         s.tokenStatus[labId] = true;
         s.labs[labId] = LabBase({
             uri: "uri",
@@ -99,6 +99,7 @@ contract InstitutionalDenialGasHarness is ReservationDenialFacet {
         address owner
     ) external {
         owners[tokenId] = owner;
+        LibERC721Storage.setOwnerForTest(tokenId, owner);
     }
 
     function setBackend(
@@ -160,7 +161,7 @@ contract GasInstitutionalReservationsTest is Test {
         confirmHarness.setBackend(institution, institutionBackend);
         confirmHarness.setOwner(labId, provider);
         confirmHarness.setTokenStatus(labId, true);
-        confirmHarness.setProviderStake(provider, type(uint256).max);
+        confirmHarness.setProviderActive(provider);
 
         denialHarness = new InstitutionalDenialGasHarness();
         denialHarness.setOwner(labId, provider);

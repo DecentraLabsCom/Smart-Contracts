@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 pragma solidity ^0.8.31;
 
-import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import {AppStorage, LibAppStorage} from "../../libraries/LibAppStorage.sol";
+import {LibERC721Storage} from "../../libraries/LibERC721Storage.sol";
 import {RivalIntervalTreeLibrary, Tree} from "../../libraries/RivalIntervalTreeLibrary.sol";
 
 /// @title ReservationStatsFacet
@@ -42,7 +42,7 @@ contract ReservationStatsFacet {
     function _checkExists(
         uint256 tokenId
     ) internal view {
-        if (IERC721(address(this)).ownerOf(tokenId) == address(0)) revert TokenNotFound();
+        if (LibERC721Storage.ownerOfOptional(tokenId) == address(0)) revert TokenNotFound();
     }
 
     function _onlyAdmin() internal view {
@@ -234,4 +234,3 @@ contract ReservationStatsFacet {
         }
     }
 }
-

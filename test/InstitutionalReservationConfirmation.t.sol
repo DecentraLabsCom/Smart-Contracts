@@ -32,7 +32,7 @@ contract InstitutionalReservationConfirmationTest is BaseTest {
 
         // make sure provider can fulfill
         harness.setTokenStatus(labId, true);
-        harness.setProviderStake(provider, type(uint256).max);
+        harness.setProviderActive(provider);
 
         vm.prank(inst);
         harness.confirmInstitutionalReservationRequestWithPuc(inst, key, puc);

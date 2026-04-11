@@ -1,28 +1,15 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 pragma solidity ^0.8.33;
 
-import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import {RivalIntervalTreeLibrary, Tree} from "./RivalIntervalTreeLibrary.sol";
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import {LibAppStorage, AppStorage, Reservation, ProviderNetworkStatus} from "./LibAppStorage.sol";
+import {LibERC721Storage} from "./LibERC721Storage.sol";
 import {LibRevenue} from "./LibRevenue.sol";
 import {LibHeap} from "./LibHeap.sol";
 import {LibReservationCancellation} from "./LibReservationCancellation.sol";
 import {LibReservationDenyReason} from "./LibReservationDenyReason.sol";
 import {LibCreditLedger} from "./LibCreditLedger.sol";
-
-interface IStakingFacetWalletConfirm {
-    function updateLastReservation(
-        address provider
-    ) external;
-}
-
-interface IReservableTokenCalcW {
-    function calculateRequiredStake(
-        address provider,
-        uint256 listedLabsCount
-    ) external view returns (uint256);
-}
 
 library LibReservationConfirmation {
     using EnumerableSet for EnumerableSet.Bytes32Set;
@@ -74,7 +61,7 @@ library LibReservationConfirmation {
         AppStorage storage s,
         Reservation storage reservation
     ) private view {
-        address labOwner = IERC721(address(this)).ownerOf(reservation.labId);
+        address labOwner = LibERC721Storage.ownerOf(reservation.labId);
         address authorizedBackend = s.institutionalBackends[labOwner];
         if (msg.sender != labOwner && (authorizedBackend == address(0) || msg.sender != authorizedBackend)) {
             revert Unauthorized();
@@ -86,7 +73,7 @@ library LibReservationConfirmation {
         bytes32 reservationKey,
         Reservation storage reservation
     ) private {
-        address labProvider = IERC721(address(this)).ownerOf(reservation.labId);
+        address labProvider = LibERC721Storage.ownerOf(reservation.labId);
         reservation.labProvider = labProvider;
         reservation.collectorInstitution = s.institutionalBackends[labProvider] != address(0) ? labProvider : address(0);
 
@@ -127,8 +114,6 @@ library LibReservationConfirmation {
 
         _enqueuePayoutCandidate(s, reservation.labId, reservationKey, reservation.end);
 
-        IStakingFacetWalletConfirm(address(this)).updateLastReservation(labProvider);
-
         bytes32 currentIndexKey = s.activeReservationByTokenAndUser[reservation.labId][reservation.renter];
         if (currentIndexKey == bytes32(0)) {
             s.activeReservationByTokenAndUser[reservation.labId][reservation.renter] = reservationKey;
@@ -149,10 +134,7 @@ library LibReservationConfirmation {
     ) private view returns (bool) {
         if (!s.tokenStatus[labId]) return false;
         if (s.providerNetworkStatus[labProvider] != ProviderNetworkStatus.ACTIVE) return false;
-        uint256 listedLabsCount = s.providerStakes[labProvider].listedLabsCount;
-        uint256 requiredStake =
-            IReservableTokenCalcW(address(this)).calculateRequiredStake(labProvider, listedLabsCount);
-        return s.providerStakes[labProvider].stakedAmount >= requiredStake;
+        return true;
     }
 
     function _setReservationSplit(

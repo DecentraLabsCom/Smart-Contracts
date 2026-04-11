@@ -2,7 +2,7 @@
 pragma solidity ^0.8.33;
 
 import {AppStorage, Lab, LibAppStorage} from "../../libraries/LibAppStorage.sol";
-import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
+import {LibERC721Storage} from "../../libraries/LibERC721Storage.sol";
 
 /// @title LabQueryFacet Contract
 /// @author
@@ -117,7 +117,7 @@ contract LabQueryFacet {
     function getLabAuthURI(
         uint256 _labId
     ) external view exists(_labId) returns (string memory) {
-        address provider = IERC721(address(this)).ownerOf(_labId);
+        address provider = LibERC721Storage.ownerOf(_labId);
         return _s().providers[provider].authURI;
     }
 

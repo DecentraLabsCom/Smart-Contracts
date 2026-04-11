@@ -41,7 +41,7 @@ contract FuzzReservationPucTest is BaseTest {
         // make provider able to fulfill
         confirmHarness.setOwner(labId, provider);
         confirmHarness.setTokenStatus(labId, true);
-        confirmHarness.setProviderStake(provider, type(uint256).max);
+        confirmHarness.setProviderActive(provider);
         confirmHarness.setReservation(key, user1, inst, 1000, 0, labId, start, puc);
 
         vm.prank(inst);
@@ -71,7 +71,7 @@ contract FuzzReservationPucTest is BaseTest {
         // make provider able to fulfill
         confirmHarness.setOwner(labId, provider);
         confirmHarness.setTokenStatus(labId, true);
-        confirmHarness.setProviderStake(provider, type(uint256).max);
+        confirmHarness.setProviderActive(provider);
         confirmHarness.setReservation(key, user1, inst, 1000, 0, labId, start, puc);
 
         vm.prank(inst);

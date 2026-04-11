@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 pragma solidity ^0.8.33;
 
-import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import {LibAccessControlEnumerable} from "./LibAccessControlEnumerable.sol";
 import {LibAppStorage, AppStorage, LabBase} from "./LibAppStorage.sol";
+import {LibERC721Storage} from "./LibERC721Storage.sol";
 
 interface ILabFacetMint {
     function safeMintTo(
@@ -13,10 +13,6 @@ interface ILabFacetMint {
     function burnToken(
         uint256 tokenId
     ) external;
-    function calculateRequiredStake(
-        address provider,
-        uint256 labCount
-    ) external view returns (uint256);
 }
 
 library LibLabAdmin {
@@ -82,11 +78,6 @@ library LibLabAdmin {
 
         AppStorage storage s = _s();
 
-        uint256 newListedCount = s.providerStakes[msg.sender].listedLabsCount + 1;
-        uint256 requiredStake = ILabFacetMint(address(this)).calculateRequiredStake(msg.sender, newListedCount);
-
-        require(s.providerStakes[msg.sender].stakedAmount >= requiredStake, "Insufficient stake to list lab");
-
         uint256 nextLabId = s.labId + 1;
 
         ILabFacetMint(address(this)).safeMintTo(msg.sender, nextLabId);
@@ -100,7 +91,6 @@ library LibLabAdmin {
         s.labs[nextLabId].resourceType = _resourceType;
         _addActiveLabToIndex(s, nextLabId);
 
-        s.providerStakes[msg.sender].listedLabsCount = newListedCount;
         s.tokenStatus[nextLabId] = true;
 
         emit LabAdded(nextLabId, msg.sender, _uri, _price, _accessUri, _accessKey, _resourceType);
@@ -159,9 +149,6 @@ library LibLabAdmin {
 
         if (s.tokenStatus[_labId]) {
             s.tokenStatus[_labId] = false;
-            if (s.providerStakes[msg.sender].listedLabsCount > 0) {
-                s.providerStakes[msg.sender].listedLabsCount--;
-            }
             emit LabUnlisted(_labId, msg.sender);
         }
 
@@ -180,12 +167,6 @@ library LibLabAdmin {
         AppStorage storage s = _s();
         require(!s.tokenStatus[_labId], "Lab already listed");
 
-        uint256 newListedCount = s.providerStakes[msg.sender].listedLabsCount + 1;
-        uint256 requiredStake = ILabFacetMint(address(this)).calculateRequiredStake(msg.sender, newListedCount);
-
-        require(s.providerStakes[msg.sender].stakedAmount >= requiredStake, "Insufficient stake to list lab");
-
-        s.providerStakes[msg.sender].listedLabsCount = newListedCount;
         s.tokenStatus[_labId] = true;
 
         emit LabListed(_labId, msg.sender);
@@ -202,9 +183,6 @@ library LibLabAdmin {
         require(!_hasActiveBookings(_labId), "Cannot unlist lab with uncollected reservations");
 
         s.tokenStatus[_labId] = false;
-        if (s.providerStakes[msg.sender].listedLabsCount > 0) {
-            s.providerStakes[msg.sender].listedLabsCount--;
-        }
 
         emit LabUnlisted(_labId, msg.sender);
     }
@@ -222,7 +200,7 @@ library LibLabAdmin {
     function _requireOnlyTokenOwner(
         uint256 _labId
     ) internal view {
-        require(IERC721(address(this)).ownerOf(_labId) == msg.sender, "Not the token owner");
+        require(LibERC721Storage.ownerOf(_labId) == msg.sender, "Not the token owner");
     }
 
     function _requireLabCreator(

@@ -3,7 +3,6 @@ pragma solidity ^0.8.33;
 
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import {AppStorage, LibAppStorage} from "./LibAppStorage.sol";
-import {ReservableToken} from "../abstracts/ReservableToken.sol";
 
 library LibLabTransfer {
     using EnumerableSet for EnumerableSet.Bytes32Set;
@@ -30,22 +29,7 @@ library LibLabTransfer {
         }
 
         s.tokenStatus[tokenId] = false;
-
-        if (s.providerStakes[from].listedLabsCount > 0) {
-            s.providerStakes[from].listedLabsCount--;
-        }
-
         emit LabUnlisted(tokenId, from);
-
-        uint256 recipientListedCount = s.providerStakes[to].listedLabsCount;
-        if (recipientListedCount == 0) {
-            return;
-        }
-
-        uint256 requiredStake = ReservableToken(address(this)).calculateRequiredStake(to, recipientListedCount);
-        uint256 currentStake = s.providerStakes[to].stakedAmount;
-
-        require(currentStake >= requiredStake, "Recipient lacks sufficient stake for their current listings");
     }
 
     function migrateReservationsOnTransfer(
@@ -59,8 +43,6 @@ library LibLabTransfer {
         uint256 reservationCount = labReservations.length();
         require(reservationCount <= maxCleanup, "Too many active reservations to transfer");
 
-        bool hasActiveReservation;
-
         for (uint256 i = 0; i < reservationCount;) {
             bytes32 key = labReservations.at(i);
 
@@ -71,7 +53,6 @@ library LibLabTransfer {
             }
 
             if (status == _CONFIRMED || status == _IN_USE || status == _COMPLETED) {
-                hasActiveReservation = true;
                 s.reservations[key].labProvider = to;
                 s.reservations[key].collectorInstitution = s.institutionalBackends[to] != address(0) ? to : address(0);
 
@@ -86,16 +67,6 @@ library LibLabTransfer {
             unchecked {
                 ++i;
             }
-        }
-
-        uint256 fromLast = s.providerStakes[from].lastReservationTimestamp;
-        uint256 toLast = s.providerStakes[to].lastReservationTimestamp;
-        uint256 newLast = fromLast > toLast ? fromLast : toLast;
-        if (hasActiveReservation && block.timestamp > newLast) {
-            newLast = block.timestamp;
-        }
-        if (newLast > toLast) {
-            s.providerStakes[to].lastReservationTimestamp = newLast;
         }
     }
 }

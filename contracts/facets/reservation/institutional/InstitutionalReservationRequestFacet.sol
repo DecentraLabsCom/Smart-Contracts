@@ -2,8 +2,8 @@
 pragma solidity ^0.8.31;
 
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
-import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import {AppStorage, LibAppStorage, INSTITUTION_ROLE} from "../../../libraries/LibAppStorage.sol";
+import {LibERC721Storage} from "../../../libraries/LibERC721Storage.sol";
 import {LibInstitutionalReservation} from "../../../libraries/LibInstitutionalReservation.sol";
 
 contract InstitutionalReservationRequestFacet {
@@ -32,7 +32,7 @@ contract InstitutionalReservationRequestFacet {
     function _checkExists(
         uint256 lid
     ) internal view {
-        if (IERC721(address(this)).ownerOf(lid) == address(0)) revert TokenNotFound();
+        if (LibERC721Storage.ownerOfOptional(lid) == address(0)) revert TokenNotFound();
     }
 
     function _onlyInstitution(

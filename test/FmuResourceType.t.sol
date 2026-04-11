@@ -40,7 +40,7 @@ contract FmuResourceTypeTest is BaseTest {
         harness.setInstitutionRole(inst);
         harness.setBackend(inst, address(0x0));
         harness.setTokenStatus(labId, true);
-        harness.setProviderStake(provider, type(uint256).max);
+        harness.setProviderActive(provider);
 
         // confirm first
         vm.prank(inst);
@@ -73,7 +73,7 @@ contract FmuResourceTypeTest is BaseTest {
         harness.setInstitutionRole(inst);
         harness.setBackend(inst, address(0x0));
         harness.setTokenStatus(labId, true);
-        harness.setProviderStake(provider, type(uint256).max);
+        harness.setProviderActive(provider);
 
         // confirm first
         vm.prank(inst);
@@ -107,7 +107,7 @@ contract FmuResourceTypeTest is BaseTest {
         harness.setInstitutionRole(inst);
         harness.setBackend(inst, address(0x0));
         harness.setTokenStatus(labId, true);
-        harness.setProviderStake(provider, type(uint256).max);
+        harness.setProviderActive(provider);
 
         vm.prank(inst);
         harness.confirmInstitutionalReservationRequestWithPuc(inst, key1, "alice@inst");
@@ -133,7 +133,7 @@ contract FmuResourceTypeTest is BaseTest {
         harness.setInstitutionRole(inst);
         harness.setBackend(inst, address(0x0));
         harness.setTokenStatus(labId, true);
-        harness.setProviderStake(provider, type(uint256).max);
+        harness.setProviderActive(provider);
 
         // Three overlapping reservations
         for (uint256 i = 0; i < 3; i++) {

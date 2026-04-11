@@ -12,13 +12,6 @@ import {LibReservationConfig} from "../../../libraries/LibReservationConfig.sol"
 import {LibReputation} from "../../../libraries/LibReputation.sol";
 import {LibProviderReceivable} from "../../../libraries/LibProviderReceivable.sol";
 
-/// @dev Interface for ProviderNetworkFacet to update reservation timestamps
-interface IStakingFacetI {
-    function updateLastReservation(
-        address provider
-    ) external;
-}
-
 /// @dev Interface for InstitutionalTreasuryFacet to spend from treasury
 interface IInstitutionalTreasuryFacetI {
     function checkInstitutionalTreasuryAvailability(
@@ -228,9 +221,7 @@ abstract contract BaseInstitutionalReservationFacet is InstitutionalReservableTo
     ) internal view returns (bool) {
         if (!s.tokenStatus[labId]) return false;
         if (s.providerNetworkStatus[labProvider] != ProviderNetworkStatus.ACTIVE) return false;
-        uint256 listedLabsCount = s.providerStakes[labProvider].listedLabsCount;
-        uint256 requiredStake = calculateRequiredStake(labProvider, listedLabsCount);
-        return s.providerStakes[labProvider].stakedAmount >= requiredStake;
+        return true;
     }
 
     function _finalizeReservationForPayout(

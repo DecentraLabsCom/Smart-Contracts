@@ -2,8 +2,8 @@
 pragma solidity ^0.8.31;
 
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
-import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import {ReservableToken} from "./ReservableToken.sol";
+import {LibERC721Storage} from "../libraries/LibERC721Storage.sol";
 import {
     RecentReservationBuffer,
     UpcomingReservationBuffer,
@@ -80,7 +80,7 @@ abstract contract ReservableTokenEnumerable is ReservableToken {
         s.reservationKeysByToken[_tokenId].add(reservationKey);
 
         // Get lab owner at reservation time for security and consistency
-        address labOwner = IERC721(address(this)).ownerOf(_tokenId);
+        address labOwner = LibERC721Storage.ownerOf(_tokenId);
 
         // Direct assignment to existing storage slot
         Reservation storage newReservation = s.reservations[reservationKey];
@@ -161,7 +161,7 @@ abstract contract ReservableTokenEnumerable is ReservableToken {
 
         address renter = reservation.renter;
         uint256 tokenId = reservation.labId;
-        address labProvider = IERC721(address(this)).ownerOf(tokenId);
+        address labProvider = LibERC721Storage.ownerOf(tokenId);
 
         if (renter != msg.sender && labProvider != msg.sender) revert Unauthorized();
 

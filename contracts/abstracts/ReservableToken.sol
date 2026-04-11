@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 pragma solidity ^0.8.31;
 
-import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import {LibAppStorage, AppStorage, Reservation} from "../libraries/LibAppStorage.sol";
+import {LibERC721Storage} from "../libraries/LibERC721Storage.sol";
 import {LibReservationDenyReason} from "../libraries/LibReservationDenyReason.sol";
 import {RivalIntervalTreeLibrary, Tree} from "../libraries/RivalIntervalTreeLibrary.sol";
 
@@ -135,7 +135,7 @@ abstract contract ReservableToken {
     function _checkExists(
         uint256 _tokenId
     ) internal view {
-        if (IERC721(address(this)).ownerOf(_tokenId) == address(0)) revert TokenNotFound();
+        if (LibERC721Storage.ownerOfOptional(_tokenId) == address(0)) revert TokenNotFound();
     }
 
     /// @dev Modifier to check if the caller is the owner of a specific token.
@@ -151,7 +151,7 @@ abstract contract ReservableToken {
     function _onlyTokenOwner(
         uint256 _tokenId
     ) internal view {
-        if (IERC721(address(this)).ownerOf(_tokenId) != msg.sender) revert OnlyTokenOwner();
+        if (LibERC721Storage.ownerOf(_tokenId) != msg.sender) revert OnlyTokenOwner();
     }
 
     /// @dev Modifier to restrict access to functions callable only by accounts with DEFAULT_ADMIN_ROLE
@@ -184,7 +184,6 @@ abstract contract ReservableToken {
 
     /// @notice Marks a token as listed by updating its status so it's possible to reserve.
     /// @dev This function can only be called by the owner of the token.
-    ///      Staking requirements have been removed — providers are eligible through service credits and admin operations.
     /// @param _tokenId The unique identifier of the token to be listed.
     function listToken(
         uint256 _tokenId
@@ -196,8 +195,6 @@ abstract contract ReservableToken {
             revert("Lab already listed");
         }
 
-        // Update listed count and status (no stake check — service credit model)
-        s.providerStakes[msg.sender].listedLabsCount += 1;
         s.tokenStatus[_tokenId] = true;
 
         emit LabListed(_tokenId, msg.sender);
@@ -205,8 +202,6 @@ abstract contract ReservableToken {
 
     /// @notice Unlists a token, marking it as unavailable for new reservations.
     /// @dev This function updates the token's status to `false` in the storage mapping.
-    /// @dev No stake verification is required - providers can always unlist their own labs.
-    /// @dev Decrements the listed labs count for the provider.
     /// @dev Allows unlisting even with active reservations (existing reservations remain valid).
     /// @param _tokenId The unique identifier of the token to be unlisted.
     function unlistToken(
@@ -219,11 +214,6 @@ abstract contract ReservableToken {
             revert("Lab not listed");
         }
 
-        // Decrement listed count
-        if (s.providerStakes[msg.sender].listedLabsCount > 0) {
-            s.providerStakes[msg.sender].listedLabsCount--;
-        }
-
         s.tokenStatus[_tokenId] = false;
         emit LabUnlisted(_tokenId, msg.sender);
     }
@@ -232,23 +222,10 @@ abstract contract ReservableToken {
     /// @param _tokenId The ID of the token to check.
     /// @return A boolean value indicating whether the token is listed.
     /// @dev The function requires the token to exist, enforced by the `exists` modifier.
-    /// @dev Also verifies that the provider has sufficient staked tokens (defense in depth).
     function isTokenListed(
         uint256 _tokenId
     ) external view exists(_tokenId) returns (bool) {
-        AppStorage storage s = _s();
-
-        // Check if token is marked as listed
-        if (!s.tokenStatus[_tokenId]) {
-            return false;
-        }
-
-        // Verify provider still has sufficient stake for current listed labs count
-        address owner = IERC721(address(this)).ownerOf(_tokenId);
-        uint256 listedLabsCount = s.providerStakes[owner].listedLabsCount;
-        uint256 requiredStake = calculateRequiredStake(owner, listedLabsCount);
-
-        return s.providerStakes[owner].stakedAmount >= requiredStake;
+        return _s().tokenStatus[_tokenId];
     }
 
     /// @notice Request a reservation for a specific token during a time period
@@ -359,7 +336,7 @@ abstract contract ReservableToken {
 
         address renter = reservation.renter;
         uint256 tokenId = reservation.labId;
-        address labProvider = IERC721(address(this)).ownerOf(tokenId);
+        address labProvider = LibERC721Storage.ownerOf(tokenId);
 
         if (renter != msg.sender && labProvider != msg.sender) revert Unauthorized();
 
@@ -849,22 +826,6 @@ abstract contract ReservableToken {
         if (calendar.exists(_start)) {
             calendar.remove(_start);
         }
-    }
-
-    /// @notice Returns the required stake for a provider — always 0 in the service-credit model
-    /// @dev Staking requirements are isolated from launch scope. This function is kept
-    ///      for ABI compatibility but no longer enforces any stake requirement.
-    /// @param provider The address of the provider (unused)
-    /// @param listedLabsCount The number of labs that will be listed (unused)
-    /// @return uint256 Always returns 0
-    function calculateRequiredStake(
-        address provider,
-        uint256 listedLabsCount
-    ) public pure returns (uint256) {
-        // Suppress unused variable warnings
-        provider;
-        listedLabsCount;
-        return 0;
     }
 
     /// @dev Internal pure function to retrieve the application storage structure.

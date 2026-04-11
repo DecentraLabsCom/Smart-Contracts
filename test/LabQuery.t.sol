@@ -79,13 +79,12 @@ contract LabQueryTest is BaseTest {
             functionSelectors: providerSelectors
         });
 
-        bytes4[] memory labSelectors = new bytes4[](6);
+        bytes4[] memory labSelectors = new bytes4[](5);
         labSelectors[0] = _selector("initialize(string,string)");
         labSelectors[1] = _selector("safeMintTo(address,uint256)");
         labSelectors[2] = _selector("burnToken(uint256)");
         labSelectors[3] = _selector("ownerOf(uint256)");
         labSelectors[4] = _selector("tokenURI(uint256)");
-        labSelectors[5] = _selector("calculateRequiredStake(address,uint256)");
         cut2[2] = IDiamond.FacetCut({
             facetAddress: address(labFacetImpl), action: IDiamond.FacetCutAction.Add, functionSelectors: labSelectors
         });

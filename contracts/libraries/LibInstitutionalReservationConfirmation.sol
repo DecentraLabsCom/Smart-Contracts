@@ -2,20 +2,14 @@
 pragma solidity ^0.8.31;
 
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
-import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import {RivalIntervalTreeLibrary, Tree} from "./RivalIntervalTreeLibrary.sol";
 import {LibAppStorage, AppStorage, Reservation, UserActiveReservation, INSTITUTION_ROLE, ProviderNetworkStatus} from "./LibAppStorage.sol";
+import {LibERC721Storage} from "./LibERC721Storage.sol";
 import {LibTracking} from "./LibTracking.sol";
 import {LibRevenue} from "./LibRevenue.sol";
 import {LibHeap} from "./LibHeap.sol";
 import {LibReservationCancellation} from "./LibReservationCancellation.sol";
 import {LibReservationDenyReason} from "./LibReservationDenyReason.sol";
-
-interface IStakingFacetConfirmLib {
-    function updateLastReservation(
-        address provider
-    ) external;
-}
 
 interface IInstitutionalTreasuryFacetConfirmLib {
     function spendFromInstitutionalTreasury(
@@ -23,13 +17,6 @@ interface IInstitutionalTreasuryFacetConfirmLib {
         string calldata puc,
         uint256 amount
     ) external;
-}
-
-interface IReservableTokenCalcI {
-    function calculateRequiredStake(
-        address provider,
-        uint256 listedLabsCount
-    ) external view returns (uint256);
 }
 
 library LibInstitutionalReservationConfirmation {
@@ -62,7 +49,7 @@ library LibInstitutionalReservationConfirmation {
         if (r.renter == address(0)) revert();
         if (r.status != _PENDING) revert();
 
-        address labOwner = IERC721(address(this)).ownerOf(r.labId);
+        address labOwner = LibERC721Storage.ownerOf(r.labId);
         address instBackend = s.institutionalBackends[institution];
         address providerBackend = s.institutionalBackends[labOwner];
 
@@ -88,7 +75,7 @@ library LibInstitutionalReservationConfirmation {
         if (storedHash != keccak256(bytes(puc))) revert PucMismatch();
 
         address trackingKey = LibTracking.trackingKeyFromInstitutionHash(institution, storedHash);
-        address labProvider = IERC721(address(this)).ownerOf(r.labId);
+        address labProvider = LibERC721Storage.ownerOf(r.labId);
         r.labProvider = labProvider;
 
         if (!_providerCanFulfill(s, labProvider, r.labId)) {
@@ -138,8 +125,6 @@ library LibInstitutionalReservationConfirmation {
         s.activeReservationCountByTokenAndUser[r.labId][trackingKey]++;
         _enqueuePayoutCandidate(s, r.labId, key, r.end);
         _enqueueInstitutionalActiveReservation(s, r.labId, r, key);
-        IStakingFacetConfirmLib(address(this)).updateLastReservation(labProvider);
-
         bytes32 currentKey = s.activeReservationByTokenAndUser[r.labId][trackingKey];
         if (currentKey == bytes32(0) || r.start < s.reservations[currentKey].start) {
             s.activeReservationByTokenAndUser[r.labId][trackingKey] = key;
@@ -155,10 +140,7 @@ library LibInstitutionalReservationConfirmation {
     ) private view returns (bool) {
         if (!s.tokenStatus[labId]) return false;
         if (s.providerNetworkStatus[labProvider] != ProviderNetworkStatus.ACTIVE) return false;
-        uint256 listedLabsCount = s.providerStakes[labProvider].listedLabsCount;
-        uint256 requiredStake =
-            IReservableTokenCalcI(address(this)).calculateRequiredStake(labProvider, listedLabsCount);
-        return s.providerStakes[labProvider].stakedAmount >= requiredStake;
+        return true;
     }
 
     function _setReservationSplit(

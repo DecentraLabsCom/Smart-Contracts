@@ -141,7 +141,7 @@ abstract contract BaseLightReservationFacet is ReservableTokenEnumerable {
         s.reservationKeysByTokenAndUser[labId][trackingKey].remove(key);
     }
 
-    // === Provider / Staking check ===
+    // === Provider availability check ===
     function _providerCanFulfill(
         AppStorage storage s,
         address labProvider,
@@ -149,9 +149,7 @@ abstract contract BaseLightReservationFacet is ReservableTokenEnumerable {
     ) internal view returns (bool) {
         if (!s.tokenStatus[labId]) return false;
         if (s.providerNetworkStatus[labProvider] != ProviderNetworkStatus.ACTIVE) return false;
-        uint256 listedLabsCount = s.providerStakes[labProvider].listedLabsCount;
-        uint256 requiredStake = calculateRequiredStake(labProvider, listedLabsCount);
-        return s.providerStakes[labProvider].stakedAmount >= requiredStake;
+        return true;
     }
 
     // === Revenue Split ===

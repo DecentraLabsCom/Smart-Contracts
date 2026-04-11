@@ -15,6 +15,7 @@ import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet
 import {LibDiamond} from "../libraries/LibDiamond.sol";
 import {ReentrancyGuardTransient} from "@openzeppelin/contracts/utils/ReentrancyGuardTransient.sol";
 import {LibAccessControlEnumerable} from "../libraries/LibAccessControlEnumerable.sol";
+import {LibERC721Storage} from "../libraries/LibERC721Storage.sol";
 
 /// @title ProviderFacet Contract
 /// @author Juan Luis Ramos Villalón
@@ -182,7 +183,7 @@ contract ProviderFacet is AccessControlUpgradeable, ReentrancyGuardTransient {
 
     /// @notice Removes a provider from the system by revoking their PROVIDER_ROLE.
     /// @dev This function can only be called by an account with the DEFAULT_ADMIN_ROLE.
-    ///      Clears provider service credits and stake data.
+    ///      Clears provider service credits and institutional metadata.
     ///      If the provider does not have the PROVIDER_ROLE, the transaction reverts with an error.
     ///      Emits a `ProviderRemoved` event upon successful removal.
     /// @param _provider The address of the provider to be removed.
@@ -206,7 +207,6 @@ contract ProviderFacet is AccessControlUpgradeable, ReentrancyGuardTransient {
         _clearInstitutionalOrganizationState(s, _provider);
 
         // Clear provider data
-        delete s.providerStakes[_provider];
         delete s.serviceCreditBalance[_provider];
         delete s.creditLots[_provider];
         delete s.creditMovements[_provider];
@@ -379,12 +379,7 @@ contract ProviderFacet is AccessControlUpgradeable, ReentrancyGuardTransient {
     function _ownedLabBalance(
         address provider
     ) internal view returns (uint256 balance) {
-        (bool ok, bytes memory data) =
-            address(this).staticcall(abi.encodeWithSignature("balanceOf(address)", provider));
-        if (!ok || data.length < 32) {
-            return 0;
-        }
-        balance = abi.decode(data, (uint256));
+        balance = LibERC721Storage.balanceOf(provider);
     }
 
     function _grantRole(

@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 pragma solidity ^0.8.31;
 
-import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import {ReentrancyGuardTransient} from "@openzeppelin/contracts/utils/ReentrancyGuardTransient.sol";
 import {AppStorage, Reservation, PayoutCandidate, LibAppStorage} from "../../libraries/LibAppStorage.sol";
 import {LibAccessControlEnumerable} from "../../libraries/LibAccessControlEnumerable.sol";
+import {LibERC721Storage} from "../../libraries/LibERC721Storage.sol";
 import {LibReputation} from "../../libraries/LibReputation.sol";
 import {LibProviderReceivable, SETTLEMENT_OPERATOR_ROLE} from "../../libraries/LibProviderReceivable.sol";
 
@@ -307,7 +307,7 @@ contract ProviderSettlementFacet is ReentrancyGuardTransient {
 
         AppStorage storage s = _s();
 
-        address labOwner = IERC721(address(this)).ownerOf(_labId);
+        address labOwner = LibERC721Storage.ownerOf(_labId);
         address backend = s.institutionalBackends[labOwner];
         if (msg.sender != labOwner && msg.sender != backend) {
             revert("Not authorized");
@@ -353,7 +353,7 @@ contract ProviderSettlementFacet is ReentrancyGuardTransient {
         bool isSettlementOp = s.roleMembers[SETTLEMENT_OPERATOR_ROLE].contains(msg.sender);
         if (isSettlementOp) return;
 
-        address labOwner = IERC721(address(this)).ownerOf(labId);
+        address labOwner = LibERC721Storage.ownerOf(labId);
         address backend = s.institutionalBackends[labOwner];
         if (msg.sender != labOwner && msg.sender != backend) {
             revert("Not authorized");

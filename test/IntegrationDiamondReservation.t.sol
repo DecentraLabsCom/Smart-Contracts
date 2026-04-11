@@ -120,7 +120,7 @@ contract IntegrationDiamondReservationTest is BaseTest {
 
         // set lab owner and provider readiness
         confirm.setOwner(labId, LAB_OWNER);
-        confirm.setProviderStake(LAB_OWNER, 1_000_000);
+        confirm.setProviderActive(LAB_OWNER);
         confirm.setTokenStatus(labId, true);
 
         // set reservation in storage as pending (write via confirm harness to match confirm caller)
@@ -173,7 +173,7 @@ contract IntegrationDiamondReservationTest is BaseTest {
 
         // set lab owner readiness in ConfirmHarness storage so provider checks pass
         confirm.setOwner(labId, LAB_OWNER);
-        confirm.setProviderStake(LAB_OWNER, 1_000_000);
+        confirm.setProviderActive(LAB_OWNER);
         confirm.setTokenStatus(labId, true);
 
         // make refund fail

@@ -153,28 +153,6 @@ struct Tree {
     mapping(uint256 => Node) nodes;
 }
 
-/// @notice Struct representing a provider's staking information
-/// @dev Tracks staked tokens, slashing history, and lock periods
-/// @param stakedAmount Current amount of tokens staked by the provider
-/// @param slashedAmount Total amount of tokens slashed historically (for tracking)
-/// @param lastReservationTimestamp Timestamp of the provider's last completed reservation
-/// @param receivedInitialTokens Whether the provider received the initial 1000-credit mint
-///        (false if added after cap was reached)
-struct ProviderStake {
-    uint256 stakedAmount;
-    uint256 slashedAmount;
-    uint256 lastReservationTimestamp;
-    uint256 initialStakeTimestamp;
-    uint256 listedLabsCount;
-    bool receivedInitialTokens;
-}
-
-struct PendingSlash {
-    uint256 amount;
-    uint256 executeAfter;
-    string reason;
-}
-
 /// @notice Struct representing reputation stats for a lab (by labId)
 /// @dev score: total points (completions - cancellations)
 ///      totalEvents: number of reputation events
@@ -217,7 +195,6 @@ struct InstitutionalUserSpending {
 /// @custom:member activeReservationCountByTokenAndUser Mapping of token IDs and user addresses to their active reservation count
 /// @custom:member reservationKeysByTokenAndUser Mapping of token IDs and user addresses to their reservation keys (for efficient per-lab queries)
 /// @custom:member tokenStatus Mapping of token IDs to their listing status (true = listed, false = unlisted)
-/// @custom:member providerStakes Mapping of provider addresses to their staking information
 /// @custom:member institutionalTreasury Mapping of provider addresses to their institutional treasury balances
 /// @custom:member institutionalUserLimit Mapping of provider addresses to their institutional user spending limits
 /// @custom:member institutionalUserSpending Mapping of provider addresses to their institutional user spending data with period tracking
@@ -262,8 +239,6 @@ struct AppStorage {
     mapping(bytes32 => bool) payoutHeapContains;
     mapping(uint256 => uint256) payoutHeapInvalidCount;
 
-    mapping(address => ProviderStake) providerStakes;
-
     mapping(address provider => uint256 balance) institutionalTreasury;
     mapping(address provider => uint256 limit) institutionalUserLimit;
     mapping(address provider => mapping(string puc => InstitutionalUserSpending data)) institutionalUserSpending;
@@ -284,9 +259,6 @@ struct AppStorage {
 
     // Admin recovery helpers
     mapping(uint256 => uint256) providerReceivableLastAccruedAt; // labId -> last accrual timestamp for provider debt
-
-    // Slashing timelock queue
-    mapping(address => PendingSlash) pendingSlashes; // provider => pending slash data
 
     // Lab reputation
     mapping(uint256 => LabReputation) labReputation; // labId -> reputation stats
@@ -322,6 +294,8 @@ struct AppStorage {
     mapping(address account => uint256 locked) creditLockedBalance;
     // Per-account array of funding lots
     mapping(address account => CreditLot[]) creditLots;
+    // Per-account cursor to the first lot that may still be consumable
+    mapping(address account => uint256 index) creditLotCursor;
     // Global auto-incrementing lot ID counter
     uint256 creditLotNextId;
     // Per-account credit movement log
@@ -398,15 +372,6 @@ library LibAppStorage {
 
     /// @notice Number of raw credit units equivalent to one euro cent
     uint256 internal constant RAW_PER_EUR_CENT = RAW_PER_EUR / 100; // 10_000
-
-    /// @notice Base stake required for providers who received initial credits
-    uint256 internal constant BASE_STAKE = 80_000_000; // 800 credits with 5 decimals
-
-    /// @notice Number of labs included in base stake (free labs)
-    uint256 internal constant FREE_LABS_COUNT = 10;
-
-    /// @notice Additional stake required per lab beyond the free count
-    uint256 internal constant STAKE_PER_ADDITIONAL_LAB = 20_000_000; // 200 credits with 5 decimals
 
     /// @notice Default spending limit for institutional users
     uint256 internal constant DEFAULT_INSTITUTIONAL_USER_LIMIT = 1_000_000; // 10 credits with 5 decimals

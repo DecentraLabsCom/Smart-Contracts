@@ -10,13 +10,6 @@ import {LibReputation} from "../../../libraries/LibReputation.sol";
 import {LibReservationConfig} from "../../../libraries/LibReservationConfig.sol";
 import {LibProviderReceivable} from "../../../libraries/LibProviderReceivable.sol";
 
-/// @dev Interface for ProviderNetworkFacet to update reservation timestamps
-interface IStakingFacet {
-    function updateLastReservation(
-        address provider
-    ) external;
-}
-
 /// @dev Interface for InstitutionalTreasuryFacet to spend from treasury
 interface IInstitutionalTreasuryFacet {
     function checkInstitutionalTreasuryAvailability(
@@ -270,7 +263,7 @@ abstract contract BaseReservationFacet is InstitutionalReservableTokenEnumerable
         return processed;
     }
 
-    /// @dev Checks whether the current lab owner still satisfies stake and listing requirements.
+    /// @dev Checks whether the current lab owner is active and the lab is currently listed.
     function _providerCanFulfill(
         AppStorage storage s,
         address labProvider,
@@ -282,10 +275,7 @@ abstract contract BaseReservationFacet is InstitutionalReservableTokenEnumerable
         if (s.providerNetworkStatus[labProvider] != ProviderNetworkStatus.ACTIVE) {
             return false;
         }
-
-        uint256 listedLabsCount = s.providerStakes[labProvider].listedLabsCount;
-        uint256 requiredStake = calculateRequiredStake(labProvider, listedLabsCount);
-        return s.providerStakes[labProvider].stakedAmount >= requiredStake;
+        return true;
     }
 
     /// @dev Finalizes a reservation by crediting the lab payout balance and cleaning indexes

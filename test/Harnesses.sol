@@ -4,6 +4,7 @@ pragma solidity ^0.8.33;
 import "../contracts/facets/reservation/institutional/InstitutionalReservationCancellationFacet.sol";
 import "../contracts/facets/reservation/institutional/InstitutionalReservationConfirmationFacet.sol";
 import "../contracts/libraries/LibAppStorage.sol";
+import "../contracts/libraries/LibERC721Storage.sol";
 import "../contracts/libraries/LibInstitutionalReservation.sol";
 import "../contracts/libraries/LibLabAdmin.sol";
 
@@ -100,6 +101,7 @@ contract ConfirmHarness is InstitutionalReservationConfirmationFacet {
         address owner
     ) external {
         owners[tokenId] = owner;
+        LibERC721Storage.setOwnerForTest(tokenId, owner);
     }
 
     function ownerOf(
@@ -156,19 +158,6 @@ contract ConfirmHarness is InstitutionalReservationConfirmationFacet {
         // succeed silently
     }
 
-    // staking stub used by confirm flow
-    function updateLastReservation(
-        address
-    ) external {}
-
-    // stubbed required stake so provider checks pass in tests
-    function calculateRequiredStake(
-        address,
-        uint256
-    ) external pure returns (uint256) {
-        return 0;
-    }
-
     // expose confirm wrapper
     function ext_confirmWithPuc(
         address inst,
@@ -204,13 +193,11 @@ contract ConfirmHarness is InstitutionalReservationConfirmationFacet {
         s.tokenStatus[labId] = status;
     }
 
-    function setProviderStake(
-        address p,
-        uint256 amount
+    function setProviderActive(
+        address provider
     ) external {
         AppStorage storage s = LibAppStorage.diamondStorage();
-        s.providerStakes[p].stakedAmount = amount;
-        s.providerNetworkStatus[p] = ProviderNetworkStatus.ACTIVE;
+        s.providerNetworkStatus[provider] = ProviderNetworkStatus.ACTIVE;
     }
 
     function getReservationStatus(
@@ -246,6 +233,7 @@ contract LabAdminResourceTypeHarness {
     ) external {
         AppStorage storage s = LibAppStorage.diamondStorage();
         owners[labId] = owner;
+        LibERC721Storage.setOwnerForTest(labId, owner);
 
         if (s.activeLabIndexPlusOne[labId] == 0) {
             s.activeLabIds.push(labId);

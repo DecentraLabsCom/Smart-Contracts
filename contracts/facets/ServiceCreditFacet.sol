@@ -214,7 +214,9 @@ contract ServiceCreditFacet {
         uint256 offset,
         uint256 limit
     ) external view returns (CreditLot[] memory lots, uint256 total) {
-        total = LibCreditLedger.lotCount(account);
+        AppStorage storage s = LibAppStorage.diamondStorage();
+        CreditLot[] storage storedLots = s.creditLots[account];
+        total = storedLots.length;
         if (offset >= total) return (new CreditLot[](0), total);
 
         uint256 end = offset + limit;
@@ -226,7 +228,7 @@ contract ServiceCreditFacet {
 
         lots = new CreditLot[](end - offset);
         for (uint256 i = offset; i < end; ) {
-            lots[i - offset] = LibCreditLedger.getLot(account, i);
+            lots[i - offset] = storedLots[i];
             unchecked { ++i; }
         }
     }
@@ -242,7 +244,9 @@ contract ServiceCreditFacet {
         uint256 offset,
         uint256 limit
     ) external view returns (CreditMovement[] memory movements, uint256 total) {
-        total = LibCreditLedger.movementCount(account);
+        AppStorage storage s = LibAppStorage.diamondStorage();
+        CreditMovement[] storage storedMovements = s.creditMovements[account];
+        total = storedMovements.length;
         if (offset >= total) return (new CreditMovement[](0), total);
 
         uint256 end = offset + limit;
@@ -254,7 +258,7 @@ contract ServiceCreditFacet {
 
         movements = new CreditMovement[](end - offset);
         for (uint256 i = offset; i < end; ) {
-            movements[i - offset] = LibCreditLedger.getMovement(account, i);
+            movements[i - offset] = storedMovements[i];
             unchecked { ++i; }
         }
     }

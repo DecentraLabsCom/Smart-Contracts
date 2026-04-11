@@ -10,6 +10,7 @@ import {LibInstitutionalReservation} from "../contracts/libraries/LibInstitution
 import {ReservationDenialFacet} from "../contracts/facets/reservation/ReservationDenialFacet.sol";
 import {AppStorage, LabBase, LibAppStorage, Reservation, INSTITUTION_ROLE, ProviderNetworkStatus} from "../contracts/libraries/LibAppStorage.sol";
 import {LibERC721Storage} from "../contracts/libraries/LibERC721Storage.sol";
+import {LibERC721StorageTestHelper} from "./LibERC721StorageTestHelper.sol";
 import {ConfirmHarness, InstReservationHarness} from "./Harnesses.sol";
 
 contract InstitutionalRequestGasHarness is
@@ -49,7 +50,7 @@ contract InstitutionalRequestGasHarness is
     ) external {
         AppStorage storage s = LibAppStorage.diamondStorage();
         owners[labId] = provider;
-        LibERC721Storage.setOwnerForTest(labId, provider);
+        LibERC721StorageTestHelper.setOwnerForTest(labId, provider);
         s.tokenStatus[labId] = true;
         s.labs[labId] = LabBase({
             uri: "uri",
@@ -99,7 +100,7 @@ contract InstitutionalDenialGasHarness is ReservationDenialFacet {
         address owner
     ) external {
         owners[tokenId] = owner;
-        LibERC721Storage.setOwnerForTest(tokenId, owner);
+        LibERC721StorageTestHelper.setOwnerForTest(tokenId, owner);
     }
 
     function setBackend(

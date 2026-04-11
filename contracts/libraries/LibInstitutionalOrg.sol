@@ -14,11 +14,18 @@ error OrganizationAlreadyTracked();
 error OrganizationNotRegisteredByWallet();
 error OrganizationNotTracked();
 
+error TooManyOrganizations();
+
 /// @title LibInstitutionalOrg
 /// @notice Shared helpers to normalize and manage schacHomeOrganization registrations
 library LibInstitutionalOrg {
     using EnumerableSet for EnumerableSet.Bytes32Set;
     using EnumerableSet for EnumerableSet.AddressSet;
+
+    /// @notice Maximum number of schacHomeOrganizations an institution may register.
+    /// @dev Enforced at registration so that the cleanup loop in ProviderFacet.removeProvider
+    ///      is always O(MAX_ORGS_PER_INSTITUTION) and cannot be exploited as a gas-exhaustion vector.
+    uint256 internal constant MAX_ORGS_PER_INSTITUTION = 50;
 
     /// @notice Emitted when an institution registers a schacHomeOrganization
     event SchacHomeOrganizationRegistered(
@@ -77,6 +84,10 @@ library LibInstitutionalOrg {
         // forge-lint: disable-next-line(asm-keccak256)
         bytes32 orgHash = keccak256(bytes(normalizedOrganization));
         require(s.organizationInstitutionWallet[orgHash] == address(0), OrganizationAlreadyRegistered());
+        require(
+            s.institutionSchacHomeOrganizations[institution].length() < MAX_ORGS_PER_INSTITUTION,
+            TooManyOrganizations()
+        );
 
         s.organizationInstitutionWallet[orgHash] = institution;
         s.schacHomeOrganizationNames[orgHash] = normalizedOrganization;

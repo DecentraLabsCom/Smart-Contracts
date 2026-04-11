@@ -74,5 +74,4 @@ contract TestHelperFacet {
         AppStorage storage s = LibAppStorage.diamondStorage();
         s.creatorPucHashByLab[labId] = creatorPucHash;
     }
-
 }

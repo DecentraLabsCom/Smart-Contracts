@@ -315,14 +315,14 @@ enum ProviderNetworkStatus {
 /// @notice A funding lot representing a discrete credit issuance with traceability
 /// @dev Lots are consumed FIFO by remaining amount. Expired lots can be swept.
 struct CreditLot {
-    uint256 lotId;             // Unique lot identifier
-    bytes32 fundingOrderId;    // External funding order reference
-    uint256 creditAmount;      // Original credit amount issued
-    uint256 remaining;         // Remaining unconsumed credits
-    uint256 eurGrossAmount;    // EUR gross amount that funded this lot (informational, euro cents)
-    uint48  issuedAt;          // Timestamp of lot creation
-    uint48  expiresAt;         // Expiry timestamp (0 = no expiry)
-    bool    expired;           // Whether the lot has been marked expired
+    uint256 lotId; // Unique lot identifier
+    bytes32 fundingOrderId; // External funding order reference
+    uint256 creditAmount; // Original credit amount issued
+    uint256 remaining; // Remaining unconsumed credits
+    uint256 eurGrossAmount; // EUR gross amount that funded this lot (informational, euro cents)
+    uint48 issuedAt; // Timestamp of lot creation
+    uint48 expiresAt; // Expiry timestamp (0 = no expiry)
+    bool expired; // Whether the lot has been marked expired
 }
 
 /// @notice Type of credit movement for audit trail
@@ -340,10 +340,10 @@ enum CreditMovementKind {
 struct CreditMovement {
     CreditMovementKind kind;
     uint256 amount;
-    uint256 balanceAfter;      // Available balance after movement
-    uint256 lockedAfter;       // Locked balance after movement
-    bytes32 ref;               // External reference (reservation key, funding order, etc.)
-    uint48  timestamp;
+    uint256 balanceAfter; // Available balance after movement
+    uint256 lockedAfter; // Locked balance after movement
+    bytes32 ref; // External reference (reservation key, funding order, etc.)
+    uint48 timestamp;
 }
 
 /// @title LibAppStorage

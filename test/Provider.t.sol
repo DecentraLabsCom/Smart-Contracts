@@ -91,7 +91,9 @@ contract ProviderTest is BaseTest {
         bytes4[] memory labAdminSelectors = new bytes4[](1);
         labAdminSelectors[0] = _selector("addLab(string,uint96,string,string,uint8)");
         cut2[3] = IDiamond.FacetCut({
-            facetAddress: address(labAdminFacetImpl), action: IDiamond.FacetCutAction.Add, functionSelectors: labAdminSelectors
+            facetAddress: address(labAdminFacetImpl),
+            action: IDiamond.FacetCutAction.Add,
+            functionSelectors: labAdminSelectors
         });
 
         bytes4[] memory creditSelectors = new bytes4[](3);
@@ -99,14 +101,18 @@ contract ProviderTest is BaseTest {
         creditSelectors[1] = _selector("lockedBalanceOf(address)");
         creditSelectors[2] = _selector("totalBalanceOf(address)");
         cut2[4] = IDiamond.FacetCut({
-            facetAddress: address(creditFacetImpl), action: IDiamond.FacetCutAction.Add, functionSelectors: creditSelectors
+            facetAddress: address(creditFacetImpl),
+            action: IDiamond.FacetCutAction.Add,
+            functionSelectors: creditSelectors
         });
 
         bytes4[] memory treasurySelectors = new bytes4[](2);
         treasurySelectors[0] = _selector("authorizeBackend(address)");
         treasurySelectors[1] = _selector("getAuthorizedBackend(address)");
         cut2[5] = IDiamond.FacetCut({
-            facetAddress: address(treasuryFacetImpl), action: IDiamond.FacetCutAction.Add, functionSelectors: treasurySelectors
+            facetAddress: address(treasuryFacetImpl),
+            action: IDiamond.FacetCutAction.Add,
+            functionSelectors: treasurySelectors
         });
 
         bytes4[] memory orgSelectors = new bytes4[](3);
@@ -114,7 +120,9 @@ contract ProviderTest is BaseTest {
         orgSelectors[1] = _selector("resolveSchacHomeOrganization(string)");
         orgSelectors[2] = _selector("getRegisteredSchacHomeOrganizations(address)");
         cut2[6] = IDiamond.FacetCut({
-            facetAddress: address(orgRegistryFacetImpl), action: IDiamond.FacetCutAction.Add, functionSelectors: orgSelectors
+            facetAddress: address(orgRegistryFacetImpl),
+            action: IDiamond.FacetCutAction.Add,
+            functionSelectors: orgSelectors
         });
 
         vm.prank(admin);
@@ -180,9 +188,7 @@ contract ProviderTest is BaseTest {
         labAdminFacet.addLab("ipfs://lab-1", 100, "https://lab.example/access", "key-1", 0);
 
         vm.prank(admin);
-        vm.expectRevert(
-            abi.encodeWithSelector(ProviderFacet.ProviderOwnsLabs.selector, provider1, 1)
-        );
+        vm.expectRevert(abi.encodeWithSelector(ProviderFacet.ProviderOwnsLabs.selector, provider1, 1));
         providerFacet.removeProvider(provider1);
 
         assertTrue(providerFacet.isLabProvider(provider1));

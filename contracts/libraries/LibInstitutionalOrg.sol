@@ -85,8 +85,7 @@ library LibInstitutionalOrg {
         bytes32 orgHash = keccak256(bytes(normalizedOrganization));
         require(s.organizationInstitutionWallet[orgHash] == address(0), OrganizationAlreadyRegistered());
         require(
-            s.institutionSchacHomeOrganizations[institution].length() < MAX_ORGS_PER_INSTITUTION,
-            TooManyOrganizations()
+            s.institutionSchacHomeOrganizations[institution].length() < MAX_ORGS_PER_INSTITUTION, TooManyOrganizations()
         );
 
         s.organizationInstitutionWallet[orgHash] = institution;

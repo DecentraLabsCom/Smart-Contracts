@@ -4,11 +4,22 @@ pragma solidity ^0.8.33;
 import {Test} from "forge-std/Test.sol";
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 
-import {InstitutionalReservationRequestCreationFacet} from "../contracts/facets/reservation/institutional/InstitutionalReservationRequestCreationFacet.sol";
-import {InstitutionalReservationRequestValidationFacet} from "../contracts/facets/reservation/institutional/InstitutionalReservationRequestValidationFacet.sol";
+import {
+    InstitutionalReservationRequestCreationFacet
+} from "../contracts/facets/reservation/institutional/InstitutionalReservationRequestCreationFacet.sol";
+import {
+    InstitutionalReservationRequestValidationFacet
+} from "../contracts/facets/reservation/institutional/InstitutionalReservationRequestValidationFacet.sol";
 import {LibInstitutionalReservation} from "../contracts/libraries/LibInstitutionalReservation.sol";
 import {ReservationDenialFacet} from "../contracts/facets/reservation/ReservationDenialFacet.sol";
-import {AppStorage, LabBase, LibAppStorage, Reservation, INSTITUTION_ROLE, ProviderNetworkStatus} from "../contracts/libraries/LibAppStorage.sol";
+import {
+    AppStorage,
+    LabBase,
+    LibAppStorage,
+    Reservation,
+    INSTITUTION_ROLE,
+    ProviderNetworkStatus
+} from "../contracts/libraries/LibAppStorage.sol";
 import {LibERC721Storage} from "../contracts/libraries/LibERC721Storage.sol";
 import {LibERC721StorageTestHelper} from "./LibERC721StorageTestHelper.sol";
 import {ConfirmHarness, InstReservationHarness} from "./Harnesses.sol";
@@ -203,30 +214,34 @@ contract GasInstitutionalReservationsTest is Test {
     }
 
     function testGas_DenyInstitutionalReservationRequest() public {
-        (uint32 start,) = _requestWindow(10800);
+        (uint32 start,) = _requestWindow(10_800);
         bytes32 key = _reservationKey(start);
 
-        denialHarness.setReservation(key, address(0xABCD), institution, 360000, _PENDING, labId, start, "carol@inst");
+        denialHarness.setReservation(key, address(0xABCD), institution, 360_000, _PENDING, labId, start, "carol@inst");
 
         vm.prank(provider);
         denialHarness.denyReservationRequest(key);
     }
 
     function testGas_CancelInstitutionalReservationRequest() public {
-        (uint32 start,) = _requestWindow(14400);
+        (uint32 start,) = _requestWindow(14_400);
         bytes32 key = _reservationKey(start);
 
-        cancellationHarness.setReservation(key, address(0xABCD), institution, 360000, _PENDING, labId, start, "dave@inst");
+        cancellationHarness.setReservation(
+            key, address(0xABCD), institution, 360_000, _PENDING, labId, start, "dave@inst"
+        );
 
         vm.prank(institutionBackend);
         cancellationHarness.cancelReservationRequestWrapper(institution, "dave@inst", key);
     }
 
     function testGas_CancelInstitutionalBookingWithPuc() public {
-        (uint32 start,) = _requestWindow(18000);
+        (uint32 start,) = _requestWindow(18_000);
         bytes32 key = _reservationKey(start);
 
-        cancellationHarness.setReservation(key, address(0xABCD), institution, 360000, _CONFIRMED, labId, start, "erin@inst");
+        cancellationHarness.setReservation(
+            key, address(0xABCD), institution, 360_000, _CONFIRMED, labId, start, "erin@inst"
+        );
 
         vm.prank(institutionBackend);
         cancellationHarness.cancelBookingWrapper(institution, "erin@inst", key);

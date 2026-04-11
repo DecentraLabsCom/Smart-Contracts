@@ -28,11 +28,7 @@ library LibRevenue {
 
     function calculateRevenueSplit(
         uint96 price
-    )
-        internal
-        pure
-        returns (uint96 providerShare)
-    {
+    ) internal pure returns (uint96 providerShare) {
         if (price == 0) {
             return 0;
         }
@@ -42,11 +38,7 @@ library LibRevenue {
 
     function computeCancellationFee(
         uint96 price
-    )
-        internal
-        pure
-        returns (uint96 providerFee, uint96 refundAmount)
-    {
+    ) internal pure returns (uint96 providerFee, uint96 refundAmount) {
         if (price == 0) return (0, 0);
 
         uint96 totalFee = uint96((uint256(price) * CANCEL_FEE_TOTAL) / REVENUE_DENOMINATOR);

@@ -25,7 +25,9 @@ contract CreditLedgerTest is BaseTest {
     address bob = address(0xB0B);
     address nonAdmin = address(0xBAD);
 
-    function _selector(string memory sig) internal pure returns (bytes4) {
+    function _selector(
+        string memory sig
+    ) internal pure returns (bytes4) {
         return bytes4(keccak256(bytes(sig)));
     }
 
@@ -62,7 +64,9 @@ contract CreditLedgerTest is BaseTest {
         bytes4[] memory provSelectors = new bytes4[](1);
         provSelectors[0] = _selector("initialize(string,string,string)");
         cut2[1] = IDiamond.FacetCut({
-            facetAddress: address(providerFacetImpl), action: IDiamond.FacetCutAction.Add, functionSelectors: provSelectors
+            facetAddress: address(providerFacetImpl),
+            action: IDiamond.FacetCutAction.Add,
+            functionSelectors: provSelectors
         });
 
         // ServiceCreditFacet (all new + legacy functions)
@@ -84,7 +88,9 @@ contract CreditLedgerTest is BaseTest {
         creditSelectors[14] = _selector("getCreditLots(address,uint256,uint256)");
         creditSelectors[15] = _selector("getCreditMovements(address,uint256,uint256)");
         cut2[2] = IDiamond.FacetCut({
-            facetAddress: address(creditFacetImpl), action: IDiamond.FacetCutAction.Add, functionSelectors: creditSelectors
+            facetAddress: address(creditFacetImpl),
+            action: IDiamond.FacetCutAction.Add,
+            functionSelectors: creditSelectors
         });
 
         // LabFacet
@@ -427,11 +433,11 @@ contract CreditLedgerTest is BaseTest {
         bytes32 res = keccak256("RES-AUDIT");
 
         vm.startPrank(admin);
-        creditFacet.mintCredits(alice, 1000, fo, 950, 0);       // MINT
-        creditFacet.lockCredits(alice, 300, res);                 // LOCK
-        creditFacet.captureLockedCredits(alice, 200, res);        // CAPTURE
-        creditFacet.releaseLockedCredits(alice, 100, res);        // RELEASE
-        creditFacet.cancelCredits(alice, 50, res);                // CANCEL
+        creditFacet.mintCredits(alice, 1000, fo, 950, 0); // MINT
+        creditFacet.lockCredits(alice, 300, res); // LOCK
+        creditFacet.captureLockedCredits(alice, 200, res); // CAPTURE
+        creditFacet.releaseLockedCredits(alice, 100, res); // RELEASE
+        creditFacet.cancelCredits(alice, 50, res); // CANCEL
         creditFacet.ledgerAdjustCredits(alice, -10, keccak256("ADJ")); // ADJUST
         vm.stopPrank();
 

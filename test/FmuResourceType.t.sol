@@ -25,8 +25,8 @@ contract FmuResourceTypeTest is BaseTest {
     function test_fmu_allows_overlapping_reservations() public {
         address inst = address(0x2222);
         uint256 labId = 42;
-        uint32 start1 = 10000;
-        uint32 start2 = 10100; // overlaps with first (both have 1h duration in harness)
+        uint32 start1 = 10_000;
+        uint32 start2 = 10_100; // overlaps with first (both have 1h duration in harness)
 
         bytes32 key1 = keccak256(abi.encodePacked(labId, start1));
         bytes32 key2 = keccak256(abi.encodePacked(labId, start2));
@@ -60,8 +60,8 @@ contract FmuResourceTypeTest is BaseTest {
     function test_regular_lab_blocks_overlapping_reservations() public {
         address inst = address(0x2222);
         uint256 labId = 43;
-        uint32 start1 = 20000;
-        uint32 start2 = 20100; // overlaps
+        uint32 start1 = 20_000;
+        uint32 start2 = 20_100; // overlaps
 
         bytes32 key1 = keccak256(abi.encodePacked(labId, start1));
         bytes32 key2 = keccak256(abi.encodePacked(labId, start2));
@@ -96,8 +96,8 @@ contract FmuResourceTypeTest is BaseTest {
         // We can't easily read it from storage in this harness, but we verify
         // by confirming overlapping reservations fail (same as regular lab test)
         address inst = address(0x2222);
-        uint32 start1 = 30000;
-        uint32 start2 = 30100;
+        uint32 start1 = 30_000;
+        uint32 start2 = 30_100;
 
         bytes32 key1 = keccak256(abi.encodePacked(labId, start1));
         bytes32 key2 = keccak256(abi.encodePacked(labId, start2));
@@ -124,7 +124,7 @@ contract FmuResourceTypeTest is BaseTest {
     function test_fmu_three_concurrent_users() public {
         address inst = address(0x2222);
         uint256 labId = 45;
-        uint32 baseStart = 50000;
+        uint32 baseStart = 50_000;
         uint32 step = 50; // all three overlap in the same window
 
         // set lab as FMU

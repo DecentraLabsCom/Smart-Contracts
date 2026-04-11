@@ -35,22 +35,66 @@ contract LabIntentFacet {
         LibIntent.consumeIntent(requestId, action, payloadHash, msg.sender);
     }
 
+    function _requireNewLabIntent(
+        ActionIntentPayload calldata payload,
+        string memory invalidLabIdReason,
+        string memory missingPucReason
+    ) internal pure {
+        require(payload.labId == 0, invalidLabIdReason);
+        require(bytes(payload.puc).length > 0, missingPucReason);
+    }
+
+    function _bindCreatorToLatestLab(
+        string calldata puc
+    ) internal returns (uint256 labId) {
+        AppStorage storage s = _s();
+        labId = s.labId;
+
+        bytes32 creatorPucHash = keccak256(bytes(puc));
+        s.creatorPucHashByLab[labId] = creatorPucHash;
+
+        emit LabCreatorBound(labId, creatorPucHash);
+    }
+
+    function _createLabWithIntent(
+        bytes32 requestId,
+        ActionIntentPayload calldata payload,
+        uint8 action,
+        string memory invalidLabIdReason,
+        string memory missingPucReason,
+        string memory actionName,
+        bool listImmediately
+    ) internal {
+        LibLabAdmin._requireLabProvider();
+        _requireNewLabIntent(payload, invalidLabIdReason, missingPucReason);
+        _consumeLabIntent(requestId, action, payload);
+
+        if (listImmediately) {
+            LibLabAdmin.addAndListLab(
+                payload.uri, payload.price, payload.accessURI, payload.accessKey, payload.resourceType
+            );
+        } else {
+            LibLabAdmin.addLab(payload.uri, payload.price, payload.accessURI, payload.accessKey, payload.resourceType);
+        }
+
+        uint256 newLabId = _bindCreatorToLatestLab(payload.puc);
+        emit LabIntentProcessed(requestId, newLabId, actionName, msg.sender, true, "");
+    }
+
     /// @notice Adds a new Lab via intent and emits event with requestId.
     function addLabWithIntent(
         bytes32 requestId,
         ActionIntentPayload calldata payload
     ) external {
-        LibLabAdmin._requireLabProvider();
-        require(payload.labId == 0, "LAB_ADD: labId must be 0");
-        require(bytes(payload.puc).length > 0, "LAB_ADD: puc required");
-        _consumeLabIntent(requestId, LibIntent.ACTION_LAB_ADD, payload);
-
-        LibLabAdmin.addLab(payload.uri, payload.price, payload.accessURI, payload.accessKey, payload.resourceType);
-        uint256 newLabId = _s().labId;
-        bytes32 creatorPucHash = keccak256(bytes(payload.puc));
-        _s().creatorPucHashByLab[newLabId] = creatorPucHash;
-        emit LabCreatorBound(newLabId, creatorPucHash);
-        emit LabIntentProcessed(requestId, newLabId, "LAB_ADD", msg.sender, true, "");
+        _createLabWithIntent(
+            requestId,
+            payload,
+            LibIntent.ACTION_LAB_ADD,
+            "LAB_ADD: labId must be 0",
+            "LAB_ADD: puc required",
+            "LAB_ADD",
+            false
+        );
     }
 
     /// @notice Adds and lists a new Lab via intent and emits event with requestId.
@@ -58,17 +102,15 @@ contract LabIntentFacet {
         bytes32 requestId,
         ActionIntentPayload calldata payload
     ) external {
-        LibLabAdmin._requireLabProvider();
-        require(payload.labId == 0, "LAB_ADD_AND_LIST: labId must be 0");
-        require(bytes(payload.puc).length > 0, "LAB_ADD_AND_LIST: puc required");
-        _consumeLabIntent(requestId, LibIntent.ACTION_LAB_ADD_AND_LIST, payload);
-
-        LibLabAdmin.addAndListLab(payload.uri, payload.price, payload.accessURI, payload.accessKey, payload.resourceType);
-        uint256 newLabId = _s().labId;
-        bytes32 creatorPucHash = keccak256(bytes(payload.puc));
-        _s().creatorPucHashByLab[newLabId] = creatorPucHash;
-        emit LabCreatorBound(newLabId, creatorPucHash);
-        emit LabIntentProcessed(requestId, newLabId, "LAB_ADD_AND_LIST", msg.sender, true, "");
+        _createLabWithIntent(
+            requestId,
+            payload,
+            LibIntent.ACTION_LAB_ADD_AND_LIST,
+            "LAB_ADD_AND_LIST: labId must be 0",
+            "LAB_ADD_AND_LIST: puc required",
+            "LAB_ADD_AND_LIST",
+            true
+        );
     }
 
     /// @notice Updates a lab via intent
@@ -80,7 +122,9 @@ contract LabIntentFacet {
         _consumeLabIntent(requestId, LibIntent.ACTION_LAB_UPDATE, payload);
         LibLabAdmin._requireLabCreator(payload.labId, payload.puc);
 
-        LibLabAdmin.updateLab(payload.labId, payload.uri, payload.price, payload.accessURI, payload.accessKey, payload.resourceType);
+        LibLabAdmin.updateLab(
+            payload.labId, payload.uri, payload.price, payload.accessURI, payload.accessKey, payload.resourceType
+        );
         emit LabIntentProcessed(requestId, payload.labId, "LAB_UPDATE", msg.sender, true, "");
     }
 

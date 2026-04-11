@@ -75,9 +75,7 @@ contract ProviderFacet is AccessControlUpgradeable, ReentrancyGuardTransient {
     /// @param previousStatus The previous network status.
     /// @param newStatus The new network status.
     event ProviderNetworkStatusChanged(
-        address indexed provider,
-        ProviderNetworkStatus previousStatus,
-        ProviderNetworkStatus newStatus
+        address indexed provider, ProviderNetworkStatus previousStatus, ProviderNetworkStatus newStatus
     );
 
     error ProviderOwnsLabs(address provider, uint256 labBalance);
@@ -366,7 +364,10 @@ contract ProviderFacet is AccessControlUpgradeable, ReentrancyGuardTransient {
         return _s().providerNetworkStatus[_provider] == ProviderNetworkStatus.ACTIVE;
     }
 
-    function _clearInstitutionalOrganizationState(AppStorage storage s, address institution) internal {
+    function _clearInstitutionalOrganizationState(
+        AppStorage storage s,
+        address institution
+    ) internal {
         EnumerableSet.Bytes32Set storage organizations = s.institutionSchacHomeOrganizations[institution];
         while (organizations.length() > 0) {
             bytes32 orgHash = organizations.at(organizations.length() - 1);

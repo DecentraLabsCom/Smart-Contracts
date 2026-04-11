@@ -37,9 +37,7 @@ contract DiamondLoupeOptimizationTest is Test {
         bytes4[] memory cutSelectors = new bytes4[](1);
         cutSelectors[0] = IDiamondCut.diamondCut.selector;
         initialCut[0] = IDiamond.FacetCut({
-            facetAddress: address(diamondCutFacet),
-            action: IDiamond.FacetCutAction.Add,
-            functionSelectors: cutSelectors
+            facetAddress: address(diamondCutFacet), action: IDiamond.FacetCutAction.Add, functionSelectors: cutSelectors
         });
 
         bytes4[] memory loupeSelectors = new bytes4[](4);
@@ -53,10 +51,7 @@ contract DiamondLoupeOptimizationTest is Test {
             functionSelectors: loupeSelectors
         });
 
-        Diamond diamond = new Diamond(
-            initialCut,
-            DiamondArgs({owner: admin, init: address(0), initCalldata: ""})
-        );
+        Diamond diamond = new Diamond(initialCut, DiamondArgs({owner: admin, init: address(0), initCalldata: ""}));
 
         DummyFacetA facetA = new DummyFacetA();
         bytes4[] memory selectorsA = new bytes4[](2);
@@ -65,9 +60,7 @@ contract DiamondLoupeOptimizationTest is Test {
 
         IDiamond.FacetCut[] memory addFacetA = new IDiamond.FacetCut[](1);
         addFacetA[0] = IDiamond.FacetCut({
-            facetAddress: address(facetA),
-            action: IDiamond.FacetCutAction.Add,
-            functionSelectors: selectorsA
+            facetAddress: address(facetA), action: IDiamond.FacetCutAction.Add, functionSelectors: selectorsA
         });
 
         vm.prank(admin);
@@ -86,9 +79,7 @@ contract DiamondLoupeOptimizationTest is Test {
         replaceSelectors[0] = DummyFacetB.foo.selector;
         IDiamond.FacetCut[] memory replaceCut = new IDiamond.FacetCut[](1);
         replaceCut[0] = IDiamond.FacetCut({
-            facetAddress: address(facetB),
-            action: IDiamond.FacetCutAction.Replace,
-            functionSelectors: replaceSelectors
+            facetAddress: address(facetB), action: IDiamond.FacetCutAction.Replace, functionSelectors: replaceSelectors
         });
 
         vm.prank(admin);
@@ -106,9 +97,7 @@ contract DiamondLoupeOptimizationTest is Test {
         removeSelectors[0] = DummyFacetA.bar.selector;
         IDiamond.FacetCut[] memory removeCut = new IDiamond.FacetCut[](1);
         removeCut[0] = IDiamond.FacetCut({
-            facetAddress: address(0),
-            action: IDiamond.FacetCutAction.Remove,
-            functionSelectors: removeSelectors
+            facetAddress: address(0), action: IDiamond.FacetCutAction.Remove, functionSelectors: removeSelectors
         });
 
         vm.prank(admin);
@@ -133,7 +122,7 @@ contract DiamondLoupeOptimizationTest is Test {
         address[] memory values,
         address target
     ) private pure returns (bool) {
-        for (uint256 i; i < values.length; ) {
+        for (uint256 i; i < values.length;) {
             if (values[i] == target) {
                 return true;
             }
@@ -148,7 +137,7 @@ contract DiamondLoupeOptimizationTest is Test {
         IDiamondLoupe.Facet[] memory values,
         address target
     ) private pure returns (bool) {
-        for (uint256 i; i < values.length; ) {
+        for (uint256 i; i < values.length;) {
             if (values[i].facetAddress == target) {
                 return true;
             }

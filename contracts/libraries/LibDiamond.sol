@@ -150,12 +150,11 @@ library LibDiamond {
             }
             uint16 facetSelectorPosition = uint16(ds.facetFunctionSelectors[_facetAddress].length);
             ds.facetFunctionSelectors[_facetAddress].push(selector);
-            ds.facetAddressAndSelectorPosition[selector] =
-                FacetAddressAndSelectorPosition({
-                    facetAddress: _facetAddress,
-                    selectorPosition: selectorCount,
-                    facetSelectorPosition: facetSelectorPosition
-                });
+            ds.facetAddressAndSelectorPosition[selector] = FacetAddressAndSelectorPosition({
+                facetAddress: _facetAddress,
+                selectorPosition: selectorCount,
+                facetSelectorPosition: facetSelectorPosition
+            });
             ds.selectors.push(selector);
             selectorCount++;
         }

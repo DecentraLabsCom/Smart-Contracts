@@ -23,7 +23,9 @@ contract ProviderNetworkStatusTest is BaseTest {
     address prov2 = address(0xBEEF);
     address nonAdmin = address(0xBAD);
 
-    function _selector(string memory sig) internal pure returns (bytes4) {
+    function _selector(
+        string memory sig
+    ) internal pure returns (bytes4) {
         return bytes4(keccak256(bytes(sig)));
     }
 
@@ -89,10 +91,7 @@ contract ProviderNetworkStatusTest is BaseTest {
         vm.prank(admin);
         providerFacet.addProvider("Provider1", prov1, "p1@x.com", "ES", "");
 
-        assertEq(
-            uint8(providerFacet.getProviderNetworkStatus(prov1)),
-            uint8(ProviderNetworkStatus.ACTIVE)
-        );
+        assertEq(uint8(providerFacet.getProviderNetworkStatus(prov1)), uint8(ProviderNetworkStatus.ACTIVE));
         assertTrue(providerFacet.isProviderNetworkActive(prov1));
     }
 
@@ -103,10 +102,7 @@ contract ProviderNetworkStatusTest is BaseTest {
         providerFacet.removeProvider(prov1);
         vm.stopPrank();
 
-        assertEq(
-            uint8(providerFacet.getProviderNetworkStatus(prov1)),
-            uint8(ProviderNetworkStatus.TERMINATED)
-        );
+        assertEq(uint8(providerFacet.getProviderNetworkStatus(prov1)), uint8(ProviderNetworkStatus.TERMINATED));
         assertFalse(providerFacet.isProviderNetworkActive(prov1));
     }
 
@@ -117,10 +113,7 @@ contract ProviderNetworkStatusTest is BaseTest {
         providerFacet.setProviderNetworkStatus(prov1, ProviderNetworkStatus.SUSPENDED);
         vm.stopPrank();
 
-        assertEq(
-            uint8(providerFacet.getProviderNetworkStatus(prov1)),
-            uint8(ProviderNetworkStatus.SUSPENDED)
-        );
+        assertEq(uint8(providerFacet.getProviderNetworkStatus(prov1)), uint8(ProviderNetworkStatus.SUSPENDED));
         assertFalse(providerFacet.isProviderNetworkActive(prov1));
     }
 
@@ -182,19 +175,14 @@ contract ProviderNetworkStatusTest is BaseTest {
 
     // ── Default status for non-registered address is NONE ───────────────
     function test_default_status_is_none() public view {
-        assertEq(
-            uint8(providerFacet.getProviderNetworkStatus(prov1)),
-            uint8(ProviderNetworkStatus.NONE)
-        );
+        assertEq(uint8(providerFacet.getProviderNetworkStatus(prov1)), uint8(ProviderNetworkStatus.NONE));
         assertFalse(providerFacet.isProviderNetworkActive(prov1));
     }
 
     // ── ProviderNetworkStatusChanged event emitted on add ───────────────
     function test_event_emitted_on_add_provider() public {
         vm.expectEmit(true, false, false, true);
-        emit ProviderFacet.ProviderNetworkStatusChanged(
-            prov1, ProviderNetworkStatus.NONE, ProviderNetworkStatus.ACTIVE
-        );
+        emit ProviderFacet.ProviderNetworkStatusChanged(prov1, ProviderNetworkStatus.NONE, ProviderNetworkStatus.ACTIVE);
 
         vm.prank(admin);
         providerFacet.addProvider("Provider1", prov1, "p1@x.com", "ES", "");

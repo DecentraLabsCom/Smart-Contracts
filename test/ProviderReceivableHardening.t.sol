@@ -22,7 +22,11 @@ contract ReceivableHardeningHarness is ERC721, ProviderSettlementFacet {
 
     // ---- Setup helpers ----
 
-    function initialize(address admin, address provider, uint256 labId) external {
+    function initialize(
+        address admin,
+        address provider,
+        uint256 labId
+    ) external {
         AppStorage storage s = LibAppStorage.diamondStorage();
         s.DEFAULT_ADMIN_ROLE = keccak256("DEFAULT_ADMIN_ROLE");
         s.roleMembers[s.DEFAULT_ADMIN_ROLE].add(admin);
@@ -31,19 +35,27 @@ contract ReceivableHardeningHarness is ERC721, ProviderSettlementFacet {
         LibERC721StorageTestHelper.setOwnerForTest(labId, provider);
     }
 
-    function addProvider(address provider) external {
+    function addProvider(
+        address provider
+    ) external {
         AppStorage storage s = LibAppStorage.diamondStorage();
         s._addProviderRole(provider, "provider2", "p2@x.com", "ES", "");
     }
 
-    function grantSettlementOperatorRole(address account) external {
+    function grantSettlementOperatorRole(
+        address account
+    ) external {
         AppStorage storage s = LibAppStorage.diamondStorage();
         s.roleMembers[SETTLEMENT_OPERATOR_ROLE].add(account);
     }
 
     // ---- Storage setters ----
 
-    function setReceivableBucket(uint256 labId, uint8 state, uint256 amount) external {
+    function setReceivableBucket(
+        uint256 labId,
+        uint8 state,
+        uint256 amount
+    ) external {
         AppStorage storage s = LibAppStorage.diamondStorage();
         if (state == 1) s.providerReceivableAccrued[labId] = amount;
         else if (state == 2) s.providerSettlementQueue[labId] = amount;
@@ -57,32 +69,44 @@ contract ReceivableHardeningHarness is ERC721, ProviderSettlementFacet {
 
     // ---- LibProviderReceivable wrappers ----
 
-    function hasUnsettledReceivable(uint256 labId) external view returns (bool) {
+    function hasUnsettledReceivable(
+        uint256 labId
+    ) external view returns (bool) {
         return LibProviderReceivable.hasUnsettledReceivable(labId);
     }
 
-    function accrueReceivable(uint256 labId, uint256 amount, bytes32 key) external {
+    function accrueReceivable(
+        uint256 labId,
+        uint256 amount,
+        bytes32 key
+    ) external {
         LibProviderReceivable.accrueReceivable(labId, amount, key);
     }
 
-    function updateAccruedTimestamp(uint256 labId, uint256 ts) external {
+    function updateAccruedTimestamp(
+        uint256 labId,
+        uint256 ts
+    ) external {
         LibProviderReceivable.updateAccruedTimestamp(labId, ts);
     }
 
     // ---- Transfer guard (mirrors LabFacet._update logic) ----
 
-    function transferLabToken(address from, address to, uint256 tokenId) external {
+    function transferLabToken(
+        address from,
+        address to,
+        uint256 tokenId
+    ) external {
         AppStorage storage s = LibAppStorage.diamondStorage();
-        require(
-            !LibProviderReceivable.hasUnsettledReceivable(tokenId),
-            "Lab has unsettled receivables"
-        );
+        require(!LibProviderReceivable.hasUnsettledReceivable(tokenId), "Lab has unsettled receivables");
         _transfer(from, to, tokenId);
     }
 
     // ---- Staking stub required by ProviderSettlementFacet ----
 
-    function updateLastReservation(address) external {}
+    function updateLastReservation(
+        address
+    ) external {}
 }
 
 // ---------------------------------------------------------------------------
@@ -90,7 +114,8 @@ contract ReceivableHardeningHarness is ERC721, ProviderSettlementFacet {
 // ---------------------------------------------------------------------------
 contract MockERC20 is ERC721("Mock", "M") {
     // Nothing needed — only used as labTokenAddress placeholder.
-}
+
+    }
 
 // ---------------------------------------------------------------------------
 // Tests
@@ -114,11 +139,7 @@ contract ProviderReceivableHardeningTest is Test {
     uint256 internal constant NINETY_NINE_CREDITS = 9_900_000;
     uint256 internal constant ONE_HUNDRED_CREDITS = 10_000_000;
 
-    event ProviderReceivableAccrued(
-        uint256 indexed labId,
-        uint256 amount,
-        bytes32 indexed reservationKey
-    );
+    event ProviderReceivableAccrued(uint256 indexed labId, uint256 amount, bytes32 indexed reservationKey);
 
     function setUp() public {
         h = new ReceivableHardeningHarness();
@@ -266,12 +287,7 @@ contract ProviderReceivableHardeningTest is Test {
         vm.prank(SETTLER);
         h.transitionProviderReceivableState(LAB, 2, 3, FIVE_CREDITS, bytes32("inv-001"));
 
-        (
-            ,
-            uint256 queued,
-            uint256 invoiced,
-            ,,,,
-        ) = h.getLabProviderReceivableLifecycle(LAB);
+        (, uint256 queued, uint256 invoiced,,,,,) = h.getLabProviderReceivableLifecycle(LAB);
         assertEq(queued, FIVE_CREDITS);
         assertEq(invoiced, FIVE_CREDITS);
     }

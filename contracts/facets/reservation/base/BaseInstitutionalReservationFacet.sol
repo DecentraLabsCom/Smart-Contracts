@@ -304,11 +304,7 @@ abstract contract BaseInstitutionalReservationFacet is InstitutionalReservableTo
 
     function _calculateRevenueSplit(
         uint96 price
-    )
-        internal
-        pure
-        returns (uint96 providerShare)
-    {
+    ) internal pure returns (uint96 providerShare) {
         return LibRevenue.calculateRevenueSplit(price);
     }
 

@@ -32,7 +32,9 @@ library LibLabAdmin {
         uint8 _resourceType
     );
 
-    event LabUpdated(uint256 indexed _labId, string _uri, uint96 _price, string _accessUri, string _accessKey, uint8 _resourceType);
+    event LabUpdated(
+        uint256 indexed _labId, string _uri, uint96 _price, string _accessUri, string _accessKey, uint8 _resourceType
+    );
 
     event LabDeleted(uint256 indexed _labId);
     event LabURISet(uint256 indexed _labId, string _uri);
@@ -46,23 +48,7 @@ library LibLabAdmin {
         string calldata _accessKey,
         uint8 _resourceType
     ) internal {
-        require(_resourceType <= 1, "Invalid resource type");
-        _validateLabParams(_uri, _accessUri, _accessKey);
-
-        AppStorage storage s = _s();
-        uint256 nextLabId = s.labId + 1;
-
-        ILabFacetMint(address(this)).safeMintTo(msg.sender, nextLabId);
-        s.labId = nextLabId;
-
-        s.labs[nextLabId].uri = _uri;
-        s.labs[nextLabId].price = _price;
-        s.labs[nextLabId].accessURI = _accessUri;
-        s.labs[nextLabId].accessKey = _accessKey;
-        s.labs[nextLabId].createdAt = uint32(block.timestamp);
-        s.labs[nextLabId].resourceType = _resourceType;
-        _addActiveLabToIndex(s, nextLabId);
-
+        uint256 nextLabId = _createLab(_uri, _price, _accessUri, _accessKey, _resourceType, false);
         emit LabAdded(nextLabId, msg.sender, _uri, _price, _accessUri, _accessKey, _resourceType);
     }
 
@@ -73,26 +59,7 @@ library LibLabAdmin {
         string calldata _accessKey,
         uint8 _resourceType
     ) internal {
-        require(_resourceType <= 1, "Invalid resource type");
-        _validateLabParams(_uri, _accessUri, _accessKey);
-
-        AppStorage storage s = _s();
-
-        uint256 nextLabId = s.labId + 1;
-
-        ILabFacetMint(address(this)).safeMintTo(msg.sender, nextLabId);
-        s.labId = nextLabId;
-
-        s.labs[nextLabId].uri = _uri;
-        s.labs[nextLabId].price = _price;
-        s.labs[nextLabId].accessURI = _accessUri;
-        s.labs[nextLabId].accessKey = _accessKey;
-        s.labs[nextLabId].createdAt = uint32(block.timestamp);
-        s.labs[nextLabId].resourceType = _resourceType;
-        _addActiveLabToIndex(s, nextLabId);
-
-        s.tokenStatus[nextLabId] = true;
-
+        uint256 nextLabId = _createLab(_uri, _price, _accessUri, _accessKey, _resourceType, true);
         emit LabAdded(nextLabId, msg.sender, _uri, _price, _accessUri, _accessKey, _resourceType);
         emit LabListed(nextLabId, msg.sender);
     }
@@ -231,6 +198,38 @@ library LibLabAdmin {
         return s.labActiveReservationCount[_labId] > 0 || s.providerReceivableAccrued[_labId] > 0
             || s.providerSettlementQueue[_labId] > 0 || s.providerReceivableInvoiced[_labId] > 0
             || s.providerReceivableApproved[_labId] > 0 || s.providerReceivableDisputed[_labId] > 0;
+    }
+
+    function _createLab(
+        string calldata _uri,
+        uint96 _price,
+        string calldata _accessUri,
+        string calldata _accessKey,
+        uint8 _resourceType,
+        bool listImmediately
+    ) private returns (uint256 nextLabId) {
+        require(_resourceType <= 1, "Invalid resource type");
+        _validateLabParams(_uri, _accessUri, _accessKey);
+
+        AppStorage storage s = _s();
+        nextLabId = s.labId + 1;
+
+        ILabFacetMint(address(this)).safeMintTo(msg.sender, nextLabId);
+        s.labId = nextLabId;
+
+        s.labs[nextLabId] = LabBase({
+            uri: _uri,
+            price: _price,
+            accessURI: _accessUri,
+            accessKey: _accessKey,
+            createdAt: uint32(block.timestamp),
+            resourceType: _resourceType
+        });
+        _addActiveLabToIndex(s, nextLabId);
+
+        if (listImmediately) {
+            s.tokenStatus[nextLabId] = true;
+        }
     }
 
     function _addActiveLabToIndex(

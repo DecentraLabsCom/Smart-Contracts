@@ -55,9 +55,7 @@ contract UpgradeLabQueryFacet is Script {
             functionSelectors: replaceSelectors
         });
         cuts[1] = IDiamond.FacetCut({
-            facetAddress: address(newFacet),
-            action: IDiamond.FacetCutAction.Add,
-            functionSelectors: addSelectors
+            facetAddress: address(newFacet), action: IDiamond.FacetCutAction.Add, functionSelectors: addSelectors
         });
 
         // 4. Execute diamondCut

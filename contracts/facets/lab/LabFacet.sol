@@ -200,10 +200,7 @@ contract LabFacet is ERC721Upgradeable, ReservableToken {
         // from != address(0) means it's not a mint
         // to != address(0) means it's not a burn
         if (from != address(0) && to != address(0)) {
-            require(
-                !LibProviderReceivable.hasUnsettledReceivable(tokenId),
-                "Lab has unsettled receivables"
-            );
+            require(!LibProviderReceivable.hasUnsettledReceivable(tokenId), "Lab has unsettled receivables");
             LibLabTransfer.handleListingOnTransfer(from, to, tokenId);
             LibLabTransfer.migrateReservationsOnTransfer(from, to, tokenId, _MAX_CLEANUP_PER_TRANSFER);
         }

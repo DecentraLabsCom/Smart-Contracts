@@ -83,8 +83,7 @@ contract FuzzReservationPucTest is BaseTest {
     function test_fuzz_computeCancellationFee(
         uint96 price
     ) public {
-        (uint96 providerFee, uint96 refund) =
-            rev.computeCancellationFeePublic(price);
+        (uint96 providerFee, uint96 refund) = rev.computeCancellationFeePublic(price);
         uint256 sum = uint256(providerFee) + uint256(refund);
         assert(sum <= uint256(price));
         assert(refund <= price);

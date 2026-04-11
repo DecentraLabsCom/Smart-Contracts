@@ -84,5 +84,4 @@ contract LibHeapHarness {
         AppStorage storage s = _s();
         return s.payoutHeapInvalidCount[labId];
     }
-
 }

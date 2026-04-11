@@ -366,11 +366,7 @@ abstract contract BaseReservationFacet is InstitutionalReservableTokenEnumerable
 
     function _calculateRevenueSplit(
         uint96 price
-    )
-        internal
-        pure
-        returns (uint96 providerShare)
-    {
+    ) internal pure returns (uint96 providerShare) {
         if (price == 0) {
             return 0;
         }
@@ -388,11 +384,7 @@ abstract contract BaseReservationFacet is InstitutionalReservableTokenEnumerable
 
     function _computeCancellationFee(
         uint96 price
-    )
-        internal
-        pure
-        returns (uint96 providerFee, uint96 refundAmount)
-    {
+    ) internal pure returns (uint96 providerFee, uint96 refundAmount) {
         if (price == 0) {
             return (0, 0);
         }

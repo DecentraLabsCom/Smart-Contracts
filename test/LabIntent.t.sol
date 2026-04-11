@@ -86,13 +86,7 @@ contract LabIntentTest is BaseTest {
     ) internal {
         bytes32 payloadHash = LibIntent.hashActionPayloadPublic(payload);
         testHelper.test_setPendingActionIntent(
-            requestId,
-            executor,
-            executor,
-            action,
-            payloadHash,
-            uint64(block.timestamp),
-            uint64(block.timestamp + 3600)
+            requestId, executor, executor, action, payloadHash, uint64(block.timestamp), uint64(block.timestamp + 3600)
         );
     }
 
@@ -284,6 +278,7 @@ contract LabIntentTest is BaseTest {
 
         assertEq(labFacet.ownerOf(1), provider1);
         assertTrue(labQuery.isLabListed(1));
+        assertEq(labQuery.getCreatorPucHash(1), keccak256(bytes(payload.puc)));
     }
 
     function test_updateLabWithIntent_updates_metadata() public {

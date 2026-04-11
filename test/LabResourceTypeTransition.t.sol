@@ -13,7 +13,7 @@ contract LabResourceTypeTransitionTest is BaseTest {
 
     address internal constant LAB_OWNER = address(0xABCD);
     uint256 internal constant LAB_ID = 101;
-    uint32 internal constant CREATED_AT = 123456;
+    uint32 internal constant CREATED_AT = 123_456;
 
     function setUp() public override {
         super.setUp();

@@ -6,7 +6,10 @@ import {LibERC721Storage} from "../contracts/libraries/LibERC721Storage.sol";
 /// @dev Test-only helpers that write directly to the ERC-721 namespaced storage slot.
 ///      MUST NOT be used in production deployments.
 library LibERC721StorageTestHelper {
-    function setOwnerForTest(uint256 tokenId, address owner) internal {
+    function setOwnerForTest(
+        uint256 tokenId,
+        address owner
+    ) internal {
         LibERC721Storage.ERC721Storage storage $ = LibERC721Storage.layout();
         address previousOwner = $._owners[tokenId];
 

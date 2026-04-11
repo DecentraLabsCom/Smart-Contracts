@@ -55,7 +55,13 @@ contract InstitutionalTreasuryFacet is ReentrancyGuardTransient {
         address institution
     ) internal view {
         AppStorage storage s = LibAppStorage.diamondStorage();
+        _requireAuthorizedBackendOrInternal(s, institution);
+    }
 
+    function _requireAuthorizedBackendOrInternal(
+        AppStorage storage s,
+        address institution
+    ) internal view {
         // Allow internal Diamond calls without requiring a backend
         // Check msg.sender first to avoid reverting on backend check for internal calls
         if (msg.sender != address(this)) {
@@ -251,11 +257,7 @@ contract InstitutionalTreasuryFacet is ReentrancyGuardTransient {
     ) external view {
         AppStorage storage s = LibAppStorage.diamondStorage();
         _requireInstitution(institution);
-
-        if (msg.sender != address(this)) {
-            require(s.institutionalBackends[institution] != address(0), "No authorized backend");
-            require(msg.sender == s.institutionalBackends[institution], "Not authorized: must be backend");
-        }
+        _requireAuthorizedBackendOrInternal(s, institution);
 
         // Allow zero-price reservations (free labs)
         if (amount == 0) return;

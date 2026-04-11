@@ -19,27 +19,19 @@ contract ServiceCreditFacet {
 
     // ── Lot lifecycle events (8.3.B audit trail) ─────────────────────────
     event CreditLotMinted(
-        address indexed account, uint256 indexed lotId, uint256 creditAmount,
-        uint256 eurGrossAmount, bytes32 fundingOrderId, uint48 expiresAt
+        address indexed account,
+        uint256 indexed lotId,
+        uint256 creditAmount,
+        uint256 eurGrossAmount,
+        bytes32 fundingOrderId,
+        uint48 expiresAt
     );
-    event CreditLotConsumed(
-        address indexed account, uint256 amount, bytes32 indexed reservationRef
-    );
-    event CreditLotReleased(
-        address indexed account, uint256 amount, bytes32 indexed reservationRef
-    );
-    event CreditLotExpired(
-        address indexed account, uint256 indexed lotIndex, uint256 expiredAmount
-    );
-    event CreditLotAdjusted(
-        address indexed account, int256 delta, uint256 newBalance, bytes32 indexed adjustmentRef
-    );
-    event CreditsLocked(
-        address indexed account, uint256 amount, bytes32 indexed reservationRef
-    );
-    event CreditsCancelled(
-        address indexed account, uint256 amount, bytes32 indexed reservationRef
-    );
+    event CreditLotConsumed(address indexed account, uint256 amount, bytes32 indexed reservationRef);
+    event CreditLotReleased(address indexed account, uint256 amount, bytes32 indexed reservationRef);
+    event CreditLotExpired(address indexed account, uint256 indexed lotIndex, uint256 expiredAmount);
+    event CreditLotAdjusted(address indexed account, int256 delta, uint256 newBalance, bytes32 indexed adjustmentRef);
+    event CreditsLocked(address indexed account, uint256 amount, bytes32 indexed reservationRef);
+    event CreditsCancelled(address indexed account, uint256 amount, bytes32 indexed reservationRef);
 
     modifier onlyDefaultAdminRole() {
         AppStorage storage s = LibAppStorage.diamondStorage();
@@ -193,17 +185,23 @@ contract ServiceCreditFacet {
     // ── Read operations ──────────────────────────────────────────────────
 
     /// @notice Available (unlocked) credits for an account
-    function availableBalanceOf(address account) external view returns (uint256) {
+    function availableBalanceOf(
+        address account
+    ) external view returns (uint256) {
         return LibCreditLedger.availableBalanceOf(account);
     }
 
     /// @notice Locked credits for an account
-    function lockedBalanceOf(address account) external view returns (uint256) {
+    function lockedBalanceOf(
+        address account
+    ) external view returns (uint256) {
         return LibCreditLedger.lockedBalanceOf(account);
     }
 
     /// @notice Total credits for an account (available + locked)
-    function totalBalanceOf(address account) external view returns (uint256) {
+    function totalBalanceOf(
+        address account
+    ) external view returns (uint256) {
         return LibCreditLedger.totalBalanceOf(account);
     }
 
@@ -231,9 +229,11 @@ contract ServiceCreditFacet {
         }
 
         lots = new CreditLot[](end - offset);
-        for (uint256 i = offset; i < end; ) {
+        for (uint256 i = offset; i < end;) {
             lots[i - offset] = storedLots[i];
-            unchecked { ++i; }
+            unchecked {
+                ++i;
+            }
         }
     }
 
@@ -261,9 +261,11 @@ contract ServiceCreditFacet {
         }
 
         movements = new CreditMovement[](end - offset);
-        for (uint256 i = offset; i < end; ) {
+        for (uint256 i = offset; i < end;) {
             movements[i - offset] = storedMovements[i];
-            unchecked { ++i; }
+            unchecked {
+                ++i;
+            }
         }
     }
 }

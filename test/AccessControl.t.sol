@@ -27,9 +27,8 @@ contract ProviderInitializeCaller is Initializable {
         string memory email,
         string memory country
     ) public reinitializer(1) {
-        (bool ok, bytes memory res) = providerAddr.delegatecall(
-            abi.encodeWithSignature("initialize(string,string,string)", name, email, country)
-        );
+        (bool ok, bytes memory res) =
+            providerAddr.delegatecall(abi.encodeWithSignature("initialize(string,string,string)", name, email, country));
         if (!ok) {
             // bubble up revert
             assembly { revert(add(res, 32), mload(res)) }

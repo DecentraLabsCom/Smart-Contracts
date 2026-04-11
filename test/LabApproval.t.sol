@@ -80,7 +80,9 @@ contract LabApprovalTest is BaseTest {
         bytes4[] memory labAdminSelectors = new bytes4[](1);
         labAdminSelectors[0] = _selector("addLab(string,uint96,string,string,uint8)");
         cut2[3] = IDiamond.FacetCut({
-            facetAddress: address(labAdminFacetImpl), action: IDiamond.FacetCutAction.Add, functionSelectors: labAdminSelectors
+            facetAddress: address(labAdminFacetImpl),
+            action: IDiamond.FacetCutAction.Add,
+            functionSelectors: labAdminSelectors
         });
 
         vm.prank(admin);

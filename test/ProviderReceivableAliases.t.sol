@@ -15,7 +15,11 @@ contract ProviderReceivableHarness is ERC721, ProviderSettlementFacet {
 
     constructor() ERC721("Labs", "LAB") {}
 
-    function initialize(address admin, address provider, uint256 labId) external {
+    function initialize(
+        address admin,
+        address provider,
+        uint256 labId
+    ) external {
         AppStorage storage s = LibAppStorage.diamondStorage();
         s.DEFAULT_ADMIN_ROLE = keccak256("DEFAULT_ADMIN_ROLE");
         s.roleMembers[s.DEFAULT_ADMIN_ROLE].add(admin);
@@ -48,7 +52,10 @@ contract ProviderReceivableHarness is ERC721, ProviderSettlementFacet {
         else revert("invalid state");
     }
 
-    function setAuthorizedBackend(address institution, address backend) external {
+    function setAuthorizedBackend(
+        address institution,
+        address backend
+    ) external {
         AppStorage storage s = LibAppStorage.diamondStorage();
         s.institutionalBackends[institution] = backend;
     }
@@ -83,8 +90,12 @@ contract ProviderReceivableAliasesTest is Test {
     function test_getLabProviderReceivable_exposes_pending_provider_bucket() public {
         harness.setPendingProviderPayout(LAB_ID, FIVE_CREDITS);
 
-        (uint256 providerReceivable, uint256 deferredInstitutionalReceivable, uint256 totalReceivable, uint256 eligibleCount)
-        = harness.getLabProviderReceivable(LAB_ID);
+        (
+            uint256 providerReceivable,
+            uint256 deferredInstitutionalReceivable,
+            uint256 totalReceivable,
+            uint256 eligibleCount
+        ) = harness.getLabProviderReceivable(LAB_ID);
 
         assertEq(providerReceivable, FIVE_CREDITS);
         assertEq(deferredInstitutionalReceivable, 0);

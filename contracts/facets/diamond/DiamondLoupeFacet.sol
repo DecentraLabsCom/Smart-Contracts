@@ -28,7 +28,7 @@ contract DiamondLoupeFacet is IDiamondLoupe, IERC165 {
         uint256 facetCount = ds.facetAddresses.length;
         facets_ = new Facet[](facetCount);
 
-        for (uint256 facetIndex; facetIndex < facetCount; ) {
+        for (uint256 facetIndex; facetIndex < facetCount;) {
             address facetAddress_ = ds.facetAddresses[facetIndex];
             facets_[facetIndex].facetAddress = facetAddress_;
             facets_[facetIndex].functionSelectors = _copySelectors(ds.facetFunctionSelectors[facetAddress_]);
@@ -54,7 +54,7 @@ contract DiamondLoupeFacet is IDiamondLoupe, IERC165 {
         LibDiamond.DiamondStorage storage ds = LibDiamond.diamondStorage();
         uint256 facetCount = ds.facetAddresses.length;
         facetAddresses_ = new address[](facetCount);
-        for (uint256 facetIndex; facetIndex < facetCount; ) {
+        for (uint256 facetIndex; facetIndex < facetCount;) {
             facetAddresses_[facetIndex] = ds.facetAddresses[facetIndex];
             unchecked {
                 ++facetIndex;
@@ -86,7 +86,7 @@ contract DiamondLoupeFacet is IDiamondLoupe, IERC165 {
     ) internal view returns (bytes4[] memory selectors) {
         uint256 selectorCount = storageSelectors.length;
         selectors = new bytes4[](selectorCount);
-        for (uint256 selectorIndex; selectorIndex < selectorCount; ) {
+        for (uint256 selectorIndex; selectorIndex < selectorCount;) {
             selectors[selectorIndex] = storageSelectors[selectorIndex];
             unchecked {
                 ++selectorIndex;

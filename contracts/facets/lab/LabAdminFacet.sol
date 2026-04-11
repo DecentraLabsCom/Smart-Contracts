@@ -18,7 +18,9 @@ contract LabAdminFacet {
         uint8 _resourceType
     );
 
-    event LabUpdated(uint256 indexed _labId, string _uri, uint96 _price, string _accessUri, string _accessKey, uint8 _resourceType);
+    event LabUpdated(
+        uint256 indexed _labId, string _uri, uint96 _price, string _accessUri, string _accessKey, uint8 _resourceType
+    );
 
     event LabDeleted(uint256 indexed _labId);
     event LabURISet(uint256 indexed _labId, string _uri);

@@ -364,8 +364,9 @@ contract ProviderSettlementFacet is ReentrancyGuardTransient {
         AppStorage storage s,
         uint256 labId
     ) internal view returns (uint256) {
-        return s.providerReceivableAccrued[labId] + s.providerSettlementQueue[labId] + s.providerReceivableInvoiced[labId]
-            + s.providerReceivableApproved[labId] + s.providerReceivableDisputed[labId];
+        return s.providerReceivableAccrued[labId] + s.providerSettlementQueue[labId]
+            + s.providerReceivableInvoiced[labId] + s.providerReceivableApproved[labId]
+            + s.providerReceivableDisputed[labId];
     }
 
     function _isSupportedReceivableState(
@@ -390,15 +391,13 @@ contract ProviderSettlementFacet is ReentrancyGuardTransient {
                 || toState == _RECEIVABLE_REVERSED;
         }
         if (fromState == _RECEIVABLE_INVOICED) {
-            return toState == _RECEIVABLE_APPROVED || toState == _RECEIVABLE_DISPUTED
-                || toState == _RECEIVABLE_REVERSED;
+            return toState == _RECEIVABLE_APPROVED || toState == _RECEIVABLE_DISPUTED || toState == _RECEIVABLE_REVERSED;
         }
         if (fromState == _RECEIVABLE_APPROVED) {
             return toState == _RECEIVABLE_PAID || toState == _RECEIVABLE_DISPUTED || toState == _RECEIVABLE_REVERSED;
         }
         if (fromState == _RECEIVABLE_DISPUTED) {
-            return toState == _RECEIVABLE_INVOICED || toState == _RECEIVABLE_APPROVED
-                || toState == _RECEIVABLE_REVERSED;
+            return toState == _RECEIVABLE_INVOICED || toState == _RECEIVABLE_APPROVED || toState == _RECEIVABLE_REVERSED;
         }
 
         return false;

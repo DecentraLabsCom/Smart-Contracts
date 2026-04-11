@@ -18,18 +18,24 @@ library LibCreditLedger {
     error LotNotExpired();
 
     /// @notice Available (unlocked) credits for an account
-    function availableBalanceOf(address account) internal view returns (uint256) {
+    function availableBalanceOf(
+        address account
+    ) internal view returns (uint256) {
         AppStorage storage s = LibAppStorage.diamondStorage();
         return s.serviceCreditBalance[account] - s.creditLockedBalance[account];
     }
 
     /// @notice Locked credits for an account (reserved for pending reservations)
-    function lockedBalanceOf(address account) internal view returns (uint256) {
+    function lockedBalanceOf(
+        address account
+    ) internal view returns (uint256) {
         return LibAppStorage.diamondStorage().creditLockedBalance[account];
     }
 
     /// @notice Total credits for an account (available + locked)
-    function totalBalanceOf(address account) internal view returns (uint256) {
+    function totalBalanceOf(
+        address account
+    ) internal view returns (uint256) {
         return LibAppStorage.diamondStorage().serviceCreditBalance[account];
     }
 
@@ -46,18 +52,7 @@ library LibCreditLedger {
 
         AppStorage storage s = LibAppStorage.diamondStorage();
 
-        lotId = s.creditLotNextId++;
-
-        s.creditLots[account].push(CreditLot({
-            lotId: lotId,
-            fundingOrderId: fundingOrderId,
-            creditAmount: creditAmount,
-            remaining: creditAmount,
-            eurGrossAmount: eurGrossAmount,
-            issuedAt: uint48(block.timestamp),
-            expiresAt: expiresAt,
-            expired: false
-        }));
+        lotId = _appendLot(s, account, creditAmount, fundingOrderId, eurGrossAmount, expiresAt);
 
         s.serviceCreditBalance[account] += creditAmount;
 
@@ -135,17 +130,7 @@ library LibCreditLedger {
 
         s.serviceCreditBalance[account] += amount;
 
-        uint256 lotId = s.creditLotNextId++;
-        s.creditLots[account].push(CreditLot({
-            lotId: lotId,
-            fundingOrderId: reservationRef,
-            creditAmount: amount,
-            remaining: amount,
-            eurGrossAmount: 0,
-            issuedAt: uint48(block.timestamp),
-            expiresAt: 0,
-            expired: false
-        }));
+        _appendLot(s, account, amount, reservationRef, 0, 0);
 
         _recordMovement(s, account, CreditMovementKind.CANCEL, amount, reservationRef);
     }
@@ -196,17 +181,7 @@ library LibCreditLedger {
             uint256 amount = uint256(delta);
             s.serviceCreditBalance[account] += amount;
 
-            uint256 lotId = s.creditLotNextId++;
-            s.creditLots[account].push(CreditLot({
-                lotId: lotId,
-                fundingOrderId: adjustmentRef,
-                creditAmount: amount,
-                remaining: amount,
-                eurGrossAmount: 0,
-                issuedAt: uint48(block.timestamp),
-                expiresAt: 0,
-                expired: false
-            }));
+            _appendLot(s, account, amount, adjustmentRef, 0, 0);
 
             _recordMovement(s, account, CreditMovementKind.ADJUST, amount, adjustmentRef);
             newBalance = s.serviceCreditBalance[account];
@@ -224,22 +199,32 @@ library LibCreditLedger {
     }
 
     /// @notice Get the number of lots for an account
-    function lotCount(address account) internal view returns (uint256) {
+    function lotCount(
+        address account
+    ) internal view returns (uint256) {
         return LibAppStorage.diamondStorage().creditLots[account].length;
     }
 
     /// @notice Get a specific lot by index
-    function getLot(address account, uint256 index) internal view returns (CreditLot memory) {
+    function getLot(
+        address account,
+        uint256 index
+    ) internal view returns (CreditLot memory) {
         return LibAppStorage.diamondStorage().creditLots[account][index];
     }
 
     /// @notice Get the number of credit movements for an account
-    function movementCount(address account) internal view returns (uint256) {
+    function movementCount(
+        address account
+    ) internal view returns (uint256) {
         return LibAppStorage.diamondStorage().creditMovements[account].length;
     }
 
     /// @notice Get a specific credit movement by index
-    function getMovement(address account, uint256 index) internal view returns (CreditMovement memory) {
+    function getMovement(
+        address account,
+        uint256 index
+    ) internal view returns (CreditMovement memory) {
         return LibAppStorage.diamondStorage().creditMovements[account][index];
     }
 
@@ -254,7 +239,7 @@ library LibCreditLedger {
         uint256 len = lots.length;
         uint256 cursor = s.creditLotCursor[account];
 
-        for (uint256 i = cursor; i < len && remaining > 0; ) {
+        for (uint256 i = cursor; i < len && remaining > 0;) {
             CreditLot storage lot = lots[i];
             if (!lot.expired && lot.remaining > 0) {
                 uint256 take = lot.remaining < remaining ? lot.remaining : remaining;
@@ -267,6 +252,29 @@ library LibCreditLedger {
         }
 
         s.creditLotCursor[account] = _nextActiveLotIndex(lots, cursor, len);
+    }
+
+    function _appendLot(
+        AppStorage storage s,
+        address account,
+        uint256 creditAmount,
+        bytes32 fundingOrderId,
+        uint256 eurGrossAmount,
+        uint48 expiresAt
+    ) private returns (uint256 lotId) {
+        lotId = s.creditLotNextId++;
+        s.creditLots[account].push(
+            CreditLot({
+                lotId: lotId,
+                fundingOrderId: fundingOrderId,
+                creditAmount: creditAmount,
+                remaining: creditAmount,
+                eurGrossAmount: eurGrossAmount,
+                issuedAt: uint48(block.timestamp),
+                expiresAt: expiresAt,
+                expired: false
+            })
+        );
     }
 
     function _advanceLotCursor(
@@ -302,13 +310,15 @@ library LibCreditLedger {
         uint256 amount,
         bytes32 ref
     ) private {
-        s.creditMovements[account].push(CreditMovement({
-            kind: kind,
-            amount: amount,
-            balanceAfter: s.serviceCreditBalance[account],
-            lockedAfter: s.creditLockedBalance[account],
-            ref: ref,
-            timestamp: uint48(block.timestamp)
-        }));
+        s.creditMovements[account].push(
+            CreditMovement({
+                kind: kind,
+                amount: amount,
+                balanceAfter: s.serviceCreditBalance[account],
+                lockedAfter: s.creditLockedBalance[account],
+                ref: ref,
+                timestamp: uint48(block.timestamp)
+            })
+        );
     }
 }

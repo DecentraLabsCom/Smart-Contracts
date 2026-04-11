@@ -16,6 +16,7 @@ import {LibDiamond} from "../libraries/LibDiamond.sol";
 import {ReentrancyGuardTransient} from "@openzeppelin/contracts/utils/ReentrancyGuardTransient.sol";
 import {LibAccessControlEnumerable} from "../libraries/LibAccessControlEnumerable.sol";
 import {LibERC721Storage} from "../libraries/LibERC721Storage.sol";
+import {LibCreditLedger} from "../libraries/LibCreditLedger.sol";
 
 /// @title ProviderFacet Contract
 /// @author Juan Luis Ramos Villalón
@@ -163,9 +164,9 @@ contract ProviderFacet is AccessControlUpgradeable, ReentrancyGuardTransient {
             emit ProviderAuthURIUpdated(_account, _authURI);
         }
 
-        // Issue non-monetary service credits for platform familiarization
+        // Issue non-monetary service credits for platform familiarization (lot-tracked)
         AppStorage storage s = _s();
-        s.serviceCreditBalance[_account] = INITIAL_SERVICE_CREDITS;
+        LibCreditLedger.mintCredits(_account, INITIAL_SERVICE_CREDITS, bytes32("PROVIDER_ONBOARDING"), 0, 0);
 
         // Activate provider in the limited network
         s.providerNetworkStatus[_account] = ProviderNetworkStatus.ACTIVE;

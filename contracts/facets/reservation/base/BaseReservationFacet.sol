@@ -3,7 +3,6 @@ pragma solidity ^0.8.31;
 
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import {InstitutionalReservableTokenEnumerable} from "../../../abstracts/InstitutionalReservableTokenEnumerable.sol";
-import {ProviderFacet} from "../../ProviderFacet.sol";
 import {AppStorage, Reservation, PayoutCandidate, ProviderNetworkStatus} from "../../../libraries/LibAppStorage.sol";
 import {LibAccessControlEnumerable} from "../../../libraries/LibAccessControlEnumerable.sol";
 import {LibReputation} from "../../../libraries/LibReputation.sol";
@@ -67,7 +66,8 @@ abstract contract BaseReservationFacet is InstitutionalReservableTokenEnumerable
     }
 
     function _onlyDefaultAdminRole() internal view {
-        if (!ProviderFacet(address(this)).hasRole(_s().DEFAULT_ADMIN_ROLE, msg.sender)) {
+        AppStorage storage s = _s();
+        if (!s.roleMembers[s.DEFAULT_ADMIN_ROLE].contains(msg.sender)) {
             revert("Only default admin");
         }
     }

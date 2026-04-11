@@ -132,6 +132,12 @@ library LibInstitutionalReservationRequestValidation {
         if (previousStatus == _IN_USE) {
             LibReputation.recordCompletion(labId);
         }
+        if (previousStatus == _CONFIRMED || previousStatus == _IN_USE || previousStatus == _PENDING) {
+            if (s.labActiveReservationCount[labId] > 0) s.labActiveReservationCount[labId]--;
+            if (s.providerActiveReservationCount[reservation.labProvider] > 0) {
+                s.providerActiveReservationCount[reservation.labProvider]--;
+            }
+        }
         s.reservationKeysByToken[labId].remove(key);
         s.renters[reservation.renter].remove(key);
         if (s.totalReservationsCount > 0) s.totalReservationsCount--;

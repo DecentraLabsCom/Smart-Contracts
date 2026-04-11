@@ -37,6 +37,9 @@ contract ServiceCreditFacet {
     event CreditsLocked(
         address indexed account, uint256 amount, bytes32 indexed reservationRef
     );
+    event CreditsCancelled(
+        address indexed account, uint256 amount, bytes32 indexed reservationRef
+    );
 
     modifier onlyDefaultAdminRole() {
         AppStorage storage s = LibAppStorage.diamondStorage();
@@ -156,6 +159,7 @@ contract ServiceCreditFacet {
         bytes32 reservationRef
     ) external onlyDefaultAdminRole {
         LibCreditLedger.cancelCredits(account, amount, reservationRef);
+        emit CreditsCancelled(account, amount, reservationRef);
     }
 
     /// @notice Expire a specific lot and deduct remaining balance

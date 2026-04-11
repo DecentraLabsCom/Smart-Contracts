@@ -7,6 +7,7 @@ import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet
 import {ProviderSettlementFacet} from "../contracts/facets/reservation/ProviderSettlementFacet.sol";
 import {AppStorage, LibAppStorage} from "../contracts/libraries/LibAppStorage.sol";
 import {LibAccessControlEnumerable} from "../contracts/libraries/LibAccessControlEnumerable.sol";
+import {LibERC721StorageTestHelper} from "./LibERC721StorageTestHelper.sol";
 
 contract ProviderReceivableHarness is ERC721, ProviderSettlementFacet {
     using LibAccessControlEnumerable for AppStorage;
@@ -20,6 +21,7 @@ contract ProviderReceivableHarness is ERC721, ProviderSettlementFacet {
         s.roleMembers[s.DEFAULT_ADMIN_ROLE].add(admin);
         s._addProviderRole(provider, "provider", "provider@example.com", "ES", "");
         _mint(provider, labId);
+        LibERC721StorageTestHelper.setOwnerForTest(labId, provider);
     }
 
     function setPendingProviderPayout(

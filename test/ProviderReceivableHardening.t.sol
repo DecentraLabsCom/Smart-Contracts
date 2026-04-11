@@ -8,6 +8,7 @@ import {ProviderSettlementFacet} from "../contracts/facets/reservation/ProviderS
 import {AppStorage, LibAppStorage} from "../contracts/libraries/LibAppStorage.sol";
 import {LibAccessControlEnumerable} from "../contracts/libraries/LibAccessControlEnumerable.sol";
 import {LibProviderReceivable, SETTLEMENT_OPERATOR_ROLE} from "../contracts/libraries/LibProviderReceivable.sol";
+import {LibERC721StorageTestHelper} from "./LibERC721StorageTestHelper.sol";
 
 // ---------------------------------------------------------------------------
 // Harness: exposes LibProviderReceivable helpers + ProviderSettlementFacet for role
@@ -27,6 +28,7 @@ contract ReceivableHardeningHarness is ERC721, ProviderSettlementFacet {
         s.roleMembers[s.DEFAULT_ADMIN_ROLE].add(admin);
         s._addProviderRole(provider, "provider", "p@x.com", "ES", "");
         _mint(provider, labId);
+        LibERC721StorageTestHelper.setOwnerForTest(labId, provider);
     }
 
     function addProvider(address provider) external {

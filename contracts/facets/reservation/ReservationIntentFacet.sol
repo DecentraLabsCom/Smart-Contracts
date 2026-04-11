@@ -68,7 +68,7 @@ contract ReservationIntentFacet {
     function _exists(
         uint256 labId
     ) internal view {
-        require(_s().labs[labId].price > 0, IntentLabDoesNotExist());
+        require(_s().activeLabIndexPlusOne[labId] != 0, IntentLabDoesNotExist());
     }
 
     function _getReservationKey(

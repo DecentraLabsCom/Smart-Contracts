@@ -67,5 +67,6 @@ contract Diamond {
         }
     }
 
-    receive() external payable {}
+    // NOTE: No receive() — the Diamond does not accept bare ETH transfers.
+    // This prevents accidental ETH from being locked permanently.
 }

@@ -84,6 +84,12 @@ contract InstitutionalReservationRequestCreationFacet is BaseMinimalReservationF
         bytes32 k,
         uint32 st
     ) external {
-        _recordRecent(_s(), l, t, k, st);
+        AppStorage storage s = _s();
+        address backend = s.institutionalBackends[msg.sender];
+        require(
+            backend != address(0) || msg.sender == address(this),
+            "Not authorized"
+        );
+        _recordRecent(s, l, t, k, st);
     }
 }

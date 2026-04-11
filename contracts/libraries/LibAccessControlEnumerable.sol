@@ -66,6 +66,7 @@ library LibAccessControlEnumerable {
         string memory _country,
         string memory _authURI
     ) internal returns (bool) {
+        _self.roleMembers[PROVIDER_ROLE].add(_account);
         _self.providers[_account] = ProviderBase({name: _name, email: _email, country: _country, authURI: _authURI});
         return true;
     }
@@ -85,6 +86,7 @@ library LibAccessControlEnumerable {
         AppStorage storage _self,
         address _account
     ) internal returns (bool) {
+        _self.roleMembers[PROVIDER_ROLE].remove(_account);
         delete _self.providers[_account];
         return true;
     }

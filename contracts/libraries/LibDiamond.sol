@@ -48,6 +48,8 @@ library LibDiamond {
         mapping(bytes4 => bool) supportedInterfaces;
         // owner of the contract
         address contractOwner;
+        // pending owner for two-step transfer
+        address pendingOwner;
     }
 
     function diamondStorage() internal pure returns (DiamondStorage storage ds) {
@@ -58,6 +60,7 @@ library LibDiamond {
     }
 
     event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
+    event OwnershipTransferRequested(address indexed currentOwner, address indexed pendingOwner);
 
     function setContractOwner(
         address _newOwner
@@ -65,7 +68,27 @@ library LibDiamond {
         DiamondStorage storage ds = diamondStorage();
         address previousOwner = ds.contractOwner;
         ds.contractOwner = _newOwner;
+        ds.pendingOwner = address(0);
         emit OwnershipTransferred(previousOwner, _newOwner);
+    }
+
+    function setPendingOwner(
+        address _pendingOwner
+    ) internal {
+        require(_pendingOwner != address(0), "New owner cannot be zero address");
+        DiamondStorage storage ds = diamondStorage();
+        ds.pendingOwner = _pendingOwner;
+        emit OwnershipTransferRequested(ds.contractOwner, _pendingOwner);
+    }
+
+    function pendingOwner() internal view returns (address) {
+        return diamondStorage().pendingOwner;
+    }
+
+    function acceptOwnership() internal {
+        DiamondStorage storage ds = diamondStorage();
+        require(msg.sender == ds.pendingOwner, "Not pending owner");
+        setContractOwner(msg.sender);
     }
 
     function contractOwner() internal view returns (address contractOwner_) {

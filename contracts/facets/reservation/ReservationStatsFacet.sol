@@ -2,7 +2,7 @@
 pragma solidity ^0.8.31;
 
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
-import {AppStorage, LibAppStorage} from "../../libraries/LibAppStorage.sol";
+import {AppStorage, Reservation, LibAppStorage} from "../../libraries/LibAppStorage.sol";
 import {LibERC721Storage} from "../../libraries/LibERC721Storage.sol";
 import {RivalIntervalTreeLibrary, Tree} from "../../libraries/RivalIntervalTreeLibrary.sol";
 
@@ -10,6 +10,7 @@ import {RivalIntervalTreeLibrary, Tree} from "../../libraries/RivalIntervalTreeL
 /// @notice Dedicated facet for reservation statistics selectors to keep core reservation facets below EIP-170 size limit.
 contract ReservationStatsFacet {
     using EnumerableSet for EnumerableSet.AddressSet;
+    using EnumerableSet for EnumerableSet.Bytes32Set;
     using RivalIntervalTreeLibrary for Tree;
 
     struct StatsResult {
@@ -232,5 +233,70 @@ contract ReservationStatsFacet {
         if (predecessor != 0 && predecessor >= target) {
             predecessor = 0;
         }
+    }
+
+    // -------------------------------------------------------------------------
+    // Wallet-user reservation query functions
+    // These functions are defined in the abstract ReservableTokenEnumerable but
+    // were never cut into the Diamond selector table.  Adding them here (a
+    // concrete, already-deployed facet) is the minimal upgrade path: one
+    // diamondCut transaction to register the three selectors pointing at the
+    // upgraded ReservationStatsFacet bytecode.
+    // -------------------------------------------------------------------------
+
+    /// @notice Returns the total number of reservations held by a wallet address.
+    /// @dev Reads s.renters[_user] — the per-wallet EnumerableSet maintained by the
+    ///      base reservation logic.  Zero address is rejected.
+    /// @param _user The wallet address to query.
+    function reservationsOf(address _user) external view returns (uint256) {
+        require(_user != address(0), "Invalid address");
+        return _s().renters[_user].length();
+    }
+
+    /// @notice Returns the reservation key at position _index in the caller's set.
+    /// @dev Order is NOT stable across mutations (EnumerableSet).  Use for snapshot
+    ///      iteration only, never for stateful cursor-based pagination.
+    /// @param _user  The wallet address whose reservation set is queried.
+    /// @param _index Zero-based index.
+    function reservationKeyOfUserByIndex(address _user, uint256 _index) external view returns (bytes32) {
+        AppStorage storage s = _s();
+        require(_index < s.renters[_user].length(), "Index out of bounds");
+        return s.renters[_user].at(_index);
+    }
+
+    /// @notice Returns the active reservation key for a (lab token, wallet) pair.
+    /// @dev Fast path: O(1) via the dedicated activeReservationByTokenAndUser index.
+    ///      Slow path: O(≤10) scan over reservationKeysByTokenAndUser when the index
+    ///      is stale.  Returns bytes32(0) when no active reservation exists.
+    ///      Both _CONFIRMED and _IN_USE are treated as active.
+    /// @param _tokenId The lab NFT token ID.
+    /// @param _user    The renter wallet address.
+    function getActiveReservationKeyForUser(uint256 _tokenId, address _user) external view returns (bytes32) {
+        require(_user != address(0), "Invalid address");
+        _checkExists(_tokenId);
+
+        AppStorage storage s = _s();
+        bytes32 key = s.activeReservationByTokenAndUser[_tokenId][_user];
+        if (key == bytes32(0)) return bytes32(0);
+
+        Reservation memory res = s.reservations[key];
+        uint32 t = uint32(block.timestamp);
+        if ((res.status == 1 || res.status == 2) && res.start <= t && res.end >= t) {
+            return key;
+        }
+
+        // Slow-path: index stale — scan per-(token,user) set (capped at 10)
+        EnumerableSet.Bytes32Set storage set = s.reservationKeysByTokenAndUser[_tokenId][_user];
+        uint256 len = set.length();
+        uint256 cap = len < 10 ? len : 10;
+        for (uint256 i; i < cap;) {
+            bytes32 candidate = set.at(i);
+            Reservation storage r = s.reservations[candidate];
+            if ((r.status == 1 || r.status == 2) && r.start <= t && r.end >= t) {
+                return candidate;
+            }
+            unchecked { ++i; }
+        }
+        return bytes32(0);
     }
 }

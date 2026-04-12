@@ -18,6 +18,7 @@ contract InstitutionalReservationQueryFacet {
     /// @dev Reservation status constants
     uint8 internal constant _CONFIRMED = 1;
     uint8 internal constant _IN_USE = 2;
+    uint256 internal constant _MAX_PAGE_SIZE = 100;
 
     /// @dev Returns the AppStorage struct from the diamond storage slot.
     function _s() internal pure returns (AppStorage storage s) {
@@ -201,6 +202,66 @@ contract InstitutionalReservationQueryFacet {
         uint256 labId
     ) external view returns (uint256 count) {
         return _s().reservationKeysByToken[labId].length();
+    }
+
+    /// @notice Get the total reservations count for a lab
+    /// @dev Order is NOT guaranteed stable across mutations. Use index-based reads for snapshot iteration only.
+    /// @param _tokenId The lab to query
+    /// @return count The total number of reservations ever made for this lab
+    function getReservationsOfToken(
+        uint256 _tokenId
+    ) external view returns (uint256 count) {
+        return _s().reservationKeysByToken[_tokenId].length();
+    }
+
+    /// @notice Get a reservation key by index for a lab
+    /// @dev Order is NOT guaranteed stable across mutations. Use for snapshot iteration only.
+    /// @param _tokenId The lab to query
+    /// @param _index The index in the lab reservation list
+    /// @return reservationKey The reservation key at the given index
+    function getReservationOfTokenByIndex(
+        uint256 _tokenId,
+        uint256 _index
+    ) external view returns (bytes32 reservationKey) {
+        EnumerableSet.Bytes32Set storage reservations = _s().reservationKeysByToken[_tokenId];
+        require(_index < reservations.length(), "Index out of bounds");
+        return reservations.at(_index);
+    }
+
+    /// @notice Paginated reservation keys for a lab
+    /// @dev Order is NOT guaranteed stable across mutations. Suitable for snapshot iteration only.
+    /// @param _tokenId The lab to query
+    /// @param offset Starting index (0-based)
+    /// @param limit Maximum number of keys to return (1-100)
+    /// @return keys Array of reservation keys for the requested page
+    /// @return total Total number of reservations for this lab
+    function getReservationsOfTokenPaginated(
+        uint256 _tokenId,
+        uint256 offset,
+        uint256 limit
+    ) external view returns (bytes32[] memory keys, uint256 total) {
+        EnumerableSet.Bytes32Set storage reservations = _s().reservationKeysByToken[_tokenId];
+        total = reservations.length();
+
+        require(limit > 0 && limit <= _MAX_PAGE_SIZE, "Invalid limit");
+
+        if (offset >= total) {
+            return (new bytes32[](0), total);
+        }
+
+        uint256 end = offset + limit;
+        if (end > total) {
+            end = total;
+        }
+
+        uint256 size = end - offset;
+        keys = new bytes32[](size);
+        for (uint256 i; i < size;) {
+            keys[i] = reservations.at(offset + i);
+            unchecked {
+                ++i;
+            }
+        }
     }
 
     /// @notice Get the active reservation count for a lab

@@ -107,7 +107,10 @@ library LibInstitutionalReservation {
         if (msg.sender != s.institutionalBackends[institutionalProvider]) revert UnauthorizedInstitution();
 
         Reservation storage reservation = s.reservations[reservationKey];
-        if (reservation.renter == address(0) || (reservation.status != _CONFIRMED && reservation.status != _IN_USE)) {
+        if (reservation.renter == address(0) || reservation.status != _CONFIRMED) {
+            revert InvalidStatus();
+        }
+        if (block.timestamp >= reservation.start) {
             revert InvalidStatus();
         }
         if (reservation.payerInstitution != institutionalProvider) revert NotRenter();

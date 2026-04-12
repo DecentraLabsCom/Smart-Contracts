@@ -51,7 +51,7 @@ abstract contract ReservableToken {
     ///      _CONFIRMED → _SETTLED (when expired, via releaseExpiredReservations — credits captured)
     ///      _CONFIRMED → _CANCELLED (on cancellation with partial release/capture)
     ///      _IN_USE → _COMPLETED (when expired)
-    ///      _IN_USE → _CANCELLED (on cancellation with partial release/capture)
+    ///      _IN_USE → _CANCELLED is intentionally disallowed
     ///      _COMPLETED → _SETTLED (when finalized — credits captured)
     ///      _SETTLED, _CANCELLED are terminal states
 
@@ -321,7 +321,7 @@ abstract contract ReservableToken {
     /// @notice Cancels a booking associated with the given reservation key.
     /// @dev This function allows either the renter or the lab provider to cancel a booking.
     /// @param _reservationKey The unique key identifying the reservation to be canceled.
-    /// @dev The reservation must exist and its status must be `_CONFIRMED` or `_IN_USE`.
+    /// @dev The reservation must exist, be `_CONFIRMED`, and be canceled strictly before `start`.
     /// @dev The caller must be either the renter or the lab provider.
     /// @dev BookingCanceled Emitted when a booking is successfully canceled.
     function cancelBooking(
@@ -329,8 +329,11 @@ abstract contract ReservableToken {
     ) external virtual {
         Reservation storage reservation = _s().reservations[_reservationKey];
 
-        // Combined validation - check for _CONFIRMED or _IN_USE
-        if (reservation.renter == address(0) || (reservation.status != _CONFIRMED && reservation.status != _IN_USE)) {
+        // Validation: only allow pre-start cancellations while still CONFIRMED.
+        if (reservation.renter == address(0) || reservation.status != _CONFIRMED) {
+            revert InvalidBooking();
+        }
+        if (block.timestamp >= reservation.start) {
             revert InvalidBooking();
         }
 

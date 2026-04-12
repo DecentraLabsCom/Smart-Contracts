@@ -154,8 +154,11 @@ abstract contract ReservableTokenEnumerable is ReservableToken {
         AppStorage storage s = _s();
         Reservation storage reservation = s.reservations[_reservationKey];
 
-        // Combined validation - check for _CONFIRMED or _IN_USE
-        if (reservation.renter == address(0) || (reservation.status != _CONFIRMED && reservation.status != _IN_USE)) {
+        // Hardened validation: only allow pre-start cancellations while still CONFIRMED.
+        if (reservation.renter == address(0) || reservation.status != _CONFIRMED) {
+            revert InvalidReservation();
+        }
+        if (block.timestamp >= reservation.start) {
             revert InvalidReservation();
         }
 

@@ -73,4 +73,37 @@ contract LibInstitutionalReservationTest is BaseTest {
         vm.expectRevert();
         harness.cancelBookingWrapper(inst, puc, key);
     }
+
+    function test_cancelBooking_inUse_reverts() public {
+        address inst = address(0xCAFE);
+        address backend = address(0xF00D);
+        uint256 labId = 11;
+        uint32 start = 5000;
+        bytes32 key = keccak256(abi.encodePacked(labId, start));
+        string memory puc = "eve@inst";
+
+        harness.setBackend(inst, backend);
+        harness.setReservation(key, user1, inst, 1_000_000, _IN_USE, labId, start, puc);
+
+        vm.prank(backend);
+        vm.expectRevert();
+        harness.cancelBookingWrapper(inst, puc, key);
+    }
+
+    function test_cancelBooking_afterStart_reverts() public {
+        address inst = address(0xCAFE);
+        address backend = address(0xF00D);
+        uint256 labId = 12;
+        uint32 start = uint32(block.timestamp + 60);
+        bytes32 key = keccak256(abi.encodePacked(labId, start));
+        string memory puc = "mallory@inst";
+
+        harness.setBackend(inst, backend);
+        harness.setReservation(key, user1, inst, 1_000_000, _CONFIRMED, labId, start, puc);
+
+        vm.warp(uint256(start));
+        vm.prank(backend);
+        vm.expectRevert();
+        harness.cancelBookingWrapper(inst, puc, key);
+    }
 }

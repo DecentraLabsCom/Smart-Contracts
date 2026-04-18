@@ -8,6 +8,9 @@ on:
   workflow_dispatch: {}
 
 
+env:
+  FOUNDRY_VERSION: "1.5.0"
+
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -23,7 +26,7 @@ jobs:
       - name: setup foundry
         uses: foundry-rs/foundry-toolchain@v1
         with:
-          version: 1.5.0
+          version: ${{ env.FOUNDRY_VERSION }}
 
       - name: setup node
         uses: actions/setup-node@v4
@@ -85,7 +88,7 @@ jobs:
       - name: setup foundry
         uses: foundry-rs/foundry-toolchain@v1
         with:
-          version: 1.5.0
+          version: ${{ env.FOUNDRY_VERSION }}
 
       - name: init submodules
         run: |

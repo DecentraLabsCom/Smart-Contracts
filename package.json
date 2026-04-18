@@ -3,7 +3,7 @@
   "private": true,
   "devDependencies": {
     "@nomicfoundation/hardhat-ethers": "^3.0.0",
-    "@nomicfoundation/hardhat-verify": "^2.0.0",
+    "@nomicfoundation/hardhat-verify": "^3.0.14",
     "dotenv": "^16.4.5",
     "ethers": "^6.11.1",
     "hardhat": "^2.22.2"

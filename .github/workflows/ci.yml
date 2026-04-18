@@ -60,7 +60,7 @@ jobs:
         run: |
           forge test --gas-report --match-contract LibHeapGas --color never | tee gas-report.txt
       - name: upload gas-report
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: gas-report
           path: gas-report.txt
@@ -112,7 +112,7 @@ jobs:
 
       - name: Upload Slither SARIF artifact
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: slither-sarif
           path: results.sarif

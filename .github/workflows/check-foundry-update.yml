@@ -52,7 +52,7 @@ jobs:
 
       - name: Open pull request
         if: steps.check.outputs.updates_needed == 'true'
-        uses: peter-evans/create-pull-request@v7
+        uses: peter-evans/create-pull-request@v8
         with:
           token: ${{ github.token }}
           branch: "ci/foundry-update-${{ steps.check.outputs.latest }}"

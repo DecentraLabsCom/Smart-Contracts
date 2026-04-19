@@ -248,7 +248,9 @@ contract ReservationStatsFacet {
     /// @dev Reads s.renters[_user] — the per-wallet EnumerableSet maintained by the
     ///      base reservation logic.  Zero address is rejected.
     /// @param _user The wallet address to query.
-    function reservationsOf(address _user) external view returns (uint256) {
+    function reservationsOf(
+        address _user
+    ) external view returns (uint256) {
         require(_user != address(0), "Invalid address");
         return _s().renters[_user].length();
     }
@@ -258,7 +260,10 @@ contract ReservationStatsFacet {
     ///      iteration only, never for stateful cursor-based pagination.
     /// @param _user  The wallet address whose reservation set is queried.
     /// @param _index Zero-based index.
-    function reservationKeyOfUserByIndex(address _user, uint256 _index) external view returns (bytes32) {
+    function reservationKeyOfUserByIndex(
+        address _user,
+        uint256 _index
+    ) external view returns (bytes32) {
         AppStorage storage s = _s();
         require(_index < s.renters[_user].length(), "Index out of bounds");
         return s.renters[_user].at(_index);
@@ -271,7 +276,10 @@ contract ReservationStatsFacet {
     ///      Both _CONFIRMED and _IN_USE are treated as active.
     /// @param _tokenId The lab NFT token ID.
     /// @param _user    The renter wallet address.
-    function getActiveReservationKeyForUser(uint256 _tokenId, address _user) external view returns (bytes32) {
+    function getActiveReservationKeyForUser(
+        uint256 _tokenId,
+        address _user
+    ) external view returns (bytes32) {
         require(_user != address(0), "Invalid address");
         _checkExists(_tokenId);
 
@@ -295,7 +303,9 @@ contract ReservationStatsFacet {
             if ((r.status == 1 || r.status == 2) && r.start <= t && r.end >= t) {
                 return candidate;
             }
-            unchecked { ++i; }
+            unchecked {
+                ++i;
+            }
         }
         return bytes32(0);
     }

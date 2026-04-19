@@ -1,0 +1,68 @@
+name: Check Foundry Updates
+
+on:
+  schedule:
+    - cron: "0 6 * * 1" # Every Monday at 06:00 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  check-updates:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Check for new Foundry release
+        id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # Read currently pinned version from ci.yml
+          PINNED=$(grep 'FOUNDRY_VERSION:' .github/workflows/ci.yml | head -1 | grep -oP '"\K[^"]+')
+
+          echo "Pinned Foundry: $PINNED"
+
+          # Fetch latest stable release (strips leading 'v')
+          LATEST=$(gh api repos/foundry-rs/foundry/releases/latest --jq '.tag_name' | sed 's/^v//')
+
+          echo "Latest Foundry: $LATEST"
+
+          if [ "$PINNED" != "$LATEST" ]; then
+            echo "Update available: $PINNED → $LATEST"
+            echo "updates_needed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "Already up-to-date."
+            echo "updates_needed=false" >> "$GITHUB_OUTPUT"
+          fi
+
+          echo "pinned=$PINNED" >> "$GITHUB_OUTPUT"
+          echo "latest=$LATEST" >> "$GITHUB_OUTPUT"
+
+      - name: Apply version bump
+        if: steps.check.outputs.updates_needed == 'true'
+        run: |
+          PINNED="${{ steps.check.outputs.pinned }}"
+          LATEST="${{ steps.check.outputs.latest }}"
+          sed -i "s/FOUNDRY_VERSION: \"$PINNED\"/FOUNDRY_VERSION: \"$LATEST\"/g" \
+            .github/workflows/ci.yml
+
+      - name: Open pull request
+        if: steps.check.outputs.updates_needed == 'true'
+        uses: peter-evans/create-pull-request@v8
+        with:
+          token: ${{ github.token }}
+          branch: "ci/foundry-update-${{ steps.check.outputs.latest }}"
+          commit-message: "ci: bump foundry-toolchain to v${{ steps.check.outputs.latest }}"
+          title: "ci: bump Foundry to v${{ steps.check.outputs.latest }}"
+          body: |
+            Automated weekly check found a new Foundry release.
+
+            - **Foundry**: `${{ steps.check.outputs.pinned }}` → `${{ steps.check.outputs.latest }}` ([release notes](https://github.com/foundry-rs/foundry/releases/tag/v${{ steps.check.outputs.latest }}))
+
+            Please review the changelog before merging — breaking changes may require updates to `foundry.toml`, `hardhat.config.js`, or test scripts.
+          labels: dependencies
+          delete-branch: true

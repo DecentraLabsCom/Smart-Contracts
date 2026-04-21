@@ -126,19 +126,13 @@ library LibIntent {
             ACTION_PAYLOAD_TYPEHASH,
             payload.executor,
             schacHash,
-            payload.PucHash,
+            payload.pucHash,
             payload.assertionHash,
             payload.labId,
             payload.reservationKey
         );
         bytes memory suffix = abi.encode(
-            uriHash,
-            payload.price,
-            payload.maxBatch,
-            accessURIHash,
-            accessKeyHash,
-            tokenURIHash,
-            payload.resourceType
+            uriHash, payload.price, payload.maxBatch, accessURIHash, accessKeyHash, tokenURIHash, payload.resourceType
         );
         bytes memory encoded = bytes.concat(prefix, suffix);
         return _keccak(encoded);

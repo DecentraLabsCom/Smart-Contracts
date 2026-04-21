@@ -233,7 +233,7 @@ contract LabIntentTest is BaseTest {
         assertEq(labFacet.ownerOf(1), provider1);
         assertEq(labFacet.tokenURI(1), "ipfs://intent-lab");
         assertEq(labQuery.getLab(1).base.price, PRICE_100);
-        assertEq(labQuery.getPucHash(1), payload.PucHash);
+        assertEq(labQuery.getPucHash(1), payload.pucHash);
     }
 
     function test_addLabWithIntent_requires_provider_role() public {
@@ -260,7 +260,7 @@ contract LabIntentTest is BaseTest {
     function test_addLabWithIntent_reverts_when_PucHash_empty() public {
         bytes32 requestId = keccak256("add-lab-empty-creator-hash");
         ActionIntentPayload memory payload = _makePayload(provider1, 0, "ipfs://x", PRICE_10, "a", "k", "");
-        payload.PucHash = bytes32(0);
+        payload.pucHash = bytes32(0);
         _setPendingIntent(requestId, provider1, ACTION_LAB_ADD, payload);
 
         vm.prank(provider1);
@@ -278,7 +278,7 @@ contract LabIntentTest is BaseTest {
 
         assertEq(labFacet.ownerOf(1), provider1);
         assertTrue(labQuery.isLabListed(1));
-        assertEq(labQuery.getPucHash(1), payload.PucHash);
+        assertEq(labQuery.getPucHash(1), payload.pucHash);
     }
 
     function test_updateLabWithIntent_updates_metadata() public {
@@ -310,7 +310,7 @@ contract LabIntentTest is BaseTest {
         bytes32 requestId = keccak256("update-wrong-creator");
         ActionIntentPayload memory payload =
             _makePayload(provider1, 1, "ipfs://updated", PRICE_200, "https://new", "key-new", "");
-        payload.PucHash = keccak256(bytes("other@institution.example"));
+        payload.pucHash = keccak256(bytes("other@institution.example"));
         _setPendingIntent(requestId, provider1, ACTION_LAB_UPDATE, payload);
 
         vm.prank(provider1);

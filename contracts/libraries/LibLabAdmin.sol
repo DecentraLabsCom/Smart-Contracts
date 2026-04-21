@@ -175,7 +175,7 @@ library LibLabAdmin {
     ) internal view {
         if (pucHash == bytes32(0)) revert LabCreatorHashRequired();
 
-        bytes32 creatorHash = _s().PucHashByLab[_labId];
+        bytes32 creatorHash = _s().pucHashByLab[_labId];
         if (creatorHash != pucHash) revert LabCreatorMismatch(_labId);
     }
 

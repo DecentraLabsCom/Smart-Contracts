@@ -144,7 +144,7 @@ contract LabQueryFacet {
     function getPucHash(
         uint256 _labId
     ) external view exists(_labId) returns (bytes32) {
-        return _s().PucHashByLab[_labId];
+        return _s().pucHashByLab[_labId];
     }
 
     /// @notice Returns the age of a lab in seconds since registration

@@ -72,6 +72,6 @@ contract TestHelperFacet {
         bytes32 pucHash
     ) external {
         AppStorage storage s = LibAppStorage.diamondStorage();
-        s.PucHashByLab[labId] = pucHash;
+        s.pucHashByLab[labId] = pucHash;
     }
 }

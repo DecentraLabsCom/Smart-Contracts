@@ -157,16 +157,18 @@ contract ReservationIntentFacet {
     /// @notice Cancels a confirmed booking via intent
     function cancelInstitutionalBookingWithIntent(
         bytes32 requestId,
-        ActionIntentPayload calldata payload
+        ReservationIntentPayload calldata payload
     ) external onlyInstitution(msg.sender) {
         AppStorage storage s = _s();
         Reservation storage reservation = s.reservations[payload.reservationKey];
         require(reservation.labId != 0, IntentUnknownReservation());
         require(payload.labId == reservation.labId, "LAB_ID_MISMATCH");
+        require(payload.start == reservation.start, "RESERVATION_START_MISMATCH");
+        require(payload.end == reservation.end, "RESERVATION_END_MISMATCH");
         require(payload.price == reservation.price, "RESERVATION_PRICE_MISMATCH");
         require(_pucMatches(s, reservation, payload.reservationKey, payload.puc), "RESERVATION_PUC_MISMATCH");
 
-        _consumeActionIntent(requestId, LibIntent.ACTION_CANCEL_BOOKING, payload);
+        _consumeReservationIntent(requestId, LibIntent.ACTION_CANCEL_BOOKING, payload);
 
         LibInstitutionalReservation.cancelBooking(msg.sender, payload.puc, payload.reservationKey);
         emit ReservationIntentProcessed(

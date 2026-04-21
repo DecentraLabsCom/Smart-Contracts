@@ -41,7 +41,7 @@ contract LabIntentFacet {
         string memory missingPucHashReason
     ) internal pure {
         require(payload.labId == 0, invalidLabIdReason);
-        require(payload.PucHash != bytes32(0), missingPucHashReason);
+        require(payload.pucHash != bytes32(0), missingPucHashReason);
     }
 
     function _bindCreatorToLatestLab(
@@ -49,7 +49,7 @@ contract LabIntentFacet {
     ) internal returns (uint256 labId) {
         AppStorage storage s = _s();
         labId = s.labId;
-        s.PucHashByLab[labId] = pucHash;
+        s.pucHashByLab[labId] = pucHash;
 
         emit LabCreatorBound(labId, pucHash);
     }
@@ -75,7 +75,7 @@ contract LabIntentFacet {
             LibLabAdmin.addLab(payload.uri, payload.price, payload.accessURI, payload.accessKey, payload.resourceType);
         }
 
-        uint256 newLabId = _bindCreatorToLatestLab(payload.PucHash);
+        uint256 newLabId = _bindCreatorToLatestLab(payload.pucHash);
         emit LabIntentProcessed(requestId, newLabId, actionName, msg.sender, true, "");
     }
 
@@ -118,7 +118,7 @@ contract LabIntentFacet {
     ) external {
         require(payload.labId != 0, "LAB_UPDATE: labId required");
         _consumeLabIntent(requestId, LibIntent.ACTION_LAB_UPDATE, payload);
-        LibLabAdmin._requireLabCreator(payload.labId, payload.PucHash);
+        LibLabAdmin._requireLabCreator(payload.labId, payload.pucHash);
 
         LibLabAdmin.updateLab(
             payload.labId, payload.uri, payload.price, payload.accessURI, payload.accessKey, payload.resourceType
@@ -133,7 +133,7 @@ contract LabIntentFacet {
     ) external {
         require(payload.labId != 0, "LAB_DELETE: labId required");
         _consumeLabIntent(requestId, LibIntent.ACTION_LAB_DELETE, payload);
-        LibLabAdmin._requireLabCreator(payload.labId, payload.PucHash);
+        LibLabAdmin._requireLabCreator(payload.labId, payload.pucHash);
 
         LibLabAdmin.deleteLab(payload.labId);
         emit LabIntentProcessed(requestId, payload.labId, "LAB_DELETE", msg.sender, true, "");
@@ -146,7 +146,7 @@ contract LabIntentFacet {
     ) external {
         require(payload.labId != 0, "LAB_SET_URI: labId required");
         _consumeLabIntent(requestId, LibIntent.ACTION_LAB_SET_URI, payload);
-        LibLabAdmin._requireLabCreator(payload.labId, payload.PucHash);
+        LibLabAdmin._requireLabCreator(payload.labId, payload.pucHash);
 
         LibLabAdmin.setTokenURI(payload.labId, payload.tokenURI);
         emit LabIntentProcessed(requestId, payload.labId, "LAB_SET_URI", msg.sender, true, "");
@@ -159,7 +159,7 @@ contract LabIntentFacet {
     ) external {
         require(payload.labId != 0, "LAB_LIST: labId required");
         _consumeLabIntent(requestId, LibIntent.ACTION_LAB_LIST, payload);
-        LibLabAdmin._requireLabCreator(payload.labId, payload.PucHash);
+        LibLabAdmin._requireLabCreator(payload.labId, payload.pucHash);
 
         LibLabAdmin.listLab(payload.labId);
         emit LabIntentProcessed(requestId, payload.labId, "LAB_LIST", msg.sender, true, "");
@@ -172,7 +172,7 @@ contract LabIntentFacet {
     ) external {
         require(payload.labId != 0, "LAB_UNLIST: labId required");
         _consumeLabIntent(requestId, LibIntent.ACTION_LAB_UNLIST, payload);
-        LibLabAdmin._requireLabCreator(payload.labId, payload.PucHash);
+        LibLabAdmin._requireLabCreator(payload.labId, payload.pucHash);
 
         LibLabAdmin.unlistLab(payload.labId);
         emit LabIntentProcessed(requestId, payload.labId, "LAB_UNLIST", msg.sender, true, "");

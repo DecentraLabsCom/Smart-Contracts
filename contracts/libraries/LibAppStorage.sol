@@ -277,7 +277,7 @@ struct AppStorage {
     mapping(address account => uint256 balance) serviceCreditBalance;
 
     // Lab creator identity binding (historical tail preserved; append new fields after this point only)
-    mapping(uint256 labId => bytes32 creatorPucHash) creatorPucHashByLab;
+    mapping(uint256 labId => bytes32 pucHash) pucHashByLab;
 
     // Provider receivable lifecycle buckets
     mapping(uint256 labId => uint256 amount) providerReceivableInvoiced;

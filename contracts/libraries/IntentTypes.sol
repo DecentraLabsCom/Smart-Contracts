@@ -40,7 +40,7 @@ struct ReservationIntentPayload {
 struct ActionIntentPayload {
     address executor; // same as signer
     string schacHomeOrganization; // optional org identifier
-    string puc; // SAML schacPersonalUniqueCode
+    bytes32 pucHash; // canonical creator hash provided by the signer
     bytes32 assertionHash; // off-chain assertion hash (optional)
     uint256 labId;
     bytes32 reservationKey; // optional (for booking cancellation)

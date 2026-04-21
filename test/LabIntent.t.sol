@@ -64,7 +64,7 @@ contract LabIntentTest is BaseTest {
         return ActionIntentPayload({
             executor: executor,
             schacHomeOrganization: "",
-            puc: "creator@institution.example",
+            pucHash: keccak256(bytes("creator@institution.example")),
             assertionHash: bytes32(0),
             labId: labId,
             reservationKey: bytes32(0),
@@ -157,7 +157,7 @@ contract LabIntentTest is BaseTest {
         labQuerySelectors[0] = _selector("getLab(uint256)");
         labQuerySelectors[1] = _selector("isLabListed(uint256)");
         labQuerySelectors[2] = _selector("getLabsPaginated(uint256,uint256)");
-        labQuerySelectors[3] = _selector("getCreatorPucHash(uint256)");
+        labQuerySelectors[3] = _selector("getPucHash(uint256)");
         cut2[4] = IDiamond.FacetCut({
             facetAddress: address(labQueryImpl),
             action: IDiamond.FacetCutAction.Add,
@@ -166,25 +166,25 @@ contract LabIntentTest is BaseTest {
 
         bytes4[] memory labIntentSelectors = new bytes4[](7);
         labIntentSelectors[0] = _selector(
-            "addLabWithIntent(bytes32,(address,string,string,bytes32,uint256,bytes32,string,uint96,uint96,string,string,string,uint8))"
+            "addLabWithIntent(bytes32,(address,string,bytes32,bytes32,uint256,bytes32,string,uint96,uint96,string,string,string,uint8))"
         );
         labIntentSelectors[1] = _selector(
-            "addAndListLabWithIntent(bytes32,(address,string,string,bytes32,uint256,bytes32,string,uint96,uint96,string,string,string,uint8))"
+            "addAndListLabWithIntent(bytes32,(address,string,bytes32,bytes32,uint256,bytes32,string,uint96,uint96,string,string,string,uint8))"
         );
         labIntentSelectors[2] = _selector(
-            "updateLabWithIntent(bytes32,(address,string,string,bytes32,uint256,bytes32,string,uint96,uint96,string,string,string,uint8))"
+            "updateLabWithIntent(bytes32,(address,string,bytes32,bytes32,uint256,bytes32,string,uint96,uint96,string,string,string,uint8))"
         );
         labIntentSelectors[3] = _selector(
-            "deleteLabWithIntent(bytes32,(address,string,string,bytes32,uint256,bytes32,string,uint96,uint96,string,string,string,uint8))"
+            "deleteLabWithIntent(bytes32,(address,string,bytes32,bytes32,uint256,bytes32,string,uint96,uint96,string,string,string,uint8))"
         );
         labIntentSelectors[4] = _selector(
-            "setTokenURIWithIntent(bytes32,(address,string,string,bytes32,uint256,bytes32,string,uint96,uint96,string,string,string,uint8))"
+            "setTokenURIWithIntent(bytes32,(address,string,bytes32,bytes32,uint256,bytes32,string,uint96,uint96,string,string,string,uint8))"
         );
         labIntentSelectors[5] = _selector(
-            "listLabWithIntent(bytes32,(address,string,string,bytes32,uint256,bytes32,string,uint96,uint96,string,string,string,uint8))"
+            "listLabWithIntent(bytes32,(address,string,bytes32,bytes32,uint256,bytes32,string,uint96,uint96,string,string,string,uint8))"
         );
         labIntentSelectors[6] = _selector(
-            "unlistLabWithIntent(bytes32,(address,string,string,bytes32,uint256,bytes32,string,uint96,uint96,string,string,string,uint8))"
+            "unlistLabWithIntent(bytes32,(address,string,bytes32,bytes32,uint256,bytes32,string,uint96,uint96,string,string,string,uint8))"
         );
         cut2[5] = IDiamond.FacetCut({
             facetAddress: address(labIntentImpl),
@@ -195,7 +195,7 @@ contract LabIntentTest is BaseTest {
         bytes4[] memory testHelperSelectors = new bytes4[](2);
         testHelperSelectors[0] =
             _selector("test_setPendingActionIntent(bytes32,address,address,uint8,bytes32,uint64,uint64)");
-        testHelperSelectors[1] = _selector("test_setCreatorPucHash(uint256,bytes32)");
+        testHelperSelectors[1] = _selector("test_setPucHash(uint256,bytes32)");
         cut2[6] = IDiamond.FacetCut({
             facetAddress: address(testHelperImpl),
             action: IDiamond.FacetCutAction.Add,
@@ -233,7 +233,7 @@ contract LabIntentTest is BaseTest {
         assertEq(labFacet.ownerOf(1), provider1);
         assertEq(labFacet.tokenURI(1), "ipfs://intent-lab");
         assertEq(labQuery.getLab(1).base.price, PRICE_100);
-        assertEq(labQuery.getCreatorPucHash(1), keccak256(bytes(payload.puc)));
+        assertEq(labQuery.getPucHash(1), payload.PucHash);
     }
 
     function test_addLabWithIntent_requires_provider_role() public {
@@ -257,14 +257,14 @@ contract LabIntentTest is BaseTest {
         labIntent.addLabWithIntent(requestId, payload);
     }
 
-    function test_addLabWithIntent_reverts_when_puc_empty() public {
-        bytes32 requestId = keccak256("add-lab-empty-puc");
+    function test_addLabWithIntent_reverts_when_PucHash_empty() public {
+        bytes32 requestId = keccak256("add-lab-empty-creator-hash");
         ActionIntentPayload memory payload = _makePayload(provider1, 0, "ipfs://x", PRICE_10, "a", "k", "");
-        payload.puc = "";
+        payload.PucHash = bytes32(0);
         _setPendingIntent(requestId, provider1, ACTION_LAB_ADD, payload);
 
         vm.prank(provider1);
-        vm.expectRevert("LAB_ADD: puc required");
+        vm.expectRevert("LAB_ADD: pucHash required");
         labIntent.addLabWithIntent(requestId, payload);
     }
 
@@ -278,7 +278,7 @@ contract LabIntentTest is BaseTest {
 
         assertEq(labFacet.ownerOf(1), provider1);
         assertTrue(labQuery.isLabListed(1));
-        assertEq(labQuery.getCreatorPucHash(1), keccak256(bytes(payload.puc)));
+        assertEq(labQuery.getPucHash(1), payload.PucHash);
     }
 
     function test_updateLabWithIntent_updates_metadata() public {
@@ -305,12 +305,12 @@ contract LabIntentTest is BaseTest {
     function test_updateLabWithIntent_reverts_for_non_creator_same_provider() public {
         vm.prank(provider1);
         labAdmin.addLab("ipfs://original", PRICE_50, "https://old", "key-old", 0);
-        testHelper.test_setCreatorPucHash(1, keccak256(bytes("creator@institution.example")));
+        testHelper.test_setPucHash(1, keccak256(bytes("creator@institution.example")));
 
         bytes32 requestId = keccak256("update-wrong-creator");
         ActionIntentPayload memory payload =
             _makePayload(provider1, 1, "ipfs://updated", PRICE_200, "https://new", "key-new", "");
-        payload.puc = "other@institution.example";
+        payload.PucHash = keccak256(bytes("other@institution.example"));
         _setPendingIntent(requestId, provider1, ACTION_LAB_UPDATE, payload);
 
         vm.prank(provider1);
@@ -328,7 +328,7 @@ contract LabIntentTest is BaseTest {
         _setPendingIntent(requestId, provider1, ACTION_LAB_UPDATE, payload);
 
         vm.prank(provider1);
-        vm.expectRevert(abi.encodeWithSelector(LibLabAdmin.LabLegacyNotMigrated.selector, 1));
+        vm.expectRevert(abi.encodeWithSelector(LibLabAdmin.LabCreatorMismatch.selector, 1));
         labIntent.updateLabWithIntent(requestId, payload);
     }
 
@@ -345,7 +345,7 @@ contract LabIntentTest is BaseTest {
     function test_deleteLabWithIntent_burns_lab() public {
         vm.prank(provider1);
         labAdmin.addLab("ipfs://to-delete", PRICE_10, "a", "k", 0);
-        testHelper.test_setCreatorPucHash(1, keccak256(bytes("creator@institution.example")));
+        testHelper.test_setPucHash(1, keccak256(bytes("creator@institution.example")));
 
         bytes32 requestId = keccak256("delete-1");
         ActionIntentPayload memory payload = _makePayload(provider1, 1, "", 0, "", "", "");
@@ -371,7 +371,7 @@ contract LabIntentTest is BaseTest {
     function test_setTokenURIWithIntent_updates_uri() public {
         vm.prank(provider1);
         labAdmin.addLab("ipfs://original", PRICE_10, "a", "k", 0);
-        testHelper.test_setCreatorPucHash(1, keccak256(bytes("creator@institution.example")));
+        testHelper.test_setPucHash(1, keccak256(bytes("creator@institution.example")));
 
         bytes32 requestId = keccak256("set-uri-1");
         ActionIntentPayload memory payload = _makePayload(provider1, 1, "", 0, "", "", "ipfs://new-token-uri");
@@ -396,7 +396,7 @@ contract LabIntentTest is BaseTest {
     function test_listLabWithIntent_lists_lab() public {
         vm.prank(provider1);
         labAdmin.addLab("ipfs://lab", PRICE_10, "a", "k", 0);
-        testHelper.test_setCreatorPucHash(1, keccak256(bytes("creator@institution.example")));
+        testHelper.test_setPucHash(1, keccak256(bytes("creator@institution.example")));
         assertFalse(labQuery.isLabListed(1));
 
         bytes32 requestId = keccak256("list-1");
@@ -422,7 +422,7 @@ contract LabIntentTest is BaseTest {
     function test_unlistLabWithIntent_unlists_lab() public {
         vm.startPrank(provider1);
         labAdmin.addLab("ipfs://lab", PRICE_10, "a", "k", 0);
-        testHelper.test_setCreatorPucHash(1, keccak256(bytes("creator@institution.example")));
+        testHelper.test_setPucHash(1, keccak256(bytes("creator@institution.example")));
         labAdmin.listLab(1);
         vm.stopPrank();
         assertTrue(labQuery.isLabListed(1));

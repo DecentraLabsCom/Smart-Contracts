@@ -18,9 +18,8 @@ interface ILabFacetMint {
 library LibLabAdmin {
     using LibAccessControlEnumerable for AppStorage;
 
-    error LabLegacyNotMigrated(uint256 labId);
     error LabCreatorMismatch(uint256 labId);
-    error LabCreatorPucRequired();
+    error LabCreatorHashRequired();
 
     event LabAdded(
         uint256 indexed _labId,
@@ -172,13 +171,12 @@ library LibLabAdmin {
 
     function _requireLabCreator(
         uint256 _labId,
-        string memory puc
+        bytes32 pucHash
     ) internal view {
-        if (bytes(puc).length == 0) revert LabCreatorPucRequired();
+        if (pucHash == bytes32(0)) revert LabCreatorHashRequired();
 
-        bytes32 creatorHash = _s().creatorPucHashByLab[_labId];
-        if (creatorHash == bytes32(0)) revert LabLegacyNotMigrated(_labId);
-        if (creatorHash != keccak256(bytes(puc))) revert LabCreatorMismatch(_labId);
+        bytes32 creatorHash = _s().PucHashByLab[_labId];
+        if (creatorHash != pucHash) revert LabCreatorMismatch(_labId);
     }
 
     function _validateLabParams(

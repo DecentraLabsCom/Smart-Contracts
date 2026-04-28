@@ -43,8 +43,12 @@ if (-not $Diamond) {
 if (-not $Diamond) { throw "Diamond address missing (pass -Diamond or ensure resume file exists)" }
 
 if ($Compile -or -not (Test-Path (Join-Path -Path $PSScriptRoot -ChildPath "..\hh-artifacts"))) {
-    Write-Host "Running hardhat compile..."
-    npx hardhat compile | Out-String | Write-Host
+    Write-Host "Running hardhat build..."
+    $buildOutput = npx hardhat build 2>&1
+    Write-Host $buildOutput
+    if ($LASTEXITCODE -ne 0) {
+        throw "hardhat build failed (exit $LASTEXITCODE)"
+    }
 }
 
 Write-Host "Verifying selectors on $Diamond ..."

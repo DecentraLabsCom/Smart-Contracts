@@ -42,7 +42,10 @@ export default defineConfig({
   },
   paths: {
     sources: "contracts",
-    tests: "test",
+    // Do not point Hardhat at the Foundry test directory — those .t.sol files
+    // import forge-std which is not an npm package, causing HHE902 errors.
+    // Hardhat is only used for contract verification here, not for running tests.
+    tests: "test/hardhat",
     cache: "hh-cache",
     artifacts: "hh-artifacts"
   }

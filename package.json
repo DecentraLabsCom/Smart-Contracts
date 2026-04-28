@@ -1,12 +1,16 @@
 {
   "name": "decentralabs-smart-contracts-verify",
   "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22.10.0"
+  },
   "devDependencies": {
-    "@nomicfoundation/hardhat-ethers": "^3.0.0",
-    "@nomicfoundation/hardhat-verify": "^2.0.0",
+    "@nomicfoundation/hardhat-ethers": "^4.0.0",
+    "@nomicfoundation/hardhat-verify": "^3.0.0",
     "dotenv": "^17.4.2",
     "ethers": "^6.11.1",
-    "hardhat": "^2.22.2"
+    "hardhat": "^3.4.1"
   },
   "dependencies": {
     "@openzeppelin/contracts": "^5.5.0",

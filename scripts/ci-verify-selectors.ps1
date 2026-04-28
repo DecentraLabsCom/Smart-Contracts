@@ -18,7 +18,8 @@ try {
         return
     }
 
-    $diamond = node -e "console.log(require('./deployments/sepolia-latest.json').contracts.Diamond)"
+    $latestJson = Get-Content (Join-Path $repoRoot 'deployments/sepolia-latest.json') -Raw | ConvertFrom-Json
+    $diamond = $latestJson.contracts.Diamond
     $throttleMs = if ($env:VERIFY_THROTTLE_MS) { [int]$env:VERIFY_THROTTLE_MS } else { 175 }
     $retries = if ($env:VERIFY_RETRIES) { [int]$env:VERIFY_RETRIES } else { 10 }
     $retryBaseMs = if ($env:VERIFY_RETRY_BASE_MS) { [int]$env:VERIFY_RETRY_BASE_MS } else { 400 }

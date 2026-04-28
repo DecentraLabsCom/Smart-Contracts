@@ -11,6 +11,11 @@ updates:
       prefix: "deps"
       prefix-development: "deps-dev"
       include: "scope"
+    ignore:
+      # Ignore major version bumps for hardhat — migration to a new major
+      # requires manual review (breaking config/plugin changes)
+      - dependency-name: "hardhat"
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: "github-actions"
     directory: "/"

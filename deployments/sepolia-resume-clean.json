@@ -1,0 +1,57 @@
+{
+    "network":  "sepolia",
+    "timestamp":  "2026-04-12T14:31:27.3582617+02:00",
+    "chainId":  11155111,
+    "contracts":  {
+                      "Diamond":  "0xFfCF0110F2Ffbf26c1a6542933DC25e8f526D3d0",
+                      "DiamondCutFacet":  "0x9e40120829b88719E3eD2a0cf9A033Af9fcf438E",
+                      "DiamondInit":  "0xa89C52FB5265B7C3Bb6507276b4dD4b27883de48"
+                  },
+    "libraries":  {
+                      "RivalIntervalTreeLibrary":  "0x99e22BA5Ddc3e844C4631211e1f790633f5e221c",
+                      "LibLabTransfer":  "0xEF1b90e435CDf5Cd68F8Fc734F8941BAFa30B94c",
+                      "LibReservationConfirmation":  "0xC66257241F555A0f7954f1412D4BF96E8D5FA002",
+                      "LibInstitutionalReservationConfirmation":  "0x3Ea93D4114316f2fD38eAB9fB222b563eB52932a",
+                      "LibInstitutionalReservationRequestValidation":  "0x8c0F05f8DF35793579c7c3356D4d62f25E796b0A",
+                      "LibInstitutionalReservationRelease":  "0x5a22f73648170b8A64D804DC8dE5cc04Bfef3d5e"
+                  },
+    "facets":  {
+                   "DiamondLoupeFacet":  "0x661c6046721a86595fda02516c7203D57D22d947",
+                   "OwnershipFacet":  "0x58999B261d7c5522c327390329de86D67Dc096c9",
+                   "InitFacet":  "0x49cade7AE512EB7E70d755492eF492f77FA9332D",
+                   "ProviderFacet":  "0x9A464e65eB38342E38Dc81f017B9116ab1734c55",
+                   "IntentRegistryFacet":  "0x1A2FE06876dAE50a0C0F0C9312011E95FE685a42",
+                   "InstitutionFacet":  "0x8ddf37Fc8b526a065F63Cf523646F964Cab644f2",
+                   "InstitutionalOrgRegistryFacet":  "0xbB3bDDeC5535f35e981ED9AD6AaB86e9cF09Ff20",
+                   "InstitutionalTreasuryFacet":  "0x8cb0D9C00A7774040103314299Ce6E402D6f4552",
+                   "LabFacet":  "0x48D14A6443d7eB8efE757c03168339D26fc0717F",
+                   "LabAdminFacet":  "0xc017F1B214ec1F29a2b228f8E97D22f386186257",
+                   "LabIntentFacet":  "0x662F65835A9f0329b53fD98b7c68e7f32b419329",
+                   "LabQueryFacet":  "0xfaAE0a902591a36a9a8c2055333417945E9347A3",
+                   "LabReputationFacet":  "0xb2548AA0AD3dF3B68777A309c0e73425871f5Ebb",
+                   "ProviderSettlementFacet":  "0x0B9a9B39BfB16A68Ac4d108FD24F98a2f85Ec6eE",
+                   "InstitutionalReservationRequestValidationFacet":  "0xd8AF1d4447BAf893c1f9135c82142526613799F4",
+                   "InstitutionalReservationRequestCreationFacet":  "0xD82206c912b2b61E1a5A02ED90Ddf2220cC94C21",
+                   "InstitutionalReservationRequestFacet":  "0xF8cfe9C559269Dc3c1a62f404d8126F9df7fE31A",
+                   "InstitutionalReservationConfirmationFacet":  "0xba7De82dad6B967A2a11Ef6d5C1D1B0a9227E5A9",
+                   "InstitutionalReservationCancellationFacet":  "0xf2D6F987f4990f7bd8BD8C4369431E365EaD73A4",
+                   "InstitutionalReservationQueryFacet":  "0x3e17c8C0E20351adef0c51413ae159e91F03d882",
+                   "InstitutionalReservationFacet":  "0x0E57748517599331583Bdc873EbB2fF7Dd781E81",
+                   "ReservationCheckInFacet":  "0xEF5dA68A505Cb1e53CbaE6212B80c5374f61F8cD",
+                   "ReservationStatsFacet":  "0xbeDe55AAa1Ca51c5b13EbC4930aA195ec0f37b49",
+                   "ReservationDenialFacet":  "0x9Ded84d9324376284A6c20924A0b3F2CDE3e02A5",
+                   "ReservationIntentFacet":  "0x57cF1BD48aBB5AfD2891576fdc3D5C03c5aa6693"
+               },
+    "deployer":  "0x183f062b6a8c39b9a9e71898741acf8f25e11561",
+    "configuration":  {
+                          "adminName":  "Luis",
+                          "adminEmail":  "ldelatorre@dia.uned.es",
+                          "adminCountry":  "Spain",
+                          "diamondName":  "DecentraLabs",
+                          "diamondSymbol":  "dLAB",
+                          "deploymentModel":  "credit-ledger",
+                          "accountingBuckets":  [
+                                                    "providerReceivable"
+                                                ]
+                      }
+}

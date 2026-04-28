@@ -36,7 +36,7 @@ library LibIntent {
         "ReservationIntentPayload(address executor,string schacHomeOrganization,string puc,bytes32 assertionHash,uint256 labId,uint32 start,uint32 end,uint96 price,bytes32 reservationKey)"
     );
     bytes32 internal constant ACTION_PAYLOAD_TYPEHASH = keccak256(
-        "ActionIntentPayload(address executor,string schacHomeOrganization,string puc,bytes32 assertionHash,uint256 labId,bytes32 reservationKey,string uri,uint96 price,uint96 maxBatch,string accessURI,string accessKey,string tokenURI,uint8 resourceType)"
+        "ActionIntentPayload(address executor,string schacHomeOrganization,bytes32 pucHash,bytes32 assertionHash,uint256 labId,bytes32 reservationKey,string uri,uint96 price,uint96 maxBatch,string accessURI,string accessKey,string tokenURI,uint8 resourceType)"
     );
     bytes32 internal constant NAME_HASH = keccak256("DecentraLabsIntent");
     bytes32 internal constant VERSION_HASH = keccak256("1");
@@ -95,14 +95,14 @@ library LibIntent {
     function hashReservationPayload(
         ReservationIntentPayload memory payload
     ) internal pure returns (bytes32) {
+        bytes32 schacHash = keccak256(bytes(payload.schacHomeOrganization));
+        bytes32 pucHash = keccak256(bytes(payload.puc));
         return _keccak(
             abi.encode(
                 RESERVATION_PAYLOAD_TYPEHASH,
                 payload.executor,
-                // forge-lint: disable-next-line(asm-keccak256)
-                keccak256(bytes(payload.schacHomeOrganization)),
-                // forge-lint: disable-next-line(asm-keccak256)
-                keccak256(bytes(payload.puc)),
+                schacHash,
+                pucHash,
                 payload.assertionHash,
                 payload.labId,
                 payload.start,
@@ -116,30 +116,26 @@ library LibIntent {
     function hashActionPayload(
         ActionIntentPayload memory payload
     ) internal pure returns (bytes32) {
-        return _keccak(
-            abi.encode(
-                ACTION_PAYLOAD_TYPEHASH,
-                payload.executor,
-                // forge-lint: disable-next-line(asm-keccak256)
-                keccak256(bytes(payload.schacHomeOrganization)),
-                // forge-lint: disable-next-line(asm-keccak256)
-                keccak256(bytes(payload.puc)),
-                payload.assertionHash,
-                payload.labId,
-                payload.reservationKey,
-                // forge-lint: disable-next-line(asm-keccak256)
-                keccak256(bytes(payload.uri)),
-                payload.price,
-                payload.maxBatch,
-                // forge-lint: disable-next-line(asm-keccak256)
-                keccak256(bytes(payload.accessURI)),
-                // forge-lint: disable-next-line(asm-keccak256)
-                keccak256(bytes(payload.accessKey)),
-                // forge-lint: disable-next-line(asm-keccak256)
-                keccak256(bytes(payload.tokenURI)),
-                payload.resourceType
-            )
+        bytes32 schacHash = keccak256(bytes(payload.schacHomeOrganization));
+        bytes32 uriHash = keccak256(bytes(payload.uri));
+        bytes32 accessURIHash = keccak256(bytes(payload.accessURI));
+        bytes32 accessKeyHash = keccak256(bytes(payload.accessKey));
+        bytes32 tokenURIHash = keccak256(bytes(payload.tokenURI));
+
+        bytes memory prefix = abi.encode(
+            ACTION_PAYLOAD_TYPEHASH,
+            payload.executor,
+            schacHash,
+            payload.pucHash,
+            payload.assertionHash,
+            payload.labId,
+            payload.reservationKey
         );
+        bytes memory suffix = abi.encode(
+            uriHash, payload.price, payload.maxBatch, accessURIHash, accessKeyHash, tokenURIHash, payload.resourceType
+        );
+        bytes memory encoded = bytes.concat(prefix, suffix);
+        return _keccak(encoded);
     }
 
     // ---------------------------------------------------------------------

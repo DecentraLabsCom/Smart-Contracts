@@ -67,11 +67,11 @@ contract TestHelperFacet {
     }
 
     /// @notice Set creator hash for a lab for testing
-    function test_setCreatorPucHash(
+    function test_setPucHash(
         uint256 labId,
-        bytes32 creatorPucHash
+        bytes32 pucHash
     ) external {
         AppStorage storage s = LibAppStorage.diamondStorage();
-        s.creatorPucHashByLab[labId] = creatorPucHash;
+        s.pucHashByLab[labId] = pucHash;
     }
 }

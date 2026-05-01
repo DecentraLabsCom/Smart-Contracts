@@ -3,8 +3,20 @@ import { defineConfig } from "hardhat/config";
 import hardhatEthers from "@nomicfoundation/hardhat-ethers";
 import hardhatVerify from "@nomicfoundation/hardhat-verify";
 
-const rpcUrl = process.env.RPC_URL || "";
+const rpcUrl = process.env.RPC_URL;
 const accounts = process.env.PRIVATE_KEY ? [process.env.PRIVATE_KEY] : [];
+
+const networks = rpcUrl
+  ? {
+      sepolia: {
+        type: "http",
+        chainType: "l1",
+        chainId: 11155111,
+        url: rpcUrl,
+        accounts,
+      },
+    }
+  : {};
 
 export default defineConfig({
   plugins: [hardhatEthers, hardhatVerify],
@@ -26,15 +38,7 @@ export default defineConfig({
       }
     ]
   },
-  networks: {
-    sepolia: {
-      type: "http",
-      chainType: "l1",
-      chainId: 11155111,
-      url: rpcUrl,
-      accounts
-    }
-  },
+  networks,
   verify: {
     etherscan: {
       apiKey: process.env.ETHERSCAN_API_KEY || ""

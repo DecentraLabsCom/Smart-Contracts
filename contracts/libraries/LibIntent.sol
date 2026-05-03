@@ -53,6 +53,7 @@ library LibIntent {
     uint8 internal constant ACTION_REQUEST_BOOKING = 8;
     uint8 internal constant ACTION_CANCEL_REQUEST_BOOKING = 9;
     uint8 internal constant ACTION_CANCEL_BOOKING = 10;
+    uint8 internal constant ACTION_DIRECT_BOOKING = 11;
 
     event IntentRegistered(bytes32 indexed requestId, address indexed signer, uint8 action, bytes32 payloadHash);
     event IntentCancelled(bytes32 indexed requestId, address indexed signer);
@@ -156,7 +157,8 @@ library LibIntent {
         bytes calldata signature
     ) internal {
         require(
-            meta.action == ACTION_REQUEST_BOOKING || meta.action == ACTION_CANCEL_REQUEST_BOOKING,
+            meta.action == ACTION_REQUEST_BOOKING || meta.action == ACTION_CANCEL_REQUEST_BOOKING
+                || meta.action == ACTION_DIRECT_BOOKING,
             "Invalid reservation intent action"
         );
         bytes32 payloadHash = hashReservationPayload(payload);

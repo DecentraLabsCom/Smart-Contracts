@@ -72,7 +72,7 @@ library LibInstitutionalReservationConfirmation {
         address institution,
         bytes32 key,
         string memory puc
-    ) private {
+    ) internal {
         Reservation storage r = s.reservations[key];
         if (r.payerInstitution != institution) revert PayerMismatch();
 

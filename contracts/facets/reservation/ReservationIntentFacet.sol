@@ -6,6 +6,8 @@ import {AppStorage, LibAppStorage, Reservation, INSTITUTION_ROLE} from "../../li
 import {LibIntent} from "../../libraries/LibIntent.sol";
 import {ReservationIntentPayload, ActionIntentPayload} from "../../libraries/IntentTypes.sol";
 import {LibInstitutionalReservation} from "../../libraries/LibInstitutionalReservation.sol";
+import {LibERC721Storage} from "../../libraries/LibERC721Storage.sol";
+import {LibInstitutionalReservationConfirmation} from "../../libraries/LibInstitutionalReservationConfirmation.sol";
 
 // Custom errors for gas-efficient reverts (Solidity 0.8.26+)
 error IntentUnknownInstitution();
@@ -129,6 +131,35 @@ contract ReservationIntentFacet {
         );
         emit ReservationIntentProcessed(
             requestId, payload.reservationKey, "RESERVATION_REQUEST", payload.puc, msg.sender, true, ""
+        );
+    }
+
+    /// @notice Atomic request + confirm for own-lab bookings (same institution is both payer and provider)
+    /// @dev Only valid when the caller (institution) is also the ERC-721 owner of the lab.
+    ///      Saves one on-chain transaction and one round-trip versus the two-step request→confirm flow.
+    function institutionalDirectBookingWithIntent(
+        bytes32 requestId,
+        ReservationIntentPayload calldata payload
+    ) external exists(payload.labId) onlyInstitution(msg.sender) {
+        AppStorage storage s = _s();
+        require(LibERC721Storage.ownerOf(payload.labId) == msg.sender, "NOT_OWN_LAB");
+        bytes32 expectedKey = _getReservationKey(payload.labId, payload.start);
+        require(payload.reservationKey == expectedKey, "RESERVATION_KEY_MISMATCH");
+        uint96 pricePerSecond = s.labs[payload.labId].price;
+        uint256 durationSeconds = uint256(payload.end - payload.start);
+        uint256 totalPrice = uint256(pricePerSecond) * durationSeconds;
+        if (totalPrice > type(uint96).max) revert ReservationPriceOverflow();
+        require(payload.price == uint96(totalPrice), "LAB_PRICE_MISMATCH");
+        _consumeReservationIntent(requestId, LibIntent.ACTION_DIRECT_BOOKING, payload);
+
+        LibInstitutionalReservation.requestReservation(
+            msg.sender, payload.puc, payload.labId, payload.start, payload.end
+        );
+        LibInstitutionalReservationConfirmation._confirmInstitutionalReservationRequestWithPuc(
+            s, msg.sender, expectedKey, payload.puc
+        );
+        emit ReservationIntentProcessed(
+            requestId, payload.reservationKey, "DIRECT_BOOKING", payload.puc, msg.sender, true, ""
         );
     }
 

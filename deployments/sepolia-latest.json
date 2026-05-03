@@ -40,7 +40,7 @@
                    "ReservationCheckInFacet":  "0xEF5dA68A505Cb1e53CbaE6212B80c5374f61F8cD",
                    "ReservationStatsFacet":  "0xbeDe55AAa1Ca51c5b13EbC4930aA195ec0f37b49",
                    "ReservationDenialFacet":  "0x9Ded84d9324376284A6c20924A0b3F2CDE3e02A5",
-                   "ReservationIntentFacet":  "0x57cF1BD48aBB5AfD2891576fdc3D5C03c5aa6693"
+                   "ReservationIntentFacet":  "0xAddc6602AFC08F05D9438AA80Eb025BDA600F4e4"
                },
     "deployer":  "0x183f062b6a8c39b9a9e71898741acf8f25e11561",
     "configuration":  {

@@ -6,6 +6,7 @@ hh-artifacts/
 cache
 artifacts
 .env
+contracts/facets/lab/admin/
 deployments/
 !deployments/
 !deployments/sepolia-latest.json

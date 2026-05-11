@@ -9,7 +9,6 @@ permissions:
   contents: write
   pull-requests: write
   issues: write
-  workflows: write
 
 jobs:
   check-updates:
@@ -56,7 +55,7 @@ jobs:
         if: steps.check.outputs.updates_needed == 'true'
         uses: peter-evans/create-pull-request@v8
         with:
-          token: ${{ secrets.BOT_PR_TOKEN }}
+          token: ${{ github.token }}
           branch: "ci/foundry-update-${{ steps.check.outputs.latest }}"
           commit-message: "ci: bump foundry-toolchain to v${{ steps.check.outputs.latest }}"
           title: "ci: bump Foundry to v${{ steps.check.outputs.latest }}"

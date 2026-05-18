@@ -6,11 +6,11 @@
     "node": ">=22.10.0"
   },
   "devDependencies": {
-    "@nomicfoundation/hardhat-ethers": "^4.0.10",
-    "@nomicfoundation/hardhat-verify": "^3.0.16",
+    "@nomicfoundation/hardhat-ethers": "^4.0.11",
+    "@nomicfoundation/hardhat-verify": "^3.0.17",
     "dotenv": "^17.4.2",
     "ethers": "^6.11.1",
-    "hardhat": "^3.4.3"
+    "hardhat": "^3.4.5"
   },
   "dependencies": {
     "@openzeppelin/contracts": "^5.5.0",

@@ -56,7 +56,7 @@ jobs:
         if: steps.check.outputs.updates_needed == 'true'
         uses: peter-evans/create-pull-request@v8
         with:
-          token: ${{ github.token }}
+          token: ${{ secrets.PAT_WORKFLOW }}
           branch: "ci/foundry-update-${{ steps.check.outputs.latest }}"
           commit-message: "ci: bump foundry-toolchain to v${{ steps.check.outputs.latest }}"
           title: "ci: bump Foundry to v${{ steps.check.outputs.latest }}"

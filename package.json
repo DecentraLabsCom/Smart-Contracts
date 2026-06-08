@@ -10,7 +10,7 @@
     "@nomicfoundation/hardhat-verify": "^3.0.18",
     "dotenv": "^17.4.2",
     "ethers": "^6.11.1",
-    "hardhat": "^3.7.0"
+    "hardhat": "^3.8.0"
   },
   "dependencies": {
     "@openzeppelin/contracts": "^5.5.0",

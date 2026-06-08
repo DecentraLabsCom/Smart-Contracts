@@ -25,8 +25,38 @@ jobs:
 
       - name: setup foundry
         uses: foundry-rs/foundry-toolchain@v1
+        continue-on-error: true
         with:
           version: ${{ env.FOUNDRY_VERSION }}
+
+      - name: retry foundry setup on transient failure
+        shell: bash
+        run: |
+          FOUNDRY_VERSION="${{ env.FOUNDRY_VERSION }}"
+          FOUNDRYUP_BIN="$HOME/.foundry/bin/foundryup"
+          FORGE_BIN="$HOME/.foundry/bin/forge"
+
+          if command -v forge >/dev/null 2>&1; then
+            forge --version
+            exit 0
+          fi
+
+          if [ ! -x "$FOUNDRYUP_BIN" ]; then
+            echo "foundryup was not installed by foundry-toolchain." >&2
+            exit 1
+          fi
+
+          for attempt in 1 2 3; do
+            if "$FOUNDRYUP_BIN" --install "$FOUNDRY_VERSION"; then
+              "$FORGE_BIN" --version
+              exit 0
+            fi
+            echo "Foundry install attempt $attempt failed; retrying..." >&2
+            sleep $((attempt * 5))
+          done
+
+          echo "Foundry setup failed after retries." >&2
+          exit 1
 
       - name: setup node
         uses: actions/setup-node@v6

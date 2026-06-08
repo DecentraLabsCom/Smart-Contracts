@@ -32,18 +32,23 @@ jobs:
       - name: retry foundry setup on transient failure
         shell: bash
         run: |
+          FOUNDRY_VERSION="${{ env.FOUNDRY_VERSION }}"
+          FOUNDRYUP_BIN="$HOME/.foundry/bin/foundryup"
+          FORGE_BIN="$HOME/.foundry/bin/forge"
+
           if command -v forge >/dev/null 2>&1; then
             forge --version
             exit 0
           fi
 
-          if [ ! -x "$HOME/.foundry/bin/foundryup" ]; then
-            curl -sL https://raw.githubusercontent.com/foundry-rs/foundry/HEAD/foundryup/install | bash
+          if [ ! -x "$FOUNDRYUP_BIN" ]; then
+            echo "foundryup was not installed by foundry-toolchain." >&2
+            exit 1
           fi
 
           for attempt in 1 2 3; do
-            if "$HOME/.foundry/bin/foundryup" --install "$FOUNDRY_VERSION"; then
-              "$HOME/.foundry/bin/forge" --version
+            if "$FOUNDRYUP_BIN" --install "$FOUNDRY_VERSION"; then
+              "$FORGE_BIN" --version
               exit 0
             fi
             echo "Foundry install attempt $attempt failed; retrying..." >&2

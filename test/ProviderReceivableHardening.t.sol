@@ -114,8 +114,7 @@ contract ReceivableHardeningHarness is ERC721, ProviderSettlementFacet {
 // ---------------------------------------------------------------------------
 contract MockERC20 is ERC721("Mock", "M") {
     // Nothing needed — only used as labTokenAddress placeholder.
-
-    }
+}
 
 // ---------------------------------------------------------------------------
 // Tests

@@ -211,8 +211,6 @@ contract ReservationIntentFacet {
         _consumeActionIntent(requestId, LibIntent.ACTION_CANCEL_BOOKING, payload);
 
         LibInstitutionalReservation.cancelBooking(msg.sender, puc, payload.reservationKey);
-        emit ReservationIntentProcessed(
-            requestId, payload.reservationKey, "CANCEL_BOOKING", puc, msg.sender, true, ""
-        );
+        emit ReservationIntentProcessed(requestId, payload.reservationKey, "CANCEL_BOOKING", puc, msg.sender, true, "");
     }
 }

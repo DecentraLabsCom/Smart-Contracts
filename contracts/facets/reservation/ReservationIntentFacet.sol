@@ -111,6 +111,15 @@ contract ReservationIntentFacet {
         return storedHash != bytes32(0) && storedHash == keccak256(bytes(puc));
     }
 
+    function _pucHashMatches(
+        AppStorage storage s,
+        bytes32 reservationKey,
+        bytes32 pucHash
+    ) internal view returns (bool) {
+        bytes32 storedHash = s.reservationPucHash[reservationKey];
+        return storedHash != bytes32(0) && storedHash == pucHash;
+    }
+
     /// @notice Institutional reservation request via intent
     function institutionalReservationRequestWithIntent(
         bytes32 requestId,
@@ -188,22 +197,22 @@ contract ReservationIntentFacet {
     /// @notice Cancels a confirmed booking via intent
     function cancelInstitutionalBookingWithIntent(
         bytes32 requestId,
-        ReservationIntentPayload calldata payload
+        ActionIntentPayload calldata payload,
+        string calldata puc
     ) external onlyInstitution(msg.sender) {
         AppStorage storage s = _s();
         Reservation storage reservation = s.reservations[payload.reservationKey];
         require(reservation.labId != 0, IntentUnknownReservation());
         require(payload.labId == reservation.labId, "LAB_ID_MISMATCH");
-        require(payload.start == reservation.start, "RESERVATION_START_MISMATCH");
-        require(payload.end == reservation.end, "RESERVATION_END_MISMATCH");
         require(payload.price == reservation.price, "RESERVATION_PRICE_MISMATCH");
-        require(_pucMatches(s, reservation, payload.reservationKey, payload.puc), "RESERVATION_PUC_MISMATCH");
+        require(payload.pucHash == keccak256(bytes(puc)), "PAYLOAD_PUC_MISMATCH");
+        require(_pucHashMatches(s, payload.reservationKey, payload.pucHash), "RESERVATION_PUC_MISMATCH");
 
-        _consumeReservationIntent(requestId, LibIntent.ACTION_CANCEL_BOOKING, payload);
+        _consumeActionIntent(requestId, LibIntent.ACTION_CANCEL_BOOKING, payload);
 
-        LibInstitutionalReservation.cancelBooking(msg.sender, payload.puc, payload.reservationKey);
+        LibInstitutionalReservation.cancelBooking(msg.sender, puc, payload.reservationKey);
         emit ReservationIntentProcessed(
-            requestId, payload.reservationKey, "CANCEL_BOOKING", payload.puc, msg.sender, true, ""
+            requestId, payload.reservationKey, "CANCEL_BOOKING", puc, msg.sender, true, ""
         );
     }
 }

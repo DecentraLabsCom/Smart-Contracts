@@ -5076,9 +5076,9 @@
                         "internalType": "string"
                     },
                     {
-                        "name": "puc",
-                        "type": "string",
-                        "internalType": "string"
+                        "name": "pucHash",
+                        "type": "bytes32",
+                        "internalType": "bytes32"
                     },
                     {
                         "name": "assertionHash",
@@ -5131,6 +5131,11 @@
                         "internalType": "uint8"
                     }
                 ]
+            },
+            {
+                "name": "puc",
+                "type": "string",
+                "internalType": "string"
             }
         ],
         "outputs": [],

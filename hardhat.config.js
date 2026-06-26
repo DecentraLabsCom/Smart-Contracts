@@ -1,6 +1,7 @@
 import "dotenv/config";
 import { defineConfig } from "hardhat/config";
 import hardhatEthers from "@nomicfoundation/hardhat-ethers";
+import hardhatFoundry from "@nomicfoundation/hardhat-foundry";
 import hardhatVerify from "@nomicfoundation/hardhat-verify";
 
 const rpcUrl = process.env.RPC_URL;
@@ -19,7 +20,7 @@ const networks = rpcUrl
   : {};
 
 export default defineConfig({
-  plugins: [hardhatEthers, hardhatVerify],
+  plugins: [hardhatEthers, hardhatFoundry, hardhatVerify],
   solidity: {
     compilers: [
       {
@@ -27,30 +28,28 @@ export default defineConfig({
         settings: {
           optimizer: {
             enabled: true,
-            runs: 200
+            runs: 200,
           },
           viaIR: true,
           evmVersion: "cancun",
           metadata: {
-            bytecodeHash: "none"
-          }
-        }
-      }
-    ]
+            bytecodeHash: "none",
+          },
+        },
+      },
+    ],
   },
   networks,
   verify: {
     etherscan: {
-      apiKey: process.env.ETHERSCAN_API_KEY || ""
-    }
+      apiKey: process.env.ETHERSCAN_API_KEY || "",
+    },
   },
   paths: {
     sources: "contracts",
-    // Do not point Hardhat at the Foundry test directory — those .t.sol files
-    // import forge-std which is not an npm package, causing HHE902 errors.
-    // Hardhat is only used for contract verification here, not for running tests.
+    // Hardhat is only used for contract verification here; Foundry owns .t.sol tests.
     tests: "test/hardhat",
     cache: "hh-cache",
-    artifacts: "hh-artifacts"
-  }
+    artifacts: "hh-artifacts",
+  },
 });

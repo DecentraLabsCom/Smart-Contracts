@@ -91,6 +91,7 @@ contract InstReservationHarness {
         AppStorage storage s = LibAppStorage.diamondStorage();
         return s.reservations[key].status;
     }
+
 }
 
 contract ConfirmHarness is InstitutionalReservationConfirmationFacet {
@@ -141,6 +142,35 @@ contract ConfirmHarness is InstitutionalReservationConfirmationFacet {
         r.requestPeriodDuration = uint64(d);
 
         // reservation index sets are not required by these unit tests and are omitted in the harness
+    }
+
+    function setReservationWithEnd(
+        bytes32 key,
+        address renter,
+        address payerInstitution,
+        uint96 price,
+        uint8 status,
+        uint256 labId,
+        uint32 start,
+        uint32 end,
+        string calldata puc
+    ) external {
+        AppStorage storage s = LibAppStorage.diamondStorage();
+        Reservation storage r = s.reservations[key];
+        r.renter = renter;
+        r.payerInstitution = payerInstitution;
+        r.price = price;
+        r.status = status;
+        r.labId = labId;
+        r.start = start;
+        r.end = end;
+        if (bytes(puc).length > 0) s.reservationPucHash[key] = keccak256(bytes(puc));
+
+        uint256 d = s.institutionalSpendingPeriod[payerInstitution];
+        if (d == 0) d = LibAppStorage.DEFAULT_SPENDING_PERIOD;
+        uint256 rsAligned = block.timestamp - (block.timestamp % d);
+        r.requestPeriodStart = uint64(rsAligned);
+        r.requestPeriodDuration = uint64(d);
     }
 
     // for test: implement spendFromInstitutionalTreasury to succeed
@@ -206,6 +236,13 @@ contract ConfirmHarness is InstitutionalReservationConfirmationFacet {
     ) external view returns (uint8) {
         AppStorage storage s = LibAppStorage.diamondStorage();
         return s.reservations[key].status;
+    }
+
+    function getReservationEnd(
+        bytes32 key
+    ) external view returns (uint32) {
+        AppStorage storage s = LibAppStorage.diamondStorage();
+        return s.reservations[key].end;
     }
 
     function setLabResourceType(

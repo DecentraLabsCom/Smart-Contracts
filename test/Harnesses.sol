@@ -91,7 +91,6 @@ contract InstReservationHarness {
         AppStorage storage s = LibAppStorage.diamondStorage();
         return s.reservations[key].status;
     }
-
 }
 
 contract ConfirmHarness is InstitutionalReservationConfirmationFacet {

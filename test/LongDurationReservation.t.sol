@@ -24,7 +24,9 @@ contract LongDurationReservationTest is Test {
         harness.setProviderActive(provider);
     }
 
-    function _key(uint32 start) internal view returns (bytes32) {
+    function _key(
+        uint32 start
+    ) internal view returns (bytes32) {
         return keccak256(abi.encodePacked(labId, start));
     }
 
@@ -38,7 +40,10 @@ contract LongDurationReservationTest is Test {
         harness.setReservationWithEnd(key, address(0xABCD), institution, price, _PENDING, labId, start, end, puc);
     }
 
-    function _confirm(bytes32 key, string memory puc) internal {
+    function _confirm(
+        bytes32 key,
+        string memory puc
+    ) internal {
         vm.prank(backend);
         harness.confirmInstitutionalReservationRequestWithPuc(institution, key, puc);
     }

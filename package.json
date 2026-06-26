@@ -10,7 +10,7 @@
     "@nomicfoundation/hardhat-foundry": "^3.0.4",
     "@nomicfoundation/hardhat-verify": "^3.0.20",
     "dotenv": "^17.4.2",
-    "ethers": "^6.11.1",
+    "ethers": "^6.17.0",
     "hardhat": "^3.9.0"
   },
   "dependencies": {

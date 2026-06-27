@@ -30,7 +30,7 @@ library LibInstitutionalReservationRequestValidation {
 
     function validateInstRequest(
         address provider,
-        string calldata userId,
+        bytes32 pucHash,
         uint256 labId,
         uint32 start,
         uint32 end
@@ -41,7 +41,7 @@ library LibInstitutionalReservationRequestValidation {
         if (msg.sender != s.institutionalBackends[provider] && msg.sender != address(this)) {
             revert OnlyInstitutionalBackend();
         }
-        if (bytes(userId).length == 0 || bytes(userId).length > 256) revert InvalidInstitutionalUserId();
+        if (pucHash == bytes32(0)) revert InvalidInstitutionalUserId();
         if (!s.tokenStatus[labId]) revert();
 
         owner = LibERC721Storage.ownerOf(labId);
@@ -51,7 +51,7 @@ library LibInstitutionalReservationRequestValidation {
         if (start >= end || start <= block.timestamp + _RESERVATION_MARGIN) revert();
 
         key = _getReservationKey(labId, start);
-        trackingKey = LibTracking.trackingKeyFromInstitutionHash(provider, keccak256(bytes(userId)));
+        trackingKey = LibTracking.trackingKeyFromInstitutionHash(provider, pucHash);
 
         uint256 count = s.activeReservationCountByTokenAndUser[labId][trackingKey];
         if (count >= _MAX_RESERVATIONS_PER_LAB_USER - 2) {

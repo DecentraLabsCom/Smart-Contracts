@@ -33,7 +33,7 @@ contract LibInstitutionalReservationTest is BaseTest {
         harness.setReservation(key, user1, inst, 0, _PENDING, labId, start, puc);
 
         vm.prank(backend);
-        uint256 returned = harness.cancelReservationRequestWrapper(inst, puc, key);
+        uint256 returned = harness.cancelReservationRequestWrapper(inst, keccak256(bytes(puc)), key);
 
         assertEq(returned, labId);
 
@@ -53,7 +53,7 @@ contract LibInstitutionalReservationTest is BaseTest {
         harness.setReservation(key, user1, inst, price, _CONFIRMED, labId, start, puc);
 
         vm.prank(backend);
-        uint256 returned = harness.cancelBookingWrapper(inst, puc, key);
+        uint256 returned = harness.cancelBookingWrapper(inst, keccak256(bytes(puc)), key);
         assertEq(returned, labId);
 
         (uint96 providerFee, uint96 refundAmount) = LibRevenue.computeCancellationFee(price);
@@ -71,7 +71,7 @@ contract LibInstitutionalReservationTest is BaseTest {
         harness.setReservation(key, user1, inst, 0, _CONFIRMED, labId, start, puc);
 
         vm.expectRevert();
-        harness.cancelBookingWrapper(inst, puc, key);
+        harness.cancelBookingWrapper(inst, keccak256(bytes(puc)), key);
     }
 
     function test_cancelBooking_inUse_reverts() public {
@@ -87,7 +87,7 @@ contract LibInstitutionalReservationTest is BaseTest {
 
         vm.prank(backend);
         vm.expectRevert();
-        harness.cancelBookingWrapper(inst, puc, key);
+        harness.cancelBookingWrapper(inst, keccak256(bytes(puc)), key);
     }
 
     function test_cancelBooking_afterStart_reverts() public {
@@ -104,6 +104,6 @@ contract LibInstitutionalReservationTest is BaseTest {
         vm.warp(uint256(start));
         vm.prank(backend);
         vm.expectRevert();
-        harness.cancelBookingWrapper(inst, puc, key);
+        harness.cancelBookingWrapper(inst, keccak256(bytes(puc)), key);
     }
 }

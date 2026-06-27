@@ -21,7 +21,7 @@ import {LibReservationDenyReason} from "./LibReservationDenyReason.sol";
 interface IInstitutionalTreasuryFacetConfirmLib {
     function spendFromInstitutionalTreasury(
         address institution,
-        string calldata puc,
+        bytes32 pucHash,
         uint256 amount
     ) external;
 }
@@ -32,7 +32,6 @@ library LibInstitutionalReservationConfirmation {
 
     error InstitutionNotRegistered();
     error UnauthorizedInstitutionCall();
-    error PucRequired();
     error PayerMismatch();
     error PucMissing();
     error PucMismatch();
@@ -44,10 +43,10 @@ library LibInstitutionalReservationConfirmation {
     event ReservationConfirmed(bytes32 indexed reservationKey, uint256 indexed tokenId);
     event ReservationRequestDenied(bytes32 indexed reservationKey, uint256 indexed tokenId, uint8 reason);
 
-    function confirmInstitutionalReservationRequestWithPuc(
+    function confirmInstitutionalReservationRequestWithPucHash(
         address institution,
         bytes32 key,
-        string calldata puc
+        bytes32 pucHash
     ) external {
         AppStorage storage s = LibAppStorage.diamondStorage();
         if (!EnumerableSet.contains(s.roleMembers[INSTITUTION_ROLE], institution)) revert InstitutionNotRegistered();
@@ -64,22 +63,21 @@ library LibInstitutionalReservationConfirmation {
         bool providerCaller = msg.sender == labOwner || (providerBackend != address(0) && msg.sender == providerBackend);
         if (!institutionCaller && !providerCaller) revert UnauthorizedInstitutionCall();
 
-        _confirmInstitutionalReservationRequestWithPuc(s, institution, key, puc);
+        _confirmInstitutionalReservationRequestWithPucHash(s, institution, key, pucHash);
     }
 
-    function _confirmInstitutionalReservationRequestWithPuc(
+    function _confirmInstitutionalReservationRequestWithPucHash(
         AppStorage storage s,
         address institution,
         bytes32 key,
-        string memory puc
+        bytes32 pucHash
     ) internal {
         Reservation storage r = s.reservations[key];
         if (r.payerInstitution != institution) revert PayerMismatch();
 
         bytes32 storedHash = s.reservationPucHash[key];
         if (storedHash == bytes32(0)) revert PucMissing();
-        if (bytes(puc).length == 0) revert PucRequired();
-        if (storedHash != keccak256(bytes(puc))) revert PucMismatch();
+        if (storedHash != pucHash) revert PucMismatch();
 
         address trackingKey = LibTracking.trackingKeyFromInstitutionHash(institution, storedHash);
         address labProvider = LibERC721Storage.ownerOf(r.labId);
@@ -108,7 +106,7 @@ library LibInstitutionalReservationConfirmation {
         }
 
         try IInstitutionalTreasuryFacetConfirmLib(address(this))
-            .spendFromInstitutionalTreasury(r.payerInstitution, puc, r.price) {
+            .spendFromInstitutionalTreasury(r.payerInstitution, pucHash, r.price) {
             _finalize(s, r, key, labProvider, trackingKey);
         } catch {
             LibReservationCancellation.cancelReservation(key);

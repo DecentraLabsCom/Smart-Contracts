@@ -55,7 +55,7 @@ contract InstitutionalReservationPucAndDenialTest is BaseTest {
 
         vm.prank(inst);
         vm.expectRevert(); // PucRequired
-        confirmHarness.ext_confirmWithPuc(inst, key, "");
+        confirmHarness.ext_confirmWithPucHash(inst, key, bytes32(0));
 
         assertEq(confirmHarness.getReservationStatus(key), _PENDING);
     }
@@ -74,7 +74,7 @@ contract InstitutionalReservationPucAndDenialTest is BaseTest {
 
         vm.prank(inst);
         vm.expectRevert(); // wrong puc
-        confirmHarness.ext_confirmWithPuc(inst, key, "wrong@puc");
+        confirmHarness.ext_confirmWithPucHash(inst, key, keccak256(bytes("wrong@puc")));
 
         assertEq(confirmHarness.getReservationStatus(key), _PENDING);
     }
@@ -93,7 +93,7 @@ contract InstitutionalReservationPucAndDenialTest is BaseTest {
 
         vm.prank(inst);
         vm.expectRevert(); // InstitutionNotRegistered
-        confirmHarness.ext_confirmWithPuc(inst, key, puc);
+        confirmHarness.ext_confirmWithPucHash(inst, key, keccak256(bytes(puc)));
 
         assertEq(confirmHarness.getReservationStatus(key), _PENDING);
     }

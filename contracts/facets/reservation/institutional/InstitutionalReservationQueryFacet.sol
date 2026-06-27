@@ -50,22 +50,16 @@ contract InstitutionalReservationQueryFacet {
         return address(uint160(uint256(keccak256(abi.encodePacked(institution, pucHash)))));
     }
 
-    function _pucHash(
-        string calldata puc
-    ) internal pure returns (bytes32) {
-        return keccak256(bytes(puc));
-    }
-
     /// @notice Get the count of reservations for an institutional user
     /// @param institutionalProvider The institution address
-    /// @param puc The user's unique identifier within the institution
+    /// @param pucHash The user's canonical identifier hash within the institution
     /// @return The total count of reservations for this user
     function getInstitutionalUserReservationCount(
         address institutionalProvider,
-        string calldata puc
+        bytes32 pucHash
     ) external view onlyInstitution(institutionalProvider) returns (uint256) {
+        require(pucHash != bytes32(0), "PUC hash cannot be empty");
         AppStorage storage s = _s();
-        bytes32 pucHash = _pucHash(puc);
         address hashKey = _trackingKeyFromInstitutionHash(institutionalProvider, pucHash);
         return s.renters[hashKey].length();
     }
@@ -73,16 +67,16 @@ contract InstitutionalReservationQueryFacet {
     /// @notice Get a reservation key by index for an institutional user
     /// @dev Order is NOT guaranteed stable across mutations. Use for snapshot iteration only.
     /// @param institutionalProvider The institution address
-    /// @param puc The user's unique identifier within the institution
+    /// @param pucHash The user's canonical identifier hash within the institution
     /// @param index The index in the user's reservation list
     /// @return key The reservation key at the given index
     function getInstitutionalUserReservationByIndex(
         address institutionalProvider,
-        string calldata puc,
+        bytes32 pucHash,
         uint256 index
     ) external view onlyInstitution(institutionalProvider) returns (bytes32 key) {
+        require(pucHash != bytes32(0), "PUC hash cannot be empty");
         AppStorage storage s = _s();
-        bytes32 pucHash = _pucHash(puc);
         address hashKey = _trackingKeyFromInstitutionHash(institutionalProvider, pucHash);
         EnumerableSet.Bytes32Set storage hashReservations = s.renters[hashKey];
         require(index < hashReservations.length(), "Index out of bounds");
@@ -92,18 +86,17 @@ contract InstitutionalReservationQueryFacet {
     /// @notice Check if an institutional user has an active booking for a specific lab
     /// @dev An active booking is one that is _CONFIRMED or _IN_USE and the current time is within [start, end]
     /// @param institutionalProvider The institution address
-    /// @param puc The user's unique identifier within the institution
+    /// @param pucHash The user's canonical identifier hash within the institution
     /// @param labId The lab to check
     /// @return True if the user has an active booking for this lab
     function hasInstitutionalUserActiveBooking(
         address institutionalProvider,
-        string calldata puc,
+        bytes32 pucHash,
         uint256 labId
     ) external view onlyInstitution(institutionalProvider) returns (bool) {
-        require(bytes(puc).length > 0, "PUC cannot be empty");
+        require(pucHash != bytes32(0), "PUC hash cannot be empty");
 
         AppStorage storage s = _s();
-        bytes32 pucHash = _pucHash(puc);
         address hashKey = _trackingKeyFromInstitutionHash(institutionalProvider, pucHash);
         bytes32 reservationKey = s.activeReservationByTokenAndUser[labId][hashKey];
 
@@ -120,18 +113,17 @@ contract InstitutionalReservationQueryFacet {
     /// @notice Get the active reservation key for an institutional user on a specific lab
     /// @dev Returns bytes32(0) if no active booking exists
     /// @param institutionalProvider The institution address
-    /// @param puc The user's unique identifier within the institution
+    /// @param pucHash The user's canonical identifier hash within the institution
     /// @param labId The lab to check
     /// @return reservationKey The active reservation key, or bytes32(0) if none
     function getInstitutionalUserActiveReservationKey(
         address institutionalProvider,
-        string calldata puc,
+        bytes32 pucHash,
         uint256 labId
     ) external view onlyInstitution(institutionalProvider) returns (bytes32 reservationKey) {
-        require(bytes(puc).length > 0, "PUC cannot be empty");
+        require(pucHash != bytes32(0), "PUC hash cannot be empty");
 
         AppStorage storage s = _s();
-        bytes32 pucHash = _pucHash(puc);
         address hashKey = _trackingKeyFromInstitutionHash(institutionalProvider, pucHash);
         bytes32 activeKey = s.activeReservationByTokenAndUser[labId][hashKey];
 
@@ -153,27 +145,14 @@ contract InstitutionalReservationQueryFacet {
 
     /// @notice Get the active reservation count for an institutional user on a specific lab
     /// @param institutionalProvider The institution address
-    /// @param puc The user's unique identifier within the institution
+    /// @param pucHash The user's canonical identifier hash within the institution
     /// @param labId The lab to check
     /// @return count The number of active reservations (including pending)
     function getInstitutionalUserActiveCount(
         address institutionalProvider,
-        string calldata puc,
-        uint256 labId
-    ) external view onlyInstitution(institutionalProvider) returns (uint256 count) {
-        return getInstitutionalUserActiveCountByHash(institutionalProvider, _pucHash(puc), labId);
-    }
-
-    /// @notice Get the active reservation count for an institutional user by PUC hash
-    /// @param institutionalProvider The institution address
-    /// @param pucHash The hashed user identifier
-    /// @param labId The lab to check
-    /// @return count The number of active reservations (including pending)
-    function getInstitutionalUserActiveCountByHash(
-        address institutionalProvider,
         bytes32 pucHash,
         uint256 labId
-    ) public view onlyInstitution(institutionalProvider) returns (uint256 count) {
+    ) external view onlyInstitution(institutionalProvider) returns (uint256 count) {
         require(pucHash != bytes32(0), "PUC hash cannot be empty");
         AppStorage storage s = _s();
         address hashKey = _trackingKeyFromInstitutionHash(institutionalProvider, pucHash);

@@ -50,15 +50,15 @@ contract RevertingInstReservationHarness2 {
 
     function cancelBookingWrapper(
         address institutionalProvider,
-        string calldata puc,
+        bytes32 pucHash,
         bytes32 reservationKey
     ) external returns (uint256) {
-        return LibInstitutionalReservation.cancelBooking(institutionalProvider, puc, reservationKey);
+        return LibInstitutionalReservation.cancelBooking(institutionalProvider, pucHash, reservationKey);
     }
 
     function refundToInstitutionalTreasury(
         address,
-        string calldata,
+        bytes32,
         uint256
     ) external pure {
         revert("refund failed");
@@ -94,7 +94,7 @@ contract InstitutionalReservationCancellationMoreTest is BaseTest {
 
         // no prank; msg.sender != backend should revert
         vm.expectRevert();
-        harness.cancelReservationRequestWrapper(inst, puc, key);
+        harness.cancelReservationRequestWrapper(inst, keccak256(bytes(puc)), key);
     }
 
     function test_cancelBooking_invalid_status_reverts() public {
@@ -113,7 +113,7 @@ contract InstitutionalReservationCancellationMoreTest is BaseTest {
 
         vm.prank(backend);
         vm.expectRevert();
-        harness.cancelBookingWrapper(inst, puc, key);
+        harness.cancelBookingWrapper(inst, keccak256(bytes(puc)), key);
     }
 
     function test_cancelBooking_puc_mismatch_reverts() public {
@@ -131,7 +131,7 @@ contract InstitutionalReservationCancellationMoreTest is BaseTest {
 
         vm.prank(backend);
         vm.expectRevert();
-        harness.cancelBookingWrapper(inst, wrong, key);
+        harness.cancelBookingWrapper(inst, keccak256(bytes(wrong)), key);
     }
 
     function test_cancelBooking_refund_revert_bubbles() public {
@@ -149,6 +149,6 @@ contract InstitutionalReservationCancellationMoreTest is BaseTest {
 
         vm.prank(backend);
         vm.expectRevert(bytes("refund failed"));
-        revHarness.cancelBookingWrapper(inst, puc, key);
+        revHarness.cancelBookingWrapper(inst, keccak256(bytes(puc)), key);
     }
 }

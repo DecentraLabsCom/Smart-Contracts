@@ -4,11 +4,11 @@ pragma solidity ^0.8.31;
 import {LibInstitutionalReservationConfirmation} from "../../../libraries/LibInstitutionalReservationConfirmation.sol";
 
 contract InstitutionalReservationConfirmationFacet {
-    function confirmInstitutionalReservationRequestWithPuc(
+    function confirmInstitutionalReservationRequestWithPucHash(
         address i,
         bytes32 k,
-        string calldata puc
+        bytes32 pucHash
     ) external {
-        LibInstitutionalReservationConfirmation.confirmInstitutionalReservationRequestWithPuc(i, k, puc);
+        LibInstitutionalReservationConfirmation.confirmInstitutionalReservationRequestWithPucHash(i, k, pucHash);
     }
 }

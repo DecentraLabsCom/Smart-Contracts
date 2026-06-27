@@ -13,7 +13,7 @@ import {ReentrancyGuardTransient} from "@openzeppelin/contracts/utils/Reentrancy
 /// @title InstitutionalTreasuryFacet Contract
 /// @author Luis de la Torre Cubillo
 /// @author Juan Luis Ramos Villalón
-/// @notice Allows institutions to assign and manage treasury balances for institutional users (SAML2 schacPersonalUniqueCode)
+/// @notice Allows institutions to assign and manage treasury balances for institutional users by canonical PUC hash.
 /// @dev Implements backend authorization pattern for institutional users over the internal credit ledger.
 contract InstitutionalTreasuryFacet is ReentrancyGuardTransient {
     using EnumerableSet for EnumerableSet.AddressSet;
@@ -34,9 +34,9 @@ contract InstitutionalTreasuryFacet is ReentrancyGuardTransient {
     event InstitutionalSpendingPeriodReset(address indexed institution, uint256 newPeriodStart);
 
     /// @notice Emitted when an institutional user spends treasury balance
-    /// @dev The puc parameter is indexed as keccak256 hash for efficient filtering
+    /// @dev The pucHash parameter is indexed for efficient filtering without exposing the raw identifier.
     event InstitutionalUserSpent(
-        address indexed institution, string indexed puc, uint256 amount, uint256 totalSpent, uint256 periodStart
+        address indexed institution, bytes32 indexed pucHash, uint256 amount, uint256 totalSpent, uint256 periodStart
     );
 
     /// @dev Modifier to check if caller is authorized (backend or internal Diamond call)
@@ -137,15 +137,15 @@ contract InstitutionalTreasuryFacet is ReentrancyGuardTransient {
 
     /// @notice Check if we're in a new spending period and reset if needed
     /// @param institution The institution address
-    /// @param puc The user's schacPersonalUniqueCode
+    /// @param pucHash The user's canonical PUC hash
     /// @return currentPeriodStart The start timestamp of the current period
     function _checkAndResetPeriod(
         address institution,
-        string calldata puc
+        bytes32 pucHash
     ) internal returns (uint256 currentPeriodStart) {
         AppStorage storage s = LibAppStorage.diamondStorage();
         uint256 periodDuration = _getSpendingPeriod(institution);
-        InstitutionalUserSpending storage spending = s.institutionalUserSpending[institution][puc];
+        InstitutionalUserSpending storage spending = s.institutionalUserSpending[institution][pucHash];
         uint256 anchor = s.institutionalSpendingPeriodAnchor[institution];
 
         // Calculate current period start based on period duration or custom anchor
@@ -247,12 +247,12 @@ contract InstitutionalTreasuryFacet is ReentrancyGuardTransient {
     /// @dev View function that verifies availability without modifying state
     ///      Used in lazy payment pattern to verify before creating reservation request
     /// @param institution The institution who owns the treasury
-    /// @param puc The schacPersonalUniqueCode of the user
+    /// @param pucHash The canonical PUC hash of the user
     /// @param amount Amount to check
     /// @custom:throws Reverts if backend not authorized, treasury insufficient, or user exceeds limit
     function checkInstitutionalTreasuryAvailability(
         address institution,
-        string calldata puc,
+        bytes32 pucHash,
         uint256 amount
     ) external view {
         AppStorage storage s = LibAppStorage.diamondStorage();
@@ -266,7 +266,7 @@ contract InstitutionalTreasuryFacet is ReentrancyGuardTransient {
 
         // Calculate current period
         uint256 periodDuration = _getSpendingPeriod(institution);
-        InstitutionalUserSpending storage spending = s.institutionalUserSpending[institution][puc];
+        InstitutionalUserSpending storage spending = s.institutionalUserSpending[institution][pucHash];
         uint256 currentPeriodStart = _currentPeriodStart(institution, periodDuration);
 
         // Check if we're in a new period (spending would be reset to 0)
@@ -285,11 +285,11 @@ contract InstitutionalTreasuryFacet is ReentrancyGuardTransient {
     ///      No ERC-20 transfer occurs; this updates internal accounting only.
     ///      Spending resets automatically when a new period begins.
     /// @param institution The institution who owns the treasury
-    /// @param puc The schacPersonalUniqueCode of the user
+    /// @param pucHash The canonical PUC hash of the user
     /// @param amount Amount to spend (mark as spent for this user in current period)
     function spendFromInstitutionalTreasury(
         address institution,
-        string calldata puc,
+        bytes32 pucHash,
         uint256 amount
     ) external onlyAuthorizedBackendOrInternal(institution) {
         AppStorage storage s = LibAppStorage.diamondStorage();
@@ -301,10 +301,10 @@ contract InstitutionalTreasuryFacet is ReentrancyGuardTransient {
         require(s.institutionalTreasury[institution] >= amount, "Insufficient treasury balance");
 
         // Check period and reset if needed
-        uint256 periodStart = _checkAndResetPeriod(institution, puc);
+        uint256 periodStart = _checkAndResetPeriod(institution, pucHash);
 
         // Get current spending in this period
-        InstitutionalUserSpending storage spending = s.institutionalUserSpending[institution][puc];
+        InstitutionalUserSpending storage spending = s.institutionalUserSpending[institution][pucHash];
         uint256 newSpent = spending.amount + amount;
 
         require(newSpent <= _getSpendingLimit(institution), "User spending limit exceeded for period");
@@ -315,7 +315,7 @@ contract InstitutionalTreasuryFacet is ReentrancyGuardTransient {
         // Track total historical spending (never reset, used for refunds)
         spending.totalHistoricalSpent += amount;
 
-        emit InstitutionalUserSpent(institution, puc, amount, newSpent, periodStart);
+        emit InstitutionalUserSpent(institution, pucHash, amount, newSpent, periodStart);
     }
 
     /// @notice Refund balance back to the institution's institutional treasury (e.g., when canceling a reservation)
@@ -323,11 +323,11 @@ contract InstitutionalTreasuryFacet is ReentrancyGuardTransient {
     ///      This reverses a previous spend, incrementing treasury and decrementing user's spent amount
     ///      Allows refunds from past periods
     /// @param institution The institution who owns the treasury
-    /// @param puc The schacPersonalUniqueCode of the user
+    /// @param pucHash The canonical PUC hash of the user
     /// @param amount Amount to refund
     function refundToInstitutionalTreasury(
         address institution,
-        string calldata puc,
+        bytes32 pucHash,
         uint256 amount
     ) external {
         // Prevent compromised backends from calling this function arbitrarily
@@ -339,7 +339,7 @@ contract InstitutionalTreasuryFacet is ReentrancyGuardTransient {
         // Allow zero-price refunds (free labs) - nothing to refund
         if (amount == 0) return;
 
-        InstitutionalUserSpending storage spending = s.institutionalUserSpending[institution][puc];
+        InstitutionalUserSpending storage spending = s.institutionalUserSpending[institution][pucHash];
 
         // Use totalHistoricalSpent for validation (never reset across periods)
         // This allows refunds for bookings made in previous periods
@@ -361,7 +361,7 @@ contract InstitutionalTreasuryFacet is ReentrancyGuardTransient {
         uint256 periodDuration = _getSpendingPeriod(institution);
         uint256 currentPeriodStart = _currentPeriodStart(institution, periodDuration);
 
-        emit InstitutionalUserSpent(institution, puc, 0, spending.amount, currentPeriodStart); // Emit with 0 to indicate refund
+        emit InstitutionalUserSpent(institution, pucHash, 0, spending.amount, currentPeriodStart); // Emit with 0 to indicate refund
     }
 
     /// @notice Get institution's institutional treasury balance
@@ -374,17 +374,17 @@ contract InstitutionalTreasuryFacet is ReentrancyGuardTransient {
 
     /// @notice Get institutional user's spent amount in current period
     /// @param institution The institution who owns the treasury
-    /// @param puc The user's schacPersonalUniqueCode
+    /// @param pucHash The user's canonical PUC hash
     /// @return The amount spent in the current period
     function getInstitutionalUserSpent(
         address institution,
-        string calldata puc
+        bytes32 pucHash
     ) external view returns (uint256) {
         AppStorage storage s = LibAppStorage.diamondStorage();
         uint256 periodDuration = _getSpendingPeriod(institution);
         uint256 currentPeriodStart = _currentPeriodStart(institution, periodDuration);
 
-        InstitutionalUserSpending storage spending = s.institutionalUserSpending[institution][puc];
+        InstitutionalUserSpending storage spending = s.institutionalUserSpending[institution][pucHash];
 
         // If stored period doesn't match current period, spending is 0 (would be reset on next write)
         if (spending.periodStart != currentPeriodStart) {
@@ -396,18 +396,18 @@ contract InstitutionalTreasuryFacet is ReentrancyGuardTransient {
 
     /// @notice Get institutional user's spending data (amount and period start)
     /// @param institution The institution who owns the treasury
-    /// @param puc The user's schacPersonalUniqueCode
+    /// @param pucHash The user's canonical PUC hash
     /// @return amount The amount spent in the current period
     /// @return periodStart The start timestamp of the current period
     function getInstitutionalUserSpendingData(
         address institution,
-        string calldata puc
+        bytes32 pucHash
     ) external view returns (uint256 amount, uint256 periodStart) {
         AppStorage storage s = LibAppStorage.diamondStorage();
         uint256 periodDuration = _getSpendingPeriod(institution);
         uint256 currentPeriodStart = _currentPeriodStart(institution, periodDuration);
 
-        InstitutionalUserSpending storage spending = s.institutionalUserSpending[institution][puc];
+        InstitutionalUserSpending storage spending = s.institutionalUserSpending[institution][pucHash];
 
         // If stored period doesn't match current period, spending is 0 (would be reset on next write)
         if (spending.periodStart != currentPeriodStart) {
@@ -445,18 +445,18 @@ contract InstitutionalTreasuryFacet is ReentrancyGuardTransient {
 
     /// @notice Get remaining spending allowance for an institutional user in current period
     /// @param institution The institution who owns the treasury
-    /// @param puc The schacPersonalUniqueCode of the user
+    /// @param pucHash The canonical PUC hash of the user
     /// @return The remaining amount the user can spend in the current period
     function getInstitutionalUserRemainingAllowance(
         address institution,
-        string calldata puc
+        bytes32 pucHash
     ) external view returns (uint256) {
         AppStorage storage s = LibAppStorage.diamondStorage();
         uint256 limit = _getSpendingLimit(institution);
         uint256 periodDuration = _getSpendingPeriod(institution);
         uint256 currentPeriodStart = _currentPeriodStart(institution, periodDuration);
 
-        InstitutionalUserSpending storage spending = s.institutionalUserSpending[institution][puc];
+        InstitutionalUserSpending storage spending = s.institutionalUserSpending[institution][pucHash];
 
         // If stored period doesn't match current period, full limit is available
         if (spending.periodStart != currentPeriodStart) {
@@ -470,7 +470,7 @@ contract InstitutionalTreasuryFacet is ReentrancyGuardTransient {
     /// @notice Get comprehensive financial statistics for an institutional user
     /// @dev Provides all financial metrics needed for user dashboard in a single call
     /// @param institution The institution who owns the treasury
-    /// @param puc The schacPersonalUniqueCode of the institutional user
+    /// @param pucHash The canonical PUC hash of the institutional user
     /// @return currentPeriodSpent Amount spent in the current period
     /// @return totalHistoricalSpent Total amount ever spent (across all periods)
     /// @return spendingLimit Maximum allowed spending per period
@@ -480,7 +480,7 @@ contract InstitutionalTreasuryFacet is ReentrancyGuardTransient {
     /// @return periodDuration Duration of each spending period in seconds
     function getInstitutionalUserFinancialStats(
         address institution,
-        string calldata puc
+        bytes32 pucHash
     )
         external
         view
@@ -505,7 +505,7 @@ contract InstitutionalTreasuryFacet is ReentrancyGuardTransient {
         periodEnd = periodStart + periodDuration;
 
         // Get user spending data
-        InstitutionalUserSpending storage spending = s.institutionalUserSpending[institution][puc];
+        InstitutionalUserSpending storage spending = s.institutionalUserSpending[institution][pucHash];
         totalHistoricalSpent = spending.totalHistoricalSpent;
 
         // If stored period matches current period, use stored spending

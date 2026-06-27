@@ -8,7 +8,7 @@ import {LibReservationCancellation} from "./LibReservationCancellation.sol";
 interface IInstValidation {
     function validateInstRequest(
         address p,
-        string calldata u,
+        bytes32 u,
         uint256 l,
         uint32 st,
         uint32 en
@@ -21,7 +21,7 @@ struct InstInput {
     uint256 l;
     uint32 s;
     uint32 e;
-    string u;
+    bytes32 u;
     bytes32 k;
     address t;
 }
@@ -41,7 +41,7 @@ interface IInstCreation {
 interface IInstitutionalTreasuryFacet {
     function refundToInstitutionalTreasury(
         address provider,
-        string calldata puc,
+        bytes32 pucHash,
         uint256 amount
     ) external;
 }
@@ -61,18 +61,18 @@ library LibInstitutionalReservation {
 
     function requestReservation(
         address institutionalProvider,
-        string calldata puc,
+        bytes32 pucHash,
         uint256 labId,
         uint32 start,
         uint32 end
     ) internal {
         (address owner, bytes32 key, address trackingKey) =
-            IInstValidation(address(this)).validateInstRequest(institutionalProvider, puc, labId, start, end);
+            IInstValidation(address(this)).validateInstRequest(institutionalProvider, pucHash, labId, start, end);
 
         IInstCreation(address(this))
             .createInstReservation(
                 InstInput({
-                p: institutionalProvider, o: owner, l: labId, s: start, e: end, u: puc, k: key, t: trackingKey
+                p: institutionalProvider, o: owner, l: labId, s: start, e: end, u: pucHash, k: key, t: trackingKey
             })
             );
         IInstCreation(address(this)).recordRecentInstReservation(labId, trackingKey, key, start);
@@ -80,7 +80,7 @@ library LibInstitutionalReservation {
 
     function cancelReservationRequest(
         address institutionalProvider,
-        string calldata puc,
+        bytes32 pucHash,
         bytes32 reservationKey
     ) internal returns (uint256 labId) {
         AppStorage storage s = LibAppStorage.diamondStorage();
@@ -91,7 +91,7 @@ library LibInstitutionalReservation {
         if (reservation.renter == address(0)) revert InstReservationNotFound();
         if (reservation.payerInstitution != institutionalProvider) revert NotRenter();
         if (reservation.status != _PENDING) revert NotPending();
-        if (!_pucMatches(s, reservation, reservationKey, puc)) revert PucMismatch();
+        if (!_pucHashMatches(s, reservationKey, pucHash)) revert PucMismatch();
 
         labId = reservation.labId;
         LibReservationCancellation.cancelReservation(reservationKey);
@@ -99,7 +99,7 @@ library LibInstitutionalReservation {
 
     function cancelBooking(
         address institutionalProvider,
-        string memory puc,
+        bytes32 pucHash,
         bytes32 reservationKey
     ) internal returns (uint256 labId) {
         AppStorage storage s = LibAppStorage.diamondStorage();
@@ -114,7 +114,7 @@ library LibInstitutionalReservation {
             revert InvalidStatus();
         }
         if (reservation.payerInstitution != institutionalProvider) revert NotRenter();
-        if (!_pucMatches(s, reservation, reservationKey, puc)) revert PucMismatch();
+        if (!_pucHashMatches(s, reservationKey, pucHash)) revert PucMismatch();
 
         labId = reservation.labId;
 
@@ -133,16 +133,15 @@ library LibInstitutionalReservation {
         }
 
         IInstitutionalTreasuryFacet(address(this))
-            .refundToInstitutionalTreasury(reservation.payerInstitution, puc, refundAmount);
+            .refundToInstitutionalTreasury(reservation.payerInstitution, pucHash, refundAmount);
     }
 
-    function _pucMatches(
+    function _pucHashMatches(
         AppStorage storage s,
-        Reservation storage,
         bytes32 reservationKey,
-        string memory puc
+        bytes32 pucHash
     ) internal view returns (bool) {
         bytes32 storedHash = s.reservationPucHash[reservationKey];
-        return storedHash != bytes32(0) && storedHash == keccak256(bytes(puc));
+        return storedHash != bytes32(0) && storedHash == pucHash;
     }
 }

@@ -55,25 +55,25 @@ contract ToggleRefundHarness {
 
     function cancelBookingWrapper(
         address institutionalProvider,
-        string calldata puc,
+        bytes32 pucHash,
         bytes32 reservationKey
     ) external returns (uint256) {
-        return LibInstitutionalReservation.cancelBooking(institutionalProvider, puc, reservationKey);
+        return LibInstitutionalReservation.cancelBooking(institutionalProvider, pucHash, reservationKey);
     }
 
     // capture refunds and support toggling failure
     address public lastRefundProvider;
-    string public lastRefundPuc;
+    bytes32 public lastRefundPucHash;
     uint256 public lastRefundAmount;
 
     function refundToInstitutionalTreasury(
         address provider,
-        string calldata puc,
+        bytes32 pucHash,
         uint256 amount
     ) external {
         if (failRefund) revert("refund failed");
         lastRefundProvider = provider;
-        lastRefundPuc = puc;
+        lastRefundPucHash = pucHash;
         lastRefundAmount = amount;
     }
 
@@ -130,12 +130,12 @@ contract IntegrationDiamondReservationTest is BaseTest {
 
         // confirm as backend
         vm.prank(BACKEND);
-        confirm.confirmInstitutionalReservationRequestWithPuc(INSTITUTION, key, puc);
+        confirm.confirmInstitutionalReservationRequestWithPucHash(INSTITUTION, key, keccak256(bytes(puc)));
 
         // confirmed and treasury spent recorded
         assertEq(confirm.getReservationStatus(key), _CONFIRMED);
         assertEq(confirm.lastSpentProvider(), INSTITUTION);
-        assertEq(confirm.lastSpentPuc(), puc);
+        assertEq(confirm.lastSpentPucHash(), keccak256(bytes(puc)));
         assertEq(confirm.lastSpentAmount(), price);
 
         // now cancel booking as backend; use inst harness which records refunds
@@ -149,11 +149,11 @@ contract IntegrationDiamondReservationTest is BaseTest {
         assertEq(inst.getReservationStatus(key), _CONFIRMED);
 
         vm.prank(BACKEND);
-        inst.cancelBookingWrapper(INSTITUTION, puc, key);
+        inst.cancelBookingWrapper(INSTITUTION, keccak256(bytes(puc)), key);
 
         // after successful cancel, refund should be recorded in harness
         assertEq(inst.lastRefundProvider(), INSTITUTION);
-        assertEq(inst.lastRefundPuc(), puc);
+        assertEq(inst.lastRefundPucHash(), keccak256(bytes(puc)));
         // fee/refund arithmetic verifies at least non-zero refund amount
         assert(inst.lastRefundAmount() > 0);
         assertEq(inst.getReservationStatus(key), _CANCELLED);
@@ -185,7 +185,7 @@ contract IntegrationDiamondReservationTest is BaseTest {
         vm.prank(BACKEND);
         // expect revert because refund reverts and bubbles
         vm.expectRevert(bytes("refund failed"));
-        toggler.cancelBookingWrapper(INSTITUTION, puc, key);
+        toggler.cancelBookingWrapper(INSTITUTION, keccak256(bytes(puc)), key);
 
         // reservation should remain confirmed (no partial state change)
         assertEq(toggler.getReservationStatus(key), _CONFIRMED);
@@ -193,11 +193,11 @@ contract IntegrationDiamondReservationTest is BaseTest {
         // now succeed refund and retry
         toggler.setFailRefund(false);
         vm.prank(BACKEND);
-        toggler.cancelBookingWrapper(INSTITUTION, puc, key);
+        toggler.cancelBookingWrapper(INSTITUTION, keccak256(bytes(puc)), key);
 
         // now reservation cancelled and refund recorded
         assertEq(toggler.lastRefundProvider(), INSTITUTION);
-        assertEq(toggler.lastRefundPuc(), puc);
+        assertEq(toggler.lastRefundPucHash(), keccak256(bytes(puc)));
         assert(toggler.lastRefundAmount() > 0);
     }
 }

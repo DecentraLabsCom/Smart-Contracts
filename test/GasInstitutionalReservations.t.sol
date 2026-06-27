@@ -75,7 +75,7 @@ contract InstitutionalRequestGasHarness is
 
     function institutionalReservationRequest(
         address institution,
-        string calldata puc,
+        bytes32 pucHash,
         uint256 labId,
         uint32 start,
         uint32 end
@@ -87,12 +87,12 @@ contract InstitutionalRequestGasHarness is
             revert("UnauthorizedInstitution");
         }
         if (owners[labId] == address(0)) revert("TokenNotFound");
-        LibInstitutionalReservation.requestReservation(institution, puc, labId, start, end);
+        LibInstitutionalReservation.requestReservation(institution, pucHash, labId, start, end);
     }
 
     function checkInstitutionalTreasuryAvailability(
         address,
-        string calldata,
+        bytes32,
         uint256
     ) external pure {}
 }
@@ -199,10 +199,10 @@ contract GasInstitutionalReservationsTest is Test {
         (uint32 start, uint32 end) = _requestWindow(3600);
 
         vm.prank(institutionBackend);
-        requestHarness.institutionalReservationRequest(institution, "alice@inst", labId, start, end);
+        requestHarness.institutionalReservationRequest(institution, keccak256(bytes("alice@inst")), labId, start, end);
     }
 
-    function testGas_ConfirmInstitutionalReservationRequestWithPuc() public {
+    function testGas_ConfirmInstitutionalReservationRequestWithPucHash() public {
         (uint32 start,) = _requestWindow(7200);
         bytes32 key = _reservationKey(start);
         uint96 totalPrice = pricePerSecond * 3600;
@@ -210,7 +210,7 @@ contract GasInstitutionalReservationsTest is Test {
         confirmHarness.setReservation(key, address(0xABCD), institution, totalPrice, _PENDING, labId, start, "bob@inst");
 
         vm.prank(provider);
-        confirmHarness.confirmInstitutionalReservationRequestWithPuc(institution, key, "bob@inst");
+        confirmHarness.confirmInstitutionalReservationRequestWithPucHash(institution, key, keccak256(bytes("bob@inst")));
     }
 
     function testGas_DenyInstitutionalReservationRequest() public {
@@ -232,10 +232,10 @@ contract GasInstitutionalReservationsTest is Test {
         );
 
         vm.prank(institutionBackend);
-        cancellationHarness.cancelReservationRequestWrapper(institution, "dave@inst", key);
+        cancellationHarness.cancelReservationRequestWrapper(institution, keccak256(bytes("dave@inst")), key);
     }
 
-    function testGas_CancelInstitutionalBookingWithPuc() public {
+    function testGas_CancelInstitutionalBookingWithPucHash() public {
         (uint32 start,) = _requestWindow(18_000);
         bytes32 key = _reservationKey(start);
 
@@ -244,6 +244,6 @@ contract GasInstitutionalReservationsTest is Test {
         );
 
         vm.prank(institutionBackend);
-        cancellationHarness.cancelBookingWrapper(institution, "erin@inst", key);
+        cancellationHarness.cancelBookingWrapper(institution, keccak256(bytes("erin@inst")), key);
     }
 }

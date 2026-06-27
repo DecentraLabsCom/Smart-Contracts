@@ -35,7 +35,7 @@ contract InstitutionalReservationConfirmationTest is BaseTest {
         harness.setProviderActive(provider);
 
         vm.prank(inst);
-        harness.confirmInstitutionalReservationRequestWithPuc(inst, key, puc);
+        harness.confirmInstitutionalReservationRequestWithPucHash(inst, key, keccak256(bytes(puc)));
 
         assertEq(harness.getReservationStatus(key), _CONFIRMED);
         assertEq(harness.lastSpentAmount(), uint256(price));

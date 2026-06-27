@@ -33,7 +33,7 @@ library LibIntent {
         "IntentMeta(bytes32 requestId,address signer,address executor,uint8 action,bytes32 payloadHash,uint256 nonce,uint64 requestedAt,uint64 expiresAt)"
     );
     bytes32 internal constant RESERVATION_PAYLOAD_TYPEHASH = keccak256(
-        "ReservationIntentPayload(address executor,string schacHomeOrganization,string puc,bytes32 assertionHash,uint256 labId,uint32 start,uint32 end,uint96 price,bytes32 reservationKey)"
+        "ReservationIntentPayload(address executor,string schacHomeOrganization,bytes32 pucHash,bytes32 assertionHash,uint256 labId,uint32 start,uint32 end,uint96 price,bytes32 reservationKey)"
     );
     bytes32 internal constant ACTION_PAYLOAD_TYPEHASH = keccak256(
         "ActionIntentPayload(address executor,string schacHomeOrganization,bytes32 pucHash,bytes32 assertionHash,uint256 labId,bytes32 reservationKey,string uri,uint96 price,uint96 maxBatch,string accessURI,string accessKey,string tokenURI,uint8 resourceType)"
@@ -97,13 +97,12 @@ library LibIntent {
         ReservationIntentPayload memory payload
     ) internal pure returns (bytes32) {
         bytes32 schacHash = keccak256(bytes(payload.schacHomeOrganization));
-        bytes32 pucHash = keccak256(bytes(payload.puc));
         return _keccak(
             abi.encode(
                 RESERVATION_PAYLOAD_TYPEHASH,
                 payload.executor,
                 schacHash,
-                pucHash,
+                payload.pucHash,
                 payload.assertionHash,
                 payload.labId,
                 payload.start,

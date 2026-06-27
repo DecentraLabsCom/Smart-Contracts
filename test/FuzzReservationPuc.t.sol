@@ -45,7 +45,7 @@ contract FuzzReservationPucTest is BaseTest {
         confirmHarness.setReservation(key, user1, inst, 1000, 0, labId, start, puc);
 
         vm.prank(inst);
-        confirmHarness.ext_confirmWithPuc(inst, key, puc);
+        confirmHarness.ext_confirmWithPucHash(inst, key, keccak256(bytes(puc)));
 
         assertEq(confirmHarness.getReservationStatus(key), 1);
     }
@@ -76,7 +76,7 @@ contract FuzzReservationPucTest is BaseTest {
 
         vm.prank(inst);
         vm.expectRevert();
-        confirmHarness.ext_confirmWithPuc(inst, key, wrong);
+        confirmHarness.ext_confirmWithPucHash(inst, key, keccak256(bytes(wrong)));
     }
 
     // Fuzz: cancellation fees are consistent (sum of fees + refund == price)

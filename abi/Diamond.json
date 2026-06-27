@@ -677,11 +677,6 @@
   },
   {
     "type": "error",
-    "name": "PucRequired",
-    "inputs": []
-  },
-  {
-    "type": "error",
     "name": "InsufficientAvailableCredits",
     "inputs": []
   },
@@ -1165,7 +1160,7 @@
   },
   {
     "type": "function",
-    "name": "cancelInstitutionalBookingWithPuc",
+    "name": "cancelInstitutionalBookingWithPucHash",
     "inputs": [
       {
         "name": "institutionalProvider",
@@ -1178,9 +1173,9 @@
         "internalType": "bytes32"
       },
       {
-        "name": "puc",
-        "type": "string",
-        "internalType": "string"
+        "name": "pucHash",
+        "type": "bytes32",
+        "internalType": "bytes32"
       }
     ],
     "outputs": [],
@@ -1196,9 +1191,9 @@
         "internalType": "address"
       },
       {
-        "name": "puc",
-        "type": "string",
-        "internalType": "string"
+        "name": "pucHash",
+        "type": "bytes32",
+        "internalType": "bytes32"
       },
       {
         "name": "_reservationKey",
@@ -1211,7 +1206,7 @@
   },
   {
     "type": "function",
-    "name": "confirmInstitutionalReservationRequestWithPuc",
+    "name": "confirmInstitutionalReservationRequestWithPucHash",
     "inputs": [
       {
         "name": "i",
@@ -1224,9 +1219,9 @@
         "internalType": "bytes32"
       },
       {
-        "name": "puc",
-        "type": "string",
-        "internalType": "string"
+        "name": "pucHash",
+        "type": "bytes32",
+        "internalType": "bytes32"
       }
     ],
     "outputs": [],
@@ -1276,35 +1271,6 @@
         "internalType": "address"
       },
       {
-        "name": "puc",
-        "type": "string",
-        "internalType": "string"
-      },
-      {
-        "name": "labId",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ],
-    "outputs": [
-      {
-        "name": "count",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "getInstitutionalUserActiveCountByHash",
-    "inputs": [
-      {
-        "name": "institutionalProvider",
-        "type": "address",
-        "internalType": "address"
-      },
-      {
         "name": "pucHash",
         "type": "bytes32",
         "internalType": "bytes32"
@@ -1334,9 +1300,9 @@
         "internalType": "address"
       },
       {
-        "name": "puc",
-        "type": "string",
-        "internalType": "string"
+        "name": "pucHash",
+        "type": "bytes32",
+        "internalType": "bytes32"
       },
       {
         "name": "labId",
@@ -1363,9 +1329,9 @@
         "internalType": "address"
       },
       {
-        "name": "puc",
-        "type": "string",
-        "internalType": "string"
+        "name": "pucHash",
+        "type": "bytes32",
+        "internalType": "bytes32"
       },
       {
         "name": "index",
@@ -1392,9 +1358,9 @@
         "internalType": "address"
       },
       {
-        "name": "puc",
-        "type": "string",
-        "internalType": "string"
+        "name": "pucHash",
+        "type": "bytes32",
+        "internalType": "bytes32"
       }
     ],
     "outputs": [
@@ -1631,9 +1597,9 @@
         "internalType": "address"
       },
       {
-        "name": "puc",
-        "type": "string",
-        "internalType": "string"
+        "name": "pucHash",
+        "type": "bytes32",
+        "internalType": "bytes32"
       },
       {
         "name": "labId",
@@ -1754,8 +1720,8 @@
           },
           {
             "name": "u",
-            "type": "string",
-            "internalType": "string"
+            "type": "bytes32",
+            "internalType": "bytes32"
           },
           {
             "name": "k",
@@ -2094,9 +2060,9 @@
         "internalType": "address"
       },
       {
-        "name": "puc",
-        "type": "string",
-        "internalType": "string"
+        "name": "pucHash",
+        "type": "bytes32",
+        "internalType": "bytes32"
       },
       {
         "name": "lid",
@@ -2128,8 +2094,8 @@
       },
       {
         "name": "u",
-        "type": "string",
-        "internalType": "string"
+        "type": "bytes32",
+        "internalType": "bytes32"
       },
       {
         "name": "l",
@@ -2207,9 +2173,9 @@
         "internalType": "address"
       },
       {
-        "name": "puc",
-        "type": "string",
-        "internalType": "string"
+        "name": "pucHash",
+        "type": "bytes32",
+        "internalType": "bytes32"
       },
       {
         "name": "amount",
@@ -2287,9 +2253,9 @@
         "internalType": "address"
       },
       {
-        "name": "puc",
-        "type": "string",
-        "internalType": "string"
+        "name": "pucHash",
+        "type": "bytes32",
+        "internalType": "bytes32"
       }
     ],
     "outputs": [
@@ -2360,9 +2326,9 @@
         "internalType": "address"
       },
       {
-        "name": "puc",
-        "type": "string",
-        "internalType": "string"
+        "name": "pucHash",
+        "type": "bytes32",
+        "internalType": "bytes32"
       }
     ],
     "outputs": [
@@ -2384,9 +2350,9 @@
         "internalType": "address"
       },
       {
-        "name": "puc",
-        "type": "string",
-        "internalType": "string"
+        "name": "pucHash",
+        "type": "bytes32",
+        "internalType": "bytes32"
       }
     ],
     "outputs": [
@@ -2413,9 +2379,9 @@
         "internalType": "address"
       },
       {
-        "name": "puc",
-        "type": "string",
-        "internalType": "string"
+        "name": "pucHash",
+        "type": "bytes32",
+        "internalType": "bytes32"
       }
     ],
     "outputs": [
@@ -2437,9 +2403,9 @@
         "internalType": "address"
       },
       {
-        "name": "puc",
-        "type": "string",
-        "internalType": "string"
+        "name": "pucHash",
+        "type": "bytes32",
+        "internalType": "bytes32"
       },
       {
         "name": "amount",
@@ -2500,9 +2466,9 @@
         "internalType": "address"
       },
       {
-        "name": "puc",
-        "type": "string",
-        "internalType": "string"
+        "name": "pucHash",
+        "type": "bytes32",
+        "internalType": "bytes32"
       },
       {
         "name": "amount",
@@ -3008,9 +2974,9 @@
             "internalType": "string"
           },
           {
-            "name": "puc",
-            "type": "string",
-            "internalType": "string"
+            "name": "pucHash",
+            "type": "bytes32",
+            "internalType": "bytes32"
           },
           {
             "name": "assertionHash",
@@ -5185,11 +5151,6 @@
             "internalType": "uint8"
           }
         ]
-      },
-      {
-        "name": "puc",
-        "type": "string",
-        "internalType": "string"
       }
     ],
     "outputs": [],
@@ -5220,9 +5181,9 @@
             "internalType": "string"
           },
           {
-            "name": "puc",
-            "type": "string",
-            "internalType": "string"
+            "name": "pucHash",
+            "type": "bytes32",
+            "internalType": "bytes32"
           },
           {
             "name": "assertionHash",
@@ -5285,9 +5246,9 @@
             "internalType": "string"
           },
           {
-            "name": "puc",
-            "type": "string",
-            "internalType": "string"
+            "name": "pucHash",
+            "type": "bytes32",
+            "internalType": "bytes32"
           },
           {
             "name": "assertionHash",
@@ -5350,9 +5311,9 @@
             "internalType": "string"
           },
           {
-            "name": "puc",
-            "type": "string",
-            "internalType": "string"
+            "name": "pucHash",
+            "type": "bytes32",
+            "internalType": "bytes32"
           },
           {
             "name": "assertionHash",
@@ -6715,10 +6676,10 @@
         "internalType": "address"
       },
       {
-        "name": "puc",
-        "type": "string",
+        "name": "pucHash",
+        "type": "bytes32",
         "indexed": true,
-        "internalType": "string"
+        "internalType": "bytes32"
       },
       {
         "name": "amount",
@@ -7661,10 +7622,10 @@
         "internalType": "string"
       },
       {
-        "name": "puc",
-        "type": "string",
+        "name": "pucHash",
+        "type": "bytes32",
         "indexed": false,
-        "internalType": "string"
+        "internalType": "bytes32"
       },
       {
         "name": "institution",

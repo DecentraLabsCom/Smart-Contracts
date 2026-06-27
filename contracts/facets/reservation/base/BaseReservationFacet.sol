@@ -13,17 +13,17 @@ import {LibProviderReceivable} from "../../../libraries/LibProviderReceivable.so
 interface IInstitutionalTreasuryFacet {
     function checkInstitutionalTreasuryAvailability(
         address provider,
-        string calldata puc,
+        bytes32 pucHash,
         uint256 amount
     ) external view;
     function spendFromInstitutionalTreasury(
         address provider,
-        string calldata puc,
+        bytes32 pucHash,
         uint256 amount
     ) external;
     function refundToInstitutionalTreasury(
         address provider,
-        string calldata puc,
+        bytes32 pucHash,
         uint256 amount
     ) external;
 }
@@ -96,7 +96,7 @@ abstract contract BaseReservationFacet is InstitutionalReservableTokenEnumerable
 
     function _institutionalReservationRequest(
         address, /* institutionalProvider */
-        string calldata, /* puc */
+        bytes32, /* pucHash */
         uint256, /* _labId */
         uint32, /* _start */
         uint32 /* _end */
@@ -137,7 +137,7 @@ abstract contract BaseReservationFacet is InstitutionalReservableTokenEnumerable
 
     function _cancelInstitutionalReservationRequest(
         address, /* institutionalProvider */
-        string calldata, /* puc */
+        bytes32, /* pucHash */
         bytes32 /* _reservationKey */
     ) internal virtual {
         revert NotImplemented();
@@ -169,7 +169,7 @@ abstract contract BaseReservationFacet is InstitutionalReservableTokenEnumerable
 
     function _releaseInstitutionalExpiredReservations(
         address, /* institutionalProvider */
-        string calldata, /* puc */
+        bytes32, /* pucHash */
         uint256, /* _labId */
         uint256 /* maxBatch */
     ) internal virtual returns (uint256) {
@@ -178,14 +178,14 @@ abstract contract BaseReservationFacet is InstitutionalReservableTokenEnumerable
 
     function _getInstitutionalUserReservationCount(
         address, /* institutionalProvider */
-        string calldata /* puc */
+        bytes32 /* pucHash */
     ) internal view virtual returns (uint256) {
         revert NotImplemented();
     }
 
     function _getInstitutionalUserReservationByIndex(
         address, /* institutionalProvider */
-        string calldata, /* puc */
+        bytes32, /* pucHash */
         uint256 /* index */
     ) internal view virtual returns (bytes32) {
         revert NotImplemented();
@@ -193,7 +193,7 @@ abstract contract BaseReservationFacet is InstitutionalReservableTokenEnumerable
 
     function _hasInstitutionalUserActiveBooking(
         address, /* institutionalProvider */
-        string calldata, /* puc */
+        bytes32, /* pucHash */
         uint256 /* labId */
     ) internal virtual returns (bool) {
         revert NotImplemented();
@@ -201,7 +201,7 @@ abstract contract BaseReservationFacet is InstitutionalReservableTokenEnumerable
 
     function _getInstitutionalUserActiveReservationKey(
         address, /* institutionalProvider */
-        string calldata, /* puc */
+        bytes32, /* pucHash */
         uint256 /* labId */
     ) internal virtual returns (bytes32) {
         revert NotImplemented();

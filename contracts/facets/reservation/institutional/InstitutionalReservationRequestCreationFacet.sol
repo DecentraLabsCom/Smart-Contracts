@@ -8,7 +8,7 @@ import {AppStorage, Reservation} from "../../../libraries/LibAppStorage.sol";
 interface IInstitutionalTreasuryFacetLight {
     function checkInstitutionalTreasuryAvailability(
         address provider,
-        string calldata puc,
+        bytes32 pucHash,
         uint256 amount
     ) external view;
 }
@@ -23,7 +23,7 @@ contract InstitutionalReservationRequestCreationFacet is BaseMinimalReservationF
         uint256 l;
         uint32 s;
         uint32 e;
-        string u;
+        bytes32 u;
         bytes32 k;
         address t;
     }
@@ -48,7 +48,6 @@ contract InstitutionalReservationRequestCreationFacet is BaseMinimalReservationF
             IInstitutionalTreasuryFacetLight(address(this)).checkInstitutionalTreasuryAvailability(i.p, i.u, pr);
         }
 
-        bytes32 pucHash = keccak256(bytes(i.u));
         // forge-lint: disable-next-line(unsafe-typecast)
         uint64 rs = uint64(block.timestamp);
         // forge-lint: disable-next-line(unsafe-typecast)
@@ -68,7 +67,7 @@ contract InstitutionalReservationRequestCreationFacet is BaseMinimalReservationF
         r.payerInstitution = i.p;
         r.collectorInstitution = hc != address(0) ? i.o : address(0);
         r.providerShare = 0;
-        s.reservationPucHash[i.k] = pucHash;
+        s.reservationPucHash[i.k] = i.u;
 
         s.totalReservationsCount++;
         s.renters[i.p].add(i.k);

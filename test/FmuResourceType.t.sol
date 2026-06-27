@@ -44,7 +44,7 @@ contract FmuResourceTypeTest is BaseTest {
 
         // confirm first
         vm.prank(inst);
-        harness.confirmInstitutionalReservationRequestWithPuc(inst, key1, "alice@inst");
+        harness.confirmInstitutionalReservationRequestWithPucHash(inst, key1, keccak256(bytes("alice@inst")));
         assertEq(harness.getReservationStatus(key1), _CONFIRMED);
 
         // set up second overlapping reservation
@@ -52,7 +52,7 @@ contract FmuResourceTypeTest is BaseTest {
 
         // confirm second — should NOT revert because FMU bypasses calendar insert
         vm.prank(inst);
-        harness.confirmInstitutionalReservationRequestWithPuc(inst, key2, "bob@inst");
+        harness.confirmInstitutionalReservationRequestWithPucHash(inst, key2, keccak256(bytes("bob@inst")));
         assertEq(harness.getReservationStatus(key2), _CONFIRMED);
     }
 
@@ -77,7 +77,7 @@ contract FmuResourceTypeTest is BaseTest {
 
         // confirm first
         vm.prank(inst);
-        harness.confirmInstitutionalReservationRequestWithPuc(inst, key1, "alice@inst");
+        harness.confirmInstitutionalReservationRequestWithPucHash(inst, key1, keccak256(bytes("alice@inst")));
         assertEq(harness.getReservationStatus(key1), _CONFIRMED);
 
         // set up second overlapping reservation
@@ -86,7 +86,7 @@ contract FmuResourceTypeTest is BaseTest {
         // confirm second — should revert because regular lab uses exclusive calendar
         vm.prank(inst);
         vm.expectRevert();
-        harness.confirmInstitutionalReservationRequestWithPuc(inst, key2, "bob@inst");
+        harness.confirmInstitutionalReservationRequestWithPucHash(inst, key2, keccak256(bytes("bob@inst")));
     }
 
     /// @notice FMU default resourceType value is 0 (backward compatible)
@@ -110,14 +110,14 @@ contract FmuResourceTypeTest is BaseTest {
         harness.setProviderActive(provider);
 
         vm.prank(inst);
-        harness.confirmInstitutionalReservationRequestWithPuc(inst, key1, "alice@inst");
+        harness.confirmInstitutionalReservationRequestWithPucHash(inst, key1, keccak256(bytes("alice@inst")));
 
         harness.setReservation(key2, address(0xBBBB), inst, 50, _PENDING, labId, start2, "bob@inst");
 
         // should revert — default resourceType is 0 (exclusive calendar)
         vm.prank(inst);
         vm.expectRevert();
-        harness.confirmInstitutionalReservationRequestWithPuc(inst, key2, "bob@inst");
+        harness.confirmInstitutionalReservationRequestWithPucHash(inst, key2, keccak256(bytes("bob@inst")));
     }
 
     /// @notice FMU lab: three concurrent users should all succeed (#26 wallet-path overlap)
@@ -145,7 +145,7 @@ contract FmuResourceTypeTest is BaseTest {
             harness.setReservation(key, renter, inst, 50, _PENDING, labId, start, puc);
 
             vm.prank(inst);
-            harness.confirmInstitutionalReservationRequestWithPuc(inst, key, puc);
+            harness.confirmInstitutionalReservationRequestWithPucHash(inst, key, keccak256(bytes(puc)));
             assertEq(harness.getReservationStatus(key), _CONFIRMED);
         }
     }

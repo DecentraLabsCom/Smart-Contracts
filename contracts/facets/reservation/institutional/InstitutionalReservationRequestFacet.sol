@@ -15,14 +15,14 @@ contract InstitutionalReservationRequestFacet {
 
     function institutionalReservationRequest(
         address ip,
-        string calldata puc,
+        bytes32 pucHash,
         uint256 lid,
         uint32 st,
         uint32 en
     ) external {
         _checkExists(lid);
         _onlyInstitution(ip);
-        LibInstitutionalReservation.requestReservation(ip, puc, lid, st, en);
+        LibInstitutionalReservation.requestReservation(ip, pucHash, lid, st, en);
     }
 
     function _s() internal pure returns (AppStorage storage s) {

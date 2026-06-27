@@ -12,7 +12,7 @@ contract ReservationIntentHarness is ReservationIntentFacet {
     using EnumerableSet for EnumerableSet.AddressSet;
 
     address public lastRefundInstitution;
-    string public lastRefundPuc;
+    bytes32 public lastRefundPucHash;
     uint256 public lastRefundAmount;
 
     function setInstitution(
@@ -75,11 +75,11 @@ contract ReservationIntentHarness is ReservationIntentFacet {
 
     function refundToInstitutionalTreasury(
         address institution,
-        string calldata puc,
+        bytes32 pucHash,
         uint256 amount
     ) external {
         lastRefundInstitution = institution;
-        lastRefundPuc = puc;
+        lastRefundPucHash = pucHash;
         lastRefundAmount = amount;
     }
 }
@@ -126,12 +126,12 @@ contract ReservationIntentFacetTest is Test {
         harness.setPendingCancelBookingIntent(requestId, institution, payload);
 
         vm.prank(institution);
-        harness.cancelInstitutionalBookingWithIntent(requestId, payload, PUC);
+        harness.cancelInstitutionalBookingWithIntent(requestId, payload);
 
         assertEq(uint8(harness.intentState(requestId)), uint8(IntentState.Executed));
         assertEq(harness.reservationStatus(reservationKey), 5);
         assertEq(harness.lastRefundInstitution(), institution);
-        assertEq(harness.lastRefundPuc(), PUC);
+        assertEq(harness.lastRefundPucHash(), keccak256(bytes(PUC)));
     }
 
     function test_cancelBookingWithIntent_revertsWhenPucHashMismatch() public {
@@ -144,7 +144,7 @@ contract ReservationIntentFacetTest is Test {
         harness.setPendingCancelBookingIntent(requestId, institution, payload);
 
         vm.prank(institution);
-        vm.expectRevert(bytes("PAYLOAD_PUC_MISMATCH"));
-        harness.cancelInstitutionalBookingWithIntent(requestId, payload, PUC);
+        vm.expectRevert(bytes("RESERVATION_PUC_MISMATCH"));
+        harness.cancelInstitutionalBookingWithIntent(requestId, payload);
     }
 }

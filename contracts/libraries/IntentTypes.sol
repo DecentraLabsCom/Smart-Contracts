@@ -27,7 +27,7 @@ struct IntentMeta {
 struct ReservationIntentPayload {
     address executor; // same as signer
     string schacHomeOrganization; // optional org identifier
-    string puc; // SAML schacPersonalUniqueCode
+    bytes32 pucHash; // canonical user hash provided by the signer
     bytes32 assertionHash; // off-chain assertion hash (optional)
     uint256 labId;
     uint32 start;

@@ -55,32 +55,32 @@ contract InstReservationHarness {
     // wrappers to call the internal library functions
     function cancelReservationRequestWrapper(
         address institutionalProvider,
-        string calldata puc,
+        bytes32 pucHash,
         bytes32 reservationKey
     ) external returns (uint256) {
-        return LibInstitutionalReservation.cancelReservationRequest(institutionalProvider, puc, reservationKey);
+        return LibInstitutionalReservation.cancelReservationRequest(institutionalProvider, pucHash, reservationKey);
     }
 
     function cancelBookingWrapper(
         address institutionalProvider,
-        string calldata puc,
+        bytes32 pucHash,
         bytes32 reservationKey
     ) external returns (uint256) {
-        return LibInstitutionalReservation.cancelBooking(institutionalProvider, puc, reservationKey);
+        return LibInstitutionalReservation.cancelBooking(institutionalProvider, pucHash, reservationKey);
     }
 
     // capture refunds
     address public lastRefundProvider;
-    string public lastRefundPuc;
+    bytes32 public lastRefundPucHash;
     uint256 public lastRefundAmount;
 
     function refundToInstitutionalTreasury(
         address provider,
-        string calldata puc,
+        bytes32 pucHash,
         uint256 amount
     ) external {
         lastRefundProvider = provider;
-        lastRefundPuc = puc;
+        lastRefundPucHash = pucHash;
         lastRefundAmount = amount;
     }
 
@@ -174,28 +174,28 @@ contract ConfirmHarness is InstitutionalReservationConfirmationFacet {
 
     // for test: implement spendFromInstitutionalTreasury to succeed
     address public lastSpentProvider;
-    string public lastSpentPuc;
+    bytes32 public lastSpentPucHash;
     uint256 public lastSpentAmount;
 
     function spendFromInstitutionalTreasury(
         address provider,
-        string calldata puc,
+        bytes32 pucHash,
         uint256 amount
     ) external {
         lastSpentProvider = provider;
-        lastSpentPuc = puc;
+        lastSpentPucHash = pucHash;
         lastSpentAmount = amount;
         // succeed silently
     }
 
     // expose confirm wrapper
-    function ext_confirmWithPuc(
+    function ext_confirmWithPucHash(
         address inst,
         bytes32 key,
-        string calldata puc
+        bytes32 pucHash
     ) external {
         // call external interface to emulate external actor
-        this.confirmInstitutionalReservationRequestWithPuc(inst, key, puc);
+        this.confirmInstitutionalReservationRequestWithPucHash(inst, key, pucHash);
     }
 
     // helper to set institution role and backend

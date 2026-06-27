@@ -70,7 +70,6 @@ struct Lab {
 ///      - Slot 0: labId (uint256 - 32 bytes)
 ///      - Slot 1: renter (address - 20 bytes) + price (uint96 - 12 bytes) = 32 bytes
 ///      - Slot 2: labProvider (address - 20 bytes) + status (uint8 - 1 byte) + start (uint32 - 4 bytes) + end (uint32 - 4 bytes) = 29 bytes
-///      - Slot 3: puc (string - 32 bytes pointer)
 ///      - Slot 4: requestPeriodStart (uint64) + requestPeriodDuration (uint64) + padding
 ///      Total: 5 slots (vs 7 slots in unoptimized version)
 /// @param labId Unique identifier of the lab being reserved
@@ -80,7 +79,6 @@ struct Lab {
 /// @param status Current state of the reservation (0=_PENDING, 1=_CONFIRMED, 2=_IN_USE, 3=_COMPLETED, 4=_SETTLED, 5=_CANCELLED)
 /// @param start Starting timestamp of the reservation (as uint32)
 /// @param end Ending timestamp of the reservation (as uint32)
-/// @param puc schacPersonalUniqueCode for institutional reservations
 /// @param requestPeriodStart Period start timestamp when institutional reservation was requested, used for slippage protection
 /// @param payerInstitution Address of the institution paying for the reservation
 /// @param collectorInstitution Address of the institution that should receive the payout
@@ -241,7 +239,7 @@ struct AppStorage {
 
     mapping(address provider => uint256 balance) institutionalTreasury;
     mapping(address provider => uint256 limit) institutionalUserLimit;
-    mapping(address provider => mapping(string puc => InstitutionalUserSpending data)) institutionalUserSpending;
+    mapping(address provider => mapping(bytes32 pucHash => InstitutionalUserSpending data)) institutionalUserSpending;
     mapping(address provider => address backend) institutionalBackends;
     mapping(address provider => uint256 duration) institutionalSpendingPeriod;
     mapping(address provider => uint256 anchor) institutionalSpendingPeriodAnchor;

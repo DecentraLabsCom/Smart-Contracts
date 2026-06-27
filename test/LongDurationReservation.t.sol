@@ -45,7 +45,7 @@ contract LongDurationReservationTest is Test {
         string memory puc
     ) internal {
         vm.prank(backend);
-        harness.confirmInstitutionalReservationRequestWithPuc(institution, key, puc);
+        harness.confirmInstitutionalReservationRequestWithPucHash(institution, key, keccak256(bytes(puc)));
     }
 
     function test_confirms_one_day_reservation() public {
@@ -93,7 +93,7 @@ contract LongDurationReservationTest is Test {
 
         vm.prank(backend);
         vm.expectRevert();
-        harness.confirmInstitutionalReservationRequestWithPuc(institution, shortKey, "short@inst");
+        harness.confirmInstitutionalReservationRequestWithPucHash(institution, shortKey, keccak256(bytes("short@inst")));
     }
 
     function test_adjacent_reservation_after_long_reservation_is_allowed() public {

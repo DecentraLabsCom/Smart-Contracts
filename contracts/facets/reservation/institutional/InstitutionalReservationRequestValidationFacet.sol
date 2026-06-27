@@ -8,7 +8,7 @@ import {
 contract InstitutionalReservationRequestValidationFacet {
     function validateInstRequest(
         address p,
-        string calldata u,
+        bytes32 u,
         uint256 l,
         uint32 st,
         uint32 en

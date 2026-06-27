@@ -39,36 +39,36 @@ contract InstitutionalReservationCancellationFacet {
 
     function cancelInstitutionalReservationRequest(
         address institutionalProvider,
-        string calldata puc,
+        bytes32 pucHash,
         bytes32 _reservationKey
     ) external onlyInstitution(institutionalProvider) {
-        _cancelInstitutionalReservationRequest(institutionalProvider, puc, _reservationKey);
+        _cancelInstitutionalReservationRequest(institutionalProvider, pucHash, _reservationKey);
     }
 
-    function cancelInstitutionalBookingWithPuc(
+    function cancelInstitutionalBookingWithPucHash(
         address institutionalProvider,
         bytes32 _reservationKey,
-        string calldata puc
+        bytes32 pucHash
     ) external onlyInstitution(institutionalProvider) {
-        _cancelInstitutionalBookingWithPuc(institutionalProvider, _reservationKey, puc);
+        _cancelInstitutionalBookingWithPucHash(institutionalProvider, _reservationKey, pucHash);
     }
 
     function _cancelInstitutionalReservationRequest(
         address institutionalProvider,
-        string calldata puc,
+        bytes32 pucHash,
         bytes32 _reservationKey
     ) internal {
         uint256 labId =
-            LibInstitutionalReservation.cancelReservationRequest(institutionalProvider, puc, _reservationKey);
+            LibInstitutionalReservation.cancelReservationRequest(institutionalProvider, pucHash, _reservationKey);
         emit ReservationRequestCanceled(_reservationKey, labId);
     }
 
-    function _cancelInstitutionalBookingWithPuc(
+    function _cancelInstitutionalBookingWithPucHash(
         address institutionalProvider,
         bytes32 _reservationKey,
-        string calldata puc
+        bytes32 pucHash
     ) internal {
-        uint256 labId = LibInstitutionalReservation.cancelBooking(institutionalProvider, puc, _reservationKey);
+        uint256 labId = LibInstitutionalReservation.cancelBooking(institutionalProvider, pucHash, _reservationKey);
         emit BookingCanceled(_reservationKey, labId);
     }
 }

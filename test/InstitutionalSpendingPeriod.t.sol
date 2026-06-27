@@ -60,18 +60,18 @@ contract InstitutionalSpendingPeriodTest is BaseTest {
         vm.prank(INST);
         inst.setInstitutionalUserLimit(100);
 
-        string memory puc = "user@inst";
+        bytes32 pucHash = keccak256(bytes("user@inst"));
 
         // backend spends 60 (should succeed)
         vm.prank(BACKEND);
-        inst.spendFromInstitutionalTreasury(INST, puc, 60);
+        inst.spendFromInstitutionalTreasury(INST, pucHash, 60);
         assertEq(inst.getInstitutionalTreasuryBalance(INST), 940);
-        assertEq(inst.getInstitutionalUserSpent(INST, puc), 60);
+        assertEq(inst.getInstitutionalUserSpent(INST, pucHash), 60);
 
         // backend attempts to spend 50 (over limit 60+50 > 100) -> revert
         vm.prank(BACKEND);
         vm.expectRevert(bytes("User spending limit exceeded for period"));
-        inst.spendFromInstitutionalTreasury(INST, puc, 50);
+        inst.spendFromInstitutionalTreasury(INST, pucHash, 50);
 
         // advance time past period boundary to reset per-period counter
         uint256 period = s.institutionalSpendingPeriod[INST];
@@ -80,9 +80,9 @@ contract InstitutionalSpendingPeriodTest is BaseTest {
 
         // backend can spend again up to limit
         vm.prank(BACKEND);
-        inst.spendFromInstitutionalTreasury(INST, puc, 90);
+        inst.spendFromInstitutionalTreasury(INST, pucHash, 90);
         // read user spent via facet getter to avoid storage context mismatch
-        assertEq(inst.getInstitutionalUserSpent(INST, puc), 90);
+        assertEq(inst.getInstitutionalUserSpent(INST, pucHash), 90);
     }
 
     function test_zero_price_spend_does_not_consume_balance_but_requires_backend() public {
@@ -92,13 +92,13 @@ contract InstitutionalSpendingPeriodTest is BaseTest {
         // no backend set -> backend requirement should revert even for zero amount
         vm.prank(BACKEND);
         vm.expectRevert(bytes("No authorized backend"));
-        inst.spendFromInstitutionalTreasury(INST, "puc", 0);
+        inst.spendFromInstitutionalTreasury(INST, keccak256(bytes("puc")), 0);
 
         // set backend and call spend 0 - allowed and does not change treasury
         inst.exposed_setBackend(INST, BACKEND);
         inst.exposed_setInstitutionalTreasury(INST, 500);
         vm.prank(BACKEND);
-        inst.spendFromInstitutionalTreasury(INST, "puc", 0);
+        inst.spendFromInstitutionalTreasury(INST, keccak256(bytes("puc")), 0);
         // read treasury from facet storage by calling getter
         assertEq(inst.getInstitutionalTreasuryBalance(INST), 500);
     }

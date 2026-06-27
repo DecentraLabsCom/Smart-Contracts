@@ -101,13 +101,13 @@ library LibInstitutionalReservationConfirmation {
         }
 
         if (r.price == 0) {
-            _finalize(s, r, key, labProvider, trackingKey);
+            _finalize(s, r, key, trackingKey);
             return;
         }
 
         try IInstitutionalTreasuryFacetConfirmLib(address(this))
             .spendFromInstitutionalTreasury(r.payerInstitution, pucHash, r.price) {
-            _finalize(s, r, key, labProvider, trackingKey);
+            _finalize(s, r, key, trackingKey);
         } catch {
             LibReservationCancellation.cancelReservation(key);
             emit ReservationRequestDenied(key, r.labId, LibReservationDenyReason.TREASURY_SPEND_FAILED);
@@ -118,7 +118,6 @@ library LibInstitutionalReservationConfirmation {
         AppStorage storage s,
         Reservation storage r,
         bytes32 key,
-        address labProvider,
         address trackingKey
     ) private {
         _setReservationSplit(r);

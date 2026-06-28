@@ -1,6 +1,6 @@
 {
   "network": "sepolia",
-  "timestamp": "2026-06-27T20:27:06.320Z",
+  "timestamp": "2026-06-28T16:26:57.5338781+02:00",
   "chainId": 11155111,
   "contracts": {
     "Diamond": "0xFfCF0110F2Ffbf26c1a6542933DC25e8f526D3d0",
@@ -23,7 +23,7 @@
     "IntentRegistryFacet": "0x7ea56c9B099661Ef8F250500ae390572025a0296",
     "InstitutionFacet": "0x8ddf37Fc8b526a065F63Cf523646F964Cab644f2",
     "InstitutionalOrgRegistryFacet": "0xbB3bDDeC5535f35e981ED9AD6AaB86e9cF09Ff20",
-    "InstitutionalTreasuryFacet": "0x20a1ddcCD37fbe80eAC8fB078597F4872d917b00",
+    "InstitutionalTreasuryFacet": "0xcBd46946DcBc5Ef377070F7238dbf9373e9a2990",
     "LabFacet": "0x48D14A6443d7eB8efE757c03168339D26fc0717F",
     "LabAdminFacet": "0xc017F1B214ec1F29a2b228f8E97D22f386186257",
     "LabIntentFacet": "0x17c3bbAb4f6b2a6B480c6b0E56C73a53B6FCa643",

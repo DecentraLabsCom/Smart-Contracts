@@ -7,6 +7,7 @@ import {
     INSTITUTION_ROLE,
     InstitutionalUserSpending
 } from "../../../libraries/LibAppStorage.sol";
+import {LibCreditLedger} from "../../../libraries/LibCreditLedger.sol";
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import {ReentrancyGuardTransient} from "@openzeppelin/contracts/utils/ReentrancyGuardTransient.sol";
 
@@ -133,6 +134,22 @@ contract InstitutionalTreasuryFacet is ReentrancyGuardTransient {
     ) internal view {
         AppStorage storage s = LibAppStorage.diamondStorage();
         require(s.roleMembers[INSTITUTION_ROLE].contains(account), "Unknown institution");
+    }
+
+    function _spendTreasuryBalance(
+        address institution,
+        uint256 amount,
+        bytes32 spendRef
+    ) internal {
+        require(amount <= uint256(type(int256).max), "Amount too large");
+        // forge-lint: disable-next-line(unsafe-typecast)
+        LibCreditLedger.adjustCredits(institution, -int256(amount), spendRef);
+    }
+
+    function _availableTreasuryBalance(
+        address institution
+    ) internal view returns (uint256) {
+        return LibCreditLedger.availableBalanceOf(institution);
     }
 
     /// @notice Check if we're in a new spending period and reset if needed
@@ -262,7 +279,7 @@ contract InstitutionalTreasuryFacet is ReentrancyGuardTransient {
         // Allow zero-price reservations (free labs)
         if (amount == 0) return;
 
-        require(s.institutionalTreasury[institution] >= amount, "Insufficient treasury balance");
+        require(_availableTreasuryBalance(institution) >= amount, "Insufficient treasury balance");
 
         // Calculate current period
         uint256 periodDuration = _getSpendingPeriod(institution);
@@ -298,7 +315,7 @@ contract InstitutionalTreasuryFacet is ReentrancyGuardTransient {
         // Allow zero-price reservations (free labs) - skip all accounting for free reservations
         if (amount == 0) return;
 
-        require(s.institutionalTreasury[institution] >= amount, "Insufficient treasury balance");
+        require(_availableTreasuryBalance(institution) >= amount, "Insufficient treasury balance");
 
         // Check period and reset if needed
         uint256 periodStart = _checkAndResetPeriod(institution, pucHash);
@@ -309,7 +326,7 @@ contract InstitutionalTreasuryFacet is ReentrancyGuardTransient {
 
         require(newSpent <= _getSpendingLimit(institution), "User spending limit exceeded for period");
 
-        s.institutionalTreasury[institution] -= amount;
+        _spendTreasuryBalance(institution, amount, pucHash);
         spending.amount = newSpent;
 
         // Track total historical spending (never reset, used for refunds)
@@ -345,7 +362,7 @@ contract InstitutionalTreasuryFacet is ReentrancyGuardTransient {
         // This allows refunds for bookings made in previous periods
         require(spending.totalHistoricalSpent >= amount, "Refund exceeds total spent amount");
 
-        s.institutionalTreasury[institution] += amount;
+        LibCreditLedger.cancelCredits(institution, amount, pucHash);
 
         // Always decrement totalHistoricalSpent (tracks all-time spending)
         spending.totalHistoricalSpent -= amount;
@@ -368,8 +385,7 @@ contract InstitutionalTreasuryFacet is ReentrancyGuardTransient {
     function getInstitutionalTreasuryBalance(
         address institution
     ) external view returns (uint256) {
-        AppStorage storage s = LibAppStorage.diamondStorage();
-        return s.institutionalTreasury[institution];
+        return _availableTreasuryBalance(institution);
     }
 
     /// @notice Get institutional user's spent amount in current period

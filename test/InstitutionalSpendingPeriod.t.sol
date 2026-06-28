@@ -5,6 +5,7 @@ import "forge-std/Test.sol";
 import "./BaseTest.sol";
 import "../contracts/facets/reservation/institutional/InstitutionalTreasuryFacet.sol";
 import "../contracts/libraries/LibAppStorage.sol";
+import "../contracts/libraries/LibCreditLedger.sol";
 
 /// @dev Test harness that inherits from InstitutionalTreasuryFacet to expose internal storage for testing
 contract InstitutionalTreasuryFacetHarness is InstitutionalTreasuryFacet {
@@ -27,13 +28,17 @@ contract InstitutionalTreasuryFacetHarness is InstitutionalTreasuryFacet {
         s.institutionalBackends[inst] = backend;
     }
 
-    /// @dev Exposed helper to set treasury balance directly in storage
-    function exposed_setInstitutionalTreasury(
+    function exposed_mintCredits(
         address inst,
         uint256 amount
     ) external {
-        AppStorage storage s = LibAppStorage.diamondStorage();
-        s.institutionalTreasury[inst] = amount;
+        LibCreditLedger.mintCredits(inst, amount, keccak256("TEST-FUNDING"), amount, 0);
+    }
+
+    function exposed_totalCreditBalance(
+        address inst
+    ) external view returns (uint256) {
+        return LibCreditLedger.totalBalanceOf(inst);
     }
 }
 
@@ -51,10 +56,10 @@ contract InstitutionalSpendingPeriodTest is BaseTest {
     function test_spending_limit_and_period_reset() public {
         AppStorage storage s = LibAppStorage.diamondStorage();
 
-        // set backend and initial treasury via harness exposed methods
+        // set backend and initial credit balance via harness exposed methods
         inst.exposed_setInstitutionRole(INST);
         inst.exposed_setBackend(INST, BACKEND);
-        inst.exposed_setInstitutionalTreasury(INST, 1000);
+        inst.exposed_mintCredits(INST, 1000);
 
         // set tight per-user limit (100 units) via facet (requires institution caller)
         vm.prank(INST);
@@ -96,10 +101,25 @@ contract InstitutionalSpendingPeriodTest is BaseTest {
 
         // set backend and call spend 0 - allowed and does not change treasury
         inst.exposed_setBackend(INST, BACKEND);
-        inst.exposed_setInstitutionalTreasury(INST, 500);
+        inst.exposed_mintCredits(INST, 500);
         vm.prank(BACKEND);
         inst.spendFromInstitutionalTreasury(INST, keccak256(bytes("puc")), 0);
         // read treasury from facet storage by calling getter
         assertEq(inst.getInstitutionalTreasuryBalance(INST), 500);
+    }
+
+    function test_spend_uses_service_credit_ledger_balance() public {
+        inst.exposed_setInstitutionRole(INST);
+        inst.exposed_setBackend(INST, BACKEND);
+        inst.exposed_mintCredits(INST, 1000);
+
+        bytes32 pucHash = keccak256(bytes("ledger-user@inst"));
+
+        vm.prank(BACKEND);
+        inst.spendFromInstitutionalTreasury(INST, pucHash, 60);
+
+        assertEq(inst.getInstitutionalTreasuryBalance(INST), 940);
+        assertEq(inst.exposed_totalCreditBalance(INST), 940);
+        assertEq(inst.getInstitutionalUserSpent(INST, pucHash), 60);
     }
 }

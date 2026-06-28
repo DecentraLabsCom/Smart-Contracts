@@ -31,16 +31,6 @@ contract TestHelperFacet {
         s.institutionalBackends[inst] = backend;
     }
 
-    /// @notice Set institutional treasury balance for testing
-    /// @dev TEST ONLY - Directly sets the treasury balance
-    function test_setInstitutionalTreasury(
-        address inst,
-        uint256 amount
-    ) external {
-        AppStorage storage s = LibAppStorage.diamondStorage();
-        s.institutionalTreasury[inst] = amount;
-    }
-
     /// @notice Set a pending action intent for testing LabIntentFacet flows
     /// @dev TEST ONLY - Bypasses EIP-712; sets intent so executor can consume it
     function test_setPendingActionIntent(

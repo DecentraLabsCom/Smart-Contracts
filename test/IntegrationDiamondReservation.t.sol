@@ -98,6 +98,7 @@ contract IntegrationDiamondReservationTest is BaseTest {
     uint8 internal constant _PENDING = 0;
     uint8 internal constant _CONFIRMED = 1;
     uint8 internal constant _CANCELLED = 4;
+    uint8 internal constant _CANCELLED_BOOKING = 5;
 
     function setUp() public override {
         super.setUp();
@@ -156,7 +157,7 @@ contract IntegrationDiamondReservationTest is BaseTest {
         assertEq(inst.lastRefundPucHash(), keccak256(bytes(puc)));
         // fee/refund arithmetic verifies at least non-zero refund amount
         assert(inst.lastRefundAmount() > 0);
-        assertEq(inst.getReservationStatus(key), _CANCELLED);
+        assertEq(inst.getReservationStatus(key), _CANCELLED_BOOKING);
     }
 
     function test_cancelBooking_refund_failure_and_recovery() public {

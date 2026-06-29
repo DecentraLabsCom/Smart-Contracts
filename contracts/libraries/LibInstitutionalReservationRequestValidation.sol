@@ -22,6 +22,7 @@ library LibInstitutionalReservationRequestValidation {
     uint8 internal constant _IN_USE = 2;
     uint8 internal constant _SETTLED = 3;
     uint8 internal constant _CANCELLED = 4;
+    uint8 internal constant _CANCELLED_BOOKING = 5;
 
     uint32 internal constant _RESERVATION_MARGIN = 0;
     uint256 internal constant _PENDING_REQUEST_TTL = LibReservationConfig.PENDING_REQUEST_TTL;
@@ -61,7 +62,10 @@ library LibInstitutionalReservationRequestValidation {
         if (count >= _MAX_RESERVATIONS_PER_LAB_USER) revert MaxReservationsReached();
 
         Reservation storage existing = s.reservations[key];
-        if (existing.renter != address(0) && existing.status != _CANCELLED && existing.status != _SETTLED) {
+        if (
+            existing.renter != address(0) && existing.status != _CANCELLED
+                && existing.status != _CANCELLED_BOOKING && existing.status != _SETTLED
+        ) {
             if (existing.status == _PENDING) {
                 uint256 ttl = existing.requestPeriodDuration;
                 if (ttl == 0) ttl = _PENDING_REQUEST_TTL;

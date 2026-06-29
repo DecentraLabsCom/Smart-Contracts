@@ -43,22 +43,24 @@ abstract contract ReservableToken {
     /// - _IN_USE: User is actively using the lab (optional state for analytics/check-in systems).
     /// - status value 3 is reserved and unused.
     /// - _SETTLED: Service credits have been captured and provider receivable accrued for settlement processing.
-    /// - _CANCELLED: Reservation cancelled by user, admin, or provider.
+    /// - _CANCELLED: Reservation cancelled before confirmation (pending request cancelled).
+    /// - _CANCELLED_BOOKING: Confirmed booking cancelled (was CONFIRMED or IN_USE at cancellation time).
     /// @dev The status is represented as an 8-bit unsigned integer for gas efficiency.
     /// @dev State transition rules:
     ///      _PENDING → _CONFIRMED (on admin confirmation with credit lock)
     ///      _PENDING → _CANCELLED (on denial or user cancellation)
     ///      _CONFIRMED → _IN_USE (optional, on check-in)
     ///      _CONFIRMED → _SETTLED (when expired, via releaseExpiredReservations — credits captured)
-    ///      _CONFIRMED → _CANCELLED (on cancellation with partial release/capture)
+    ///      _CONFIRMED → _CANCELLED_BOOKING (on cancellation with partial release/capture)
     ///      _IN_USE → _CANCELLED is intentionally disallowed
-    ///      _SETTLED, _CANCELLED are terminal states
+    ///      _SETTLED, _CANCELLED, _CANCELLED_BOOKING are terminal states
 
     uint8 internal constant _PENDING = 0;
     uint8 internal constant _CONFIRMED = 1;
     uint8 internal constant _IN_USE = 2;
     uint8 internal constant _SETTLED = 3;
     uint8 internal constant _CANCELLED = 4;
+    uint8 internal constant _CANCELLED_BOOKING = 5;
     uint32 internal constant _RESERVATION_MARGIN = 0;
 
     /// @notice Emitted when a reservation is requested for a token.
@@ -250,7 +252,10 @@ abstract contract ReservableToken {
         // Optimized availability check
         Reservation storage existingReservation = s.reservations[reservationKey];
         bool keyExists = existingReservation.renter != address(0);
-        if (keyExists && existingReservation.status != _CANCELLED) revert NotAvailable();
+        if (
+            keyExists && existingReservation.status != _CANCELLED
+                && existingReservation.status != _CANCELLED_BOOKING
+        ) revert NotAvailable();
 
         // Only insert into rival calendar for exclusive resources (resourceType 0)
         if (s.labs[_tokenId].resourceType == 0) {
@@ -742,8 +747,8 @@ abstract contract ReservableToken {
     }
 
     /// @dev Cancels a reservation identified by the given reservation key.
-    ///      Updates the reservation status to _CANCELLED and removes the reservation
-    ///      from the associated lab's calendar (only if it was inserted, i.e., _CONFIRMED or _IN_USE).
+    ///      Updates the reservation status to _CANCELLED (pending) or _CANCELLED_BOOKING (confirmed/in-use)
+    ///      and removes the reservation from the associated lab's calendar (only if it was inserted, i.e., _CONFIRMED or _IN_USE).
     /// @param _reservationKey The unique key identifying the reservation to be cancelled.
     function _cancelReservation(
         bytes32 _reservationKey
@@ -762,7 +767,7 @@ abstract contract ReservableToken {
             _decrementActiveReservationCounters(reservation);
         }
 
-        reservation.status = _CANCELLED;
+        reservation.status = wasActive ? _CANCELLED_BOOKING : _CANCELLED;
 
         // Mark heap entry as invalid for lazy cleanup
         // When counter reaches threshold, _popEligiblePayoutCandidate will prune all invalid entries

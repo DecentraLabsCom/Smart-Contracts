@@ -129,7 +129,7 @@ contract ReservationIntentFacetTest is Test {
         harness.cancelInstitutionalBookingWithIntent(requestId, payload);
 
         assertEq(uint8(harness.intentState(requestId)), uint8(IntentState.Executed));
-        assertEq(harness.reservationStatus(reservationKey), 5);
+        assertEq(harness.reservationStatus(reservationKey), 4);
         assertEq(harness.lastRefundInstitution(), institution);
         assertEq(harness.lastRefundPucHash(), keccak256(bytes(PUC)));
     }

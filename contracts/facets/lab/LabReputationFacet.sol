@@ -26,19 +26,9 @@ contract LabReputationFacet {
 
     function getLabReputation(
         uint256 labId
-    )
-        external
-        view
-        returns (
-            int32 score,
-            uint32 totalEvents,
-            uint32 ownerCancellations,
-            uint32 institutionalCancellations,
-            uint64 lastUpdated
-        )
-    {
+    ) external view returns (int32 score, uint32 totalEvents, uint32 ownerCancellations, uint64 lastUpdated) {
         LabReputation storage rep = LibAppStorage.diamondStorage().labReputation[labId];
-        return (rep.score, rep.totalEvents, rep.ownerCancellations, rep.institutionalCancellations, rep.lastUpdated);
+        return (rep.score, rep.totalEvents, rep.ownerCancellations, rep.lastUpdated);
     }
 
     function getLabScore(
@@ -98,8 +88,6 @@ contract LabReputationFacet {
                 Strings.toString(rep.totalEvents),
                 "},{\"trait_type\":\"owner_cancellations\",\"value\":",
                 Strings.toString(rep.ownerCancellations),
-                "},{\"trait_type\":\"institution_cancellations\",\"value\":",
-                Strings.toString(rep.institutionalCancellations),
                 "}]}"
             )
         );

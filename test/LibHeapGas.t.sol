@@ -22,7 +22,7 @@ contract LibHeapGas is BaseTest {
             bytes32 k = keccak256(abi.encodePacked("g", i));
             harness.enqueueViaLib(labId, k, uint32(1000 + i));
             if (i % 4 == 0) {
-                harness.setReservation(k, labId, 5); // CANCELLED
+                harness.setReservation(k, labId, 4); // CANCELLED
             } else {
                 harness.setReservation(k, labId, 1); // CONFIRMED
             }

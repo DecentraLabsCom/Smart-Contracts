@@ -140,12 +140,10 @@ contract LabReputationTest is BaseTest {
 
     function test_getLabReputation_defaults_for_new_lab() public {
         _mintLab1();
-        (int32 score, uint32 totalEvents, uint32 ownerCan, uint32 instCan, uint64 lastUpdated) =
-            labReputation.getLabReputation(1);
+        (int32 score, uint32 totalEvents, uint32 ownerCan, uint64 lastUpdated) = labReputation.getLabReputation(1);
         assertEq(score, 0);
         assertEq(totalEvents, 0);
         assertEq(ownerCan, 0);
-        assertEq(instCan, 0);
         assertEq(lastUpdated, 0);
     }
 
@@ -186,7 +184,7 @@ contract LabReputationTest is BaseTest {
         emit LabReputationAdjusted(1, int32(3), int32(3), uint32(1), "unit");
         labReputation.adjustLabReputation(1, 3, "unit");
 
-        (int32 score, uint32 totalEvents,,,) = labReputation.getLabReputation(1);
+        (int32 score, uint32 totalEvents,,) = labReputation.getLabReputation(1);
         assertEq(score, 3);
         assertEq(totalEvents, 1);
     }
@@ -211,7 +209,7 @@ contract LabReputationTest is BaseTest {
         labReputation.adjustLabReputation(1, 5, "a");
         labReputation.adjustLabReputation(1, -2, "b");
         vm.stopPrank();
-        (int32 score, uint32 totalEvents,,,) = labReputation.getLabReputation(1);
+        (int32 score, uint32 totalEvents,,) = labReputation.getLabReputation(1);
         assertEq(score, 3);
         assertEq(totalEvents, 2);
     }
@@ -228,7 +226,7 @@ contract LabReputationTest is BaseTest {
         labReputation.setLabReputation(1, 42, "reset");
 
         assertEq(labReputation.getLabScore(1), int32(42));
-        (,, uint32 totalEvents,,) = labReputation.getLabReputation(1);
+        (, uint32 totalEvents,,) = labReputation.getLabReputation(1);
         assertEq(totalEvents, 0);
     }
 
@@ -268,7 +266,6 @@ contract LabReputationTest is BaseTest {
         assertTrue(_contains(uri, "total_score"));
         assertTrue(_contains(uri, "reputation_events"));
         assertTrue(_contains(uri, "owner_cancellations"));
-        assertTrue(_contains(uri, "institution_cancellations"));
         assertTrue(_contains(uri, "ipfs://lab1"));
     }
 

@@ -38,7 +38,7 @@ contract LibHeapStress is BaseTest {
             uint256 p = uint256(keccak256(abi.encodePacked(seed, i, nn)));
             if (p % 4 == 0) {
                 // CANCELLED
-                harness.setReservation(k, labId, 5);
+                harness.setReservation(k, labId, 4);
             } else {
                 harness.setReservation(k, labId, 1); // CONFIRMED
                 confirmedCount++;
@@ -84,7 +84,7 @@ contract LibHeapStress is BaseTest {
             harness.enqueueViaLib(labId, k, uint32(1000 + i));
             // mark half as cancelled to ensure invalidCount is large
             if (i % 2 == 0) {
-                harness.setReservation(k, labId, 5); // CANCELLED
+                harness.setReservation(k, labId, 4); // CANCELLED
             } else {
                 harness.setReservation(k, labId, 1); // CONFIRMED
             }
@@ -109,7 +109,7 @@ contract LibHeapStress is BaseTest {
             harness.enqueueViaLib(labId, k, uint32(1000 + i));
             // mark many cancelled
             if (i % 3 == 0) {
-                harness.setReservation(k, labId, 5);
+                harness.setReservation(k, labId, 4);
             } else {
                 harness.setReservation(k, labId, 1);
             }

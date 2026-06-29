@@ -5,7 +5,7 @@ import {Test} from "forge-std/Test.sol";
 import {ERC721} from "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import {ProviderSettlementFacet} from "../contracts/facets/reservation/ProviderSettlementFacet.sol";
-import {AppStorage, LibAppStorage} from "../contracts/libraries/LibAppStorage.sol";
+import {AppStorage, LibAppStorage, PayoutCandidate, Reservation} from "../contracts/libraries/LibAppStorage.sol";
 import {LibAccessControlEnumerable} from "../contracts/libraries/LibAccessControlEnumerable.sol";
 import {LibERC721StorageTestHelper} from "./LibERC721StorageTestHelper.sol";
 
@@ -60,6 +60,38 @@ contract ProviderReceivableHarness is ERC721, ProviderSettlementFacet {
         s.institutionalBackends[institution] = backend;
     }
 
+    function setExpiredPayoutReservation(
+        bytes32 reservationKey,
+        uint256 labId,
+        uint8 status,
+        uint96 providerShare,
+        uint32 end
+    ) external {
+        AppStorage storage s = LibAppStorage.diamondStorage();
+        Reservation storage reservation = s.reservations[reservationKey];
+        reservation.labId = labId;
+        reservation.renter = address(0xCAFE);
+        reservation.price = providerShare;
+        reservation.labProvider = ownerOf(labId);
+        reservation.status = status;
+        reservation.start = end - 1;
+        reservation.end = end;
+        reservation.providerShare = providerShare;
+        s.payoutHeaps[labId].push(PayoutCandidate({end: end, key: reservationKey}));
+        s.payoutHeapContains[reservationKey] = true;
+        s.labActiveReservationCount[labId] += 1;
+        s.providerActiveReservationCount[reservation.labProvider] += 1;
+    }
+
+    function getLabReputation(
+        uint256 labId
+    ) external view returns (int32 score, uint32 totalEvents, uint64 lastUpdated) {
+        AppStorage storage s = LibAppStorage.diamondStorage();
+        score = s.labReputation[labId].score;
+        totalEvents = s.labReputation[labId].totalEvents;
+        lastUpdated = s.labReputation[labId].lastUpdated;
+    }
+
     function updateLastReservation(
         address
     ) external {}
@@ -73,6 +105,7 @@ contract ProviderReceivableAliasesTest is Test {
     uint256 internal constant LAB_ID = 7;
     uint256 internal constant ONE_CREDIT = 100_000;
     uint256 internal constant FIVE_CREDITS = 500_000;
+    uint96 internal constant FIVE_CREDITS_U96 = 500_000;
     uint256 internal constant SEVEN_CREDITS = 700_000;
     uint256 internal constant TEN_CREDITS = 1_000_000;
     uint256 internal constant ELEVEN_CREDITS = 1_100_000;
@@ -81,8 +114,12 @@ contract ProviderReceivableAliasesTest is Test {
     uint256 internal constant SEVENTEEN_CREDITS = 1_700_000;
     uint256 internal constant NINETEEN_CREDITS = 1_900_000;
     uint256 internal constant TWENTY_THREE_CREDITS = 2_300_000;
+    uint8 internal constant CONFIRMED = 1;
+    uint8 internal constant IN_USE = 2;
+    uint8 internal constant SETTLED = 3;
 
     function setUp() public {
+        vm.warp(1000);
         harness = new ProviderReceivableHarness();
         harness.initialize(address(this), PROVIDER, LAB_ID);
     }
@@ -157,6 +194,43 @@ contract ProviderReceivableAliasesTest is Test {
         assertEq(paidReceivable, 0);
         assertEq(reversedReceivable, 0);
         assertEq(disputedReceivable, 0);
+    }
+
+    function test_requestProviderPayout_does_not_record_completion_for_confirmed_expired_reservation() public {
+        bytes32 reservationKey = keccak256("confirmed-expired");
+        harness.setExpiredPayoutReservation(reservationKey, LAB_ID, CONFIRMED, FIVE_CREDITS_U96, 999);
+
+        vm.prank(PROVIDER);
+        harness.requestProviderPayout(LAB_ID, 10);
+
+        (int32 score, uint32 totalEvents,) = harness.getLabReputation(LAB_ID);
+        assertEq(score, int32(0));
+        assertEq(totalEvents, uint32(0));
+    }
+
+    function test_requestProviderPayout_records_completion_for_checked_in_reservation() public {
+        bytes32 reservationKey = keccak256("checked-in");
+        harness.setExpiredPayoutReservation(reservationKey, LAB_ID, IN_USE, FIVE_CREDITS_U96, 999);
+
+        vm.prank(PROVIDER);
+        harness.requestProviderPayout(LAB_ID, 10);
+
+        (int32 score, uint32 totalEvents,) = harness.getLabReputation(LAB_ID);
+        assertEq(score, int32(1));
+        assertEq(totalEvents, uint32(1));
+    }
+
+    function test_requestProviderPayout_rejects_settled_reservation() public {
+        bytes32 reservationKey = keccak256("settled-status");
+        harness.setExpiredPayoutReservation(reservationKey, LAB_ID, SETTLED, FIVE_CREDITS_U96, 999);
+
+        vm.prank(PROVIDER);
+        vm.expectRevert("No settleable reservations");
+        harness.requestProviderPayout(LAB_ID, 10);
+
+        (int32 score, uint32 totalEvents,) = harness.getLabReputation(LAB_ID);
+        assertEq(score, int32(0));
+        assertEq(totalEvents, uint32(0));
     }
 
     function test_getLabProviderReceivable_includes_unsettled_lifecycle_buckets() public {

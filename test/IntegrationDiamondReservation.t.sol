@@ -97,7 +97,7 @@ contract IntegrationDiamondReservationTest is BaseTest {
 
     uint8 internal constant _PENDING = 0;
     uint8 internal constant _CONFIRMED = 1;
-    uint8 internal constant _CANCELLED = 5;
+    uint8 internal constant _CANCELLED = 4;
 
     function setUp() public override {
         super.setUp();

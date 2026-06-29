@@ -40,7 +40,7 @@ abstract contract BaseReservationFacet is InstitutionalReservableTokenEnumerable
 
     error NotImplemented();
 
-    /// @notice Emitted when a provider successfully collects funds from completed reservations
+    /// @notice Emitted when a provider successfully collects funds from settleable reservations
     /// @param provider The address of the lab provider
     /// @param labId The ID of the lab from which funds were collected
     /// @param amount Total amount of tokens collected
@@ -453,12 +453,7 @@ abstract contract BaseReservationFacet is InstitutionalReservableTokenEnumerable
             _removeHeapRoot(heap);
             s.payoutHeapContains[root.key] = false;
             Reservation storage reservation = s.reservations[root.key];
-            if (
-                reservation.labId == labId
-                    && (reservation.status == _CONFIRMED
-                        || reservation.status == _IN_USE
-                        || reservation.status == _COMPLETED)
-            ) {
+            if (reservation.labId == labId && (reservation.status == _CONFIRMED || reservation.status == _IN_USE)) {
                 return root.key;
             }
             if (invalidCount > 0) {
@@ -543,12 +538,7 @@ abstract contract BaseReservationFacet is InstitutionalReservableTokenEnumerable
             bytes32 key = heap[readIndex].key;
             Reservation storage reservation = s.reservations[key];
 
-            if (
-                reservation.labId == labId
-                    && (reservation.status == _CONFIRMED
-                        || reservation.status == _IN_USE
-                        || reservation.status == _COMPLETED)
-            ) {
+            if (reservation.labId == labId && (reservation.status == _CONFIRMED || reservation.status == _IN_USE)) {
                 // Keep valid entry: move to write position if different from read position
                 if (writeIndex != readIndex) {
                     heap[writeIndex] = heap[readIndex]; // Copies both end and key

@@ -25,9 +25,8 @@ contract ProviderSettlementFacet is ReentrancyGuardTransient {
     uint8 internal constant _PENDING = 0;
     uint8 internal constant _CONFIRMED = 1;
     uint8 internal constant _IN_USE = 2;
-    uint8 internal constant _COMPLETED = 3;
-    uint8 internal constant _SETTLED = 4;
-    uint8 internal constant _CANCELLED = 5;
+    uint8 internal constant _SETTLED = 3;
+    uint8 internal constant _CANCELLED = 4;
 
     /// @dev Provider receivable lifecycle buckets
     uint8 internal constant _RECEIVABLE_ACCRUED = 1;
@@ -175,12 +174,8 @@ contract ProviderSettlementFacet is ReentrancyGuardTransient {
             PayoutCandidate storage candidate = heap[i];
             if (candidate.end <= currentTime) {
                 Reservation storage reservation = s.reservations[candidate.key];
-                if (
-                    reservation.labId == _labId
-                        && (reservation.status == _CONFIRMED
-                            || reservation.status == _IN_USE
-                            || reservation.status == _COMPLETED)
-                ) {
+                if (reservation.labId == _labId && (reservation.status == _CONFIRMED || reservation.status == _IN_USE))
+                {
                     providerReceivableChunk += reservation.providerShare;
                     eligibleReservationCountChunk++;
                 }
@@ -265,12 +260,7 @@ contract ProviderSettlementFacet is ReentrancyGuardTransient {
         }
 
         Reservation storage reservation = s.reservations[candidate.key];
-        if (
-            reservation.labId == labId
-                && (reservation.status == _CONFIRMED
-                    || reservation.status == _IN_USE
-                    || reservation.status == _COMPLETED)
-        ) {
+        if (reservation.labId == labId && (reservation.status == _CONFIRMED || reservation.status == _IN_USE)) {
             providerPayout = reservation.providerShare;
             pendingClosures = 1;
         }
@@ -330,7 +320,7 @@ contract ProviderSettlementFacet is ReentrancyGuardTransient {
         }
 
         uint256 providerPayout = s.providerReceivableAccrued[_labId];
-        if (providerPayout == 0 && processed == 0) revert("No completed reservations");
+        if (providerPayout == 0 && processed == 0) revert("No settleable reservations");
 
         if (providerPayout > 0) {
             _decreaseReceivableBucket(s, _labId, _RECEIVABLE_ACCRUED, providerPayout);
@@ -517,12 +507,7 @@ contract ProviderSettlementFacet is ReentrancyGuardTransient {
             _removeHeapRoot(heap);
             s.payoutHeapContains[root.key] = false;
             Reservation storage reservation = s.reservations[root.key];
-            if (
-                reservation.labId == labId
-                    && (reservation.status == _CONFIRMED
-                        || reservation.status == _IN_USE
-                        || reservation.status == _COMPLETED)
-            ) {
+            if (reservation.labId == labId && (reservation.status == _CONFIRMED || reservation.status == _IN_USE)) {
                 return root.key;
             }
             if (invalidCount > 0) {
@@ -624,12 +609,7 @@ contract ProviderSettlementFacet is ReentrancyGuardTransient {
             bytes32 key = heap[readIndex].key;
             Reservation storage reservation = s.reservations[key];
 
-            if (
-                reservation.labId == labId
-                    && (reservation.status == _CONFIRMED
-                        || reservation.status == _IN_USE
-                        || reservation.status == _COMPLETED)
-            ) {
+            if (reservation.labId == labId && (reservation.status == _CONFIRMED || reservation.status == _IN_USE)) {
                 if (writeIndex != readIndex) {
                     heap[writeIndex] = heap[readIndex];
                 }
@@ -661,7 +641,7 @@ contract ProviderSettlementFacet is ReentrancyGuardTransient {
     ) internal returns (bool) {
         // Skip if wrong lab or already finalized
         if (reservation.labId != labId) return false;
-        if (reservation.status != _CONFIRMED && reservation.status != _IN_USE && reservation.status != _COMPLETED) {
+        if (reservation.status != _CONFIRMED && reservation.status != _IN_USE) {
             return false;
         }
 

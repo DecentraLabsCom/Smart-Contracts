@@ -76,7 +76,7 @@ struct Lab {
 /// @param renter Address of the user making the reservation
 /// @param price Total cost of the reservation in LAB base units (uint96)
 /// @param labProvider Address of the lab provider (owner at reservation time)
-/// @param status Current state of the reservation (0=_PENDING, 1=_CONFIRMED, 2=_IN_USE, 3=_COMPLETED, 4=_SETTLED, 5=_CANCELLED)
+/// @param status Current state of the reservation (0=_PENDING, 1=_CONFIRMED, 2=_IN_USE, 3=_SETTLED, 4=_CANCELLED)
 /// @param start Starting timestamp of the reservation (as uint32)
 /// @param end Ending timestamp of the reservation (as uint32)
 /// @param requestPeriodStart Period start timestamp when institutional reservation was requested, used for slippage protection
@@ -155,13 +155,11 @@ struct Tree {
 /// @dev score: total points (completions - cancellations)
 ///      totalEvents: number of reputation events
 ///      ownerCancellations: cancellations by lab owner
-///      institutionalCancellations: cancellations by institutions
 ///      lastUpdated: timestamp of last update
 struct LabReputation {
     int32 score; // Total reputation points
     uint32 totalEvents;
     uint32 ownerCancellations;
-    uint32 institutionalCancellations;
     uint64 lastUpdated;
 }
 

@@ -10,6 +10,7 @@ import {LibHeap} from "./LibHeap.sol";
 import {LibReservationCancellation} from "./LibReservationCancellation.sol";
 import {LibReservationDenyReason} from "./LibReservationDenyReason.sol";
 import {LibCreditLedger} from "./LibCreditLedger.sol";
+import {LibReputation} from "./LibReputation.sol";
 
 library LibReservationConfirmation {
     using EnumerableSet for EnumerableSet.Bytes32Set;
@@ -46,6 +47,7 @@ library LibReservationConfirmation {
         Reservation storage reservation = s.reservations[reservationKey];
         _requirePending(reservation);
         _requireLabProviderOrBackend(s, reservation);
+        LibReputation.recordOwnerCancellation(reservation.labId);
         LibReservationCancellation.cancelReservation(reservationKey);
         emit ReservationRequestDenied(reservationKey, reservation.labId, LibReservationDenyReason.PROVIDER_MANUAL);
     }

@@ -13,7 +13,7 @@ contract LibInstitutionalReservationTest is BaseTest {
     uint8 internal constant _PENDING = 0;
     uint8 internal constant _CONFIRMED = 1;
     uint8 internal constant _IN_USE = 2;
-    uint8 internal constant _CANCELLED = 5;
+    uint8 internal constant _CANCELLED = 4;
 
     function setUp() public override {
         super.setUp();
@@ -38,6 +38,26 @@ contract LibInstitutionalReservationTest is BaseTest {
         assertEq(returned, labId);
 
         assertEq(harness.getReservationStatus(key), _CANCELLED);
+    }
+
+    function test_cancelReservationRequest_does_not_penalize_lab_reputation() public {
+        address inst = address(0xABCD);
+        address backend = address(0xBEEF);
+        uint256 labId = 42;
+        uint32 start = 1000;
+        bytes32 key = keccak256(abi.encodePacked("pending-user-cancel", labId, start));
+        string memory puc = "user@inst.example";
+
+        harness.setBackend(inst, backend);
+        harness.setReservation(key, user1, inst, 0, _PENDING, labId, start, puc);
+
+        vm.prank(backend);
+        harness.cancelReservationRequestWrapper(inst, keccak256(bytes(puc)), key);
+
+        (int32 score, uint32 totalEvents, uint32 ownerCancellations,) = harness.getLabReputation(labId);
+        assertEq(score, 0);
+        assertEq(totalEvents, 0);
+        assertEq(ownerCancellations, 0);
     }
 
     function test_cancelBooking_refund() public {

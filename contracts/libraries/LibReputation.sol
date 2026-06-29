@@ -26,23 +26,13 @@ library LibReputation {
         emit LabReputationAdjusted(labId, CANCELLATION_PENALTY, newScore, rep.totalEvents, "OWNER_CANCEL");
     }
 
-    function recordInstitutionalCancellation(
-        uint256 labId
-    ) internal returns (int32 newScore) {
-        AppStorage storage s = LibAppStorage.diamondStorage();
-        LabReputation storage rep = s.labReputation[labId];
-        rep.institutionalCancellations += 1;
-        newScore = _applyDelta(rep, CANCELLATION_PENALTY);
-        emit LabReputationAdjusted(labId, CANCELLATION_PENALTY, newScore, rep.totalEvents, "INSTITUTION_CANCEL");
-    }
-
     function recordCompletion(
         uint256 labId
     ) internal returns (int32 newScore) {
         AppStorage storage s = LibAppStorage.diamondStorage();
         LabReputation storage rep = s.labReputation[labId];
         newScore = _applyDelta(rep, COMPLETION_REWARD);
-        emit LabReputationAdjusted(labId, COMPLETION_REWARD, newScore, rep.totalEvents, "COMPLETED");
+        emit LabReputationAdjusted(labId, COMPLETION_REWARD, newScore, rep.totalEvents, "CHECKED_IN");
     }
 
     function adjustScore(

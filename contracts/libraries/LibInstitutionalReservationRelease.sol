@@ -22,7 +22,7 @@ library LibInstitutionalReservationRelease {
     uint8 internal constant _PENDING = 0;
     uint8 internal constant _CONFIRMED = 1;
     uint8 internal constant _IN_USE = 2;
-    uint8 internal constant _SETTLED = 4;
+    uint8 internal constant _SETTLED = 3;
 
     uint256 internal constant _PENDING_REQUEST_TTL = LibReservationConfig.PENDING_REQUEST_TTL;
 

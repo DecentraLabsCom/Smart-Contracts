@@ -4,6 +4,7 @@ pragma solidity ^0.8.31;
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import {ReservableToken} from "./ReservableToken.sol";
 import {LibERC721Storage} from "../libraries/LibERC721Storage.sol";
+import {LibReputation} from "../libraries/LibReputation.sol";
 import {
     RecentReservationBuffer,
     UpcomingReservationBuffer,
@@ -168,6 +169,9 @@ abstract contract ReservableTokenEnumerable is ReservableToken {
 
         if (renter != msg.sender && labProvider != msg.sender) revert Unauthorized();
 
+        if (msg.sender == labProvider) {
+            LibReputation.recordOwnerCancellation(tokenId);
+        }
         _cancelReservation(_reservationKey);
 
         emit BookingCanceled(_reservationKey, tokenId);

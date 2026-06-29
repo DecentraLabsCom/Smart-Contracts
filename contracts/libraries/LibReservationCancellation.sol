@@ -20,9 +20,8 @@ library LibReservationCancellation {
     uint8 internal constant _PENDING = 0;
     uint8 internal constant _CONFIRMED = 1;
     uint8 internal constant _IN_USE = 2;
-    uint8 internal constant _COMPLETED = 3;
-    uint8 internal constant _SETTLED = 4;
-    uint8 internal constant _CANCELLED = 5;
+    uint8 internal constant _SETTLED = 3;
+    uint8 internal constant _CANCELLED = 4;
 
     uint8 internal constant _TOKEN_BUFFER_CAP = 40;
     uint8 internal constant _USER_BUFFER_CAP = 20;
@@ -274,7 +273,7 @@ library LibReservationCancellation {
     function _isActiveReservationStatus(
         uint8 status
     ) private pure returns (bool) {
-        return status == _CONFIRMED || status == _IN_USE || status == _COMPLETED;
+        return status == _CONFIRMED || status == _IN_USE;
     }
 
     function _decrementActiveReservationCounters(

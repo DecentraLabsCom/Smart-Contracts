@@ -5,6 +5,7 @@ import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet
 import {LibAppStorage, AppStorage, Reservation} from "../libraries/LibAppStorage.sol";
 import {LibERC721Storage} from "../libraries/LibERC721Storage.sol";
 import {LibReservationDenyReason} from "../libraries/LibReservationDenyReason.sol";
+import {LibReputation} from "../libraries/LibReputation.sol";
 import {RivalIntervalTreeLibrary, Tree} from "../libraries/RivalIntervalTreeLibrary.sol";
 
 using EnumerableSet for EnumerableSet.AddressSet;
@@ -24,7 +25,7 @@ using EnumerableSet for EnumerableSet.Bytes32Set;
 /// - Track reservation statuses
 ///
 /// @dev Key features include:
-/// - Reservation request system with pending/confirmed/in_use/completed/collected/cancelled states
+/// - Reservation request system with pending/confirmed/in_use/settled/cancelled states
 /// - Calendar management for avoiding time slot overlaps
 /// - Event emission for tracking reservation lifecycle
 /// - Access control for token owners and renters
@@ -40,7 +41,7 @@ abstract contract ReservableToken {
     /// - _PENDING: Reservation requested but not yet confirmed. Does NOT block calendar slot.
     /// - _CONFIRMED: Reservation confirmed and paid. Blocks calendar slot. Actively reserving the lab.
     /// - _IN_USE: User is actively using the lab (optional state for analytics/check-in systems).
-    /// - _COMPLETED: Reservation time expired, waiting for the system to finalize payout.
+    /// - status value 3 is reserved and unused.
     /// - _SETTLED: Service credits have been captured and provider receivable accrued for settlement processing.
     /// - _CANCELLED: Reservation cancelled by user, admin, or provider.
     /// @dev The status is represented as an 8-bit unsigned integer for gas efficiency.
@@ -50,17 +51,14 @@ abstract contract ReservableToken {
     ///      _CONFIRMED → _IN_USE (optional, on check-in)
     ///      _CONFIRMED → _SETTLED (when expired, via releaseExpiredReservations — credits captured)
     ///      _CONFIRMED → _CANCELLED (on cancellation with partial release/capture)
-    ///      _IN_USE → _COMPLETED (when expired)
     ///      _IN_USE → _CANCELLED is intentionally disallowed
-    ///      _COMPLETED → _SETTLED (when finalized — credits captured)
     ///      _SETTLED, _CANCELLED are terminal states
 
     uint8 internal constant _PENDING = 0;
     uint8 internal constant _CONFIRMED = 1;
     uint8 internal constant _IN_USE = 2;
-    uint8 internal constant _COMPLETED = 3;
-    uint8 internal constant _SETTLED = 4;
-    uint8 internal constant _CANCELLED = 5;
+    uint8 internal constant _SETTLED = 3;
+    uint8 internal constant _CANCELLED = 4;
     uint32 internal constant _RESERVATION_MARGIN = 0;
 
     /// @notice Emitted when a reservation is requested for a token.
@@ -97,7 +95,7 @@ abstract contract ReservableToken {
     /// @notice Emitted when expired reservations are released by user or provider
     /// @param user The user address (or tracking key) whose reservations were released
     /// @param tokenId The ID of the lab/token associated with the reservations
-    /// @param count The number of reservations that were marked as _COMPLETED
+    /// @param count The number of reservations that were released/finalized
     event ReservationsReleased(address indexed user, uint256 indexed tokenId, uint256 count);
 
     /// @notice Emitted when a token is listed for reservations.
@@ -343,6 +341,9 @@ abstract contract ReservableToken {
 
         if (renter != msg.sender && labProvider != msg.sender) revert Unauthorized();
 
+        if (msg.sender == labProvider) {
+            LibReputation.recordOwnerCancellation(tokenId);
+        }
         _cancelReservation(_reservationKey);
         emit BookingCanceled(_reservationKey, tokenId);
     }
@@ -778,7 +779,7 @@ abstract contract ReservableToken {
     function _isActiveReservationStatus(
         uint8 status
     ) internal pure returns (bool) {
-        return status == _CONFIRMED || status == _IN_USE || status == _COMPLETED;
+        return status == _CONFIRMED || status == _IN_USE;
     }
 
     function _incrementActiveReservationCounters(

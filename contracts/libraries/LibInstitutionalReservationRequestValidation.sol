@@ -20,8 +20,8 @@ library LibInstitutionalReservationRequestValidation {
     uint8 internal constant _PENDING = 0;
     uint8 internal constant _CONFIRMED = 1;
     uint8 internal constant _IN_USE = 2;
-    uint8 internal constant _SETTLED = 4;
-    uint8 internal constant _CANCELLED = 5;
+    uint8 internal constant _SETTLED = 3;
+    uint8 internal constant _CANCELLED = 4;
 
     uint32 internal constant _RESERVATION_MARGIN = 0;
     uint256 internal constant _PENDING_REQUEST_TTL = LibReservationConfig.PENDING_REQUEST_TTL;

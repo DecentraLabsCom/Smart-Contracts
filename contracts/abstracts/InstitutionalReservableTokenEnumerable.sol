@@ -149,8 +149,7 @@ abstract contract InstitutionalReservableTokenEnumerable is ReservableTokenEnume
                 continue;
             }
 
-            if (reservation.status == _CANCELLED || reservation.status == _SETTLED || reservation.status == _COMPLETED)
-            {
+            if (reservation.status == _CANCELLED || reservation.status == _SETTLED) {
                 s.activeReservationHeapContains[key] = false;
                 _removeActiveReservationRoot(heap);
                 continue;

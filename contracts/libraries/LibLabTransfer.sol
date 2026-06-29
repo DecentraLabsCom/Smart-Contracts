@@ -15,7 +15,6 @@ library LibLabTransfer {
     uint8 internal constant _PENDING = 0;
     uint8 internal constant _CONFIRMED = 1;
     uint8 internal constant _IN_USE = 2;
-    uint8 internal constant _COMPLETED = 3;
 
     function handleListingOnTransfer(
         address from,
@@ -52,7 +51,7 @@ library LibLabTransfer {
                 revert("Pending reservations block transfer");
             }
 
-            if (status == _CONFIRMED || status == _IN_USE || status == _COMPLETED) {
+            if (status == _CONFIRMED || status == _IN_USE) {
                 s.reservations[key].labProvider = to;
                 s.reservations[key].collectorInstitution = s.institutionalBackends[to] != address(0) ? to : address(0);
 

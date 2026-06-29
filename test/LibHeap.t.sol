@@ -51,7 +51,7 @@ contract LibHeapTest is BaseTest {
         // Push bad then good, but mark bad as CANCELLED
         harness.enqueueViaLib(labId, bad, uint32(1000));
         harness.enqueueViaLib(labId, good, uint32(1100));
-        harness.setReservation(bad, labId, 5); // CANCELLED (value as in code)
+        harness.setReservation(bad, labId, 4); // CANCELLED
         harness.setReservation(good, labId, 1); // CONFIRMED
 
         vm.warp(2000);

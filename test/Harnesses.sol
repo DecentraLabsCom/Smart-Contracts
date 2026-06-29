@@ -3,6 +3,7 @@ pragma solidity ^0.8.33;
 
 import "../contracts/facets/reservation/institutional/InstitutionalReservationCancellationFacet.sol";
 import "../contracts/facets/reservation/institutional/InstitutionalReservationConfirmationFacet.sol";
+import "../contracts/facets/reservation/ReservationDenialFacet.sol";
 import "../contracts/libraries/LibAppStorage.sol";
 import "../contracts/libraries/LibERC721Storage.sol";
 import "./LibERC721StorageTestHelper.sol";
@@ -85,6 +86,54 @@ contract InstReservationHarness {
     }
 
     // helper to read reservation status from the harness storage
+    function getReservationStatus(
+        bytes32 key
+    ) external view returns (uint8) {
+        AppStorage storage s = LibAppStorage.diamondStorage();
+        return s.reservations[key].status;
+    }
+
+    function getLabReputation(
+        uint256 labId
+    ) external view returns (int32 score, uint32 totalEvents, uint32 ownerCancellations, uint64 lastUpdated) {
+        AppStorage storage s = LibAppStorage.diamondStorage();
+        LabReputation storage rep = s.labReputation[labId];
+        return (rep.score, rep.totalEvents, rep.ownerCancellations, rep.lastUpdated);
+    }
+}
+
+contract ReservationDenialHarness is ReservationDenialFacet {
+    function setOwner(
+        uint256 tokenId,
+        address owner
+    ) external {
+        LibERC721StorageTestHelper.setOwnerForTest(tokenId, owner);
+    }
+
+    function setReservation(
+        bytes32 key,
+        address renter,
+        uint8 status,
+        uint256 labId,
+        uint32 start
+    ) external {
+        AppStorage storage s = LibAppStorage.diamondStorage();
+        Reservation storage r = s.reservations[key];
+        r.renter = renter;
+        r.status = status;
+        r.labId = labId;
+        r.start = start;
+        r.end = start + 3600;
+    }
+
+    function getLabReputation(
+        uint256 labId
+    ) external view returns (int32 score, uint32 totalEvents, uint32 ownerCancellations, uint64 lastUpdated) {
+        AppStorage storage s = LibAppStorage.diamondStorage();
+        LabReputation storage rep = s.labReputation[labId];
+        return (rep.score, rep.totalEvents, rep.ownerCancellations, rep.lastUpdated);
+    }
+
     function getReservationStatus(
         bytes32 key
     ) external view returns (uint8) {

@@ -1,57 +1,57 @@
-{
-  "network": "sepolia",
-  "timestamp": "2026-06-28T16:26:57.5338781+02:00",
-  "chainId": 11155111,
-  "contracts": {
-    "Diamond": "0xFfCF0110F2Ffbf26c1a6542933DC25e8f526D3d0",
-    "DiamondCutFacet": "0x9e40120829b88719E3eD2a0cf9A033Af9fcf438E",
-    "DiamondInit": "0xa89C52FB5265B7C3Bb6507276b4dD4b27883de48"
-  },
-  "libraries": {
-    "RivalIntervalTreeLibrary": "0x99e22BA5Ddc3e844C4631211e1f790633f5e221c",
-    "LibLabTransfer": "0xEF1b90e435CDf5Cd68F8Fc734F8941BAFa30B94c",
-    "LibReservationConfirmation": "0xC66257241F555A0f7954f1412D4BF96E8D5FA002",
-    "LibInstitutionalReservationConfirmation": "0x782C34B19B2C1e6472dB6651E665F5947B958cdA",
-    "LibInstitutionalReservationRequestValidation": "0x69e0deF9722a09678fa78425955A4B4e21754bf0",
-    "LibInstitutionalReservationRelease": "0x5a22f73648170b8A64D804DC8dE5cc04Bfef3d5e"
-  },
-  "facets": {
-    "DiamondLoupeFacet": "0x661c6046721a86595fda02516c7203D57D22d947",
-    "OwnershipFacet": "0x58999B261d7c5522c327390329de86D67Dc096c9",
-    "InitFacet": "0x49cade7AE512EB7E70d755492eF492f77FA9332D",
-    "ProviderFacet": "0x9A464e65eB38342E38Dc81f017B9116ab1734c55",
-    "IntentRegistryFacet": "0x7ea56c9B099661Ef8F250500ae390572025a0296",
-    "InstitutionFacet": "0x8ddf37Fc8b526a065F63Cf523646F964Cab644f2",
-    "InstitutionalOrgRegistryFacet": "0xbB3bDDeC5535f35e981ED9AD6AaB86e9cF09Ff20",
-    "InstitutionalTreasuryFacet": "0xcBd46946DcBc5Ef377070F7238dbf9373e9a2990",
-    "LabFacet": "0x48D14A6443d7eB8efE757c03168339D26fc0717F",
-    "LabAdminFacet": "0xc017F1B214ec1F29a2b228f8E97D22f386186257",
-    "LabIntentFacet": "0x17c3bbAb4f6b2a6B480c6b0E56C73a53B6FCa643",
-    "LabQueryFacet": "0xfaAE0a902591a36a9a8c2055333417945E9347A3",
-    "LabReputationFacet": "0xb2548AA0AD3dF3B68777A309c0e73425871f5Ebb",
-    "ProviderSettlementFacet": "0x0B9a9B39BfB16A68Ac4d108FD24F98a2f85Ec6eE",
-    "InstitutionalReservationRequestValidationFacet": "0x75F7A28BeD43F3252a4e50a7C1AB5B71eB63AB4A",
-    "InstitutionalReservationRequestCreationFacet": "0x39fA22DaECDb23b533034B4941B4dF6dDC5Bc56B",
-    "InstitutionalReservationRequestFacet": "0xCF95D593FD3AC3000C3547E75432984EFBa0c487",
-    "InstitutionalReservationConfirmationFacet": "0x65cEa635eA8065D24Fbb972117B0F1643AC101F8",
-    "InstitutionalReservationCancellationFacet": "0x105e7f0e36017f198F5390CBf106fB6f608e0A01",
-    "InstitutionalReservationQueryFacet": "0xECaa1D19a91939468268C4D46531264C17FB59a4",
-    "InstitutionalReservationFacet": "0xDA11f54E27fCe46bA01D8ccA829DE20841d17Efa",
-    "ReservationCheckInFacet": "0xEF5dA68A505Cb1e53CbaE6212B80c5374f61F8cD",
-    "ReservationStatsFacet": "0xbeDe55AAa1Ca51c5b13EbC4930aA195ec0f37b49",
-    "ReservationDenialFacet": "0x9Ded84d9324376284A6c20924A0b3F2CDE3e02A5",
-    "ReservationIntentFacet": "0x3821A08D1C576a60C1b93e9B69B661446b75682E"
-  },
-  "deployer": "0x183f062b6a8c39b9a9e71898741acf8f25e11561",
-  "configuration": {
-    "adminName": "Luis",
-    "adminEmail": "ldelatorre@dia.uned.es",
-    "adminCountry": "Spain",
-    "diamondName": "DecentraLabs",
-    "diamondSymbol": "dLAB",
-    "deploymentModel": "credit-ledger",
-    "accountingBuckets": [
-      "providerReceivable"
-    ]
-  }
+﻿{
+    "network":  "sepolia",
+    "timestamp":  "2026-06-29T12:58:32.4953547+02:00",
+    "chainId":  11155111,
+    "contracts":  {
+                      "Diamond":  "0xe49a2f59631717691642f929E0FeF1f705866600",
+                      "DiamondCutFacet":  "0x1C997544b09dD3CF505FEca019b0EBeC171C7C97",
+                      "DiamondInit":  "0xd8441c8C03e342409F517FD9726b79f49681D284"
+                  },
+    "libraries":  {
+                      "RivalIntervalTreeLibrary":  "0x5752aA567Ae6008ddD2cAae8e4ba207683784F89",
+                      "LibLabTransfer":  "0x2aAE991e0402055d9054f8f17A304B903Bc5d46A",
+                      "LibReservationConfirmation":  "0xabb21790102F74a4fef24373527F9a1CAa3efE3F",
+                      "LibInstitutionalReservationConfirmation":  "0xa91EE0EC9167D5876EA8CC9C59fA78C92C8E6FCF",
+                      "LibInstitutionalReservationRequestValidation":  "0x6720dB852453e3582AA90D201481A54ec0e7F185",
+                      "LibInstitutionalReservationRelease":  "0x13946db53a90fEB3272890776A0DDec7Ca8088CC"
+                  },
+    "facets":  {
+                   "DiamondLoupeFacet":  "0x3007d6B09451087f1fF1BfE885c614d22B733C77",
+                   "OwnershipFacet":  "0xEB1EA6e04C618F7A428831a64aFcA73811cC250f",
+                   "InitFacet":  "0x3505567A179c24cfeD29620553ff52Ea12FBAf71",
+                   "ProviderFacet":  "0xadb630098C985AAf03D9612dc765481F682f060c",
+                   "IntentRegistryFacet":  "0x6069fF12963B0D972d1d406aC1a7b3a772edd4Eb",
+                   "InstitutionFacet":  "0xe6a4E4878B0850f3e982E32eE44B820bFA03E3d6",
+                   "InstitutionalOrgRegistryFacet":  "0x5dE35d10289DaFDFdEF0B6D0c09aa1dcB4743365",
+                   "InstitutionalTreasuryFacet":  "0x5cCC5bCE2fF02a3f5f76EB2002EEC4476dfC3a39",
+                   "LabFacet":  "0x3d28a564657dda793ab93Fe5199A0Efd1e22FbF8",
+                   "LabAdminFacet":  "0x07133489d0a9c50a19a5462CA7ec1E8657B80128",
+                   "LabIntentFacet":  "0x90E99cd2383E6fFdE6FB314E1571B94B8a32516E",
+                   "LabQueryFacet":  "0xa3B2EEEeb66C92573931dA7b3B87a506661e6B01",
+                   "LabReputationFacet":  "0xC74D3BF0f48affBcE22917F244bAf83f8115faef",
+                   "ProviderSettlementFacet":  "0x16197C7D94f14Ae6119fcCF8F82F9C9A076775e3",
+                   "InstitutionalReservationRequestValidationFacet":  "0x9185d7da2ED92bBA4384886a15218587fdE553e3",
+                   "InstitutionalReservationRequestCreationFacet":  "0xbAA8c2492C90613865730dbc4fA12aE16a881786",
+                   "InstitutionalReservationRequestFacet":  "0x276C54beFE17830D48c58cB541b510dA00D368D4",
+                   "InstitutionalReservationConfirmationFacet":  "0x42C01532badd62b6D84c9aF3afeFd8AbAA046Be9",
+                   "InstitutionalReservationCancellationFacet":  "0x545ef5122b99F6f1Ea8333343CaC6680fE3fE1A4",
+                   "InstitutionalReservationQueryFacet":  "0x7b279796E6A0d675E09b5b6ce4285654859098D9",
+                   "InstitutionalReservationFacet":  "0x0045594873D8642D95C0dda3573453745F13B2A4",
+                   "ReservationCheckInFacet":  "0x18120B1195ce29c46a46B56d4A6163793C353fED",
+                   "ReservationStatsFacet":  "0xfF12de30Cd91052b185956B1b4eFDa3bfA4F3Ee5",
+                   "ReservationDenialFacet":  "0x4cbD1A04B1C80257585948dCe2f52D1D51b9ca5D",
+                   "ReservationIntentFacet":  "0x362636b137D44b805D2Cb6788d4e4A4877EBeF38"
+               },
+    "deployer":  "0x183f062b6a8c39b9a9e71898741acf8f25e11561",
+    "configuration":  {
+                          "adminName":  "Luis",
+                          "adminEmail":  "ldelatorre@dia.uned.es",
+                          "adminCountry":  "Spain",
+                          "diamondName":  "DecentraLabs",
+                          "diamondSymbol":  "dLAB",
+                          "deploymentModel":  "credit-ledger",
+                          "accountingBuckets":  [
+                                                    "providerReceivable"
+                                                ]
+                      }
 }

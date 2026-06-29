@@ -348,7 +348,22 @@
   },
   {
     "type": "error",
+    "name": "InsufficientAvailableCredits",
+    "inputs": []
+  },
+  {
+    "type": "error",
     "name": "ReentrancyGuardReentrantCall",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "ZeroAccount",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "ZeroAmount",
     "inputs": []
   },
   {
@@ -632,16 +647,6 @@
   },
   {
     "type": "error",
-    "name": "ZeroAccount",
-    "inputs": []
-  },
-  {
-    "type": "error",
-    "name": "ZeroAmount",
-    "inputs": []
-  },
-  {
-    "type": "error",
     "name": "IntentExecutorMustBeCaller",
     "inputs": []
   },
@@ -673,11 +678,6 @@
   {
     "type": "error",
     "name": "PucMissing",
-    "inputs": []
-  },
-  {
-    "type": "error",
-    "name": "InsufficientAvailableCredits",
     "inputs": []
   },
   {
@@ -4404,11 +4404,6 @@
         "internalType": "uint32"
       },
       {
-        "name": "institutionalCancellations",
-        "type": "uint32",
-        "internalType": "uint32"
-      },
-      {
         "name": "lastUpdated",
         "type": "uint64",
         "internalType": "uint64"
@@ -6343,6 +6338,43 @@
   },
   {
     "type": "event",
+    "name": "LabReputationAdjusted",
+    "inputs": [
+      {
+        "name": "labId",
+        "type": "uint256",
+        "indexed": true,
+        "internalType": "uint256"
+      },
+      {
+        "name": "delta",
+        "type": "int32",
+        "indexed": false,
+        "internalType": "int32"
+      },
+      {
+        "name": "newScore",
+        "type": "int32",
+        "indexed": false,
+        "internalType": "int32"
+      },
+      {
+        "name": "totalEvents",
+        "type": "uint32",
+        "indexed": false,
+        "internalType": "uint32"
+      },
+      {
+        "name": "reason",
+        "type": "string",
+        "indexed": false,
+        "internalType": "string"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
     "name": "LabUnlisted",
     "inputs": [
       {
@@ -7277,43 +7309,6 @@
         "type": "address",
         "indexed": false,
         "internalType": "address"
-      }
-    ],
-    "anonymous": false
-  },
-  {
-    "type": "event",
-    "name": "LabReputationAdjusted",
-    "inputs": [
-      {
-        "name": "labId",
-        "type": "uint256",
-        "indexed": true,
-        "internalType": "uint256"
-      },
-      {
-        "name": "delta",
-        "type": "int32",
-        "indexed": false,
-        "internalType": "int32"
-      },
-      {
-        "name": "newScore",
-        "type": "int32",
-        "indexed": false,
-        "internalType": "int32"
-      },
-      {
-        "name": "totalEvents",
-        "type": "uint32",
-        "indexed": false,
-        "internalType": "uint32"
-      },
-      {
-        "name": "reason",
-        "type": "string",
-        "indexed": false,
-        "internalType": "string"
       }
     ],
     "anonymous": false

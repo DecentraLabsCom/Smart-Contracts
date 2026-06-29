@@ -285,10 +285,7 @@ abstract contract BaseReservationFacet is InstitutionalReservableTokenEnumerable
         Reservation storage reservation,
         uint256 labId
     ) internal returns (bool) {
-        if (
-            reservation.status == _SETTLED || reservation.status == _CANCELLED
-                || reservation.status == _CANCELLED_BOOKING
-        ) {
+        if (reservation.status == _SETTLED || reservation.status == _CANCELLED) {
             return false;
         }
 

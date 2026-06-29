@@ -230,10 +230,7 @@ abstract contract BaseInstitutionalReservationFacet is InstitutionalReservableTo
         Reservation storage reservation,
         uint256 labId
     ) internal returns (bool) {
-        if (
-            reservation.status == _SETTLED || reservation.status == _CANCELLED
-                || reservation.status == _CANCELLED_BOOKING
-        ) return false;
+        if (reservation.status == _SETTLED || reservation.status == _CANCELLED) return false;
 
         address trackingKey = _computeTrackingKey(key, reservation);
         uint256 reservationPrice = reservation.price;

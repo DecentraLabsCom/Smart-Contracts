@@ -76,7 +76,7 @@ struct Lab {
 /// @param renter Address of the user making the reservation
 /// @param price Total cost of the reservation in LAB base units (uint96)
 /// @param labProvider Address of the lab provider (owner at reservation time)
-/// @param status Current state of the reservation (0=_PENDING, 1=_CONFIRMED, 2=_IN_USE, 3=_SETTLED, 4=_CANCELLED, 5=_CANCELLED_BOOKING)
+/// @param status Current state of the reservation (0=_PENDING, 1=_CONFIRMED, 2=_IN_USE, 3=_SETTLED, 4=_CANCELLED)
 /// @param start Starting timestamp of the reservation (as uint32)
 /// @param end Ending timestamp of the reservation (as uint32)
 /// @param requestPeriodStart Period start timestamp when institutional reservation was requested, used for slippage protection

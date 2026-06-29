@@ -22,7 +22,6 @@ library LibReservationCancellation {
     uint8 internal constant _IN_USE = 2;
     uint8 internal constant _SETTLED = 3;
     uint8 internal constant _CANCELLED = 4;
-    uint8 internal constant _CANCELLED_BOOKING = 5;
 
     uint8 internal constant _TOKEN_BUFFER_CAP = 40;
     uint8 internal constant _USER_BUFFER_CAP = 20;
@@ -106,7 +105,7 @@ library LibReservationCancellation {
             _decrementActiveReservationCounters(s, reservation);
         }
 
-        reservation.status = wasActive ? _CANCELLED_BOOKING : _CANCELLED;
+        reservation.status = _CANCELLED;
 
         if (s.payoutHeapContains[reservationKey]) {
             s.payoutHeapInvalidCount[reservation.labId]++;

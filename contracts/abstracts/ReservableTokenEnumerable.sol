@@ -68,10 +68,7 @@ abstract contract ReservableTokenEnumerable is ReservableToken {
 
         // Optimized availability check
         Reservation storage existing = s.reservations[reservationKey];
-        if (
-            existing.renter != address(0) && existing.status != _CANCELLED
-                && existing.status != _CANCELLED_BOOKING && existing.status != _SETTLED
-        ) {
+        if (existing.renter != address(0) && existing.status != _CANCELLED && existing.status != _SETTLED) {
             revert NotAvailable();
         }
 
@@ -322,7 +319,7 @@ abstract contract ReservableTokenEnumerable is ReservableToken {
         for (uint256 i; i < size && found < maxCount;) {
             bytes32 key = buf.keys[i];
             Reservation storage r = s.reservations[key];
-            if (r.end < currentTime || r.status == _CANCELLED || r.status == _CANCELLED_BOOKING) {
+            if (r.end < currentTime || r.status == _CANCELLED) {
                 unchecked {
                     ++i;
                 }
@@ -427,7 +424,7 @@ abstract contract ReservableTokenEnumerable is ReservableToken {
         for (uint256 i; i < size && found < maxCount;) {
             bytes32 key = buf.keys[i];
             Reservation storage r = s.reservations[key];
-            if (r.end < currentTime || r.status == _CANCELLED || r.status == _CANCELLED_BOOKING) {
+            if (r.end < currentTime || r.status == _CANCELLED) {
                 unchecked {
                     ++i;
                 }

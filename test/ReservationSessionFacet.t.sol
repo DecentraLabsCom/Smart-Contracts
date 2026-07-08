@@ -36,7 +36,7 @@ contract ReservationSessionHarness is ReservationSessionFacet {
 
 contract ReservationSessionFacetTest is Test {
     uint8 internal constant _CONFIRMED = 1;
-    uint8 internal constant _IN_USE = 2;
+    uint8 internal constant _ACCESS_AUTHORIZED = 2;
 
     uint256 internal constant PROVIDER_PK = 0xA11CE;
     uint256 internal constant OTHER_PK = 0xB0B;
@@ -89,7 +89,7 @@ contract ReservationSessionFacetTest is Test {
         vm.warp(startedAt + 30);
         harness.setOwner(LAB_ID, provider);
         harness.setReservation(
-            reservationKey, address(0xCAFE), _IN_USE, LAB_ID, reservationStart, reservationEnd, pucHash
+            reservationKey, address(0xCAFE), _ACCESS_AUTHORIZED, LAB_ID, reservationStart, reservationEnd, pucHash
         );
     }
 
@@ -123,7 +123,7 @@ contract ReservationSessionFacetTest is Test {
         assertEq(session.credentialHash, credentialHash);
     }
 
-    function test_markSessionStarted_requiresAccessAuthorizedInUseState() public {
+    function test_markSessionStarted_requiresAccessAuthorizedState() public {
         harness.setReservation(
             reservationKey, address(0xCAFE), _CONFIRMED, LAB_ID, reservationStart, reservationEnd, pucHash
         );
@@ -171,7 +171,7 @@ contract ReservationSessionFacetTest is Test {
     function _switchToSecondAuthorizedReservation() private {
         reservationKey = keccak256("reservation-2");
         harness.setReservation(
-            reservationKey, address(0xBEEF), _IN_USE, LAB_ID, reservationStart, reservationEnd, pucHash
+            reservationKey, address(0xBEEF), _ACCESS_AUTHORIZED, LAB_ID, reservationStart, reservationEnd, pucHash
         );
     }
 

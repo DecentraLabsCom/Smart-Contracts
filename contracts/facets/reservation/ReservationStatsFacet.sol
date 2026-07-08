@@ -273,7 +273,7 @@ contract ReservationStatsFacet {
     /// @dev Fast path: O(1) via the dedicated activeReservationByTokenAndUser index.
     ///      Slow path: O(≤10) scan over reservationKeysByTokenAndUser when the index
     ///      is stale.  Returns bytes32(0) when no active reservation exists.
-    ///      Both _CONFIRMED and _IN_USE/access-authorized reservations are treated as active.
+    ///      Both _CONFIRMED and _ACCESS_AUTHORIZED/access-authorized reservations are treated as active.
     /// @param _tokenId The lab NFT token ID.
     /// @param _user    The renter wallet address.
     function getActiveReservationKeyForUser(

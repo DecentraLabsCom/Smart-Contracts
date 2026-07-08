@@ -8,7 +8,7 @@ import {LibERC721Storage} from "../../libraries/LibERC721Storage.sol";
 /// @title ReservationSessionFacet
 /// @notice Records provider-signed proof that the lab session actually started after payer access authorization.
 contract ReservationSessionFacet {
-    uint8 internal constant _IN_USE = 2;
+    uint8 internal constant _ACCESS_AUTHORIZED = 2;
 
     bytes32 private constant EIP712_DOMAIN_TYPEHASH =
         keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)");
@@ -113,7 +113,7 @@ contract ReservationSessionFacet {
         SessionStartedInput calldata input
     ) private view {
         if (reservation.renter == address(0)) revert("Reservation not found");
-        if (reservation.status != _IN_USE) revert("Access not authorized");
+        if (reservation.status != _ACCESS_AUTHORIZED) revert("Access not authorized");
         if (input.startedAt < reservation.start || input.startedAt > reservation.end) {
             revert("Outside reservation window");
         }

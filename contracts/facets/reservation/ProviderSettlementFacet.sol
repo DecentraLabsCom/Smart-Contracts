@@ -24,7 +24,7 @@ contract ProviderSettlementFacet is ReentrancyGuardTransient {
     /// @dev Reservation status constants (must match reservation facets)
     uint8 internal constant _PENDING = 0;
     uint8 internal constant _CONFIRMED = 1;
-    uint8 internal constant _IN_USE = 2;
+    uint8 internal constant _ACCESS_AUTHORIZED = 2;
     uint8 internal constant _SETTLED = 3;
     uint8 internal constant _CANCELLED = 4;
 
@@ -364,9 +364,9 @@ contract ProviderSettlementFacet is ReentrancyGuardTransient {
         Reservation storage reservation,
         uint256 labId
     ) internal view returns (bool) {
-        // Provider settlement requires AccessAuthorized (_IN_USE) plus observed SessionStarted.
+        // Provider settlement requires AccessAuthorized (_ACCESS_AUTHORIZED) plus observed SessionStarted.
         bool sessionStartedRecorded = s.reservationSessionStartedRecorded[key];
-        return reservation.labId == labId && reservation.status == _IN_USE && sessionStartedRecorded;
+        return reservation.labId == labId && reservation.status == _ACCESS_AUTHORIZED && sessionStartedRecorded;
     }
 
     function _isSupportedReceivableState(
@@ -655,7 +655,7 @@ contract ProviderSettlementFacet is ReentrancyGuardTransient {
         // Mark as settled
         uint8 previousStatus = reservation.status;
         reservation.status = _SETTLED;
-        if (previousStatus == _IN_USE) {
+        if (previousStatus == _ACCESS_AUTHORIZED) {
             LibReputation.recordCompletion(labId);
         }
 

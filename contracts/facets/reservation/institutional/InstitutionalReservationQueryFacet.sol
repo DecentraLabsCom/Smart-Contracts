@@ -17,7 +17,7 @@ contract InstitutionalReservationQueryFacet {
 
     /// @dev Reservation status constants
     uint8 internal constant _CONFIRMED = 1;
-    uint8 internal constant _IN_USE = 2;
+    uint8 internal constant _ACCESS_AUTHORIZED = 2;
     uint256 internal constant _MAX_PAGE_SIZE = 100;
 
     /// @dev Returns the AppStorage struct from the diamond storage slot.
@@ -106,8 +106,8 @@ contract InstitutionalReservationQueryFacet {
 
         Reservation storage reservation = s.reservations[reservationKey];
         uint32 time = uint32(block.timestamp);
-        return (reservation.status == _CONFIRMED || reservation.status == _IN_USE) && reservation.start <= time
-            && reservation.end >= time;
+        return (reservation.status == _CONFIRMED || reservation.status == _ACCESS_AUTHORIZED)
+            && reservation.start <= time && reservation.end >= time;
     }
 
     /// @notice Get the active reservation key for an institutional user on a specific lab
@@ -134,7 +134,7 @@ contract InstitutionalReservationQueryFacet {
         Reservation storage reservation = s.reservations[activeKey];
         uint32 time = uint32(block.timestamp);
         if (
-            (reservation.status == _CONFIRMED || reservation.status == _IN_USE) && reservation.start <= time
+            (reservation.status == _CONFIRMED || reservation.status == _ACCESS_AUTHORIZED) && reservation.start <= time
                 && reservation.end >= time
         ) {
             return activeKey;

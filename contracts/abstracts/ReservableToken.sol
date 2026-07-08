@@ -40,7 +40,7 @@ abstract contract ReservableToken {
     /// @notice The status of a reservation follows this lifecycle:
     /// - _PENDING: Reservation requested but not yet confirmed. Does NOT block calendar slot.
     /// - _CONFIRMED: Reservation confirmed and paid. Blocks calendar slot. Actively reserving the lab.
-    /// - _IN_USE: Access has been authorized on-chain. This is not proof that a remote session started.
+    /// - _ACCESS_AUTHORIZED: Access has been authorized on-chain. This is not proof that a remote session started.
     /// - status value 3 is reserved and unused.
     /// - _SETTLED: Service credits have been captured and provider receivable accrued for settlement processing.
     /// - _CANCELLED: Reservation cancelled by user, admin, or provider.
@@ -48,15 +48,15 @@ abstract contract ReservableToken {
     /// @dev State transition rules:
     ///      _PENDING → _CONFIRMED (on admin confirmation with credit lock)
     ///      _PENDING → _CANCELLED (on denial or user cancellation)
-    ///      _CONFIRMED → _IN_USE (on access authorization/check-in)
+    ///      _CONFIRMED → _ACCESS_AUTHORIZED (on access authorization/check-in)
     ///      _CONFIRMED → _SETTLED (when expired, via releaseExpiredReservations — credits captured)
     ///      _CONFIRMED → _CANCELLED (on cancellation with partial release/capture)
-    ///      _IN_USE → _CANCELLED is intentionally disallowed
+    ///      _ACCESS_AUTHORIZED → _CANCELLED is intentionally disallowed
     ///      _SETTLED, _CANCELLED are terminal states
 
     uint8 internal constant _PENDING = 0;
     uint8 internal constant _CONFIRMED = 1;
-    uint8 internal constant _IN_USE = 2;
+    uint8 internal constant _ACCESS_AUTHORIZED = 2;
     uint8 internal constant _SETTLED = 3;
     uint8 internal constant _CANCELLED = 4;
     uint32 internal constant _RESERVATION_MARGIN = 0;
@@ -382,8 +382,9 @@ abstract contract ReservableToken {
         Reservation memory reservation = _s().reservations[_reservationKey];
         uint32 time = uint32(block.timestamp);
 
-        // _IN_USE means access-authorized; both statuses are active bookings.
-        return (reservation.renter == _user && (reservation.status == _CONFIRMED || reservation.status == _IN_USE)
+        // _ACCESS_AUTHORIZED means access-authorized; both statuses are active bookings.
+        return (reservation.renter == _user
+                && (reservation.status == _CONFIRMED || reservation.status == _ACCESS_AUTHORIZED)
                 && reservation.start <= time && reservation.end >= time);
     }
 
@@ -743,7 +744,7 @@ abstract contract ReservableToken {
 
     /// @dev Cancels a reservation identified by the given reservation key.
     ///      Updates the reservation status to _CANCELLED and removes the reservation
-    ///      from the associated lab's calendar (only if it was inserted, i.e., _CONFIRMED or _IN_USE).
+    ///      from the associated lab's calendar (only if it was inserted, i.e., _CONFIRMED or _ACCESS_AUTHORIZED).
     /// @param _reservationKey The unique key identifying the reservation to be cancelled.
     function _cancelReservation(
         bytes32 _reservationKey
@@ -752,9 +753,9 @@ abstract contract ReservableToken {
         Reservation storage reservation = s.reservations[_reservationKey];
 
         bool wasActive = _isActiveReservationStatus(reservation.status);
-        // Only remove from calendar if reservation was actually inserted (_CONFIRMED or _IN_USE)
+        // Only remove from calendar if reservation was actually inserted (_CONFIRMED or _ACCESS_AUTHORIZED)
         // _PENDING reservations are never inserted in calendar, so no need to remove
-        if (reservation.status == _CONFIRMED || reservation.status == _IN_USE) {
+        if (reservation.status == _CONFIRMED || reservation.status == _ACCESS_AUTHORIZED) {
             _removeReservationFromCalendar(reservation.labId, reservation.start);
         }
 
@@ -779,7 +780,7 @@ abstract contract ReservableToken {
     function _isActiveReservationStatus(
         uint8 status
     ) internal pure returns (bool) {
-        return status == _CONFIRMED || status == _IN_USE;
+        return status == _CONFIRMED || status == _ACCESS_AUTHORIZED;
     }
 
     function _incrementActiveReservationCounters(

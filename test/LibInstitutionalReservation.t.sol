@@ -12,7 +12,7 @@ contract LibInstitutionalReservationTest is BaseTest {
 
     uint8 internal constant _PENDING = 0;
     uint8 internal constant _CONFIRMED = 1;
-    uint8 internal constant _IN_USE = 2;
+    uint8 internal constant _ACCESS_AUTHORIZED = 2;
     uint8 internal constant _SETTLED = 3;
     uint8 internal constant _CANCELLED = 4;
 
@@ -95,7 +95,7 @@ contract LibInstitutionalReservationTest is BaseTest {
         harness.cancelBookingWrapper(inst, keccak256(bytes(puc)), key);
     }
 
-    function test_cancelBooking_inUse_reverts() public {
+    function test_cancelBooking_accessAuthorized_reverts() public {
         address inst = address(0xCAFE);
         address backend = address(0xF00D);
         uint256 labId = 11;
@@ -104,14 +104,16 @@ contract LibInstitutionalReservationTest is BaseTest {
         string memory puc = "eve@inst";
 
         harness.setBackend(inst, backend);
-        harness.setReservation(key, user1, inst, 1_000_000, _IN_USE, labId, start, puc);
+        harness.setReservation(key, user1, inst, 1_000_000, _ACCESS_AUTHORIZED, labId, start, puc);
 
         vm.prank(backend);
         vm.expectRevert();
         harness.cancelBookingWrapper(inst, keccak256(bytes(puc)), key);
     }
 
-    function test_releaseInstitutionalExpiredReservations_inUseWithoutSessionStarted_doesNotRewardReputation() public {
+    function test_releaseInstitutionalExpiredReservations_accessAuthorizedWithoutSessionStarted_doesNotRewardReputation()
+        public
+    {
         vm.warp(10_000);
         address inst = address(0xCAFE);
         address backend = address(0xF00D);
@@ -124,7 +126,7 @@ contract LibInstitutionalReservationTest is BaseTest {
 
         harness.setInstitution(inst);
         harness.setBackend(inst, backend);
-        harness.setIndexedExpiredReservation(key, user1, inst, 1_000_000, _IN_USE, labId, start, end, puc);
+        harness.setIndexedExpiredReservation(key, user1, inst, 1_000_000, _ACCESS_AUTHORIZED, labId, start, end, puc);
 
         vm.prank(backend);
         uint256 processed = harness.releaseInstitutionalExpiredReservationsWrapper(inst, pucHash, labId, 10);
@@ -137,7 +139,9 @@ contract LibInstitutionalReservationTest is BaseTest {
         assertEq(ownerCancellations, 0);
     }
 
-    function test_releaseInstitutionalExpiredReservations_inUseWithSessionStarted_rewardsReputation() public {
+    function test_releaseInstitutionalExpiredReservations_accessAuthorizedWithSessionStarted_rewardsReputation()
+        public
+    {
         vm.warp(10_000);
         address inst = address(0xCAFE);
         address backend = address(0xF00D);
@@ -150,7 +154,7 @@ contract LibInstitutionalReservationTest is BaseTest {
 
         harness.setInstitution(inst);
         harness.setBackend(inst, backend);
-        harness.setIndexedExpiredReservation(key, user1, inst, 1_000_000, _IN_USE, labId, start, end, puc);
+        harness.setIndexedExpiredReservation(key, user1, inst, 1_000_000, _ACCESS_AUTHORIZED, labId, start, end, puc);
         harness.markSessionStartedForTest(key);
 
         vm.prank(backend);

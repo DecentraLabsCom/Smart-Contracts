@@ -38,7 +38,7 @@ library LibInstitutionalReservationConfirmation {
 
     uint8 internal constant _PENDING = 0;
     uint8 internal constant _CONFIRMED = 1;
-    uint8 internal constant _IN_USE = 2;
+    uint8 internal constant _ACCESS_AUTHORIZED = 2;
 
     event ReservationConfirmed(bytes32 indexed reservationKey, uint256 indexed tokenId);
     event ReservationRequestDenied(bytes32 indexed reservationKey, uint256 indexed tokenId, uint8 reason);

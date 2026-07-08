@@ -228,7 +228,10 @@ abstract contract BaseReservationFacet is InstitutionalReservableTokenEnumerable
             Reservation storage reservation = s.reservations[key];
 
             // Only process expired reservations that are still _CONFIRMED
-            if (reservation.end < currentTime && (reservation.status == _CONFIRMED || reservation.status == _IN_USE)) {
+            if (
+                reservation.end < currentTime
+                    && (reservation.status == _CONFIRMED || reservation.status == _ACCESS_AUTHORIZED)
+            ) {
                 _finalizeReservationForPayout(s, key, reservation, _labId);
                 len = userReservations.length();
                 unchecked {
@@ -292,7 +295,7 @@ abstract contract BaseReservationFacet is InstitutionalReservableTokenEnumerable
         address trackingKey = _computeTrackingKey(key, reservation);
         uint256 reservationPrice = reservation.price;
 
-        if (reservation.status == _CONFIRMED || reservation.status == _IN_USE) {
+        if (reservation.status == _CONFIRMED || reservation.status == _ACCESS_AUTHORIZED) {
             _removeReservationFromCalendar(labId, reservation.start);
         }
 
@@ -304,7 +307,7 @@ abstract contract BaseReservationFacet is InstitutionalReservableTokenEnumerable
         bool sessionStartedRecorded = s.reservationSessionStartedRecorded[key];
 
         reservation.status = _SETTLED;
-        if (previousStatus == _IN_USE && sessionStartedRecorded) {
+        if (previousStatus == _ACCESS_AUTHORIZED && sessionStartedRecorded) {
             LibReputation.recordCompletion(labId);
         }
 
@@ -455,7 +458,10 @@ abstract contract BaseReservationFacet is InstitutionalReservableTokenEnumerable
             _removeHeapRoot(heap);
             s.payoutHeapContains[root.key] = false;
             Reservation storage reservation = s.reservations[root.key];
-            if (reservation.labId == labId && (reservation.status == _CONFIRMED || reservation.status == _IN_USE)) {
+            if (
+                reservation.labId == labId
+                    && (reservation.status == _CONFIRMED || reservation.status == _ACCESS_AUTHORIZED)
+            ) {
                 return root.key;
             }
             if (invalidCount > 0) {
@@ -540,7 +546,10 @@ abstract contract BaseReservationFacet is InstitutionalReservableTokenEnumerable
             bytes32 key = heap[readIndex].key;
             Reservation storage reservation = s.reservations[key];
 
-            if (reservation.labId == labId && (reservation.status == _CONFIRMED || reservation.status == _IN_USE)) {
+            if (
+                reservation.labId == labId
+                    && (reservation.status == _CONFIRMED || reservation.status == _ACCESS_AUTHORIZED)
+            ) {
                 // Keep valid entry: move to write position if different from read position
                 if (writeIndex != readIndex) {
                     heap[writeIndex] = heap[readIndex]; // Copies both end and key

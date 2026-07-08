@@ -8,10 +8,13 @@ import "../contracts/libraries/LibAppStorage.sol";
 import "../contracts/libraries/LibERC721Storage.sol";
 import "./LibERC721StorageTestHelper.sol";
 import "../contracts/libraries/LibInstitutionalReservation.sol";
+import "../contracts/libraries/LibInstitutionalReservationRelease.sol";
+import "../contracts/libraries/LibTracking.sol";
 import "../contracts/libraries/LibLabAdmin.sol";
 
 contract InstReservationHarness {
     using EnumerableSet for EnumerableSet.Bytes32Set;
+    using EnumerableSet for EnumerableSet.AddressSet;
 
     // expose helpers to set storage
     function setBackend(
@@ -20,6 +23,13 @@ contract InstReservationHarness {
     ) external {
         AppStorage storage s = LibAppStorage.diamondStorage();
         s.institutionalBackends[inst] = backend;
+    }
+
+    function setInstitution(
+        address inst
+    ) external {
+        AppStorage storage s = LibAppStorage.diamondStorage();
+        s.roleMembers[INSTITUTION_ROLE].add(inst);
     }
 
     function setReservation(
@@ -53,6 +63,48 @@ contract InstReservationHarness {
         // reservation index sets are not required by these unit tests and are omitted in the harness
     }
 
+    function setIndexedExpiredReservation(
+        bytes32 key,
+        address renter,
+        address payerInstitution,
+        uint96 price,
+        uint8 status,
+        uint256 labId,
+        uint32 start,
+        uint32 end,
+        string calldata puc
+    ) external {
+        AppStorage storage s = LibAppStorage.diamondStorage();
+        Reservation storage r = s.reservations[key];
+        r.renter = renter;
+        r.payerInstitution = payerInstitution;
+        r.price = price;
+        r.status = status;
+        r.labId = labId;
+        r.start = start;
+        r.end = end;
+        r.labProvider = payerInstitution;
+        if (bytes(puc).length > 0) {
+            bytes32 pucHash = keccak256(bytes(puc));
+            s.reservationPucHash[key] = pucHash;
+            address trackingKey = LibTracking.trackingKeyFromInstitutionHash(payerInstitution, pucHash);
+            s.reservationKeysByTokenAndUser[labId][trackingKey].add(key);
+            s.activeReservationCountByTokenAndUser[labId][trackingKey] += 1;
+        }
+        s.reservationKeysByToken[labId].add(key);
+        s.renters[renter].add(key);
+        s.labActiveReservationCount[labId] += 1;
+        s.providerActiveReservationCount[payerInstitution] += 1;
+        s.totalReservationsCount += 1;
+    }
+
+    function markSessionStartedForTest(
+        bytes32 reservationKey
+    ) external {
+        AppStorage storage s = LibAppStorage.diamondStorage();
+        s.reservationSessionStartedRecorded[reservationKey] = true;
+    }
+
     // wrappers to call the internal library functions
     function cancelReservationRequestWrapper(
         address institutionalProvider,
@@ -68,6 +120,17 @@ contract InstReservationHarness {
         bytes32 reservationKey
     ) external returns (uint256) {
         return LibInstitutionalReservation.cancelBooking(institutionalProvider, pucHash, reservationKey);
+    }
+
+    function releaseInstitutionalExpiredReservationsWrapper(
+        address institutionalProvider,
+        bytes32 pucHash,
+        uint256 labId,
+        uint256 maxBatch
+    ) external returns (uint256) {
+        return LibInstitutionalReservationRelease.releaseInstitutionalExpiredReservations(
+            institutionalProvider, pucHash, labId, maxBatch
+        );
     }
 
     // capture refunds

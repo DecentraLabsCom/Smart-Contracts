@@ -245,7 +245,7 @@ abstract contract BaseInstitutionalReservationFacet is InstitutionalReservableTo
 
         uint8 previousStatus = reservation.status;
         reservation.status = _SETTLED;
-        if (previousStatus == _IN_USE) {
+        if (previousStatus == _IN_USE && s.reservationSessionStartedRecorded[key]) {
             LibReputation.recordCompletion(labId);
         }
 

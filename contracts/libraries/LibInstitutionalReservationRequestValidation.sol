@@ -129,7 +129,7 @@ library LibInstitutionalReservationRequestValidation {
     ) private {
         uint8 previousStatus = reservation.status;
         reservation.status = _SETTLED;
-        if (previousStatus == _IN_USE) {
+        if (previousStatus == _IN_USE && s.reservationSessionStartedRecorded[key]) {
             LibReputation.recordCompletion(labId);
         }
         if (previousStatus == _CONFIRMED || previousStatus == _IN_USE || previousStatus == _PENDING) {

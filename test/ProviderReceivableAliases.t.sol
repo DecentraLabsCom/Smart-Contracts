@@ -248,8 +248,8 @@ contract ProviderReceivableAliasesTest is Test {
         assertEq(totalEvents, uint32(0));
     }
 
-    function test_requestProviderPayout_records_completion_for_checked_in_reservation() public {
-        bytes32 reservationKey = keccak256("checked-in");
+    function test_requestProviderPayout_records_completion_for_session_started_reservation() public {
+        bytes32 reservationKey = keccak256("session-started");
         harness.setExpiredPayoutReservation(reservationKey, LAB_ID, IN_USE, FIVE_CREDITS_U96, 999);
         harness.markSessionStartedForTest(reservationKey);
 

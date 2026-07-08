@@ -6,7 +6,7 @@ import {AppStorage, LibAppStorage, Reservation, ReservationSession} from "../../
 import {LibERC721Storage} from "../../libraries/LibERC721Storage.sol";
 
 /// @title ReservationSessionFacet
-/// @notice Records provider-signed proof that the lab session actually started after access was authorized.
+/// @notice Records provider-signed proof that the lab session actually started after payer access authorization.
 contract ReservationSessionFacet {
     uint8 internal constant _IN_USE = 2;
 

@@ -6,8 +6,9 @@ import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet
 import {LibAppStorage, AppStorage, Reservation} from "../../libraries/LibAppStorage.sol";
 
 /// @title ReservationCheckInFacet
-/// @notice Records on-chain access authorization by moving confirmed reservations to _IN_USE.
+/// @notice Records payer-side on-chain access authorization by moving confirmed reservations to _IN_USE.
 /// @dev _IN_USE is the legacy status value for AccessAuthorized, not proof that the remote session started.
+///      For external labs, the provider backend still issues the technical JWT/ticket separately.
 contract ReservationCheckInFacet {
     using EnumerableSet for EnumerableSet.AddressSet;
 

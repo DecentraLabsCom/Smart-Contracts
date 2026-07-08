@@ -364,6 +364,7 @@ contract ProviderSettlementFacet is ReentrancyGuardTransient {
         Reservation storage reservation,
         uint256 labId
     ) internal view returns (bool) {
+        // Provider settlement requires AccessAuthorized (_IN_USE) plus observed SessionStarted.
         return reservation.labId == labId && reservation.status == _IN_USE && s.reservationSessionStartedRecorded[key];
     }
 

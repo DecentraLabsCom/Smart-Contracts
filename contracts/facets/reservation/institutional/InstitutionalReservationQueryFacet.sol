@@ -84,7 +84,7 @@ contract InstitutionalReservationQueryFacet {
     }
 
     /// @notice Check if an institutional user has an active booking for a specific lab
-    /// @dev An active booking is one that is _CONFIRMED or _IN_USE and the current time is within [start, end]
+    /// @dev An active booking is confirmed or access-authorized and current time is within [start, end].
     /// @param institutionalProvider The institution address
     /// @param pucHash The user's canonical identifier hash within the institution
     /// @param labId The lab to check

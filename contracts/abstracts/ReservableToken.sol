@@ -25,7 +25,7 @@ using EnumerableSet for EnumerableSet.Bytes32Set;
 /// - Track reservation statuses
 ///
 /// @dev Key features include:
-/// - Reservation request system with pending/confirmed/in_use/settled/cancelled states
+/// - Reservation request system with pending/confirmed/access-authorized/settled/cancelled states
 /// - Calendar management for avoiding time slot overlaps
 /// - Event emission for tracking reservation lifecycle
 /// - Access control for token owners and renters
@@ -40,7 +40,7 @@ abstract contract ReservableToken {
     /// @notice The status of a reservation follows this lifecycle:
     /// - _PENDING: Reservation requested but not yet confirmed. Does NOT block calendar slot.
     /// - _CONFIRMED: Reservation confirmed and paid. Blocks calendar slot. Actively reserving the lab.
-    /// - _IN_USE: User is actively using the lab (optional state for analytics/check-in systems).
+    /// - _IN_USE: Access has been authorized on-chain. This is not proof that a remote session started.
     /// - status value 3 is reserved and unused.
     /// - _SETTLED: Service credits have been captured and provider receivable accrued for settlement processing.
     /// - _CANCELLED: Reservation cancelled by user, admin, or provider.
@@ -48,7 +48,7 @@ abstract contract ReservableToken {
     /// @dev State transition rules:
     ///      _PENDING → _CONFIRMED (on admin confirmation with credit lock)
     ///      _PENDING → _CANCELLED (on denial or user cancellation)
-    ///      _CONFIRMED → _IN_USE (optional, on check-in)
+    ///      _CONFIRMED → _IN_USE (on access authorization/check-in)
     ///      _CONFIRMED → _SETTLED (when expired, via releaseExpiredReservations — credits captured)
     ///      _CONFIRMED → _CANCELLED (on cancellation with partial release/capture)
     ///      _IN_USE → _CANCELLED is intentionally disallowed
@@ -382,7 +382,7 @@ abstract contract ReservableToken {
         Reservation memory reservation = _s().reservations[_reservationKey];
         uint32 time = uint32(block.timestamp);
 
-        // Check for _CONFIRMED or _IN_USE (both are active bookings)
+        // _IN_USE means access-authorized; both statuses are active bookings.
         return (reservation.renter == _user && (reservation.status == _CONFIRMED || reservation.status == _IN_USE)
                 && reservation.start <= time && reservation.end >= time);
     }
@@ -681,7 +681,7 @@ abstract contract ReservableToken {
 
     /// @notice Fast check if lab has any active booking at the current time
     /// @dev O(1) if empty, O(log n) binary search otherwise.
-    ///      Uses current block.timestamp to check if lab is currently in use.
+    ///      Uses current block.timestamp to check if lab is currently reserved/busy.
     /// @param _tokenId The ID of the token (lab) to check
     /// @return bool True if lab is currently booked, false if available
     /// @custom:example At timestamp 1500: reservation [1000-2000] exists → returns true

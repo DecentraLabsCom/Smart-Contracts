@@ -576,7 +576,7 @@ abstract contract ReservableTokenEnumerable is ReservableToken {
     }
 
     /// @notice Checks if a user has an active booking for a specific token
-    /// @dev A booking is considered active if it's in _CONFIRMED or _IN_USE status and current time is within [start, end]
+    /// @dev A booking is considered active if it is confirmed or access-authorized and current time is within [start, end].
     ///      Uses lazy cleanup: if the indexed reservation has expired, searches for the next active one
     ///      Optimized scan: only iterates through reservations for this specific (token, user) pair
     /// @param _tokenId The ID of the token to check
@@ -597,7 +597,7 @@ abstract contract ReservableTokenEnumerable is ReservableToken {
         uint32 time = uint32(block.timestamp);
 
         // Fast path: indexed reservation is currently active
-        // Check for _CONFIRMED or _IN_USE (both are active paid reservations)
+        // _IN_USE means access-authorized; both statuses keep the paid reservation active.
         if (
             (reservation.status == _CONFIRMED || reservation.status == _IN_USE) && reservation.start <= time
                 && reservation.end >= time
@@ -629,7 +629,7 @@ abstract contract ReservableTokenEnumerable is ReservableToken {
             bytes32 key = tokenUserReservations.at(i);
             Reservation storage res = s.reservations[key];
 
-            // Check for _CONFIRMED or _IN_USE (both are active paid reservations)
+            // _IN_USE means access-authorized; both statuses keep the paid reservation active.
             if ((res.status == _CONFIRMED || res.status == _IN_USE) && res.start <= time && res.end >= time) {
                 return true;
             }
@@ -665,7 +665,7 @@ abstract contract ReservableTokenEnumerable is ReservableToken {
         uint32 time = uint32(block.timestamp);
 
         // Fast path: indexed reservation is currently active
-        // Check for _CONFIRMED or _IN_USE (both are active paid reservations)
+        // _IN_USE means access-authorized; both statuses keep the paid reservation active.
         if (
             (reservation.status == _CONFIRMED || reservation.status == _IN_USE) && reservation.start <= time
                 && reservation.end >= time
@@ -696,7 +696,7 @@ abstract contract ReservableTokenEnumerable is ReservableToken {
             bytes32 key = tokenUserReservations.at(i);
             Reservation storage res = s.reservations[key];
 
-            // Check for _CONFIRMED or _IN_USE (both are active paid reservations)
+            // _IN_USE means access-authorized; both statuses keep the paid reservation active.
             if ((res.status == _CONFIRMED || res.status == _IN_USE) && res.start <= time && res.end >= time) {
                 return key;
             }
@@ -774,7 +774,7 @@ abstract contract ReservableTokenEnumerable is ReservableToken {
             bytes32 key = tokenUserReservations.at(i);
             Reservation storage res = s.reservations[key];
 
-            // Only consider _CONFIRMED or _IN_USE reservations that haven't ended yet
+            // Only consider confirmed or access-authorized reservations that haven't ended yet.
             if (
                 (res.status == _CONFIRMED || res.status == _IN_USE) && res.end >= block.timestamp
                     && res.start < earliestStart

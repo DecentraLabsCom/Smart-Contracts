@@ -97,6 +97,17 @@ struct Reservation {
     uint96 providerShare; // Slot 5: Provider allocation cached at confirmation
 }
 
+struct ReservationSession {
+    address signer;
+    bytes32 gatewayIdHash;
+    bytes32 sessionIdHash;
+    bytes32 accessTypeHash;
+    uint64 startedAt;
+    bytes32 nonce;
+    bytes32 credentialHash;
+    bytes32 clientProofHash;
+}
+
 struct PayoutCandidate {
     uint32 end;
     bytes32 key;
@@ -296,6 +307,12 @@ struct AppStorage {
     uint256 creditLotNextId;
     // Per-account credit movement log
     mapping(address account => CreditMovement[]) creditMovements;
+
+    // Provider/gateway session-start attestations
+    mapping(bytes32 reservationKey => ReservationSession session) reservationSessionStarted;
+    mapping(bytes32 reservationKey => bool recorded) reservationSessionStartedRecorded;
+    mapping(bytes32 nonce => bool used) sessionStartedNonceUsed;
+    mapping(bytes32 observationKey => bool used) sessionStartedObservationUsed;
 }
 
 /// @notice Provider participation status within the limited service network

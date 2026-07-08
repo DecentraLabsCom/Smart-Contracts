@@ -83,6 +83,20 @@ contract ProviderReceivableHarness is ERC721, ProviderSettlementFacet {
         s.providerActiveReservationCount[reservation.labProvider] += 1;
     }
 
+    function markSessionStartedForTest(
+        bytes32 reservationKey
+    ) external {
+        AppStorage storage s = LibAppStorage.diamondStorage();
+        s.reservationSessionStartedRecorded[reservationKey] = true;
+    }
+
+    function getReservationStatus(
+        bytes32 reservationKey
+    ) external view returns (uint8) {
+        AppStorage storage s = LibAppStorage.diamondStorage();
+        return s.reservations[reservationKey].status;
+    }
+
     function getLabReputation(
         uint256 labId
     ) external view returns (int32 score, uint32 totalEvents, uint64 lastUpdated) {
@@ -196,11 +210,37 @@ contract ProviderReceivableAliasesTest is Test {
         assertEq(disputedReceivable, 0);
     }
 
-    function test_requestProviderPayout_does_not_record_completion_for_confirmed_expired_reservation() public {
+    function test_getLabProviderReceivable_requires_double_attestation_for_pending_closure() public {
+        bytes32 reservationKey = keccak256("in-use-without-session");
+        harness.setExpiredPayoutReservation(reservationKey, LAB_ID, IN_USE, FIVE_CREDITS_U96, 999);
+
+        (uint256 providerReceivable,, uint256 totalReceivable, uint256 eligibleCount) =
+            harness.getLabProviderReceivable(LAB_ID);
+
+        assertEq(providerReceivable, 0);
+        assertEq(totalReceivable, 0);
+        assertEq(eligibleCount, 0);
+    }
+
+    function test_requestProviderPayout_rejects_confirmed_expired_reservation_without_session_started() public {
         bytes32 reservationKey = keccak256("confirmed-expired");
         harness.setExpiredPayoutReservation(reservationKey, LAB_ID, CONFIRMED, FIVE_CREDITS_U96, 999);
 
         vm.prank(PROVIDER);
+        vm.expectRevert("No settleable reservations");
+        harness.requestProviderPayout(LAB_ID, 10);
+
+        (int32 score, uint32 totalEvents,) = harness.getLabReputation(LAB_ID);
+        assertEq(score, int32(0));
+        assertEq(totalEvents, uint32(0));
+    }
+
+    function test_requestProviderPayout_rejects_in_use_reservation_without_session_started() public {
+        bytes32 reservationKey = keccak256("in-use-no-session");
+        harness.setExpiredPayoutReservation(reservationKey, LAB_ID, IN_USE, FIVE_CREDITS_U96, 999);
+
+        vm.prank(PROVIDER);
+        vm.expectRevert("No settleable reservations");
         harness.requestProviderPayout(LAB_ID, 10);
 
         (int32 score, uint32 totalEvents,) = harness.getLabReputation(LAB_ID);
@@ -211,6 +251,7 @@ contract ProviderReceivableAliasesTest is Test {
     function test_requestProviderPayout_records_completion_for_checked_in_reservation() public {
         bytes32 reservationKey = keccak256("checked-in");
         harness.setExpiredPayoutReservation(reservationKey, LAB_ID, IN_USE, FIVE_CREDITS_U96, 999);
+        harness.markSessionStartedForTest(reservationKey);
 
         vm.prank(PROVIDER);
         harness.requestProviderPayout(LAB_ID, 10);
@@ -218,6 +259,23 @@ contract ProviderReceivableAliasesTest is Test {
         (int32 score, uint32 totalEvents,) = harness.getLabReputation(LAB_ID);
         assertEq(score, int32(1));
         assertEq(totalEvents, uint32(1));
+    }
+
+    function test_requestProviderPayout_skips_unattested_expired_candidate_and_settles_attested_candidate() public {
+        bytes32 unattestedKey = keccak256("unattested-root");
+        bytes32 attestedKey = keccak256("attested-next");
+        harness.setExpiredPayoutReservation(unattestedKey, LAB_ID, IN_USE, FIVE_CREDITS_U96, 998);
+        harness.setExpiredPayoutReservation(attestedKey, LAB_ID, IN_USE, FIVE_CREDITS_U96, 999);
+        harness.markSessionStartedForTest(attestedKey);
+
+        vm.prank(PROVIDER);
+        harness.requestProviderPayout(LAB_ID, 10);
+
+        (uint256 accruedReceivable, uint256 settlementQueued,,,,,) = _getLifecycleWithoutTimestamp();
+        assertEq(accruedReceivable, 0);
+        assertEq(settlementQueued, FIVE_CREDITS);
+        assertEq(harness.getReservationStatus(unattestedKey), IN_USE);
+        assertEq(harness.getReservationStatus(attestedKey), SETTLED);
     }
 
     function test_requestProviderPayout_rejects_settled_reservation() public {

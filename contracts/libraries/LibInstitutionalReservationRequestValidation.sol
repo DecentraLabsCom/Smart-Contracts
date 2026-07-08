@@ -128,8 +128,10 @@ library LibInstitutionalReservationRequestValidation {
         address trackingKey
     ) private {
         uint8 previousStatus = reservation.status;
+        bool sessionStartedRecorded = s.reservationSessionStartedRecorded[key];
+
         reservation.status = _SETTLED;
-        if (previousStatus == _IN_USE && s.reservationSessionStartedRecorded[key]) {
+        if (previousStatus == _IN_USE && sessionStartedRecorded) {
             LibReputation.recordCompletion(labId);
         }
         if (previousStatus == _CONFIRMED || previousStatus == _IN_USE || previousStatus == _PENDING) {

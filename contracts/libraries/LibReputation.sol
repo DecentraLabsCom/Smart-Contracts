@@ -4,7 +4,7 @@ pragma solidity ^0.8.33;
 import {LibAppStorage, AppStorage, LabReputation} from "./LibAppStorage.sol";
 
 /// @notice Library with helpers to manage lab reputation
-/// @dev Reputation is based on total points (completions - cancellations)
+/// @dev Reputation is based on total points (attested completions - cancellations)
 ///      Rating is calculated as points / events for weighted score
 library LibReputation {
     int32 internal constant MIN_SCORE = -10_000;
@@ -32,7 +32,7 @@ library LibReputation {
         AppStorage storage s = LibAppStorage.diamondStorage();
         LabReputation storage rep = s.labReputation[labId];
         newScore = _applyDelta(rep, COMPLETION_REWARD);
-        emit LabReputationAdjusted(labId, COMPLETION_REWARD, newScore, rep.totalEvents, "CHECKED_IN");
+        emit LabReputationAdjusted(labId, COMPLETION_REWARD, newScore, rep.totalEvents, "SESSION_STARTED");
     }
 
     function adjustScore(

@@ -86,7 +86,7 @@ abstract contract InstitutionalReservableTokenEnumerable is ReservableTokenEnume
 
         super._cancelReservation(_reservationKey);
 
-        if (previousStatus == _CONFIRMED || previousStatus == _IN_USE) {
+        if (previousStatus == _CONFIRMED || previousStatus == _ACCESS_AUTHORIZED) {
             if (s.activeReservationCountByTokenAndUser[labId][trackingKey] > 0) {
                 s.activeReservationCountByTokenAndUser[labId][trackingKey]--;
             }
@@ -94,7 +94,7 @@ abstract contract InstitutionalReservableTokenEnumerable is ReservableTokenEnume
         s.reservationKeysByTokenAndUser[labId][trackingKey].remove(_reservationKey);
 
         if (
-            (previousStatus == _CONFIRMED || previousStatus == _IN_USE)
+            (previousStatus == _CONFIRMED || previousStatus == _ACCESS_AUTHORIZED)
                 && s.activeReservationByTokenAndUser[labId][trackingKey] == _reservationKey
         ) {
             bytes32 nextKey = _findNextEarliestReservation(labId, trackingKey);

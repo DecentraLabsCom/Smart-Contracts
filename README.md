@@ -33,7 +33,7 @@ Reservation lifecycle:
 
 - `PENDING`
 - `CONFIRMED`
-- `IN_USE`
+- `ACCESS_AUTHORIZED`
 - `COMPLETED`
 - `SETTLED`
 - `CANCELLED`

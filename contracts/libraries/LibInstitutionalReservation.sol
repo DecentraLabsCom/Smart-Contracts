@@ -57,7 +57,7 @@ library LibInstitutionalReservation {
 
     uint8 internal constant _PENDING = 0;
     uint8 internal constant _CONFIRMED = 1;
-    uint8 internal constant _IN_USE = 2;
+    uint8 internal constant _ACCESS_AUTHORIZED = 2;
 
     function requestReservation(
         address institutionalProvider,

@@ -71,7 +71,7 @@ contract InstitutionalReservationCancellationMoreTest is BaseTest {
 
     uint8 internal constant _PENDING = 0;
     uint8 internal constant _CONFIRMED = 1;
-    uint8 internal constant _IN_USE = 2;
+    uint8 internal constant _ACCESS_AUTHORIZED = 2;
     uint8 internal constant _CANCELLED = 4;
 
     function setUp() public override {

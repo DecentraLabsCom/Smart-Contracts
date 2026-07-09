@@ -181,7 +181,10 @@ abstract contract BaseInstitutionalReservationFacet is InstitutionalReservableTo
             bytes32 key = userReservations.at(i);
             Reservation storage reservation = s.reservations[key];
 
-            if (reservation.end < currentTime && (reservation.status == _CONFIRMED || reservation.status == _IN_USE)) {
+            if (
+                reservation.end < currentTime
+                    && (reservation.status == _CONFIRMED || reservation.status == _ACCESS_AUTHORIZED)
+            ) {
                 _finalizeReservationForPayout(s, key, reservation, _labId);
                 len = userReservations.length();
                 unchecked {
@@ -235,7 +238,7 @@ abstract contract BaseInstitutionalReservationFacet is InstitutionalReservableTo
         address trackingKey = _computeTrackingKey(key, reservation);
         uint256 reservationPrice = reservation.price;
 
-        if (reservation.status == _CONFIRMED || reservation.status == _IN_USE) {
+        if (reservation.status == _CONFIRMED || reservation.status == _ACCESS_AUTHORIZED) {
             _removeReservationFromCalendar(labId, reservation.start);
         }
 
@@ -244,8 +247,10 @@ abstract contract BaseInstitutionalReservationFacet is InstitutionalReservableTo
         }
 
         uint8 previousStatus = reservation.status;
+        bool sessionStartedRecorded = s.reservationSessionStartedRecorded[key];
+
         reservation.status = _SETTLED;
-        if (previousStatus == _IN_USE) {
+        if (previousStatus == _ACCESS_AUTHORIZED && sessionStartedRecorded) {
             LibReputation.recordCompletion(labId);
         }
 

@@ -21,7 +21,7 @@ library LibInstitutionalReservationRelease {
 
     uint8 internal constant _PENDING = 0;
     uint8 internal constant _CONFIRMED = 1;
-    uint8 internal constant _IN_USE = 2;
+    uint8 internal constant _ACCESS_AUTHORIZED = 2;
     uint8 internal constant _SETTLED = 3;
 
     uint256 internal constant _PENDING_REQUEST_TTL = LibReservationConfig.PENDING_REQUEST_TTL;
@@ -60,7 +60,10 @@ library LibInstitutionalReservationRelease {
             bytes32 key = userReservations.at(i);
             Reservation storage reservation = s.reservations[key];
 
-            if (reservation.end < currentTime && (reservation.status == _CONFIRMED || reservation.status == _IN_USE)) {
+            if (
+                reservation.end < currentTime
+                    && (reservation.status == _CONFIRMED || reservation.status == _ACCESS_AUTHORIZED)
+            ) {
                 _simpleFinalizeReservation(s, key, reservation, labId, trackingKey);
                 len = userReservations.length();
                 unchecked {
@@ -98,11 +101,13 @@ library LibInstitutionalReservationRelease {
         address trackingKey
     ) private {
         uint8 previousStatus = reservation.status;
+        bool sessionStartedRecorded = s.reservationSessionStartedRecorded[key];
+
         reservation.status = _SETTLED;
-        if (previousStatus == _IN_USE) {
+        if (previousStatus == _ACCESS_AUTHORIZED && sessionStartedRecorded) {
             LibReputation.recordCompletion(labId);
         }
-        if (previousStatus == _CONFIRMED || previousStatus == _IN_USE || previousStatus == _PENDING) {
+        if (previousStatus == _CONFIRMED || previousStatus == _ACCESS_AUTHORIZED || previousStatus == _PENDING) {
             if (s.labActiveReservationCount[labId] > 0) s.labActiveReservationCount[labId]--;
             if (s.providerActiveReservationCount[reservation.labProvider] > 0) {
                 s.providerActiveReservationCount[reservation.labProvider]--;

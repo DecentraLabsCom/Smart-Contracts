@@ -76,7 +76,7 @@ struct Lab {
 /// @param renter Address of the user making the reservation
 /// @param price Total cost of the reservation in LAB base units (uint96)
 /// @param labProvider Address of the lab provider (owner at reservation time)
-/// @param status Current state of the reservation (0=_PENDING, 1=_CONFIRMED, 2=_IN_USE, 3=_SETTLED, 4=_CANCELLED)
+/// @param status Current state of the reservation (0=_PENDING, 1=_CONFIRMED, 2=_ACCESS_AUTHORIZED, 3=_SETTLED, 4=_CANCELLED)
 /// @param start Starting timestamp of the reservation (as uint32)
 /// @param end Ending timestamp of the reservation (as uint32)
 /// @param requestPeriodStart Period start timestamp when institutional reservation was requested, used for slippage protection
@@ -95,6 +95,17 @@ struct Reservation {
     address payerInstitution; // Slot 4: 20 bytes
     address collectorInstitution; // Slot 4: +20 bytes (stored in separate slot)
     uint96 providerShare; // Slot 5: Provider allocation cached at confirmation
+}
+
+struct ReservationSession {
+    address signer;
+    bytes32 gatewayIdHash;
+    bytes32 sessionIdHash;
+    bytes32 accessTypeHash;
+    uint64 startedAt;
+    bytes32 nonce;
+    bytes32 credentialHash;
+    bytes32 clientProofHash;
 }
 
 struct PayoutCandidate {
@@ -296,6 +307,12 @@ struct AppStorage {
     uint256 creditLotNextId;
     // Per-account credit movement log
     mapping(address account => CreditMovement[]) creditMovements;
+
+    // Provider/gateway session-start attestations
+    mapping(bytes32 reservationKey => ReservationSession session) reservationSessionStarted;
+    mapping(bytes32 reservationKey => bool recorded) reservationSessionStartedRecorded;
+    mapping(bytes32 nonce => bool used) sessionStartedNonceUsed;
+    mapping(bytes32 observationKey => bool used) sessionStartedObservationUsed;
 }
 
 /// @notice Provider participation status within the limited service network

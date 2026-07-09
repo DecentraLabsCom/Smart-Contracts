@@ -10,7 +10,7 @@ library LibHeap {
 
     // Reservation statuses (must match ReservableToken)
     uint8 internal constant _CONFIRMED = 1;
-    uint8 internal constant _IN_USE = 2;
+    uint8 internal constant _ACCESS_AUTHORIZED = 2;
 
     function enqueuePayoutCandidate(
         AppStorage storage s,
@@ -44,7 +44,10 @@ library LibHeap {
             _removeHeapRoot(heap);
             s.payoutHeapContains[root.key] = false;
             Reservation storage reservation = s.reservations[root.key];
-            if (reservation.labId == labId && (reservation.status == _CONFIRMED || reservation.status == _IN_USE)) {
+            if (
+                reservation.labId == labId
+                    && (reservation.status == _CONFIRMED || reservation.status == _ACCESS_AUTHORIZED)
+            ) {
                 return root.key;
             }
             if (invalidCount > 0) {
@@ -114,7 +117,10 @@ library LibHeap {
         for (uint256 readIndex = 0; readIndex < originalLength; readIndex++) {
             bytes32 key = heap[readIndex].key;
             Reservation storage reservation = s.reservations[key];
-            if (reservation.labId == labId && (reservation.status == _CONFIRMED || reservation.status == _IN_USE)) {
+            if (
+                reservation.labId == labId
+                    && (reservation.status == _CONFIRMED || reservation.status == _ACCESS_AUTHORIZED)
+            ) {
                 if (writeIndex != readIndex) {
                     heap[writeIndex] = heap[readIndex];
                 }

@@ -19,7 +19,7 @@ library LibReservationCancellation {
 
     uint8 internal constant _PENDING = 0;
     uint8 internal constant _CONFIRMED = 1;
-    uint8 internal constant _IN_USE = 2;
+    uint8 internal constant _ACCESS_AUTHORIZED = 2;
     uint8 internal constant _SETTLED = 3;
     uint8 internal constant _CANCELLED = 4;
 
@@ -38,7 +38,7 @@ library LibReservationCancellation {
             : reservation.renter;
         uint256 labId = reservation.labId;
 
-        bool isActive = reservation.status == _CONFIRMED || reservation.status == _IN_USE;
+        bool isActive = reservation.status == _CONFIRMED || reservation.status == _ACCESS_AUTHORIZED;
         bool isPending = reservation.status == _PENDING;
         if (isActive) {
             if (s.activeReservationCountByTokenAndUser[labId][reservation.renter] > 0) {
@@ -97,7 +97,7 @@ library LibReservationCancellation {
         Reservation storage reservation
     ) private {
         bool wasActive = _isActiveReservationStatus(reservation.status);
-        if (reservation.status == _CONFIRMED || reservation.status == _IN_USE) {
+        if (reservation.status == _CONFIRMED || reservation.status == _ACCESS_AUTHORIZED) {
             _removeReservationFromCalendar(s, reservation.labId, reservation.start);
         }
 
@@ -183,7 +183,7 @@ library LibReservationCancellation {
             bytes32 key = tokenUserReservations.at(i);
             Reservation storage res = s.reservations[key];
             if (
-                (res.status == _CONFIRMED || res.status == _IN_USE) && res.end >= block.timestamp
+                (res.status == _CONFIRMED || res.status == _ACCESS_AUTHORIZED) && res.end >= block.timestamp
                     && res.start < earliestStart
             ) {
                 earliestKey = key;
@@ -273,7 +273,7 @@ library LibReservationCancellation {
     function _isActiveReservationStatus(
         uint8 status
     ) private pure returns (bool) {
-        return status == _CONFIRMED || status == _IN_USE;
+        return status == _CONFIRMED || status == _ACCESS_AUTHORIZED;
     }
 
     function _decrementActiveReservationCounters(

@@ -6,12 +6,14 @@ import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet
 import {LibAppStorage, AppStorage, Reservation} from "../../libraries/LibAppStorage.sol";
 
 /// @title ReservationCheckInFacet
-/// @notice Allows lab owners or their authorized backends to mark reservations as in use
+/// @notice Records payer-side on-chain access authorization by moving confirmed reservations to _ACCESS_AUTHORIZED.
+/// @dev _ACCESS_AUTHORIZED means AccessAuthorized, not proof that the remote session started.
+///      For external labs, the provider backend still issues the technical JWT/ticket separately.
 contract ReservationCheckInFacet {
     using EnumerableSet for EnumerableSet.AddressSet;
 
     uint8 internal constant _CONFIRMED = 1;
-    uint8 internal constant _IN_USE = 2;
+    uint8 internal constant _ACCESS_AUTHORIZED = 2;
 
     bytes32 private constant EIP712_DOMAIN_TYPEHASH =
         keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)");
@@ -42,7 +44,7 @@ contract ReservationCheckInFacet {
         AppStorage storage s = LibAppStorage.diamondStorage();
         Reservation storage reservation = s.reservations[reservationKey];
         _validateReservationWindow(reservation);
-        reservation.status = _IN_USE;
+        reservation.status = _ACCESS_AUTHORIZED;
         emit ReservationCheckedIn(reservationKey, reservation.labId, msg.sender);
     }
 
@@ -68,7 +70,7 @@ contract ReservationCheckInFacet {
 
         _validateSigner(s, reservation, signer, expectedPucHash);
 
-        reservation.status = _IN_USE;
+        reservation.status = _ACCESS_AUTHORIZED;
         emit ReservationCheckedIn(reservationKey, reservation.labId, msg.sender);
     }
 

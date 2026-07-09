@@ -24,7 +24,7 @@ contract ProviderSettlementFacet is ReentrancyGuardTransient {
     /// @dev Reservation status constants (must match reservation facets)
     uint8 internal constant _PENDING = 0;
     uint8 internal constant _CONFIRMED = 1;
-    uint8 internal constant _IN_USE = 2;
+    uint8 internal constant _ACCESS_AUTHORIZED = 2;
     uint8 internal constant _SETTLED = 3;
     uint8 internal constant _CANCELLED = 4;
 
@@ -174,8 +174,7 @@ contract ProviderSettlementFacet is ReentrancyGuardTransient {
             PayoutCandidate storage candidate = heap[i];
             if (candidate.end <= currentTime) {
                 Reservation storage reservation = s.reservations[candidate.key];
-                if (reservation.labId == _labId && (reservation.status == _CONFIRMED || reservation.status == _IN_USE))
-                {
+                if (_isProviderSettleableSession(s, candidate.key, reservation, _labId)) {
                     providerReceivableChunk += reservation.providerShare;
                     eligibleReservationCountChunk++;
                 }
@@ -260,7 +259,7 @@ contract ProviderSettlementFacet is ReentrancyGuardTransient {
         }
 
         Reservation storage reservation = s.reservations[candidate.key];
-        if (reservation.labId == labId && (reservation.status == _CONFIRMED || reservation.status == _IN_USE)) {
+        if (_isProviderSettleableSession(s, candidate.key, reservation, labId)) {
             providerPayout = reservation.providerShare;
             pendingClosures = 1;
         }
@@ -357,6 +356,17 @@ contract ProviderSettlementFacet is ReentrancyGuardTransient {
         return s.providerReceivableAccrued[labId] + s.providerSettlementQueue[labId]
             + s.providerReceivableInvoiced[labId] + s.providerReceivableApproved[labId]
             + s.providerReceivableDisputed[labId];
+    }
+
+    function _isProviderSettleableSession(
+        AppStorage storage s,
+        bytes32 key,
+        Reservation storage reservation,
+        uint256 labId
+    ) internal view returns (bool) {
+        // Provider settlement requires AccessAuthorized (_ACCESS_AUTHORIZED) plus observed SessionStarted.
+        bool sessionStartedRecorded = s.reservationSessionStartedRecorded[key];
+        return reservation.labId == labId && reservation.status == _ACCESS_AUTHORIZED && sessionStartedRecorded;
     }
 
     function _isSupportedReceivableState(
@@ -507,7 +517,7 @@ contract ProviderSettlementFacet is ReentrancyGuardTransient {
             _removeHeapRoot(heap);
             s.payoutHeapContains[root.key] = false;
             Reservation storage reservation = s.reservations[root.key];
-            if (reservation.labId == labId && (reservation.status == _CONFIRMED || reservation.status == _IN_USE)) {
+            if (_isProviderSettleableSession(s, root.key, reservation, labId)) {
                 return root.key;
             }
             if (invalidCount > 0) {
@@ -609,7 +619,7 @@ contract ProviderSettlementFacet is ReentrancyGuardTransient {
             bytes32 key = heap[readIndex].key;
             Reservation storage reservation = s.reservations[key];
 
-            if (reservation.labId == labId && (reservation.status == _CONFIRMED || reservation.status == _IN_USE)) {
+            if (_isProviderSettleableSession(s, key, reservation, labId)) {
                 if (writeIndex != readIndex) {
                     heap[writeIndex] = heap[readIndex];
                 }
@@ -640,15 +650,12 @@ contract ProviderSettlementFacet is ReentrancyGuardTransient {
         uint256 labId
     ) internal returns (bool) {
         // Skip if wrong lab or already finalized
-        if (reservation.labId != labId) return false;
-        if (reservation.status != _CONFIRMED && reservation.status != _IN_USE) {
-            return false;
-        }
+        if (!_isProviderSettleableSession(s, key, reservation, labId)) return false;
 
         // Mark as settled
         uint8 previousStatus = reservation.status;
         reservation.status = _SETTLED;
-        if (previousStatus == _IN_USE) {
+        if (previousStatus == _ACCESS_AUTHORIZED) {
             LibReputation.recordCompletion(labId);
         }
 

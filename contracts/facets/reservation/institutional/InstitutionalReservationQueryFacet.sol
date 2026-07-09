@@ -17,7 +17,7 @@ contract InstitutionalReservationQueryFacet {
 
     /// @dev Reservation status constants
     uint8 internal constant _CONFIRMED = 1;
-    uint8 internal constant _IN_USE = 2;
+    uint8 internal constant _ACCESS_AUTHORIZED = 2;
     uint256 internal constant _MAX_PAGE_SIZE = 100;
 
     /// @dev Returns the AppStorage struct from the diamond storage slot.
@@ -84,7 +84,7 @@ contract InstitutionalReservationQueryFacet {
     }
 
     /// @notice Check if an institutional user has an active booking for a specific lab
-    /// @dev An active booking is one that is _CONFIRMED or _IN_USE and the current time is within [start, end]
+    /// @dev An active booking is confirmed or access-authorized and current time is within [start, end].
     /// @param institutionalProvider The institution address
     /// @param pucHash The user's canonical identifier hash within the institution
     /// @param labId The lab to check
@@ -106,8 +106,8 @@ contract InstitutionalReservationQueryFacet {
 
         Reservation storage reservation = s.reservations[reservationKey];
         uint32 time = uint32(block.timestamp);
-        return (reservation.status == _CONFIRMED || reservation.status == _IN_USE) && reservation.start <= time
-            && reservation.end >= time;
+        return (reservation.status == _CONFIRMED || reservation.status == _ACCESS_AUTHORIZED)
+            && reservation.start <= time && reservation.end >= time;
     }
 
     /// @notice Get the active reservation key for an institutional user on a specific lab
@@ -134,7 +134,7 @@ contract InstitutionalReservationQueryFacet {
         Reservation storage reservation = s.reservations[activeKey];
         uint32 time = uint32(block.timestamp);
         if (
-            (reservation.status == _CONFIRMED || reservation.status == _IN_USE) && reservation.start <= time
+            (reservation.status == _CONFIRMED || reservation.status == _ACCESS_AUTHORIZED) && reservation.start <= time
                 && reservation.end >= time
         ) {
             return activeKey;

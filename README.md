@@ -1,89 +1,56 @@
 # DecentraLabs Smart Contracts
 
-Institutional-only smart contracts for lab access, reservations, internal service-credit accounting, and provider settlement, built with the EIP-2535 Diamond pattern.
+This repository contains the current EIP-2535 Diamond implementation for
+DecentraLabs laboratories, institutional reservations, internal service-credit
+accounting and provider settlement.
 
-## Active Model
+The documentation in this repository is the canonical guide for the code in
+`contracts/`. Start with the [table of contents](SUMMARY.md).
 
-- Labs are ERC-721 assets managed by providers.
-- Institutions and authorized backends create and manage reservations.
-- Reservations operate against an internal credit ledger.
-- Provider monetization is tracked as receivables and settlement states.
-- There is no external credit token and no wallet-reservation flow in this branch.
+## Current contract model
 
-## Main Components
+- Labs are ERC-721 assets managed by provider accounts.
+- The Diamond proxy exposes modular facets while keeping application state in
+  the shared `AppStorage` layout.
+- Institutions and their authorized backends create and manage institutional
+  reservations.
+- Reservations are funded by an internal, non-refundable service-credit ledger;
+  there is no active external `$LAB` token settlement flow.
+- Provider revenue is recorded as receivables and later moved through the
+  settlement lifecycle.
+- Physical/remote labs use exclusive calendar conflict checks. FMU resources
+  use the concurrent-resource path identified by `resourceType = 1`.
 
-```text
-Diamond Proxy
-|- DiamondCutFacet
-|- DiamondLoupeFacet
-|- OwnershipFacet
-|- InitFacet
-|- IntentRegistryFacet
-|- ProviderFacet
-|- LabFacet / LabAdminFacet / LabIntentFacet / LabQueryFacet / LabReputationFacet
-|- InstitutionFacet / InstitutionalOrgRegistryFacet / InstitutionalTreasuryFacet
-|- InstitutionalReservation* facets
-|- ReservationDenialFacet / ReservationIntentFacet / ReservationCheckInFacet / ReservationStatsFacet
-`- ProviderSettlementFacet
-```
+## Read next
 
-## Reservation Flow
+- [Architecture](docs/architecture.md) explains the Diamond and cross-project
+  boundaries.
+- [Labs and metadata](docs/labs.md) documents provider-owned lab NFTs and the
+  off-chain metadata URI.
+- [Reservations](docs/reservations.md) covers public and institutional booking
+  lifecycles.
+- [Service credits and settlement](docs/credits-and-settlement.md) describes
+  funding, locking, capture, release, expiration and provider receivables.
+- [Deployment and networks](docs/deployment.md) covers the deploy scripts and
+  generated deployment artifacts.
+- [Facet reference](docs/reference/facets.md) maps source directories to their
+  public responsibilities.
 
-Reservation lifecycle:
+## Source of truth
 
-- `PENDING`
-- `CONFIRMED`
-- `ACCESS_AUTHORIZED`
-- `COMPLETED`
-- `SETTLED`
-- `CANCELLED`
+The Solidity implementation and tests are authoritative. Generated ABIs,
+deployment JSON files and off-chain metadata are integration artifacts. The
+separate [Lab-Metadata repository](https://github.com/DecentraLabsCom/Lab-Metadata)
+documents the JSON metadata contract; it does not grant access or alter
+reservation state.
 
-Operational model:
-
-- Institutional request creation and validation
-- Provider confirmation
-- Credit lock, capture, release, and refund paths
-- Provider receivable accrual and settlement transitions
-- Interval-tree conflict detection for exclusive labs
-
-## Accounting Model
-
-Reservation settlement computes the provider allocation on-chain:
-
-- `providerShare` (75%)
-
-The platform margin (25%) is implicit (`price − providerShare`) and not
-tracked as a separate on-chain bucket.
-
-For cancellation penalties:
-
-- `cancelFee` (5% of price, minimum 0.1 credits)
-- `provider` receives 3% of price as cancellation fee
-- platform receives 2% of price as cancellation fee (implicit by difference)
-
-These are internal accounting entries, not token wallets.
-
-## Deployment
-
-Primary deploy flow:
-
-- `scripts/deploy_credits.ps1`
-
-Primary deployment artifacts:
-
-- `deployments/sepolia-resume.json`
-- `deployments/sepolia-latest.json`
-- `deployments/sepolia-mica-open-2026-03-31.json`
-
-## Validation
-
-Typical local validation:
+## Quick validation
 
 ```powershell
 forge build
 forge test
 ```
 
-Institutional gas benchmark:
-
-- `test/GasInstitutionalReservations.t.sol`
+The institutional gas benchmark is
+`test/GasInstitutionalReservations.t.sol`. Deployment and selector verification
+scripts are documented in [Development and testing](docs/development.md).

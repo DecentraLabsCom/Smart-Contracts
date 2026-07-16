@@ -237,11 +237,6 @@ contract ReservationStatsFacet {
 
     // -------------------------------------------------------------------------
     // Wallet-user reservation query functions
-    // These functions are defined in the abstract ReservableTokenEnumerable but
-    // were never cut into the Diamond selector table.  Adding them here (a
-    // concrete, already-deployed facet) is the minimal upgrade path: one
-    // diamondCut transaction to register the three selectors pointing at the
-    // upgraded ReservationStatsFacet bytecode.
     // -------------------------------------------------------------------------
 
     /// @notice Returns the total number of reservations held by a wallet address.

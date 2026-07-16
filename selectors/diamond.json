@@ -1,0 +1,350 @@
+{
+  "schemaVersion": 1,
+  "deploymentModel": "credit-ledger",
+  "facets": [
+    {
+      "name": "DiamondCutFacet",
+      "target": "contracts/facets/diamond/DiamondCutFacet.sol:DiamondCutFacet",
+      "functions": ["diamondCut((address,uint8,bytes4[])[],address,bytes)"]
+    },
+    {
+      "name": "DiamondLoupeFacet",
+      "target": "contracts/facets/diamond/DiamondLoupeFacet.sol:DiamondLoupeFacet",
+      "functions": [
+        "facetAddress(bytes4)",
+        "facetAddresses()",
+        "facetFunctionSelectors(address)",
+        "facets()",
+        "supportsInterface(bytes4)"
+      ]
+    },
+    {
+      "name": "OwnershipFacet",
+      "target": "contracts/facets/diamond/OwnershipFacet.sol:OwnershipFacet",
+      "functions": ["acceptOwnership()", "owner()", "pendingOwner()", "transferOwnership(address)"]
+    },
+    {
+      "name": "InitFacet",
+      "target": "contracts/facets/InitFacet.sol:InitFacet",
+      "functions": ["initializeDiamond(string,string,string,string,string)"]
+    },
+    {
+      "name": "ProviderFacet",
+      "target": "contracts/facets/ProviderFacet.sol:ProviderFacet",
+      "functions": [
+        "DEFAULT_ADMIN_ROLE()",
+        "addProvider(string,address,string,string,string)",
+        "getLabProvidersPaginated(uint256,uint256)",
+        "getProviderAuthURI(address)",
+        "getProviderNetworkStatus(address)",
+        "getRoleAdmin(bytes32)",
+        "hasRole(bytes32,address)",
+        "initialize(string,string,string)",
+        "isLabProvider(address)",
+        "isProviderNetworkActive(address)",
+        "removeProvider(address)",
+        "setProviderAuthURI(string)",
+        "setProviderNetworkStatus(address,uint8)",
+        "updateProvider(string,string,string)"
+      ]
+    },
+    {
+      "name": "ServiceCreditFacet",
+      "target": "contracts/facets/ServiceCreditFacet.sol:ServiceCreditFacet",
+      "functions": [
+        "availableBalanceOf(address)",
+        "cancelCredits(address,uint256,bytes32)",
+        "captureLockedCredits(address,uint256,bytes32)",
+        "expireCredits(address,uint256)",
+        "getCreditLots(address,uint256,uint256)",
+        "getCreditMovements(address,uint256,uint256)",
+        "ledgerAdjustCredits(address,int256,bytes32)",
+        "lockCredits(address,uint256,bytes32)",
+        "lockedBalanceOf(address)",
+        "mintCredits(address,uint256,bytes32,uint256,uint48)",
+        "releaseLockedCredits(address,uint256,bytes32)",
+        "totalBalanceOf(address)"
+      ]
+    },
+    {
+      "name": "IntentRegistryFacet",
+      "target": "contracts/facets/IntentRegistryFacet.sol:IntentRegistryFacet",
+      "functions": [
+        "cancelIntent(bytes32)",
+        "getIntent(bytes32)",
+        "nextIntentNonce(address)",
+        "registerActionIntent((bytes32,address,address,uint8,bytes32,uint256,uint64,uint64,uint8),(address,string,bytes32,bytes32,uint256,bytes32,string,uint96,uint96,string,string,string,uint8),bytes)",
+        "registerReservationIntent((bytes32,address,address,uint8,bytes32,uint256,uint64,uint64,uint8),(address,string,bytes32,bytes32,uint256,uint32,uint32,uint96,bytes32),bytes)"
+      ]
+    },
+    {
+      "name": "InstitutionFacet",
+      "target": "contracts/facets/reservation/institutional/InstitutionFacet.sol:InstitutionFacet",
+      "functions": [
+        "getAllInstitutions()",
+        "getInstitutionsPaginated(uint256,uint256)",
+        "grantInstitutionRole(address,string)",
+        "revokeInstitutionRole(address,string)"
+      ]
+    },
+    {
+      "name": "InstitutionalOrgRegistryFacet",
+      "target": "contracts/facets/reservation/institutional/InstitutionalOrgRegistryFacet.sol:InstitutionalOrgRegistryFacet",
+      "functions": [
+        "adminRegisterSchacHomeOrganization(address,string)",
+        "adminSetSchacHomeOrganizationBackend(address,string,string)",
+        "adminUnregisterSchacHomeOrganization(address,string)",
+        "getInstitutionWalletByOrganizationHash(bytes32)",
+        "getOrganizationByHash(bytes32)",
+        "getOrganizationHashesByInstitution(address)",
+        "getOrganizationHashesByInstitutionPaginated(address,uint256,uint256)",
+        "getRegisteredSchacHomeOrganizations(address)",
+        "getRegisteredSchacHomeOrganizationsPaginated(address,uint256,uint256)",
+        "getSchacHomeOrganizationBackend(string)",
+        "registerSchacHomeOrganization(string)",
+        "resolveSchacHomeOrganization(string)",
+        "setSchacHomeOrganizationBackend(string,string)",
+        "unregisterSchacHomeOrganization(string)"
+      ]
+    },
+    {
+      "name": "InstitutionalTreasuryFacet",
+      "target": "contracts/facets/reservation/institutional/InstitutionalTreasuryFacet.sol:InstitutionalTreasuryFacet",
+      "functions": [
+        "adminResetBackend(address,address)",
+        "authorizeBackend(address)",
+        "checkInstitutionalTreasuryAvailability(address,bytes32,uint256)",
+        "getAuthorizedBackend(address)",
+        "getInstitutionalSpendingPeriod(address)",
+        "getInstitutionalTreasuryBalance(address)",
+        "getInstitutionalUserFinancialStats(address,bytes32)",
+        "getInstitutionalUserLimit(address)",
+        "getInstitutionalUserRemainingAllowance(address,bytes32)",
+        "getInstitutionalUserSpendingData(address,bytes32)",
+        "getInstitutionalUserSpent(address,bytes32)",
+        "refundToInstitutionalTreasury(address,bytes32,uint256)",
+        "resetInstitutionalSpendingPeriod()",
+        "revokeBackend()",
+        "setInstitutionalSpendingPeriod(uint256)",
+        "setInstitutionalUserLimit(uint256)",
+        "spendFromInstitutionalTreasury(address,bytes32,uint256)"
+      ]
+    },
+    {
+      "name": "LabFacet",
+      "target": "contracts/facets/lab/LabFacet.sol:LabFacet",
+      "functions": [
+        "approve(address,uint256)",
+        "balanceOf(address)",
+        "burnToken(uint256)",
+        "checkAvailable(uint256,uint256,uint256)",
+        "findAvailableSlots(uint256,uint32,uint32,uint32)",
+        "findReservationAt(uint256,uint32)",
+        "getApproved(uint256)",
+        "getBookedSlots(uint256)",
+        "getNextAvailableSlot(uint256,uint32)",
+        "getNextExpiration(uint256)",
+        "getReservation(bytes32)",
+        "hasActiveBooking(bytes32,address)",
+        "initialize(string,string)",
+        "isApprovedForAll(address,address)",
+        "isLabBusy(uint256)",
+        "isTokenListed(uint256)",
+        "listToken(uint256)",
+        "name()",
+        "ownerOf(uint256)",
+        "safeMintTo(address,uint256)",
+        "safeTransferFrom(address,address,uint256)",
+        "safeTransferFrom(address,address,uint256,bytes)",
+        "setApprovalForAll(address,bool)",
+        "symbol()",
+        "tokenURI(uint256)",
+        "transferFrom(address,address,uint256)",
+        "unlistToken(uint256)",
+        "userOfReservation(bytes32)"
+      ]
+    },
+    {
+      "name": "LabAdminFacet",
+      "target": "contracts/facets/lab/LabAdminFacet.sol:LabAdminFacet",
+      "functions": [
+        "addAndListLab(string,uint96,string,string,uint8)",
+        "addLab(string,uint96,string,string,uint8)",
+        "deleteLab(uint256)",
+        "listLab(uint256)",
+        "setTokenURI(uint256,string)",
+        "unlistLab(uint256)",
+        "updateLab(uint256,string,uint96,string,string,uint8)"
+      ]
+    },
+    {
+      "name": "LabIntentFacet",
+      "target": "contracts/facets/lab/LabIntentFacet.sol:LabIntentFacet",
+      "functions": [
+        "addAndListLabWithIntent(bytes32,(address,string,bytes32,bytes32,uint256,bytes32,string,uint96,uint96,string,string,string,uint8))",
+        "addLabWithIntent(bytes32,(address,string,bytes32,bytes32,uint256,bytes32,string,uint96,uint96,string,string,string,uint8))",
+        "deleteLabWithIntent(bytes32,(address,string,bytes32,bytes32,uint256,bytes32,string,uint96,uint96,string,string,string,uint8))",
+        "listLabWithIntent(bytes32,(address,string,bytes32,bytes32,uint256,bytes32,string,uint96,uint96,string,string,string,uint8))",
+        "setTokenURIWithIntent(bytes32,(address,string,bytes32,bytes32,uint256,bytes32,string,uint96,uint96,string,string,string,uint8))",
+        "unlistLabWithIntent(bytes32,(address,string,bytes32,bytes32,uint256,bytes32,string,uint96,uint96,string,string,string,uint8))",
+        "updateLabWithIntent(bytes32,(address,string,bytes32,bytes32,uint256,bytes32,string,uint96,uint96,string,string,string,uint8))"
+      ]
+    },
+    {
+      "name": "LabQueryFacet",
+      "target": "contracts/facets/lab/LabQueryFacet.sol:LabQueryFacet",
+      "functions": [
+        "getLab(uint256)",
+        "getLabAccessKey(uint256)",
+        "getLabAccessURI(uint256)",
+        "getLabAge(uint256)",
+        "getLabAuthURI(uint256)",
+        "getLabCount()",
+        "getLabPrice(uint256)",
+        "getLabResourceType(uint256)",
+        "getLabsPaginated(uint256,uint256)",
+        "getPucHash(uint256)",
+        "isLabListed(uint256)"
+      ]
+    },
+    {
+      "name": "LabReputationFacet",
+      "target": "contracts/facets/lab/LabReputationFacet.sol:LabReputationFacet",
+      "functions": [
+        "adjustLabReputation(uint256,int32,string)",
+        "getLabRating(uint256)",
+        "getLabReputation(uint256)",
+        "getLabScore(uint256)",
+        "setLabReputation(uint256,int32,string)",
+        "tokenURIWithReputation(uint256)"
+      ]
+    },
+    {
+      "name": "ProviderSettlementFacet",
+      "target": "contracts/facets/reservation/ProviderSettlementFacet.sol:ProviderSettlementFacet",
+      "functions": [
+        "getLabProviderReceivable(uint256)",
+        "getLabProviderReceivableLifecycle(uint256)",
+        "getLabProviderReceivablePaginated(uint256,uint256,uint256)",
+        "requestProviderPayout(uint256,uint256)",
+        "transitionProviderReceivableState(uint256,uint8,uint8,uint256,bytes32)"
+      ]
+    },
+    {
+      "name": "InstitutionalReservationRequestValidationFacet",
+      "target": "contracts/facets/reservation/institutional/InstitutionalReservationRequestValidationFacet.sol:InstitutionalReservationRequestValidationFacet",
+      "functions": ["validateInstRequest(address,bytes32,uint256,uint32,uint32)"]
+    },
+    {
+      "name": "InstitutionalReservationRequestCreationFacet",
+      "target": "contracts/facets/reservation/institutional/InstitutionalReservationRequestCreationFacet.sol:InstitutionalReservationRequestCreationFacet",
+      "functions": [
+        "createInstReservation((address,address,uint256,uint32,uint32,bytes32,bytes32,address))",
+        "recordRecentInstReservation(uint256,address,bytes32,uint32)"
+      ]
+    },
+    {
+      "name": "InstitutionalReservationRequestFacet",
+      "target": "contracts/facets/reservation/institutional/InstitutionalReservationRequestFacet.sol:InstitutionalReservationRequestFacet",
+      "functions": ["institutionalReservationRequest(address,bytes32,uint256,uint32,uint32)"]
+    },
+    {
+      "name": "InstitutionalReservationConfirmationFacet",
+      "target": "contracts/facets/reservation/institutional/InstitutionalReservationConfirmationFacet.sol:InstitutionalReservationConfirmationFacet",
+      "functions": ["confirmInstitutionalReservationRequestWithPucHash(address,bytes32,bytes32)"]
+    },
+    {
+      "name": "InstitutionalReservationCancellationFacet",
+      "target": "contracts/facets/reservation/institutional/InstitutionalReservationCancellationFacet.sol:InstitutionalReservationCancellationFacet",
+      "functions": [
+        "cancelInstitutionalBookingWithPucHash(address,bytes32,bytes32)",
+        "cancelInstitutionalReservationRequest(address,bytes32,bytes32)"
+      ]
+    },
+    {
+      "name": "InstitutionalReservationQueryFacet",
+      "target": "contracts/facets/reservation/institutional/InstitutionalReservationQueryFacet.sol:InstitutionalReservationQueryFacet",
+      "functions": [
+        "getInstitutionalUserActiveCount(address,bytes32,uint256)",
+        "getInstitutionalUserActiveReservationKey(address,bytes32,uint256)",
+        "getInstitutionalUserReservationByIndex(address,bytes32,uint256)",
+        "getInstitutionalUserReservationCount(address,bytes32)",
+        "getLabActiveReservationCount(uint256)",
+        "getLabReservationCount(uint256)",
+        "getReservationOfTokenByIndex(uint256,uint256)",
+        "getReservationPucHash(bytes32)",
+        "getReservationsOfToken(uint256)",
+        "getReservationsOfTokenPaginated(uint256,uint256,uint256)",
+        "hasInstitutionalUserActiveBooking(address,bytes32,uint256)"
+      ]
+    },
+    {
+      "name": "InstitutionalReservationFacet",
+      "target": "contracts/facets/reservation/institutional/InstitutionalReservationFacet.sol:InstitutionalReservationFacet",
+      "functions": ["releaseInstitutionalExpiredReservations(address,bytes32,uint256,uint256)"]
+    },
+    {
+      "name": "ReservationCheckInFacet",
+      "target": "contracts/facets/reservation/ReservationCheckInFacet.sol:ReservationCheckInFacet",
+      "functions": [
+        "checkInReservation(bytes32)",
+        "checkInReservationWithSignature(bytes32,address,bytes32,uint64,bytes)"
+      ]
+    },
+    {
+      "name": "ReservationStatsFacet",
+      "target": "contracts/facets/reservation/ReservationStatsFacet.sol:ReservationStatsFacet",
+      "functions": [
+        "getActiveReservationKeyForUser(uint256,address)",
+        "getReservationStats(uint256,uint32,uint32)",
+        "getReservationStatsPaginated(uint256,uint32,uint32,uint32,uint256)",
+        "reservationKeyOfUserByIndex(address,uint256)",
+        "reservationsOf(address)"
+      ]
+    },
+    {
+      "name": "ReservationDenialFacet",
+      "target": "contracts/facets/reservation/ReservationDenialFacet.sol:ReservationDenialFacet",
+      "functions": ["denyReservationRequest(bytes32)"]
+    },
+    {
+      "name": "ReservationIntentFacet",
+      "target": "contracts/facets/reservation/ReservationIntentFacet.sol:ReservationIntentFacet",
+      "functions": [
+        "cancelInstitutionalBookingWithIntent(bytes32,(address,string,bytes32,bytes32,uint256,bytes32,string,uint96,uint96,string,string,string,uint8))",
+        "cancelInstitutionalReservationRequestWithIntent(bytes32,(address,string,bytes32,bytes32,uint256,uint32,uint32,uint96,bytes32))",
+        "institutionalDirectBookingWithIntent(bytes32,(address,string,bytes32,bytes32,uint256,uint32,uint32,uint96,bytes32))",
+        "institutionalReservationRequestWithIntent(bytes32,(address,string,bytes32,bytes32,uint256,uint32,uint32,uint96,bytes32))"
+      ]
+    },
+    {
+      "name": "ReservationSessionFacet",
+      "target": "contracts/facets/reservation/ReservationSessionFacet.sol:ReservationSessionFacet",
+      "functions": [
+        "getReservationSessionStarted(bytes32)",
+        "hasReservationSessionStarted(bytes32)",
+        "markSessionStarted((address,bytes32,string,bytes32,string,string,string,uint64,bytes32,bytes32,bytes32,bytes))"
+      ]
+    }
+  ],
+  "internalRoutingFunctions": [
+    "validateInstRequest(address,bytes32,uint256,uint32,uint32)",
+    "createInstReservation((address,address,uint256,uint32,uint32,bytes32,bytes32,address))",
+    "recordRecentInstReservation(uint256,address,bytes32,uint32)"
+  ],
+  "forbiddenFunctions": [
+    "reservationRequest(uint256,uint32,uint32)",
+    "confirmReservationRequest(bytes32)",
+    "cancelReservationRequest(bytes32)",
+    "cancelBooking(bytes32)",
+    "issueServiceCredits(address,uint256,bytes32)",
+    "adjustServiceCredits(address,int256,bytes32)",
+    "getServiceCreditBalance(address)",
+    "getMyServiceCreditBalance()",
+    "grantRole(bytes32,address)",
+    "revokeRole(bytes32,address)",
+    "renounceRole(bytes32,address)",
+    "getLabProviders()",
+    "setLabOwnerPucHash(uint256,bytes32)"
+  ]
+}

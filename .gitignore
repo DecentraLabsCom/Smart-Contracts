@@ -32,3 +32,8 @@ scripts/*
 !scripts/verify-selectors.ps1
 !scripts/verify-all-facets-selectors.js
 !scripts/fix-lab-selectors-and-erc721-interfaces.js
+!scripts/deploy_credits.ps1
+!scripts/merge_abis.js
+!scripts/reconcile-live-selectors.cjs
+!scripts/selector-manifest.cjs
+!scripts/simulate-contract-surface-upgrade.cjs

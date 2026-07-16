@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 pragma solidity ^0.8.31;
 
-import {AccessControlUpgradeable} from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
+import {InternalAccessControl} from "../../../abstracts/InternalAccessControl.sol";
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import {LibAppStorage, AppStorage, INSTITUTION_ROLE} from "../../../libraries/LibAppStorage.sol";
 import {LibInstitutionalOrg} from "../../../libraries/LibInstitutionalOrg.sol";
 
 /// @title InstitutionFacet
 /// @notice Admin helpers to manage institution wallets and their associated schacHomeOrganization domains
-contract InstitutionFacet is AccessControlUpgradeable {
+contract InstitutionFacet is InternalAccessControl {
     using EnumerableSet for EnumerableSet.Bytes32Set;
     using EnumerableSet for EnumerableSet.AddressSet;
 

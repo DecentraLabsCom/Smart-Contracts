@@ -2,9 +2,11 @@
 "use strict";
 
 const fs = require("fs");
+const path = require("path");
 const { execFileSync } = require("child_process");
 const { ethers } = require("ethers");
 require("dotenv").config();
+const { loadSelectorManifest, validateSelectorManifest } = require("./selector-manifest.cjs");
 
 const LATEST_FILE = "deployments/sepolia-latest.json";
 const EXECUTE = process.argv.includes("--execute");
@@ -102,19 +104,13 @@ function forgeVerify(address, target, libraries = {}) {
   }
 }
 
-function artifactSelectors(artifactPath) {
-  const artifact = JSON.parse(fs.readFileSync(artifactPath, "utf8"));
-  const iface = new ethers.Interface(artifact.abi || []);
-  const selectors = [];
-  for (const fragment of iface.fragments) {
-    if (fragment.type !== "function") continue;
-    const signature = fragment.format("sighash");
-    selectors.push({
-      selector: ethers.id(signature).slice(0, 10).toLowerCase(),
-      signature,
-    });
-  }
-  return selectors;
+function manifestSelectors(manifest, target) {
+  const facet = manifest.facets.find((entry) => entry.target === target);
+  if (!facet) throw new Error(`Target is not declared in selector manifest: ${target}`);
+  return facet.functions.map((signature) => ({
+    selector: ethers.id(signature).slice(0, 10).toLowerCase(),
+    signature,
+  }));
 }
 
 function addCut(cutsByKey, facetAddress, action, selector, signature) {
@@ -127,6 +123,10 @@ function addCut(cutsByKey, facetAddress, action, selector, signature) {
 }
 
 async function main() {
+  const rootDir = path.resolve(__dirname, "..");
+  const selectorManifest = loadSelectorManifest(rootDir);
+  const selectorValidation = validateSelectorManifest(rootDir, selectorManifest);
+  if (selectorValidation.errors.length) throw new Error(selectorValidation.errors.join("\n"));
   const rpc = requireEnv("RPC_URL");
   const privateKey = requireEnv("PRIVATE_KEY");
   const latest = loadLatest();
@@ -259,7 +259,6 @@ async function main() {
       target: "contracts/facets/reservation/ReservationSessionFacet.sol:ReservationSessionFacet",
       artifact: "out/ReservationSessionFacet.sol/ReservationSessionFacet.json",
       links: {},
-      addMissingSelectors: true,
     },
     {
       name: "ReservationStatsFacet",
@@ -303,12 +302,12 @@ async function main() {
       oldAddress !== ethers.ZeroAddress
         ? new Set((await loupe.facetFunctionSelectors(oldAddress)).map((selector) => selector.toLowerCase()))
         : new Set();
-    const selectors = artifactSelectors(facet.artifact);
+    const selectors = manifestSelectors(selectorManifest, facet.target);
 
     console.log(`Reconciling ${facet.name}: ${selectors.length} ABI selectors, ${oldSelectors.size} old-routed selectors`);
     for (const { selector, signature } of selectors) {
       const route = (await routedFacet(selector)).toLowerCase();
-      if (route === ZERO && facet.addMissingSelectors) {
+      if (route === ZERO) {
         addCut(cutsByKey, newAddress, ACTION_ADD, selector, signature);
         expectedRoutes.push({ selector, signature, facet: facet.name, address: newAddress });
       } else if (oldSelectors.has(selector) && route === oldAddress.toLowerCase()) {

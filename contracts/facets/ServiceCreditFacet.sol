@@ -3,19 +3,10 @@ pragma solidity ^0.8.33;
 
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import {AppStorage, LibAppStorage, CreditLot, CreditMovement} from "../libraries/LibAppStorage.sol";
-import {LibServiceCredit} from "../libraries/LibServiceCredit.sol";
 import {LibCreditLedger} from "../libraries/LibCreditLedger.sol";
 
 contract ServiceCreditFacet {
     using EnumerableSet for EnumerableSet.AddressSet;
-
-    // ── Legacy events (kept for backward compatibility) ──────────────────
-    event ServiceCreditIssued(
-        address indexed account, uint256 amount, uint256 newBalance, bytes32 indexed fundingReference
-    );
-    event ServiceCreditAdjusted(
-        address indexed account, int256 delta, uint256 newBalance, bytes32 indexed adjustmentReference
-    );
 
     // ── Lot lifecycle events (8.3.B audit trail) ─────────────────────────
     event CreditLotMinted(
@@ -37,45 +28,6 @@ contract ServiceCreditFacet {
         AppStorage storage s = LibAppStorage.diamondStorage();
         require(s.roleMembers[s.DEFAULT_ADMIN_ROLE].contains(msg.sender), "Only admin");
         _;
-    }
-
-    // ═══════════════════════════════════════════════════════════════════════
-    //  Legacy API (preserved for backward compatibility)
-    // ═══════════════════════════════════════════════════════════════════════
-
-    function issueServiceCredits(
-        address account,
-        uint256 amount,
-        bytes32 fundingReference
-    ) external onlyDefaultAdminRole returns (uint256 newBalance) {
-        newBalance = LibServiceCredit.credit(account, amount);
-        emit ServiceCreditIssued(account, amount, newBalance, fundingReference);
-    }
-
-    function adjustServiceCredits(
-        address account,
-        int256 delta,
-        bytes32 adjustmentReference
-    ) external onlyDefaultAdminRole returns (uint256 newBalance) {
-        if (delta > 0) {
-            newBalance = LibServiceCredit.credit(account, uint256(delta));
-        } else if (delta < 0) {
-            newBalance = LibServiceCredit.debit(account, uint256(-delta));
-        } else {
-            newBalance = LibServiceCredit.balanceOf(account);
-        }
-
-        emit ServiceCreditAdjusted(account, delta, newBalance, adjustmentReference);
-    }
-
-    function getServiceCreditBalance(
-        address account
-    ) external view returns (uint256) {
-        return LibServiceCredit.balanceOf(account);
-    }
-
-    function getMyServiceCreditBalance() external view returns (uint256) {
-        return LibServiceCredit.balanceOf(msg.sender);
     }
 
     // ═══════════════════════════════════════════════════════════════════════

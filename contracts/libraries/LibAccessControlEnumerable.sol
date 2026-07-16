@@ -91,36 +91,6 @@ library LibAccessControlEnumerable {
         return true;
     }
 
-    /**
-     * @dev Retrieves the list of lab providers from the application storage.
-     *
-     * This function fetches all the accounts associated with the `PROVIDER_ROLE`
-     * and constructs an array of `Provider` structs containing the account address
-     * and its corresponding provider data.
-     *
-     * @param _self The application storage containing role members and provider data.
-     * @return An array of `Provider` structs representing all lab providers.
-     */
-    /// @notice Retrieves all lab providers (limited to maxResults)
-    /// @dev Internal function with configurable limit for gas safety
-    /// @param _self The AppStorage instance
-    /// @param maxResults Maximum number of providers to return
-    /// @return providers Array of Provider structs (limited to maxResults)
-    function _getLabProvidersLimited(
-        AppStorage storage _self,
-        uint256 maxResults
-    ) internal view returns (Provider[] memory providers) {
-        uint256 totalLabProviders = _self.roleMembers[PROVIDER_ROLE].length();
-        uint256 count = totalLabProviders > maxResults ? maxResults : totalLabProviders;
-
-        providers = new Provider[](count);
-        for (uint256 i; i < count; i++) {
-            address account = _self.roleMembers[PROVIDER_ROLE].at(i);
-            providers[i] = Provider({account: account, base: _self.providers[account]});
-        }
-        return providers;
-    }
-
     /// @notice Retrieves lab providers with pagination
     /// @dev Allows querying providers in chunks to avoid gas limits
     /// @param _self The AppStorage instance
@@ -148,21 +118,5 @@ library LibAccessControlEnumerable {
         }
 
         return (providers, total);
-    }
-
-    /// @notice Retrieves all lab providers (DEPRECATED - use _getLabProvidersLimited or _getLabProvidersPaginated)
-    /// @dev Original implementation without limits - kept for backwards compatibility but not recommended
-    /// @param _self The AppStorage instance
-    /// @return providers Array of all Provider structs
-    function _getLabProviders(
-        AppStorage storage _self
-    ) internal view returns (Provider[] memory) {
-        uint256 totalLabProviders = _self.roleMembers[PROVIDER_ROLE].length();
-        Provider[] memory providers = new Provider[](totalLabProviders);
-        for (uint256 i; i < totalLabProviders; i++) {
-            address account = _self.roleMembers[PROVIDER_ROLE].at(i);
-            providers[i] = Provider({account: account, base: _self.providers[account]});
-        }
-        return providers;
     }
 }

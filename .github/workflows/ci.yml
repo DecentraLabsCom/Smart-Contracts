@@ -83,6 +83,9 @@ jobs:
       - name: run unit tests
         run: forge test --color never
 
+      - name: validate selector manifest and generate ABI
+        run: npm run verify:contract-surface
+
       - name: run fuzz/stress tests (LibHeapStress)
         run: forge test --match-contract LibHeapStress -vvvv --color never
 

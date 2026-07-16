@@ -1,28 +1,20 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 pragma solidity ^0.8.31;
 
-import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import {LibAppStorage, AppStorage, Reservation} from "../libraries/LibAppStorage.sol";
 import {LibERC721Storage} from "../libraries/LibERC721Storage.sol";
-import {LibReservationDenyReason} from "../libraries/LibReservationDenyReason.sol";
-import {LibReputation} from "../libraries/LibReputation.sol";
 import {RivalIntervalTreeLibrary, Tree} from "../libraries/RivalIntervalTreeLibrary.sol";
-
-using EnumerableSet for EnumerableSet.AddressSet;
-using EnumerableSet for EnumerableSet.Bytes32Set;
 
 /// @title ReservableToken Abstract Contract
 /// @author
 /// - Juan Luis Ramos Villalón
 /// - Luis de la Torre Cubillo
-/// @notice Abstract contract that implements reservation functionality for ERC721 tokens
-/// @dev This contract provides the base functionality for making tokens reservable within specific time periods
+/// @notice Lab listing and read-only reservation/availability functionality for ERC721 tokens.
+/// @dev Reservation writes live in the institutional and intent facets.
 ///
 /// @notice This contract allows token owners to:
 /// - List and unlist their tokens for reservation
-/// - Manage reservation requests
-/// - Handle bookings and cancellations
-/// - Track reservation statuses
+/// - Query reservation status and availability
 ///
 /// @dev Key features include:
 /// - Reservation request system with pending/confirmed/access-authorized/settled/cancelled states
@@ -54,49 +46,8 @@ abstract contract ReservableToken {
     ///      _ACCESS_AUTHORIZED → _CANCELLED is intentionally disallowed
     ///      _SETTLED, _CANCELLED are terminal states
 
-    uint8 internal constant _PENDING = 0;
     uint8 internal constant _CONFIRMED = 1;
     uint8 internal constant _ACCESS_AUTHORIZED = 2;
-    uint8 internal constant _SETTLED = 3;
-    uint8 internal constant _CANCELLED = 4;
-    uint32 internal constant _RESERVATION_MARGIN = 0;
-
-    /// @notice Emitted when a reservation is requested for a token.
-    /// @param renter The address of the user requesting the reservation.
-    /// @param tokenId The ID of the token being reserved.
-    /// @param start The start timestamp of the reservation period.
-    /// @param end The end timestamp of the reservation period.
-    /// @param reservationKey A unique key identifying the reservation.
-    event ReservationRequested(
-        address indexed renter, uint256 indexed tokenId, uint256 start, uint256 end, bytes32 indexed reservationKey
-    );
-
-    /// @notice Emitted when a reservation is successfully confirmed.
-    /// @param reservationKey The unique identifier for the confirmed reservation.
-    /// @param tokenId The ID of the token associated with the reservation.
-    event ReservationConfirmed(bytes32 indexed reservationKey, uint256 indexed tokenId);
-
-    /// @notice Emitted when a reservation request is denied.
-    /// @param reservationKey The unique key identifying the reservation that was denied.
-    /// @param tokenId The ID of the token associated with the reservation.
-    /// @param reason Reason code (see LibReservationDenyReason).
-    event ReservationRequestDenied(bytes32 indexed reservationKey, uint256 indexed tokenId, uint8 reason);
-
-    /// @notice Emitted when a reservation request is canceled.
-    /// @param reservationKey The unique identifier of the reservation that was canceled.
-    /// @param tokenId The ID of the token associated with the reservation.
-    event ReservationRequestCanceled(bytes32 indexed reservationKey, uint256 indexed tokenId);
-
-    /// @notice Emitted when a booking associated with a specific reservation key is canceled.
-    /// @param reservationKey The unique identifier for the reservation that was canceled.
-    /// @param tokenId The ID of the lab/token associated with the reservation.
-    event BookingCanceled(bytes32 indexed reservationKey, uint256 indexed tokenId);
-
-    /// @notice Emitted when expired reservations are released by user or provider
-    /// @param user The user address (or tracking key) whose reservations were released
-    /// @param tokenId The ID of the lab/token associated with the reservations
-    /// @param count The number of reservations that were released/finalized
-    event ReservationsReleased(address indexed user, uint256 indexed tokenId, uint256 count);
 
     /// @notice Emitted when a token is listed for reservations.
     /// @param tokenId The ID of the token that was listed.
@@ -113,12 +64,6 @@ abstract contract ReservableToken {
     error TokenNotFound();
     error OnlyTokenOwner();
     error ReservationNotFound();
-    error ReservationNotPending();
-    error InvalidTimeRange();
-    error NotAvailable();
-    error OnlyRenter();
-    error Unauthorized();
-    error InvalidBooking();
 
     /// @dev Modifier to check if a token with the given ID exists.
     /// @param _tokenId The ID of the token to check.
@@ -150,34 +95,6 @@ abstract contract ReservableToken {
         uint256 _tokenId
     ) internal view {
         if (LibERC721Storage.ownerOf(_tokenId) != msg.sender) revert OnlyTokenOwner();
-    }
-
-    /// @dev Modifier to restrict access to functions callable only by accounts with DEFAULT_ADMIN_ROLE
-    modifier onlyAdmin() {
-        _onlyAdmin();
-        _;
-    }
-
-    function _onlyAdmin() internal view {
-        require(_s().roleMembers[_s().DEFAULT_ADMIN_ROLE].contains(msg.sender), "Only admin can call this function");
-    }
-
-    /// @dev Modifier to ensure that a reservation exists and is in a pending state.
-    /// @param _reservationKey The unique key identifying the reservation.
-    /// @notice Reverts if the reservation does not exist or if its status is not pending.
-    modifier reservationPending(
-        bytes32 _reservationKey
-    ) {
-        _reservationPending(_reservationKey);
-        _;
-    }
-
-    function _reservationPending(
-        bytes32 _reservationKey
-    ) internal view {
-        Reservation storage reservation = _s().reservations[_reservationKey];
-        if (reservation.renter == address(0)) revert ReservationNotFound();
-        if (reservation.status != _PENDING) revert ReservationNotPending();
     }
 
     /// @notice Marks a token as listed by updating its status so it's possible to reserve.
@@ -224,128 +141,6 @@ abstract contract ReservableToken {
         uint256 _tokenId
     ) external view exists(_tokenId) returns (bool) {
         return _s().tokenStatus[_tokenId];
-    }
-
-    /// @notice Request a reservation for a specific token during a time period
-    /// @dev Creates a new reservation request if the time slot is available
-    /// @param _tokenId The ID of the token to be reserved
-    /// @param _start The start timestamp of the reservation (must be after _RESERVATION_MARGIN)
-    /// @param _end The end timestamp of the reservation (must be after start)
-    /// @custom:throws "Invalid time range" if start/end times are invalid
-    /// @custom:throws "Not available" if the slot is already reserved
-    /// @custom:emits ReservationRequested when the reservation is successfully created
-    /// @dev Reservation will be created with _PENDING status
-    function reservationRequest(
-        uint256 _tokenId,
-        uint32 _start,
-        uint32 _end
-    ) external virtual exists(_tokenId) {
-        AppStorage storage s = _s();
-
-        // Combined validation
-        if (_start >= _end || _start <= block.timestamp + _RESERVATION_MARGIN) revert InvalidTimeRange();
-
-        bytes32 reservationKey = _getReservationKey(_tokenId, _start);
-
-        // Optimized availability check
-        Reservation storage existingReservation = s.reservations[reservationKey];
-        bool keyExists = existingReservation.renter != address(0);
-        if (keyExists && existingReservation.status != _CANCELLED) revert NotAvailable();
-
-        // Only insert into rival calendar for exclusive resources (resourceType 0)
-        if (s.labs[_tokenId].resourceType == 0) {
-            s.calendars[_tokenId].insert(_start, _end);
-        }
-
-        // Direct assignment instead of struct initialization
-        existingReservation.labId = _tokenId;
-        existingReservation.renter = msg.sender;
-        existingReservation.price = 0;
-        existingReservation.start = _start;
-        existingReservation.end = _end;
-        existingReservation.status = _PENDING;
-
-        emit ReservationRequested(msg.sender, _tokenId, _start, _end, reservationKey);
-    }
-
-    /// @notice Confirms a reservation request for the given reservation key
-    /// @dev Changes the status of the reservation from _PENDING to _CONFIRMED
-    /// @param _reservationKey The unique key identifying the reservation to be confirmed
-    /// @dev The reservation must be in a pending state, enforced by the `reservationPending` modifier
-    /// @dev Emits a `ReservationConfirmed` event upon successful confirmation
-    function confirmReservationRequest(
-        bytes32 _reservationKey
-    ) external virtual reservationPending(_reservationKey) {
-        Reservation storage reservation = _s().reservations[_reservationKey];
-        reservation.status = _CONFIRMED;
-        emit ReservationConfirmed(_reservationKey, reservation.labId);
-    }
-
-    /// @notice Denies a reservation request associated with the given reservation key.
-    /// @dev Cancels the reservation and emits a `ReservationRequestDenied` event.
-    /// @param _reservationKey The unique key identifying the reservation request to be denied.
-    /// @dev The reservation must be in a pending state, enforced by the `reservationPending` modifier.
-    function denyReservationRequest(
-        bytes32 _reservationKey
-    ) external virtual reservationPending(_reservationKey) {
-        uint256 tokenId = _s().reservations[_reservationKey].labId;
-        _cancelReservation(_reservationKey);
-        emit ReservationRequestDenied(_reservationKey, tokenId, LibReservationDenyReason.PROVIDER_MANUAL);
-    }
-
-    /// @notice Cancels a reservation request associated with the given reservation key.
-    /// @dev This function can only be called by the renter who created the reservation request.
-    ///      The reservation must exist and its status must be `_PENDING` to be canceled.
-    /// @param _reservationKey The unique key identifying the reservation to be canceled.
-    /// @dev The reservation must exist (`renter` address is not zero).
-    /// @dev The caller must be the renter who created the reservation.
-    /// @dev The reservation status must be `_PENDING`.
-    /// @dev Emits a `ReservationRequestCanceled` event upon successful cancellation.
-    function cancelReservationRequest(
-        bytes32 _reservationKey
-    ) external virtual {
-        Reservation storage reservation = _s().reservations[_reservationKey];
-
-        // Combined checks
-        if (reservation.renter == address(0)) revert ReservationNotFound();
-        if (reservation.renter != msg.sender) revert OnlyRenter();
-        if (reservation.status != _PENDING) revert ReservationNotPending();
-
-        uint256 tokenId = reservation.labId;
-        _cancelReservation(_reservationKey);
-        emit ReservationRequestCanceled(_reservationKey, tokenId);
-    }
-
-    /// @notice Cancels a booking associated with the given reservation key.
-    /// @dev This function allows either the renter or the lab provider to cancel a booking.
-    /// @param _reservationKey The unique key identifying the reservation to be canceled.
-    /// @dev The reservation must exist, be `_CONFIRMED`, and be canceled strictly before `start`.
-    /// @dev The caller must be either the renter or the lab provider.
-    /// @dev BookingCanceled Emitted when a booking is successfully canceled.
-    function cancelBooking(
-        bytes32 _reservationKey
-    ) external virtual {
-        Reservation storage reservation = _s().reservations[_reservationKey];
-
-        // Validation: only allow pre-start cancellations while still CONFIRMED.
-        if (reservation.renter == address(0) || reservation.status != _CONFIRMED) {
-            revert InvalidBooking();
-        }
-        if (block.timestamp >= reservation.start) {
-            revert InvalidBooking();
-        }
-
-        address renter = reservation.renter;
-        uint256 tokenId = reservation.labId;
-        address labProvider = LibERC721Storage.ownerOf(tokenId);
-
-        if (renter != msg.sender && labProvider != msg.sender) revert Unauthorized();
-
-        if (msg.sender == labProvider) {
-            LibReputation.recordOwnerCancellation(tokenId);
-        }
-        _cancelReservation(_reservationKey);
-        emit BookingCanceled(_reservationKey, tokenId);
     }
 
     /// @notice Retrieves the address of the renter associated with a specific reservation key.
@@ -740,97 +535,6 @@ abstract contract ReservableToken {
         }
 
         return 0; // No future reservations
-    }
-
-    /// @dev Cancels a reservation identified by the given reservation key.
-    ///      Updates the reservation status to _CANCELLED and removes the reservation
-    ///      from the associated lab's calendar (only if it was inserted, i.e., _CONFIRMED or _ACCESS_AUTHORIZED).
-    /// @param _reservationKey The unique key identifying the reservation to be cancelled.
-    function _cancelReservation(
-        bytes32 _reservationKey
-    ) internal virtual {
-        AppStorage storage s = _s();
-        Reservation storage reservation = s.reservations[_reservationKey];
-
-        bool wasActive = _isActiveReservationStatus(reservation.status);
-        // Only remove from calendar if reservation was actually inserted (_CONFIRMED or _ACCESS_AUTHORIZED)
-        // _PENDING reservations are never inserted in calendar, so no need to remove
-        if (reservation.status == _CONFIRMED || reservation.status == _ACCESS_AUTHORIZED) {
-            _removeReservationFromCalendar(reservation.labId, reservation.start);
-        }
-
-        if (wasActive) {
-            _decrementActiveReservationCounters(reservation);
-        }
-
-        reservation.status = _CANCELLED;
-
-        // Mark heap entry as invalid for lazy cleanup
-        // When counter reaches threshold, _popEligiblePayoutCandidate will prune all invalid entries
-        if (s.payoutHeapContains[_reservationKey]) {
-            s.payoutHeapInvalidCount[reservation.labId]++;
-        }
-
-        if (s.totalReservationsCount > 0) {
-            s.totalReservationsCount--;
-        }
-    }
-
-    /// @notice Returns true when reservation status should keep lab/provider locked
-    function _isActiveReservationStatus(
-        uint8 status
-    ) internal pure returns (bool) {
-        return status == _CONFIRMED || status == _ACCESS_AUTHORIZED;
-    }
-
-    function _incrementActiveReservationCounters(
-        Reservation storage reservation
-    ) internal {
-        AppStorage storage s = _s();
-        s.labActiveReservationCount[reservation.labId]++;
-        s.providerActiveReservationCount[reservation.labProvider]++;
-    }
-
-    function _decrementActiveReservationCounters(
-        Reservation storage reservation
-    ) internal {
-        AppStorage storage s = _s();
-        if (s.labActiveReservationCount[reservation.labId] > 0) {
-            s.labActiveReservationCount[reservation.labId]--;
-        }
-        if (s.providerActiveReservationCount[reservation.labProvider] > 0) {
-            s.providerActiveReservationCount[reservation.labProvider]--;
-        }
-    }
-
-    /// @notice Generates a unique key for token reservation based on token ID and time
-    /// @dev Combines token ID and time using keccak256 hash
-    /// @param _tokenId The ID of the token being reserved
-    /// @param _time The timestamp for the reservation
-    /// @return bytes32 A unique hash representing the reservation
-    function _getReservationKey(
-        uint256 _tokenId,
-        uint32 _time
-    ) internal pure returns (bytes32) {
-        // forge-lint: disable-next-line(asm-keccak256)
-        return keccak256(abi.encodePacked(_tokenId, _time));
-    }
-
-    /// @dev Safely removes a reservation entry from the lab's calendar if it exists.
-    /// @param _labId The lab associated with the reservation.
-    /// @param _start The reservation start timestamp used as calendar key.
-    function _removeReservationFromCalendar(
-        uint256 _labId,
-        uint32 _start
-    ) internal {
-        Tree storage calendar = _s().calendars[_labId];
-        if (calendar.root == 0) {
-            return;
-        }
-
-        if (calendar.exists(_start)) {
-            calendar.remove(_start);
-        }
     }
 
     /// @dev Internal pure function to retrieve the application storage structure.

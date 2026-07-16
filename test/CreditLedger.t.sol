@@ -69,24 +69,20 @@ contract CreditLedgerTest is BaseTest {
             functionSelectors: provSelectors
         });
 
-        // ServiceCreditFacet (all new + legacy functions)
-        bytes4[] memory creditSelectors = new bytes4[](16);
-        creditSelectors[0] = _selector("issueServiceCredits(address,uint256,bytes32)");
-        creditSelectors[1] = _selector("adjustServiceCredits(address,int256,bytes32)");
-        creditSelectors[2] = _selector("getServiceCreditBalance(address)");
-        creditSelectors[3] = _selector("getMyServiceCreditBalance()");
-        creditSelectors[4] = _selector("mintCredits(address,uint256,bytes32,uint256,uint48)");
-        creditSelectors[5] = _selector("lockCredits(address,uint256,bytes32)");
-        creditSelectors[6] = _selector("captureLockedCredits(address,uint256,bytes32)");
-        creditSelectors[7] = _selector("releaseLockedCredits(address,uint256,bytes32)");
-        creditSelectors[8] = _selector("cancelCredits(address,uint256,bytes32)");
-        creditSelectors[9] = _selector("expireCredits(address,uint256)");
-        creditSelectors[10] = _selector("ledgerAdjustCredits(address,int256,bytes32)");
-        creditSelectors[11] = _selector("availableBalanceOf(address)");
-        creditSelectors[12] = _selector("lockedBalanceOf(address)");
-        creditSelectors[13] = _selector("totalBalanceOf(address)");
-        creditSelectors[14] = _selector("getCreditLots(address,uint256,uint256)");
-        creditSelectors[15] = _selector("getCreditMovements(address,uint256,uint256)");
+        // ServiceCreditFacet (lot-backed credit ledger only)
+        bytes4[] memory creditSelectors = new bytes4[](12);
+        creditSelectors[0] = _selector("mintCredits(address,uint256,bytes32,uint256,uint48)");
+        creditSelectors[1] = _selector("lockCredits(address,uint256,bytes32)");
+        creditSelectors[2] = _selector("captureLockedCredits(address,uint256,bytes32)");
+        creditSelectors[3] = _selector("releaseLockedCredits(address,uint256,bytes32)");
+        creditSelectors[4] = _selector("cancelCredits(address,uint256,bytes32)");
+        creditSelectors[5] = _selector("expireCredits(address,uint256)");
+        creditSelectors[6] = _selector("ledgerAdjustCredits(address,int256,bytes32)");
+        creditSelectors[7] = _selector("availableBalanceOf(address)");
+        creditSelectors[8] = _selector("lockedBalanceOf(address)");
+        creditSelectors[9] = _selector("totalBalanceOf(address)");
+        creditSelectors[10] = _selector("getCreditLots(address,uint256,uint256)");
+        creditSelectors[11] = _selector("getCreditMovements(address,uint256,uint256)");
         cut2[2] = IDiamond.FacetCut({
             facetAddress: address(creditFacetImpl),
             action: IDiamond.FacetCutAction.Add,
@@ -496,29 +492,6 @@ contract CreditLedgerTest is BaseTest {
         (CreditLot[] memory lots, uint256 total) = creditFacet.getCreditLots(alice, 10, 5);
         assertEq(total, 1);
         assertEq(lots.length, 0);
-    }
-
-    // ═══════════════════════════════════════════════════════════════════════
-    //  Legacy API backward compatibility
-    // ═══════════════════════════════════════════════════════════════════════
-
-    function test_legacy_issueServiceCredits_still_works() public {
-        vm.prank(admin);
-        uint256 bal = creditFacet.issueServiceCredits(alice, 500, keccak256("LEGACY"));
-
-        assertEq(bal, 500);
-        assertEq(creditFacet.getServiceCreditBalance(alice), 500);
-        // Legacy credits appear in totalBalance too
-        assertEq(creditFacet.totalBalanceOf(alice), 500);
-    }
-
-    function test_legacy_adjustServiceCredits_still_works() public {
-        vm.startPrank(admin);
-        creditFacet.issueServiceCredits(alice, 1000, bytes32(0));
-        uint256 bal = creditFacet.adjustServiceCredits(alice, -200, keccak256("ADJ-L"));
-        vm.stopPrank();
-
-        assertEq(bal, 800);
     }
 
     // ═══════════════════════════════════════════════════════════════════════

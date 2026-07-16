@@ -2,8 +2,7 @@
 pragma solidity ^0.8.31;
 
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
-import {BaseMinimalReservationFacet} from "../base/BaseMinimalReservationFacet.sol";
-import {AppStorage, Reservation} from "../../../libraries/LibAppStorage.sol";
+import {AppStorage, LibAppStorage, RecentReservationBuffer, Reservation} from "../../../libraries/LibAppStorage.sol";
 
 interface IInstitutionalTreasuryFacetLight {
     function checkInstitutionalTreasuryAvailability(
@@ -13,9 +12,24 @@ interface IInstitutionalTreasuryFacetLight {
     ) external view;
 }
 
-contract InstitutionalReservationRequestCreationFacet is BaseMinimalReservationFacet {
+contract InstitutionalReservationRequestCreationFacet {
     using EnumerableSet for EnumerableSet.Bytes32Set;
+
+    uint8 private constant _PENDING = 0;
+    uint8 private constant _TOKEN_BUFFER_CAP = 10;
+    uint8 private constant _USER_BUFFER_CAP = 5;
+
     error ReservationPriceOverflow();
+    error OnlyDiamondSelfCall();
+
+    event ReservationRequested(
+        address indexed renter, uint256 indexed tokenId, uint256 start, uint256 end, bytes32 indexed reservationKey
+    );
+
+    modifier onlyDiamondSelfCall() {
+        if (msg.sender != address(this)) revert OnlyDiamondSelfCall();
+        _;
+    }
 
     struct InstInput {
         address p;
@@ -30,7 +44,7 @@ contract InstitutionalReservationRequestCreationFacet is BaseMinimalReservationF
 
     function createInstReservation(
         InstInput calldata i
-    ) external {
+    ) external onlyDiamondSelfCall {
         AppStorage storage s = _s();
         address hc = s.institutionalBackends[i.o];
         uint96 pr;
@@ -82,10 +96,44 @@ contract InstitutionalReservationRequestCreationFacet is BaseMinimalReservationF
         address t,
         bytes32 k,
         uint32 st
-    ) external {
+    ) external onlyDiamondSelfCall {
         AppStorage storage s = _s();
-        address backend = s.institutionalBackends[msg.sender];
-        require(backend != address(0) || msg.sender == address(this), "Not authorized");
         _recordRecent(s, l, t, k, st);
+    }
+
+    function _recordRecent(
+        AppStorage storage s,
+        uint256 labId,
+        address userTrackingKey,
+        bytes32 reservationKey,
+        uint32 startTime
+    ) private {
+        _insertRecent(s.recentReservationsByToken[labId], reservationKey, startTime, _TOKEN_BUFFER_CAP);
+        _insertRecent(
+            s.recentReservationsByTokenAndUser[labId][userTrackingKey], reservationKey, startTime, _USER_BUFFER_CAP
+        );
+    }
+
+    function _insertRecent(
+        RecentReservationBuffer storage buffer,
+        bytes32 key,
+        uint32 startTime,
+        uint8 capacity
+    ) private {
+        uint8 size = buffer.size;
+        if (size >= capacity) {
+            for (uint8 index; index < capacity - 1; index++) {
+                buffer.keys[index] = buffer.keys[index + 1];
+                buffer.starts[index] = buffer.starts[index + 1];
+            }
+            size = capacity - 1;
+        }
+        buffer.keys[size] = key;
+        buffer.starts[size] = startTime;
+        buffer.size = size + 1;
+    }
+
+    function _s() private pure returns (AppStorage storage s) {
+        return LibAppStorage.diamondStorage();
     }
 }

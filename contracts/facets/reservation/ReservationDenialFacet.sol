@@ -5,7 +5,7 @@ import {ReentrancyGuardTransient} from "@openzeppelin/contracts/utils/Reentrancy
 import {LibReservationConfirmation} from "../../libraries/LibReservationConfirmation.sol";
 
 /// @title ReservationDenialFacet
-/// @notice Denial function for reservation requests (wallet + institutional)
+/// @notice Denial function for reservation requests.
 /// @dev Uses provider/backend authorization in LibReservationConfirmation
 contract ReservationDenialFacet is ReentrancyGuardTransient {
     function denyReservationRequest(

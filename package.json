@@ -5,6 +5,12 @@
   "engines": {
     "node": ">=22.10.0"
   },
+  "scripts": {
+    "abi:generate": "node scripts/merge_abis.js",
+    "selectors:plan-live": "node scripts/reconcile-live-selectors.cjs",
+    "selectors:check": "node --test test/selector-manifest.test.cjs",
+    "verify:contract-surface": "node scripts/selector-manifest.cjs && npm run abi:generate && npm run selectors:check"
+  },
   "devDependencies": {
     "@nomicfoundation/hardhat-ethers": "^4.0.14",
     "@nomicfoundation/hardhat-foundry": "^3.0.4",

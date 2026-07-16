@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 pragma solidity ^0.8.31;
 
-import {AccessControlUpgradeable} from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
+import {InternalAccessControl} from "../abstracts/InternalAccessControl.sol";
 import {
     LibAppStorage,
     AppStorage,
@@ -27,7 +27,7 @@ import {LibCreditLedger} from "../libraries/LibCreditLedger.sol";
 ///      Provider onboarding now issues non-monetary service credits instead of ERC-20 tokens.
 /// @notice The contract uses the Diamond Standard (EIP-2535) for modularity and extensibility, enabling seamless upgrades and modular design.
 /// @custom:security Only accounts with the appropriate roles can perform restricted actions.
-contract ProviderFacet is AccessControlUpgradeable, ReentrancyGuardTransient {
+contract ProviderFacet is InternalAccessControl, ReentrancyGuardTransient {
     using LibAccessControlEnumerable for AppStorage;
     using EnumerableSet for EnumerableSet.AddressSet;
     using EnumerableSet for EnumerableSet.Bytes32Set;
@@ -301,12 +301,6 @@ contract ProviderFacet is AccessControlUpgradeable, ReentrancyGuardTransient {
         address _account
     ) external view returns (bool) {
         return _s()._isLabProvider(_account);
-    }
-
-    /// @notice Retrieves the list of all Lab providers (limited to first 100)
-    /// @return An array of Provider structs (max 100)
-    function getLabProviders() external view returns (Provider[] memory) {
-        return _s()._getLabProvidersLimited(100);
     }
 
     /// @notice Retrieves a paginated list of Lab providers

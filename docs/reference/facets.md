@@ -4,6 +4,25 @@ This page maps the current source layout to protocol responsibilities. Public
 functions are exposed through the Diamond after their selectors are installed;
 the source file alone does not imply that a facet address is directly callable.
 
+## Canonical selector surface
+
+`selectors/diamond.json` is the allowlist for the production Diamond. Deployment
+and upgrade scripts must derive each facet cut from that manifest; compiling a
+public function is not enough to install it. `abi/Diamond.json` is generated from
+the same source, so consumer ABIs cannot silently retain deprecated selectors.
+
+Use these checks before every upgrade:
+
+- `npm run selectors:check` verifies selector uniqueness, facet ownership and the
+  forbidden legacy signatures.
+- `npm run verify:contract-surface` validates the manifest and regenerates the
+  public ABI.
+- `npm run selectors:plan-live -- --simulate` compares the deployed Diamond with
+  the manifest and simulates any removal as the current Diamond owner without
+  broadcasting a transaction. `RPC_URL` must point to the target network.
+- `node scripts/simulate-contract-surface-upgrade.cjs` exercises the complete
+  replacement/removal cut on a local chain with ID `31337`.
+
 ## Core and initialization
 
 | Source | Responsibility |
@@ -24,7 +43,6 @@ the source file alone does not imply that a facet address is directly callable.
 | `facets/lab/LabQueryFacet.sol` | Lab reads and pagination. |
 | `facets/lab/LabIntentFacet.sol` | Intent-aware lab operations. |
 | `facets/lab/LabReputationFacet.sol` | Scores, ratings and reputation-aware URI reads. |
-| `facets/lab/admin/LabOwnerMigrationFacet.sol` | Controlled owner migration helpers. |
 
 ## Reservations and access
 

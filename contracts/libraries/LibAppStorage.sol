@@ -119,12 +119,6 @@ struct RecentReservationBuffer {
     uint8 size;
 }
 
-struct UpcomingReservationBuffer {
-    bytes32[50] keys;
-    uint32[50] starts;
-    uint8 size;
-}
-
 struct PastReservationBuffer {
     bytes32[50] keys;
     uint32[50] ends;
@@ -185,68 +179,61 @@ struct InstitutionalUserSpending {
     uint256 totalHistoricalSpent;
 }
 
-/// @dev This struct is used to define the storage layout for the application.
-///       Contains all state variables used across the diamond contract. It contains the following fields:
-/// @notice
+/// @dev Shared application state for the diamond. Members are grouped by
+///      domain so related state can be reviewed and evolved together.
+///      Once a deployment is live, preserve this order when upgrading it and
+///      append new state at the end of the struct.
 /// @custom:storage-layout This struct defines the storage layout for the diamond contract
-/// @custom:member DEFAULT_ADMIN_ROLE Stores the keccak256 hash for admin role
-/// @custom:member roleMembers Mapping of roles to set of addresses that have that role
-/// @custom:member providers Mapping of provider addresses to their base information
-/// @custom:member labId Counter for lab tokens
-/// @custom:member labs Mapping of lab IDs to their base information
-/// @custom:member calendars Mapping of labs IDs to their availability trees
-/// @custom:member reservations Mapping of reservation hashes to reservation details
-/// @custom:member renters Mapping of renter addresses to their reservation hashes
-/// @custom:member reservationKeysByToken Mapping of token IDs to their reservation hashes (use .length() for count)
-/// @custom:member activeReservationByTokenAndUser Mapping of token IDs and user addresses to their active reservation hashes
-/// @custom:member activeReservationCountByTokenAndUser Mapping of token IDs and user addresses to their active reservation count
-/// @custom:member reservationKeysByTokenAndUser Mapping of token IDs and user addresses to their reservation keys (for efficient per-lab queries)
-/// @custom:member tokenStatus Mapping of token IDs to their listing status (true = listed, false = unlisted)
-/// @custom:member institutionalTreasury Mapping of provider addresses to their institutional treasury balances
-/// @custom:member institutionalUserLimit Mapping of provider addresses to their institutional user spending limits
-/// @custom:member institutionalUserSpending Mapping of provider addresses to their institutional user spending data with period tracking
-/// @custom:member institutionalBackends Mapping of provider addresses to their authorized backend addresses
-/// @custom:member institutionalSpendingPeriod Duration of the spending period in seconds (default: 120 days)
-/// @custom:member institutionalSpendingPeriodAnchor Optional anchor timestamp used to realign spending periods
-/// @custom:member schacHomeOrganizationNames Canonical lower-case schacHomeOrganization string stored per hash
-/// @custom:member organizationInstitutionWallet Mapping of normalized organization hashes to institution wallets
-/// @custom:member institutionSchacHomeOrganizations Enumerable set of organization hashes registered by each institution wallet
-/// @custom:member organizationBackendUrls Backend URL per schacHomeOrganization hash
-/// @custom:member activeLabIds Dense array of currently existing lab IDs (for efficient pagination)
-/// @custom:member activeLabIndexPlusOne 1-based index of lab ID inside activeLabIds (0 means not indexed)
 struct AppStorage {
+    // Access control
     // forge-lint: disable-next-line(mixed-case-variable)
     bytes32 DEFAULT_ADMIN_ROLE;
-
     mapping(bytes32 role => EnumerableSet.AddressSet) roleMembers;
+
+    // Provider and lab catalog
     mapping(address => ProviderBase) providers;
+    mapping(address provider => ProviderNetworkStatus status) providerNetworkStatus;
     uint256 labId;
     mapping(uint256 => LabBase) labs;
-
+    mapping(uint256 => bool) tokenStatus;
+    uint256[] activeLabIds;
+    mapping(uint256 labId => uint256 indexPlusOne) activeLabIndexPlusOne;
+    mapping(uint256 => LabReputation) labReputation;
+    mapping(uint256 labId => bytes32 pucHash) pucHashByLab;
     mapping(uint256 => Tree) calendars;
+
+    // Reservation records and bounded indexes
     mapping(bytes32 => Reservation) reservations;
     mapping(address => EnumerableSet.Bytes32Set) renters;
     uint256 totalReservationsCount;
     mapping(uint256 => EnumerableSet.Bytes32Set) reservationKeysByToken;
+    mapping(uint256 => mapping(address => EnumerableSet.Bytes32Set)) reservationKeysByTokenAndUser;
     mapping(uint256 => mapping(address => bytes32)) activeReservationByTokenAndUser;
     mapping(uint256 => mapping(address => uint8)) activeReservationCountByTokenAndUser;
-    mapping(uint256 => mapping(address => EnumerableSet.Bytes32Set)) reservationKeysByTokenAndUser;
     mapping(uint256 => RecentReservationBuffer) recentReservationsByToken;
     mapping(uint256 => mapping(address => RecentReservationBuffer)) recentReservationsByTokenAndUser;
-    mapping(uint256 => UpcomingReservationBuffer) upcomingReservationsByToken;
-    mapping(uint256 => mapping(address => UpcomingReservationBuffer)) upcomingReservationsByTokenAndUser;
     mapping(uint256 => PastReservationBuffer) pastReservationsByToken;
     mapping(uint256 => mapping(address => PastReservationBuffer)) pastReservationsByTokenAndUser;
     mapping(uint256 => mapping(address => UserActiveReservation[])) activeReservationHeaps;
     mapping(bytes32 => bool) activeReservationHeapContains;
-    mapping(uint256 => bool) tokenStatus;
     mapping(uint256 => uint256) labActiveReservationCount;
     mapping(address => uint256) providerActiveReservationCount;
+    mapping(bytes32 reservationKey => bytes32 pucHash) reservationPucHash;
+
+    // Provider settlement and payout processing
     mapping(uint256 => PayoutCandidate[]) payoutHeaps;
     mapping(bytes32 => bool) payoutHeapContains;
     mapping(uint256 => uint256) payoutHeapInvalidCount;
+    mapping(uint256 => uint256) providerReceivableAccrued;
+    mapping(uint256 => uint256) providerSettlementQueue;
+    mapping(uint256 => uint256) providerReceivableLastAccruedAt;
+    mapping(uint256 labId => uint256 amount) providerReceivableInvoiced;
+    mapping(uint256 labId => uint256 amount) providerReceivableApproved;
+    mapping(uint256 labId => uint256 amount) providerReceivablePaid;
+    mapping(uint256 labId => uint256 amount) providerReceivableReversed;
+    mapping(uint256 labId => uint256 amount) providerReceivableDisputed;
 
-    mapping(address provider => uint256 balance) institutionalTreasury;
+    // Institutional spending and organization registry
     mapping(address provider => uint256 limit) institutionalUserLimit;
     mapping(address provider => mapping(bytes32 pucHash => InstitutionalUserSpending data)) institutionalUserSpending;
     mapping(address provider => address backend) institutionalBackends;
@@ -256,47 +243,16 @@ struct AppStorage {
     mapping(bytes32 orgHash => address wallet) organizationInstitutionWallet;
     mapping(address institution => EnumerableSet.Bytes32Set orgs) institutionSchacHomeOrganizations;
 
-    // Revenue split buckets
-    mapping(uint256 => uint256) providerReceivableAccrued; // per-lab provider debt accrued onchain and not yet queued
-    mapping(uint256 => uint256) providerSettlementQueue; // per-lab provider debt already queued for off-chain settlement
-
-    // Intent registry
-    mapping(bytes32 => IntentMeta) intents; // requestId -> intent meta
-    mapping(address => uint256) intentNonces; // per-signer nonce
-
-    // Admin recovery helpers
-    mapping(uint256 => uint256) providerReceivableLastAccruedAt; // labId -> last accrual timestamp for provider debt
-
-    // Lab reputation
-    mapping(uint256 => LabReputation) labReputation; // labId -> reputation stats
-
-    // Institutional org backend registry (appended to preserve storage layout)
     mapping(bytes32 orgHash => string backendUrl) organizationBackendUrls;
 
-    // Reservation PUC hashes (appended to preserve storage layout)
-    mapping(bytes32 reservationKey => bytes32 pucHash) reservationPucHash;
-
-    // Active labs index (appended to preserve storage layout)
-    uint256[] activeLabIds;
-    mapping(uint256 labId => uint256 indexPlusOne) activeLabIndexPlusOne;
+    // Intent registry
+    mapping(bytes32 => IntentMeta) intents;
+    mapping(address => uint256) intentNonces;
 
     // Closed customer credit ledger
     mapping(address account => uint256 balance) serviceCreditBalance;
 
-    // Lab creator identity binding (historical tail preserved; append new fields after this point only)
-    mapping(uint256 labId => bytes32 pucHash) pucHashByLab;
-
-    // Provider receivable lifecycle buckets
-    mapping(uint256 labId => uint256 amount) providerReceivableInvoiced;
-    mapping(uint256 labId => uint256 amount) providerReceivableApproved;
-    mapping(uint256 labId => uint256 amount) providerReceivablePaid;
-    mapping(uint256 labId => uint256 amount) providerReceivableReversed;
-    mapping(uint256 labId => uint256 amount) providerReceivableDisputed;
-
-    // Limited-network participation status (appended to preserve storage layout)
-    mapping(address provider => ProviderNetworkStatus status) providerNetworkStatus;
-
-    // ── Credit-lot ledger (8.3.A + 8.3.B) ──────────────────────────────────
+    // Credit-lot ledger
     // Locked credit balance (reserved for pending reservations, not yet captured)
     mapping(address account => uint256 locked) creditLockedBalance;
     // Per-account array of funding lots

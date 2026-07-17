@@ -36,6 +36,6 @@ Solidity structs. Credit amounts are unsigned raw units with five decimal places
 per credit. Off-chain callers must validate arithmetic before narrowing values
 to the contract's bounded integer types.
 
-The interval tree stores active exclusive reservations by time range. Heap and
-buffer structures support bounded recent/upcoming/past queries and payout
-processing without requiring a full unbounded scan.
+The interval tree stores active exclusive reservations by time range. Heaps and
+recent/past buffers support bounded reservation queries and payout processing
+without requiring a full unbounded scan.

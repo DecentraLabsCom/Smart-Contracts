@@ -9,6 +9,9 @@ import {LibReservationCancellation} from "./LibReservationCancellation.sol";
 import {LibReservationConfig} from "./LibReservationConfig.sol";
 import {LibReputation} from "./LibReputation.sol";
 
+// Slither reports a library as missing inheritance even though Solidity libraries
+// cannot inherit interfaces. The validation facet implements IInstValidation.
+// slither-disable-next-line missing-inheritance
 library LibInstitutionalReservationRequestValidation {
     using EnumerableSet for EnumerableSet.Bytes32Set;
 
@@ -83,7 +86,7 @@ library LibInstitutionalReservationRequestValidation {
     ) private returns (uint256 processed) {
         EnumerableSet.Bytes32Set storage userReservations = s.reservationKeysByTokenAndUser[labId][trackingKey];
         uint256 len = userReservations.length();
-        uint256 i;
+        uint256 i = 0;
         uint256 currentTime = block.timestamp;
 
         while (i < len && processed < maxBatch) {
@@ -143,13 +146,22 @@ library LibInstitutionalReservationRequestValidation {
                 s.providerActiveReservationCount[reservation.labProvider]--;
             }
         }
-        s.reservationKeysByToken[labId].remove(key);
-        s.renters[reservation.renter].remove(key);
+        _removeReservationIndex(s.reservationKeysByToken[labId], key);
+        _removeReservationIndex(s.renters[reservation.renter], key);
         if (s.totalReservationsCount > 0) s.totalReservationsCount--;
         if (s.activeReservationCountByTokenAndUser[labId][trackingKey] > 0) {
             s.activeReservationCountByTokenAndUser[labId][trackingKey]--;
         }
-        s.reservationKeysByTokenAndUser[labId][trackingKey].remove(key);
+        _removeReservationIndex(s.reservationKeysByTokenAndUser[labId][trackingKey], key);
+    }
+
+    /// @dev Index cleanup is intentionally idempotent for reservations created before
+    /// a particular secondary index was introduced or repaired.
+    function _removeReservationIndex(
+        EnumerableSet.Bytes32Set storage set,
+        bytes32 key
+    ) private {
+        if (!set.remove(key)) return;
     }
 
     function _getReservationKey(

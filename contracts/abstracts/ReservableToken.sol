@@ -178,6 +178,8 @@ abstract contract ReservableToken {
         uint32 time = uint32(block.timestamp);
 
         // _ACCESS_AUTHORIZED means access-authorized; both statuses are active bookings.
+        // The reservation window is intentionally evaluated against chain time.
+        // slither-disable-next-line timestamp
         return (reservation.renter == _user
                 && (reservation.status == _CONFIRMED || reservation.status == _ACCESS_AUTHORIZED)
                 && reservation.start <= time && reservation.end >= time);
@@ -197,6 +199,8 @@ abstract contract ReservableToken {
         uint256 _end
     ) public view virtual exists(_tokenId) returns (bool) {
         // Early return pattern - invalid ranges are not available
+        // Availability is intentionally evaluated against chain time.
+        // slither-disable-next-line timestamp
         if (_start >= _end || _start <= block.timestamp) return false;
 
         return !_s().calendars[_tokenId].hasConflict(_start, _end);
@@ -495,9 +499,11 @@ abstract contract ReservableToken {
 
         // Binary search for current time - O(log n)
         uint32 currentTime = uint32(block.timestamp);
-        (uint32 start,) = this.findReservationAt(_tokenId, currentTime);
+        (uint32 start, uint32 end) = this.findReservationAt(_tokenId, currentTime);
 
-        return start != 0; // If we found a reservation, lab is busy
+        // The busy check is intentionally evaluated against chain time.
+        // slither-disable-next-line timestamp
+        return start != 0 && end > currentTime; // If we found a reservation, lab is busy
     }
 
     /// @notice Get the end time of the current or next active reservation
@@ -523,14 +529,18 @@ abstract contract ReservableToken {
 
         // First check if we're currently in a reservation
         (uint32 currentStart, uint32 currentEnd) = this.findReservationAt(_tokenId, currentTime);
+        // The active window is intentionally evaluated against chain time.
+        // slither-disable-next-line timestamp
         if (currentStart != 0) {
             return currentEnd; // Return end of current reservation
         }
 
         // Not currently booked, find next future reservation
-        (, uint32 nextEnd) = this.getNextAvailableSlot(_tokenId, currentTime);
+        (uint32 nextStart, uint32 nextEnd) = this.getNextAvailableSlot(_tokenId, currentTime);
 
-        if (nextEnd > 0) {
+        // The next reservation is intentionally evaluated against chain time.
+        // slither-disable-next-line timestamp
+        if (nextStart != 0 && nextEnd > 0) {
             return nextEnd; // Return end of next reservation
         }
 

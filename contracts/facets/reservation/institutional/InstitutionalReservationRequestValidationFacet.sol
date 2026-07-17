@@ -4,15 +4,16 @@ pragma solidity ^0.8.31;
 import {
     LibInstitutionalReservationRequestValidation
 } from "../../../libraries/LibInstitutionalReservationRequestValidation.sol";
+import {IInstValidation} from "../../../libraries/LibInstitutionalReservation.sol";
 
-contract InstitutionalReservationRequestValidationFacet {
+contract InstitutionalReservationRequestValidationFacet is IInstValidation {
     function validateInstRequest(
         address p,
         bytes32 u,
         uint256 l,
         uint32 st,
         uint32 en
-    ) external returns (address o, bytes32 k, address t) {
-        return LibInstitutionalReservationRequestValidation.validateInstRequest(p, u, l, st, en);
+    ) external override returns (address o, bytes32 k, address t) {
+        (o, k, t) = LibInstitutionalReservationRequestValidation.validateInstRequest(p, u, l, st, en);
     }
 }

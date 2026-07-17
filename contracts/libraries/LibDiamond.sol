@@ -101,6 +101,8 @@ library LibDiamond {
         }
     }
 
+    // EIP-2535 defines this event without indexed parameters; changing it would break event consumers.
+    // slither-disable-next-line unindexed-event-address
     event DiamondCut(IDiamondCut.FacetCut[] _diamondCut, address _init, bytes _calldata);
 
     // Internal function version of diamondCut

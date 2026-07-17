@@ -178,7 +178,9 @@ contract ReservationIntentFacet {
 
         _consumeReservationIntent(requestId, LibIntent.ACTION_CANCEL_REQUEST_BOOKING, payload);
 
-        LibInstitutionalReservation.cancelReservationRequest(msg.sender, payload.pucHash, payload.reservationKey);
+        uint256 cancelledLabId =
+            LibInstitutionalReservation.cancelReservationRequest(msg.sender, payload.pucHash, payload.reservationKey);
+        require(cancelledLabId == reservation.labId, "RESERVATION_LAB_ID_MISMATCH");
         emit ReservationIntentProcessed(
             requestId, payload.reservationKey, "CANCEL_RESERVATION_REQUEST", payload.pucHash, msg.sender, true, ""
         );
@@ -198,7 +200,9 @@ contract ReservationIntentFacet {
 
         _consumeActionIntent(requestId, LibIntent.ACTION_CANCEL_BOOKING, payload);
 
-        LibInstitutionalReservation.cancelBooking(msg.sender, payload.pucHash, payload.reservationKey);
+        uint256 cancelledLabId =
+            LibInstitutionalReservation.cancelBooking(msg.sender, payload.pucHash, payload.reservationKey);
+        require(cancelledLabId == reservation.labId, "RESERVATION_LAB_ID_MISMATCH");
         emit ReservationIntentProcessed(
             requestId, payload.reservationKey, "CANCEL_BOOKING", payload.pucHash, msg.sender, true, ""
         );

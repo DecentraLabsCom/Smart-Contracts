@@ -22,11 +22,8 @@ contract ProviderSettlementFacet is ReentrancyGuardTransient {
     using LibAccessControlEnumerable for AppStorage;
 
     /// @dev Reservation status constants (must match reservation facets)
-    uint8 internal constant _PENDING = 0;
-    uint8 internal constant _CONFIRMED = 1;
     uint8 internal constant _ACCESS_AUTHORIZED = 2;
     uint8 internal constant _SETTLED = 3;
-    uint8 internal constant _CANCELLED = 4;
 
     /// @dev Provider receivable lifecycle buckets
     uint8 internal constant _RECEIVABLE_ACCRUED = 1;
@@ -55,17 +52,6 @@ contract ProviderSettlementFacet is ReentrancyGuardTransient {
     /// @dev Returns the AppStorage struct from the diamond storage slot.
     function _s() internal pure returns (AppStorage storage s) {
         s = LibAppStorage.diamondStorage();
-    }
-
-    /// @dev Modifier to restrict access to functions that can only be executed by the DEFAULT_ADMIN_ROLE.
-    modifier onlyDefaultAdminRole() {
-        _onlyDefaultAdminRole();
-        _;
-    }
-
-    function _onlyDefaultAdminRole() internal view {
-        AppStorage storage s = _s();
-        require(s.roleMembers[s.DEFAULT_ADMIN_ROLE].contains(msg.sender), "Only admin");
     }
 
     /// @notice Requests settlement of the currently accrued provider receivable for a lab
@@ -172,6 +158,8 @@ contract ProviderSettlementFacet is ReentrancyGuardTransient {
         uint256 currentTime = block.timestamp;
         for (uint256 i = offset; i < end;) {
             PayoutCandidate storage candidate = heap[i];
+            // Settlement eligibility is intentionally evaluated against chain time.
+            // slither-disable-next-line timestamp
             if (candidate.end <= currentTime) {
                 Reservation storage reservation = s.reservations[candidate.key];
                 if (_isProviderSettleableSession(s, candidate.key, reservation, _labId)) {
@@ -254,6 +242,8 @@ contract ProviderSettlementFacet is ReentrancyGuardTransient {
         }
 
         PayoutCandidate storage candidate = heap[nodeIndex];
+        // Settlement eligibility is intentionally evaluated against chain time.
+        // slither-disable-next-line timestamp
         if (candidate.end > currentTime) {
             return (0, 0);
         }
@@ -302,7 +292,7 @@ contract ProviderSettlementFacet is ReentrancyGuardTransient {
             revert("Not authorized");
         }
 
-        uint256 processed;
+        uint256 processed = 0;
         uint256 currentTime = block.timestamp;
 
         while (processed < maxBatch) {
@@ -511,6 +501,8 @@ contract ProviderSettlementFacet is ReentrancyGuardTransient {
 
         while (heapSize > 0) {
             PayoutCandidate memory root = heap[0];
+            // Settlement eligibility is intentionally evaluated against chain time.
+            // slither-disable-next-line timestamp
             if (root.end > currentTime) {
                 return bytes32(0);
             }
@@ -564,40 +556,6 @@ contract ProviderSettlementFacet is ReentrancyGuardTransient {
             heap[index] = heap[smallest];
             heap[smallest] = temp;
             index = smallest;
-        }
-    }
-
-    function _heapifyUp(
-        PayoutCandidate[] storage heap,
-        uint256 index
-    ) internal {
-        while (index > 0) {
-            uint256 parent = (index - 1) / 2;
-            if (heap[index].end >= heap[parent].end) {
-                break;
-            }
-            PayoutCandidate memory temp = heap[index];
-            heap[index] = heap[parent];
-            heap[parent] = temp;
-            index = parent;
-        }
-    }
-
-    function _removeHeapAt(
-        PayoutCandidate[] storage heap,
-        uint256 index
-    ) internal {
-        uint256 lastIndex = heap.length - 1;
-        if (index == lastIndex) {
-            heap.pop();
-            return;
-        }
-
-        heap[index] = heap[lastIndex];
-        heap.pop();
-        _heapifyDown(heap, index);
-        if (index < heap.length) {
-            _heapifyUp(heap, index);
         }
     }
 

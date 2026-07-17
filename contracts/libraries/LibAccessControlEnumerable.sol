@@ -56,7 +56,6 @@ library LibAccessControlEnumerable {
      * @param _country The country of the provider.
      * @param _authURI The authentication service base URL (can be empty).
      *
-     * @return bool Returns `true` if the provider role was successfully added.
      */
     function _addProviderRole(
         AppStorage storage _self,
@@ -65,10 +64,10 @@ library LibAccessControlEnumerable {
         string memory _email,
         string memory _country,
         string memory _authURI
-    ) internal returns (bool) {
-        _self.roleMembers[PROVIDER_ROLE].add(_account);
+    ) internal {
+        bool added = _self.roleMembers[PROVIDER_ROLE].add(_account);
         _self.providers[_account] = ProviderBase({name: _name, email: _email, country: _country, authURI: _authURI});
-        return true;
+        if (!added) return;
     }
 
     /**
@@ -80,15 +79,14 @@ library LibAccessControlEnumerable {
      *
      * @param _self The AppStorage structure containing role and provider data.
      * @param _account The address of the account to remove the provider role from.
-     * @return bool Returns `true` if the operation is successful.
      */
     function _removeProviderRole(
         AppStorage storage _self,
         address _account
-    ) internal returns (bool) {
-        _self.roleMembers[PROVIDER_ROLE].remove(_account);
+    ) internal {
+        bool removed = _self.roleMembers[PROVIDER_ROLE].remove(_account);
         delete _self.providers[_account];
-        return true;
+        if (!removed) return;
     }
 
     /// @notice Retrieves lab providers with pagination

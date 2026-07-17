@@ -11,6 +11,9 @@ on:
 env:
   FOUNDRY_VERSION: "1.7.1"
 
+permissions:
+  contents: read
+
 jobs:
   test:
     runs-on: ubuntu-latest

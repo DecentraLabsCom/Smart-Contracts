@@ -68,7 +68,8 @@ contract LabReputationFacet {
     function tokenURIWithReputation(
         uint256 labId
     ) external view returns (string memory) {
-        IERC721(address(this)).ownerOf(labId);
+        address labOwner = IERC721(address(this)).ownerOf(labId);
+        require(labOwner != address(0), "Lab owner missing");
         AppStorage storage s = LibAppStorage.diamondStorage();
         LabReputation storage rep = s.labReputation[labId];
         int32 rating = _computeRating(rep.score, rep.totalEvents);

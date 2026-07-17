@@ -81,6 +81,8 @@ contract ReservationCheckInFacet {
         if (reservation.status != _CONFIRMED) revert("Not confirmed");
 
         uint256 nowTs = block.timestamp;
+        // Check-in is intentionally bounded by chain time.
+        // slither-disable-next-line timestamp
         if (nowTs < reservation.start || nowTs > reservation.end) revert("Outside reservation window");
     }
 
@@ -88,7 +90,10 @@ contract ReservationCheckInFacet {
         uint64 timestamp
     ) private view {
         uint256 nowTs = block.timestamp;
+        // Check-in attestations are intentionally bounded by chain time.
+        // slither-disable-next-line timestamp
         if (timestamp > nowTs) revert("Timestamp in future");
+        // slither-disable-next-line timestamp
         if (nowTs - timestamp > MAX_CHECKIN_DELAY) revert("Signature expired");
     }
 

@@ -106,6 +106,8 @@ contract InstitutionalReservationQueryFacet {
 
         Reservation storage reservation = s.reservations[reservationKey];
         uint32 time = uint32(block.timestamp);
+        // Active reservation lookup is intentionally evaluated against chain time.
+        // slither-disable-next-line timestamp
         return (reservation.status == _CONFIRMED || reservation.status == _ACCESS_AUTHORIZED)
             && reservation.start <= time && reservation.end >= time;
     }
@@ -133,12 +135,15 @@ contract InstitutionalReservationQueryFacet {
 
         Reservation storage reservation = s.reservations[activeKey];
         uint32 time = uint32(block.timestamp);
+        // Active reservation lookup is intentionally evaluated against chain time.
+        // slither-disable-start timestamp
         if (
             (reservation.status == _CONFIRMED || reservation.status == _ACCESS_AUTHORIZED) && reservation.start <= time
                 && reservation.end >= time
         ) {
             return activeKey;
         }
+        // slither-disable-end timestamp
 
         return bytes32(0);
     }

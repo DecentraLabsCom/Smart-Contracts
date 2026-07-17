@@ -145,7 +145,7 @@ contract ReservationStatsFacet {
 
         uint256 cursor = _findFirstNodeAtOrAfter(calendar, cursorStart);
         bool includeBoundarySpanningNode = cursorStart == startTime;
-        uint256 processed;
+        uint256 processed = 0;
 
         if (includeBoundarySpanningNode) {
             uint256 predecessor = _findPredecessorNode(calendar, cursor, cursorStart);
@@ -284,6 +284,8 @@ contract ReservationStatsFacet {
 
         Reservation memory res = s.reservations[key];
         uint32 t = uint32(block.timestamp);
+        // Active reservation lookup is intentionally evaluated against chain time.
+        // slither-disable-next-line timestamp
         if ((res.status == 1 || res.status == 2) && res.start <= t && res.end >= t) {
             return key;
         }
@@ -295,6 +297,8 @@ contract ReservationStatsFacet {
         for (uint256 i; i < cap;) {
             bytes32 candidate = set.at(i);
             Reservation storage r = s.reservations[candidate];
+            // Active reservation lookup is intentionally evaluated against chain time.
+            // slither-disable-next-line timestamp
             if ((r.status == 1 || r.status == 2) && r.start <= t && r.end >= t) {
                 return candidate;
             }

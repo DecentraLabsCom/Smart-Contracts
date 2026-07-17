@@ -164,7 +164,12 @@ contract ProviderFacet is InternalAccessControl, ReentrancyGuardTransient {
 
         // Issue non-monetary service credits for platform familiarization (lot-tracked)
         AppStorage storage s = _s();
-        LibCreditLedger.mintCredits(_account, INITIAL_SERVICE_CREDITS, bytes32("PROVIDER_ONBOARDING"), 0, 0);
+        uint256 onboardingLotId =
+            LibCreditLedger.mintCredits(_account, INITIAL_SERVICE_CREDITS, bytes32("PROVIDER_ONBOARDING"), 0, 0);
+        require(
+            s.creditLots[_account][s.creditLots[_account].length - 1].lotId == onboardingLotId,
+            "Credit lot not recorded"
+        );
 
         // Activate provider in the limited network
         s.providerNetworkStatus[_account] = ProviderNetworkStatus.ACTIVE;
@@ -315,7 +320,7 @@ contract ProviderFacet is InternalAccessControl, ReentrancyGuardTransient {
         uint256 offset,
         uint256 limit
     ) external view returns (Provider[] memory providers, uint256 total) {
-        return _s()._getLabProvidersPaginated(offset, limit);
+        (providers, total) = _s()._getLabProvidersPaginated(offset, limit);
     }
 
     /// @notice Sets the network participation status for an existing provider.
@@ -368,7 +373,7 @@ contract ProviderFacet is InternalAccessControl, ReentrancyGuardTransient {
             delete s.organizationInstitutionWallet[orgHash];
             delete s.schacHomeOrganizationNames[orgHash];
             delete s.organizationBackendUrls[orgHash];
-            organizations.remove(orgHash);
+            require(organizations.remove(orgHash), "Organization index mismatch");
         }
     }
 
@@ -384,7 +389,7 @@ contract ProviderFacet is InternalAccessControl, ReentrancyGuardTransient {
     ) internal virtual override returns (bool) {
         bool granted = super._grantRole(role, account);
         if (granted) {
-            _s().roleMembers[role].add(account);
+            require(_s().roleMembers[role].add(account), "Role index mismatch");
         }
         return granted;
     }
@@ -395,7 +400,7 @@ contract ProviderFacet is InternalAccessControl, ReentrancyGuardTransient {
     ) internal virtual override returns (bool) {
         bool revoked = super._revokeRole(role, account);
         if (revoked) {
-            _s().roleMembers[role].remove(account);
+            require(_s().roleMembers[role].remove(account), "Role index mismatch");
         }
         return revoked;
     }

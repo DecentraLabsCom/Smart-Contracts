@@ -101,7 +101,7 @@ contract InstitutionFacet is InternalAccessControl {
     ) internal virtual override returns (bool) {
         bool granted = super._grantRole(role, account);
         if (granted) {
-            _s().roleMembers[role].add(account);
+            require(_s().roleMembers[role].add(account), "Role index mismatch");
         }
         return granted;
     }
@@ -112,7 +112,7 @@ contract InstitutionFacet is InternalAccessControl {
     ) internal virtual override returns (bool) {
         bool revoked = super._revokeRole(role, account);
         if (revoked) {
-            _s().roleMembers[role].remove(account);
+            require(_s().roleMembers[role].remove(account), "Role index mismatch");
         }
         return revoked;
     }

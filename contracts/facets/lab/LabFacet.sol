@@ -6,6 +6,7 @@ import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet
 import {AppStorage} from "../../libraries/LibAppStorage.sol";
 import {LibAccessControlEnumerable} from "../../libraries/LibAccessControlEnumerable.sol";
 import {LibLabTransfer} from "../../libraries/LibLabTransfer.sol";
+import {ILabFacetMint} from "../../libraries/LibLabAdmin.sol";
 import {LibProviderReceivable} from "../../libraries/LibProviderReceivable.sol";
 import {ReservableToken} from "../../abstracts/ReservableToken.sol";
 
@@ -27,7 +28,7 @@ using EnumerableSet for EnumerableSet.AddressSet;
 ///         Each Lab has associated metadata, including a URI, price, authentication details, and access information.
 /// @custom:security Only authorized Lab Providers can perform certain actions, such as adding or updating Labs.
 /// @custom:security The contract uses OpenZeppelin's AccessControlEnumerable for role-based access control.
-contract LabFacet is ERC721Upgradeable, ReservableToken {
+contract LabFacet is ERC721Upgradeable, ReservableToken, ILabFacetMint {
     using LibAccessControlEnumerable for AppStorage;
 
     /// @dev Maximum number of reservation indices to clean up during NFT transfer
@@ -81,18 +82,6 @@ contract LabFacet is ERC721Upgradeable, ReservableToken {
     /// @param _uri The URI of the lab.
     event LabURISet(uint256 indexed _labId, string _uri);
 
-    /// @dev Modifier to restrict access to functions that can only be executed by the LabProvider.
-    ///      Ensures that the caller is authorized as the LabProvider before proceeding.
-    /// @notice Throws an error if the caller is not the designated LabProvider.
-    modifier isLabProvider() {
-        _isLabProvider();
-        _;
-    }
-
-    function _isLabProvider() internal view {
-        require(_s()._isLabProvider(msg.sender), "Only one LabProvider can perform this action");
-    }
-
     /// @dev Constructor for the LabFacet contract.
     /// Currently, this constructor does not perform any specific initialization.
     constructor() {}
@@ -121,7 +110,7 @@ contract LabFacet is ERC721Upgradeable, ReservableToken {
     function safeMintTo(
         address to,
         uint256 tokenId
-    ) external {
+    ) external override {
         // Restrict to calls originating from the diamond contract itself
         // (i.e., internal diamond calls via libraries/facets) to avoid
         // external actors minting tokens directly.
@@ -133,7 +122,7 @@ contract LabFacet is ERC721Upgradeable, ReservableToken {
     /// @dev Intended for internal diamond calls; access is enforced by the caller
     function burnToken(
         uint256 tokenId
-    ) external {
+    ) external override {
         // Restrict to calls originating from the diamond contract itself
         // to avoid external actors burning arbitrary tokens.
         require(msg.sender == address(this), "Only diamond can call");

@@ -67,7 +67,7 @@ contract InstitutionalReservationRequestCreationFacet {
         // forge-lint: disable-next-line(unsafe-typecast)
         uint64 period = uint64(5 minutes);
 
-        s.reservationKeysByToken[i.l].add(i.k);
+        require(s.reservationKeysByToken[i.l].add(i.k), "Reservation index mismatch");
         Reservation storage r = s.reservations[i.k];
         r.labId = i.l;
         r.renter = i.p;
@@ -84,9 +84,9 @@ contract InstitutionalReservationRequestCreationFacet {
         s.reservationPucHash[i.k] = i.u;
 
         s.totalReservationsCount++;
-        s.renters[i.p].add(i.k);
-        s.renters[i.t].add(i.k);
-        s.reservationKeysByTokenAndUser[i.l][i.t].add(i.k);
+        _addReservationIndex(s.renters[i.p], i.k);
+        _addReservationIndex(s.renters[i.t], i.k);
+        _addReservationIndex(s.reservationKeysByTokenAndUser[i.l][i.t], i.k);
 
         emit ReservationRequested(i.p, i.l, i.s, i.e, i.k);
     }
@@ -99,6 +99,15 @@ contract InstitutionalReservationRequestCreationFacet {
     ) external onlyDiamondSelfCall {
         AppStorage storage s = _s();
         _recordRecent(s, l, t, k, st);
+    }
+
+    /// @dev Secondary reservation indexes are intentionally idempotent because
+    /// the renter and tracking addresses may be identical.
+    function _addReservationIndex(
+        EnumerableSet.Bytes32Set storage set,
+        bytes32 key
+    ) private {
+        if (!set.add(key)) return;
     }
 
     function _recordRecent(

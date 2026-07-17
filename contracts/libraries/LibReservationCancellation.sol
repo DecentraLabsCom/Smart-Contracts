@@ -46,7 +46,7 @@ library LibReservationCancellation {
             }
         }
         if (isActive || isPending) {
-            s.reservationKeysByTokenAndUser[labId][reservation.renter].remove(reservationKey);
+            _removeReservationIndex(s.reservationKeysByTokenAndUser[labId][reservation.renter], reservationKey);
         }
 
         if (isActive && s.activeReservationByTokenAndUser[labId][reservation.renter] == reservationKey) {
@@ -54,8 +54,8 @@ library LibReservationCancellation {
             s.activeReservationByTokenAndUser[labId][reservation.renter] = nextKey;
         }
 
-        s.reservationKeysByToken[labId].remove(reservationKey);
-        s.renters[reservation.renter].remove(reservationKey);
+        _removeReservationIndex(s.reservationKeysByToken[labId], reservationKey);
+        _removeReservationIndex(s.renters[reservation.renter], reservationKey);
 
         _recordPastOnCancel(s, reservation, reservationKey, trackingKey);
 
@@ -67,14 +67,14 @@ library LibReservationCancellation {
                     s.activeReservationCountByTokenAndUser[labId][trackingKey]--;
                 }
             }
-            s.reservationKeysByTokenAndUser[labId][trackingKey].remove(reservationKey);
+            _removeReservationIndex(s.reservationKeysByTokenAndUser[labId][trackingKey], reservationKey);
 
             if (isActive && s.activeReservationByTokenAndUser[labId][trackingKey] == reservationKey) {
                 bytes32 nextKey = _findNextEarliestReservation(s, labId, trackingKey);
                 s.activeReservationByTokenAndUser[labId][trackingKey] = nextKey;
             }
 
-            s.renters[trackingKey].remove(reservationKey);
+            _removeReservationIndex(s.renters[trackingKey], reservationKey);
             _invalidateInstitutionalActiveReservation(s, labId, reservation, reservationKey);
         }
     }
@@ -89,6 +89,15 @@ library LibReservationCancellation {
             LibProviderReceivable.accrueReceivable(labId, providerFee, reservationKey);
             LibProviderReceivable.updateAccruedTimestamp(labId, block.timestamp);
         }
+    }
+
+    /// @dev Index cleanup is intentionally idempotent for reservations created before
+    /// a particular secondary index was introduced or repaired.
+    function _removeReservationIndex(
+        EnumerableSet.Bytes32Set storage set,
+        bytes32 reservationKey
+    ) private {
+        if (!set.remove(reservationKey)) return;
     }
 
     function _cancelReservationBase(

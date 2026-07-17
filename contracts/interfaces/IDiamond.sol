@@ -20,5 +20,7 @@ interface IDiamond {
         bytes4[] functionSelectors;
     }
 
+    // EIP-2535 defines this event without indexed parameters; changing it would break event consumers.
+    // slither-disable-next-line unindexed-event-address
     event DiamondCut(FacetCut[] _diamondCut, address _init, bytes _calldata);
 }

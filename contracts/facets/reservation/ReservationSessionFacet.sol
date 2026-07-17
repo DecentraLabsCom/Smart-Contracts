@@ -118,6 +118,7 @@ contract ReservationSessionFacet {
             revert("Outside reservation window");
         }
         // forge-lint: disable-next-line(block-timestamp)
+        // slither-disable-next-line timestamp
         if (input.startedAt > block.timestamp) revert("StartedAt in future");
         if (keccak256(bytes(input.labId)) != keccak256(bytes(_uintToString(reservation.labId)))) {
             revert("LabId mismatch");

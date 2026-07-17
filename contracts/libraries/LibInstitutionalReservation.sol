@@ -119,7 +119,7 @@ library LibInstitutionalReservation {
         labId = reservation.labId;
 
         uint96 price = reservation.price;
-        uint96 providerFee;
+        uint96 providerFee = 0;
         uint96 refundAmount = price;
 
         if (price > 0) {

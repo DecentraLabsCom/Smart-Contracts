@@ -18,20 +18,20 @@ library LibReputation {
 
     function recordOwnerCancellation(
         uint256 labId
-    ) internal returns (int32 newScore) {
+    ) internal {
         AppStorage storage s = LibAppStorage.diamondStorage();
         LabReputation storage rep = s.labReputation[labId];
         rep.ownerCancellations += 1;
-        newScore = _applyDelta(rep, CANCELLATION_PENALTY);
+        int32 newScore = _applyDelta(rep, CANCELLATION_PENALTY);
         emit LabReputationAdjusted(labId, CANCELLATION_PENALTY, newScore, rep.totalEvents, "OWNER_CANCEL");
     }
 
     function recordCompletion(
         uint256 labId
-    ) internal returns (int32 newScore) {
+    ) internal {
         AppStorage storage s = LibAppStorage.diamondStorage();
         LabReputation storage rep = s.labReputation[labId];
-        newScore = _applyDelta(rep, COMPLETION_REWARD);
+        int32 newScore = _applyDelta(rep, COMPLETION_REWARD);
         emit LabReputationAdjusted(labId, COMPLETION_REWARD, newScore, rep.totalEvents, "SESSION_STARTED");
     }
 
@@ -39,10 +39,10 @@ library LibReputation {
         uint256 labId,
         int32 delta,
         string memory reason
-    ) internal returns (int32 newScore) {
+    ) internal {
         AppStorage storage s = LibAppStorage.diamondStorage();
         LabReputation storage rep = s.labReputation[labId];
-        newScore = _applyDelta(rep, delta);
+        int32 newScore = _applyDelta(rep, delta);
         emit LabReputationAdjusted(labId, delta, newScore, rep.totalEvents, reason);
     }
 

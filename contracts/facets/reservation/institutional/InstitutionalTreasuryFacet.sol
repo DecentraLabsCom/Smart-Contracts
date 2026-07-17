@@ -8,6 +8,9 @@ import {
     InstitutionalUserSpending
 } from "../../../libraries/LibAppStorage.sol";
 import {LibCreditLedger} from "../../../libraries/LibCreditLedger.sol";
+import {IInstitutionalTreasuryFacet} from "../../../libraries/LibInstitutionalReservation.sol";
+import {IInstitutionalTreasuryFacetConfirmLib} from "../../../libraries/LibInstitutionalReservationConfirmation.sol";
+import {IInstitutionalTreasuryFacetLight} from "./InstitutionalReservationRequestCreationFacet.sol";
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import {ReentrancyGuardTransient} from "@openzeppelin/contracts/utils/ReentrancyGuardTransient.sol";
 
@@ -16,7 +19,12 @@ import {ReentrancyGuardTransient} from "@openzeppelin/contracts/utils/Reentrancy
 /// @author Juan Luis Ramos Villalón
 /// @notice Allows institutions to assign and manage treasury balances for institutional users by canonical PUC hash.
 /// @dev Implements backend authorization pattern for institutional users over the internal credit ledger.
-contract InstitutionalTreasuryFacet is ReentrancyGuardTransient {
+contract InstitutionalTreasuryFacet is
+    ReentrancyGuardTransient,
+    IInstitutionalTreasuryFacet,
+    IInstitutionalTreasuryFacetConfirmLib,
+    IInstitutionalTreasuryFacetLight
+{
     using EnumerableSet for EnumerableSet.AddressSet;
 
     /// @notice Emitted when an institution authorizes a backend address
@@ -92,16 +100,22 @@ contract InstitutionalTreasuryFacet is ReentrancyGuardTransient {
         uint256 periodDuration,
         uint256 anchor
     ) internal pure returns (uint256) {
+        // Period boundaries are intentionally evaluated against chain time.
+        // slither-disable-next-line timestamp
         if (anchor == 0) {
             // forge-lint: disable-next-line(divide-before-multiply)
+            // slither-disable-next-line divide-before-multiply
             return (timestamp / periodDuration) * periodDuration;
         }
 
+        // Period boundaries are intentionally evaluated against chain time.
+        // slither-disable-next-line timestamp
         if (anchor > timestamp) {
             anchor = timestamp;
         }
 
         // forge-lint: disable-next-line(divide-before-multiply)
+        // slither-disable-next-line divide-before-multiply
         return anchor + ((timestamp - anchor) / periodDuration) * periodDuration;
     }
 
@@ -142,8 +156,10 @@ contract InstitutionalTreasuryFacet is ReentrancyGuardTransient {
         bytes32 spendRef
     ) internal {
         require(amount <= uint256(type(int256).max), "Amount too large");
+        AppStorage storage s = LibAppStorage.diamondStorage();
         // forge-lint: disable-next-line(unsafe-typecast)
-        LibCreditLedger.adjustCredits(institution, -int256(amount), spendRef);
+        uint256 newBalance = LibCreditLedger.adjustCredits(institution, -int256(amount), spendRef);
+        require(newBalance == s.serviceCreditBalance[institution], "Credit ledger mismatch");
     }
 
     function _availableTreasuryBalance(
@@ -169,6 +185,8 @@ contract InstitutionalTreasuryFacet is ReentrancyGuardTransient {
         currentPeriodStart = _calculatePeriodStart(block.timestamp, periodDuration, anchor);
 
         // If period has changed, reset spending
+        // Period rollover is intentionally evaluated against chain time.
+        // slither-disable-next-line timestamp
         if (spending.periodStart != currentPeriodStart) {
             spending.amount = 0;
             spending.periodStart = currentPeriodStart;
@@ -271,7 +289,7 @@ contract InstitutionalTreasuryFacet is ReentrancyGuardTransient {
         address institution,
         bytes32 pucHash,
         uint256 amount
-    ) external view {
+    ) external view override {
         AppStorage storage s = LibAppStorage.diamondStorage();
         _requireInstitution(institution);
         _requireAuthorizedBackendOrInternal(s, institution);
@@ -288,6 +306,8 @@ contract InstitutionalTreasuryFacet is ReentrancyGuardTransient {
 
         // Check if we're in a new period (spending would be reset to 0)
         uint256 currentSpending = 0;
+        // Period snapshots intentionally use exact equality: a different period means zero current spend.
+        // slither-disable-next-line timestamp,incorrect-equality
         if (spending.periodStart == currentPeriodStart && spending.periodStart != 0) {
             currentSpending = spending.amount;
         }
@@ -308,7 +328,7 @@ contract InstitutionalTreasuryFacet is ReentrancyGuardTransient {
         address institution,
         bytes32 pucHash,
         uint256 amount
-    ) external onlyAuthorizedBackendOrInternal(institution) {
+    ) external override onlyAuthorizedBackendOrInternal(institution) {
         AppStorage storage s = LibAppStorage.diamondStorage();
         _requireInstitution(institution);
 
@@ -346,7 +366,7 @@ contract InstitutionalTreasuryFacet is ReentrancyGuardTransient {
         address institution,
         bytes32 pucHash,
         uint256 amount
-    ) external {
+    ) external override {
         // Prevent compromised backends from calling this function arbitrarily
         require(msg.sender == address(this), "Only internal Diamond calls");
 
@@ -403,6 +423,8 @@ contract InstitutionalTreasuryFacet is ReentrancyGuardTransient {
         InstitutionalUserSpending storage spending = s.institutionalUserSpending[institution][pucHash];
 
         // If stored period doesn't match current period, spending is 0 (would be reset on next write)
+        // Period snapshots are intentionally evaluated against chain time.
+        // slither-disable-next-line timestamp
         if (spending.periodStart != currentPeriodStart) {
             return 0;
         }
@@ -426,6 +448,8 @@ contract InstitutionalTreasuryFacet is ReentrancyGuardTransient {
         InstitutionalUserSpending storage spending = s.institutionalUserSpending[institution][pucHash];
 
         // If stored period doesn't match current period, spending is 0 (would be reset on next write)
+        // Period snapshots are intentionally evaluated against chain time.
+        // slither-disable-next-line timestamp
         if (spending.periodStart != currentPeriodStart) {
             return (0, currentPeriodStart);
         }
@@ -475,6 +499,8 @@ contract InstitutionalTreasuryFacet is ReentrancyGuardTransient {
         InstitutionalUserSpending storage spending = s.institutionalUserSpending[institution][pucHash];
 
         // If stored period doesn't match current period, full limit is available
+        // Period snapshots are intentionally evaluated against chain time.
+        // slither-disable-next-line timestamp
         if (spending.periodStart != currentPeriodStart) {
             return limit;
         }
@@ -526,6 +552,8 @@ contract InstitutionalTreasuryFacet is ReentrancyGuardTransient {
 
         // If stored period matches current period, use stored spending
         // Otherwise, spending is 0 (new period)
+        // Period snapshots intentionally use exact equality: a different period means zero current spend.
+        // slither-disable-next-line timestamp,incorrect-equality
         if (spending.periodStart == periodStart) {
             currentPeriodSpent = spending.amount;
         } else {

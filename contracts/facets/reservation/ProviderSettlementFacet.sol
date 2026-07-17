@@ -8,6 +8,9 @@ import {LibAccessControlEnumerable} from "../../libraries/LibAccessControlEnumer
 import {LibERC721Storage} from "../../libraries/LibERC721Storage.sol";
 import {LibReputation} from "../../libraries/LibReputation.sol";
 import {LibProviderReceivable, SETTLEMENT_OPERATOR_ROLE} from "../../libraries/LibProviderReceivable.sol";
+import {LibHeap} from "../../libraries/LibHeap.sol";
+import {LibTracking} from "../../libraries/LibTracking.sol";
+import {RivalIntervalTreeLibrary, Tree} from "../../libraries/RivalIntervalTreeLibrary.sol";
 
 /// @title ProviderSettlementFacet
 /// @author
@@ -20,8 +23,10 @@ contract ProviderSettlementFacet is ReentrancyGuardTransient {
     using EnumerableSet for EnumerableSet.Bytes32Set;
     using EnumerableSet for EnumerableSet.AddressSet;
     using LibAccessControlEnumerable for AppStorage;
+    using RivalIntervalTreeLibrary for Tree;
 
     /// @dev Reservation status constants (must match reservation facets)
+    uint8 internal constant _CONFIRMED = 1;
     uint8 internal constant _ACCESS_AUTHORIZED = 2;
     uint8 internal constant _SETTLED = 3;
 
@@ -162,7 +167,10 @@ contract ProviderSettlementFacet is ReentrancyGuardTransient {
             // slither-disable-next-line timestamp
             if (candidate.end <= currentTime) {
                 Reservation storage reservation = s.reservations[candidate.key];
-                if (_isProviderSettleableSession(s, candidate.key, reservation, _labId)) {
+                if (
+                    (reservation.end == 0 || reservation.end == candidate.end)
+                        && _isProviderSettleableSession(s, candidate.key, reservation, _labId)
+                ) {
                     providerReceivableChunk += reservation.providerShare;
                     eligibleReservationCountChunk++;
                 }
@@ -217,9 +225,16 @@ contract ProviderSettlementFacet is ReentrancyGuardTransient {
         require(amount > 0, "Amount required");
 
         AppStorage storage s = _s();
-        _requireSettlementOperator(s, _labId);
         require(_isSupportedReceivableState(fromState) && _isSupportedReceivableState(toState), "Invalid state");
         require(_isValidReceivableTransition(fromState, toState), "Invalid transition");
+        if (
+            toState == _RECEIVABLE_APPROVED || toState == _RECEIVABLE_PAID || toState == _RECEIVABLE_REVERSED
+                || toState == _RECEIVABLE_DISPUTED
+        ) {
+            _requireSettlementOperatorForFinancialTransition(s);
+        } else {
+            _requireSettlementOperator(s, _labId);
+        }
 
         _decreaseReceivableBucket(s, _labId, fromState, amount);
         _increaseReceivableBucket(s, _labId, toState, amount);
@@ -337,6 +352,14 @@ contract ProviderSettlementFacet is ReentrancyGuardTransient {
         if (msg.sender != labOwner && msg.sender != backend) {
             revert("Not authorized");
         }
+    }
+
+    function _requireSettlementOperatorForFinancialTransition(
+        AppStorage storage s
+    ) internal view {
+        bool isAdmin = s.roleMembers[s.DEFAULT_ADMIN_ROLE].contains(msg.sender);
+        bool isSettlementOp = s.roleMembers[SETTLEMENT_OPERATOR_ROLE].contains(msg.sender);
+        require(isAdmin || isSettlementOp, "Not authorized");
     }
 
     function _outstandingProviderReceivable(
@@ -509,7 +532,10 @@ contract ProviderSettlementFacet is ReentrancyGuardTransient {
             _removeHeapRoot(heap);
             s.payoutHeapContains[root.key] = false;
             Reservation storage reservation = s.reservations[root.key];
-            if (_isProviderSettleableSession(s, root.key, reservation, labId)) {
+            if (
+                (reservation.end == 0 || reservation.end == root.end)
+                    && _isProviderSettleableSession(s, root.key, reservation, labId)
+            ) {
                 return root.key;
             }
             if (invalidCount > 0) {
@@ -577,7 +603,7 @@ contract ProviderSettlementFacet is ReentrancyGuardTransient {
             bytes32 key = heap[readIndex].key;
             Reservation storage reservation = s.reservations[key];
 
-            if (_isProviderSettleableSession(s, key, reservation, labId)) {
+            if (_isCurrentPayoutCandidate(reservation, heap[readIndex], labId)) {
                 if (writeIndex != readIndex) {
                     heap[writeIndex] = heap[readIndex];
                 }
@@ -598,6 +624,15 @@ contract ProviderSettlementFacet is ReentrancyGuardTransient {
         }
 
         s.payoutHeapInvalidCount[labId] = 0;
+    }
+
+    function _isCurrentPayoutCandidate(
+        Reservation storage reservation,
+        PayoutCandidate storage candidate,
+        uint256 labId
+    ) private view returns (bool) {
+        return reservation.labId == labId && (reservation.end == 0 || reservation.end == candidate.end)
+            && (reservation.status == _CONFIRMED || reservation.status == _ACCESS_AUTHORIZED);
     }
 
     /// @dev Finalizes a reservation for settlement processing: marks as _SETTLED, updates counters, accrues shares
@@ -627,10 +662,91 @@ contract ProviderSettlementFacet is ReentrancyGuardTransient {
             s.providerActiveReservationCount[labProvider]--;
         }
 
+        _cleanupSettledReservationIndexes(s, key, reservation, labId);
+        LibHeap.removePayoutCandidates(s, labId, key);
+
         // Accrue shares to canonical on-chain provider debt buckets.
         LibProviderReceivable.accrueReceivable(labId, reservation.providerShare, key);
         LibProviderReceivable.updateAccruedTimestamp(labId, block.timestamp);
 
         return true;
+    }
+
+    function _cleanupSettledReservationIndexes(
+        AppStorage storage s,
+        bytes32 key,
+        Reservation storage reservation,
+        uint256 labId
+    ) private {
+        if (s.calendars[labId].root != 0 && s.calendars[labId].exists(reservation.start)) {
+            _removeCalendarSlot(s, labId, reservation.start);
+        }
+
+        _removeReservationKey(s.reservationKeysByToken[labId], key);
+        _removeReservationKey(s.renters[reservation.renter], key);
+        if (s.totalReservationsCount > 0) s.totalReservationsCount--;
+
+        _removeUserReservationIndex(s, labId, reservation.renter, key);
+
+        bytes32 pucHash = s.reservationPucHash[key];
+        if (pucHash != bytes32(0)) {
+            address trackingKey = LibTracking.trackingKeyFromInstitutionHash(reservation.renter, pucHash);
+            _removeUserReservationIndex(s, labId, trackingKey, key);
+            _removeReservationKey(s.renters[trackingKey], key);
+        }
+    }
+
+    function _removeCalendarSlot(
+        AppStorage storage s,
+        uint256 labId,
+        uint32 start
+    ) private {
+        s.calendars[labId].remove(start);
+    }
+
+    function _removeReservationKey(
+        EnumerableSet.Bytes32Set storage set,
+        bytes32 key
+    ) private {
+        if (!set.remove(key)) return;
+    }
+
+    function _removeUserReservationIndex(
+        AppStorage storage s,
+        uint256 labId,
+        address user,
+        bytes32 key
+    ) private {
+        EnumerableSet.Bytes32Set storage reservations = s.reservationKeysByTokenAndUser[labId][user];
+        if (!reservations.remove(key)) return;
+        if (s.activeReservationCountByTokenAndUser[labId][user] > 0) {
+            s.activeReservationCountByTokenAndUser[labId][user]--;
+        }
+        if (s.activeReservationByTokenAndUser[labId][user] == key) {
+            s.activeReservationByTokenAndUser[labId][user] = _findNextActiveReservation(s, labId, user);
+        }
+    }
+
+    function _findNextActiveReservation(
+        AppStorage storage s,
+        uint256 labId,
+        address user
+    ) private view returns (bytes32 nextKey) {
+        EnumerableSet.Bytes32Set storage reservations = s.reservationKeysByTokenAndUser[labId][user];
+        uint32 earliestStart = type(uint32).max;
+        for (uint256 i; i < reservations.length();) {
+            bytes32 candidateKey = reservations.at(i);
+            Reservation storage candidate = s.reservations[candidateKey];
+            if (
+                (candidate.status == _CONFIRMED || candidate.status == _ACCESS_AUTHORIZED)
+                    && candidate.start < earliestStart
+            ) {
+                earliestStart = candidate.start;
+                nextKey = candidateKey;
+            }
+            unchecked {
+                ++i;
+            }
+        }
     }
 }

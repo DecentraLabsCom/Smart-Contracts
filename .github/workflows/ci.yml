@@ -22,13 +22,12 @@ jobs:
 
     steps:
       - name: checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
         with:
           submodules: recursive
 
       - name: setup foundry
-        uses: foundry-rs/foundry-toolchain@v1
-        continue-on-error: true
+        uses: foundry-rs/foundry-toolchain@b00af27efadbc7b4ca8b82abbd903b17cc874d2a # v1
         with:
           version: ${{ env.FOUNDRY_VERSION }}
 
@@ -62,7 +61,7 @@ jobs:
           exit 1
 
       - name: setup node
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           node-version: "22"
           cache: "npm"
@@ -74,8 +73,7 @@ jobs:
           git submodule update --init --recursive
 
       - name: install dependencies
-        run: |
-          forge install || true
+        run: forge install
 
       - name: install node deps (hardhat)
         run: npm ci
@@ -89,6 +87,9 @@ jobs:
       - name: validate selector manifest and generate ABI
         run: npm run verify:contract-surface
 
+      - name: validate repository consistency
+        run: npm run verify:repo-consistency
+
       - name: run fuzz/stress tests (LibHeapStress)
         run: forge test --match-contract LibHeapStress -vvvv --color never
 
@@ -96,7 +97,7 @@ jobs:
         run: |
           forge test --gas-report --match-contract LibHeapGas --color never | tee gas-report.txt
       - name: upload gas-report
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: gas-report
           path: gas-report.txt
@@ -107,8 +108,8 @@ jobs:
         env:
           RPC_URL: ${{ secrets.SEPOLIA_RPC_URL }}
         run: |
-          if (-not $env:RPC_URL) { Write-Host "SEPOLIA_RPC_URL missing - skipping verify"; exit 0 }
-          if (-not (Test-Path "./scripts/ci-verify-selectors.ps1")) { Write-Host "ci-verify-selectors.ps1 missing - skipping verify"; exit 0 }
+          if (-not $env:RPC_URL) { throw "SEPOLIA_RPC_URL is required for live selector verification on push" }
+          if (-not (Test-Path "./scripts/ci-verify-selectors.ps1")) { throw "ci-verify-selectors.ps1 is required for live selector verification" }
           & ./scripts/ci-verify-selectors.ps1 -RpcUrl $env:RPC_URL
 
   slither:
@@ -120,12 +121,12 @@ jobs:
       security-events: write
     steps:
       - name: checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
         with:
           submodules: recursive
 
       - name: setup foundry
-        uses: foundry-rs/foundry-toolchain@v1
+        uses: foundry-rs/foundry-toolchain@b00af27efadbc7b4ca8b82abbd903b17cc874d2a # v1
         with:
           version: ${{ env.FOUNDRY_VERSION }}
 
@@ -135,30 +136,29 @@ jobs:
           git submodule update --init --recursive
 
       - name: install dependencies
-        run: forge install || true
+        run: forge install
 
       - name: setup Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
         with:
           python-version: "3.11"
 
       - name: install Slither
-        run: pip install slither-analyzer
+        run: python -m pip install --disable-pip-version-check slither-analyzer==0.11.5
 
       - name: run Slither
-        continue-on-error: true
-        run: slither contracts/ --sarif results.sarif --config-file .slither.config.json
+        run: slither contracts/ --sarif results.sarif --config-file .slither.config.json --fail-medium
 
       - name: Upload Slither SARIF artifact
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: slither-sarif
           path: results.sarif
 
       - name: Upload Slither results to Code scanning
         if: always() && hashFiles('results.sarif') != ''
-        uses: github/codeql-action/upload-sarif@v4
+        uses: github/codeql-action/upload-sarif@eec0bff2f6c15bf3f1e8a0152f94d17664a06a06 # v4
         with:
           sarif_file: results.sarif
           category: slither

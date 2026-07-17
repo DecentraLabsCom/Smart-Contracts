@@ -6,6 +6,7 @@ import "./BaseTest.sol";
 import "./Harnesses.sol";
 import "../contracts/libraries/LibAppStorage.sol";
 import "../contracts/libraries/LibRevenue.sol";
+import "../contracts/libraries/LibTracking.sol";
 
 contract LibInstitutionalReservationTest is BaseTest {
     InstReservationHarness public harness;
@@ -137,6 +138,7 @@ contract LibInstitutionalReservationTest is BaseTest {
         assertEq(score, 0);
         assertEq(totalEvents, 0);
         assertEq(ownerCancellations, 0);
+        assertEq(harness.lastRefundAmount(), 1_000_000);
     }
 
     function test_releaseInstitutionalExpiredReservations_accessAuthorizedWithSessionStarted_rewardsReputation()
@@ -166,6 +168,38 @@ contract LibInstitutionalReservationTest is BaseTest {
         assertEq(score, 1);
         assertEq(totalEvents, 1);
         assertEq(ownerCancellations, 0);
+        assertEq(harness.providerReceivable(labId), 1_000_000);
+    }
+
+    function test_releaseInstitutionalExpiredReservations_repairs_active_reservation_pointer() public {
+        vm.warp(10_000);
+        address inst = address(0xCAFE);
+        address backend = address(0xF00D);
+        uint256 labId = 15;
+        string memory puc = "pointer@inst";
+        bytes32 pucHash = keccak256(bytes(puc));
+        uint32 firstStart = uint32(block.timestamp - 7200);
+        uint32 secondStart = uint32(block.timestamp - 3600);
+        bytes32 firstKey = keccak256(abi.encodePacked("pointer-first", labId, firstStart));
+        bytes32 secondKey = keccak256(abi.encodePacked("pointer-second", labId, secondStart));
+
+        harness.setInstitution(inst);
+        harness.setBackend(inst, backend);
+        harness.setIndexedExpiredReservation(
+            firstKey, user1, inst, 1_000_000, _ACCESS_AUTHORIZED, labId, firstStart, firstStart + 300, puc
+        );
+        harness.setIndexedExpiredReservation(
+            secondKey, user1, inst, 1_000_000, _ACCESS_AUTHORIZED, labId, secondStart, secondStart + 300, puc
+        );
+
+        vm.prank(backend);
+        harness.releaseInstitutionalExpiredReservationsWrapper(inst, pucHash, labId, 1);
+
+        bytes32 remainingKey = harness.getReservationStatus(firstKey) == _SETTLED ? secondKey : firstKey;
+        assertEq(
+            harness.getActiveReservationKey(labId, LibTracking.trackingKeyFromInstitutionHash(inst, pucHash)),
+            remainingKey
+        );
     }
 
     function test_cancelBooking_afterStart_reverts() public {

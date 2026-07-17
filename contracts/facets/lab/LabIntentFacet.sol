@@ -54,6 +54,8 @@ contract LabIntentFacet {
         emit LabCreatorBound(labId, pucHash);
     }
 
+    // State is committed before the final audit event; the called libraries are internal Diamond routes.
+    // slither-disable-next-line reentrancy-events
     function _createLabWithIntent(
         bytes32 requestId,
         ActionIntentPayload calldata payload,
@@ -127,6 +129,8 @@ contract LabIntentFacet {
     }
 
     /// @notice Deletes a lab via intent
+    // State is committed before the final audit event; the called library is an internal Diamond route.
+    // slither-disable-next-line reentrancy-events
     function deleteLabWithIntent(
         bytes32 requestId,
         ActionIntentPayload calldata payload

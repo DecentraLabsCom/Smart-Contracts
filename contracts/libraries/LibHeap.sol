@@ -25,6 +25,37 @@ library LibHeap {
         _heapifyUp(heap, heap.length - 1);
     }
 
+    /// @notice Physically removes every candidate for a reservation before it
+    /// is cancelled or finalized, preventing stale rebooking candidates.
+    function removePayoutCandidates(
+        AppStorage storage s,
+        uint256 labId,
+        bytes32 key
+    ) internal {
+        PayoutCandidate[] storage heap = s.payoutHeaps[labId];
+        uint256 index;
+        while (index < heap.length) {
+            if (heap[index].key != key) {
+                unchecked {
+                    ++index;
+                }
+                continue;
+            }
+
+            uint256 lastIndex = heap.length - 1;
+            if (index != lastIndex) heap[index] = heap[lastIndex];
+            heap.pop();
+            if (index < heap.length) {
+                if (index > 0 && heap[index].end < heap[(index - 1) / 2].end) {
+                    _heapifyUp(heap, index);
+                } else {
+                    _heapifyDown(heap, index);
+                }
+            }
+        }
+        s.payoutHeapContains[key] = false;
+    }
+
     function popEligiblePayoutCandidate(
         AppStorage storage s,
         uint256 labId,
@@ -45,7 +76,7 @@ library LibHeap {
             s.payoutHeapContains[root.key] = false;
             Reservation storage reservation = s.reservations[root.key];
             if (
-                reservation.labId == labId
+                reservation.labId == labId && (reservation.end == 0 || reservation.end == root.end)
                     && (reservation.status == _CONFIRMED || reservation.status == _ACCESS_AUTHORIZED)
             ) {
                 return root.key;
@@ -118,7 +149,7 @@ library LibHeap {
             bytes32 key = heap[readIndex].key;
             Reservation storage reservation = s.reservations[key];
             if (
-                reservation.labId == labId
+                reservation.labId == labId && (reservation.end == 0 || reservation.end == heap[readIndex].end)
                     && (reservation.status == _CONFIRMED || reservation.status == _ACCESS_AUTHORIZED)
             ) {
                 if (writeIndex != readIndex) {

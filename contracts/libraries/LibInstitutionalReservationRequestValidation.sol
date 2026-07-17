@@ -8,6 +8,17 @@ import {LibTracking} from "./LibTracking.sol";
 import {LibReservationCancellation} from "./LibReservationCancellation.sol";
 import {LibReservationConfig} from "./LibReservationConfig.sol";
 import {LibReputation} from "./LibReputation.sol";
+import {LibProviderReceivable} from "./LibProviderReceivable.sol";
+import {LibHeap} from "./LibHeap.sol";
+
+interface IInstitutionalTreasuryFacetValidation {
+    function refundToInstitutionalTreasuryForReservation(
+        address provider,
+        bytes32 pucHash,
+        bytes32 reservationKey,
+        uint256 amount
+    ) external;
+}
 
 // Slither reports a library as missing inheritance even though Solidity libraries
 // cannot inherit interfaces. The validation facet implements IInstValidation.
@@ -136,6 +147,19 @@ library LibInstitutionalReservationRequestValidation {
         uint8 previousStatus = reservation.status;
         bool sessionStartedRecorded = s.reservationSessionStartedRecorded[key];
 
+        LibHeap.removePayoutCandidates(s, labId, key);
+        if (sessionStartedRecorded) {
+            if (reservation.providerShare > 0) {
+                LibProviderReceivable.accrueReceivable(labId, reservation.providerShare, key);
+                LibProviderReceivable.updateAccruedTimestamp(labId, block.timestamp);
+            }
+        } else if (reservation.price > 0) {
+            IInstitutionalTreasuryFacetValidation(address(this))
+                .refundToInstitutionalTreasuryForReservation(
+                    reservation.payerInstitution, s.reservationPucHash[key], key, reservation.price
+                );
+        }
+
         reservation.status = _SETTLED;
         if (previousStatus == _ACCESS_AUTHORIZED && sessionStartedRecorded) {
             LibReputation.recordCompletion(labId);
@@ -149,10 +173,7 @@ library LibInstitutionalReservationRequestValidation {
         _removeReservationIndex(s.reservationKeysByToken[labId], key);
         _removeReservationIndex(s.renters[reservation.renter], key);
         if (s.totalReservationsCount > 0) s.totalReservationsCount--;
-        if (s.activeReservationCountByTokenAndUser[labId][trackingKey] > 0) {
-            s.activeReservationCountByTokenAndUser[labId][trackingKey]--;
-        }
-        _removeReservationIndex(s.reservationKeysByTokenAndUser[labId][trackingKey], key);
+        _removeActiveReservationIndex(s, labId, trackingKey, key);
     }
 
     /// @dev Index cleanup is intentionally idempotent for reservations created before
@@ -162,6 +183,45 @@ library LibInstitutionalReservationRequestValidation {
         bytes32 key
     ) private {
         if (!set.remove(key)) return;
+    }
+
+    function _removeActiveReservationIndex(
+        AppStorage storage s,
+        uint256 labId,
+        address trackingKey,
+        bytes32 key
+    ) private {
+        EnumerableSet.Bytes32Set storage reservations = s.reservationKeysByTokenAndUser[labId][trackingKey];
+        if (!reservations.remove(key)) return;
+        if (s.activeReservationCountByTokenAndUser[labId][trackingKey] > 0) {
+            s.activeReservationCountByTokenAndUser[labId][trackingKey]--;
+        }
+        if (s.activeReservationByTokenAndUser[labId][trackingKey] == key) {
+            s.activeReservationByTokenAndUser[labId][trackingKey] = _findNextActiveReservation(s, labId, trackingKey);
+        }
+    }
+
+    function _findNextActiveReservation(
+        AppStorage storage s,
+        uint256 labId,
+        address trackingKey
+    ) private view returns (bytes32 nextKey) {
+        EnumerableSet.Bytes32Set storage reservations = s.reservationKeysByTokenAndUser[labId][trackingKey];
+        uint32 earliestStart = type(uint32).max;
+        for (uint256 i; i < reservations.length();) {
+            bytes32 candidateKey = reservations.at(i);
+            Reservation storage candidate = s.reservations[candidateKey];
+            if (
+                (candidate.status == _CONFIRMED || candidate.status == _ACCESS_AUTHORIZED)
+                    && candidate.start < earliestStart
+            ) {
+                earliestStart = candidate.start;
+                nextKey = candidateKey;
+            }
+            unchecked {
+                ++i;
+            }
+        }
     }
 
     function _getReservationKey(

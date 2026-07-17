@@ -16,6 +16,8 @@ contract InstitutionalReservationRequestCreationFacet {
     using EnumerableSet for EnumerableSet.Bytes32Set;
 
     uint8 private constant _PENDING = 0;
+    uint8 private constant _SETTLED = 3;
+    uint8 private constant _CANCELLED = 4;
     uint8 private constant _TOKEN_BUFFER_CAP = 10;
     uint8 private constant _USER_BUFFER_CAP = 5;
 
@@ -46,6 +48,10 @@ contract InstitutionalReservationRequestCreationFacet {
         InstInput calldata i
     ) external onlyDiamondSelfCall {
         AppStorage storage s = _s();
+        Reservation storage existing = s.reservations[i.k];
+        if (existing.renter != address(0) && existing.status != _SETTLED && existing.status != _CANCELLED) {
+            revert("Reservation already active");
+        }
         address hc = s.institutionalBackends[i.o];
         uint96 pr;
         if (hc != address(0) && i.p == i.o) {

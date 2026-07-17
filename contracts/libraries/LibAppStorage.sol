@@ -206,7 +206,7 @@ struct InstitutionalUserSpending {
 /// @custom:member institutionalUserLimit Mapping of provider addresses to their institutional user spending limits
 /// @custom:member institutionalUserSpending Mapping of provider addresses to their institutional user spending data with period tracking
 /// @custom:member institutionalBackends Mapping of provider addresses to their authorized backend addresses
-/// @custom:member institutionalSpendingPeriod Duration of the spending period in seconds (default: 30 days)
+/// @custom:member institutionalSpendingPeriod Duration of the spending period in seconds (default: 120 days)
 /// @custom:member institutionalSpendingPeriodAnchor Optional anchor timestamp used to realign spending periods
 /// @custom:member schacHomeOrganizationNames Canonical lower-case schacHomeOrganization string stored per hash
 /// @custom:member organizationInstitutionWallet Mapping of normalized organization hashes to institution wallets
@@ -313,6 +313,10 @@ struct AppStorage {
     mapping(bytes32 reservationKey => bool recorded) reservationSessionStartedRecorded;
     mapping(bytes32 nonce => bool used) sessionStartedNonceUsed;
     mapping(bytes32 observationKey => bool used) sessionStartedObservationUsed;
+
+    // Original expiry carried through a reservation lock so refunds cannot
+    // silently become perpetual credits.
+    mapping(address account => mapping(bytes32 reservationRef => uint48 expiresAt)) creditReservationExpiry;
 }
 
 /// @notice Provider participation status within the limited service network

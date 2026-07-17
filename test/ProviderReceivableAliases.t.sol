@@ -12,6 +12,7 @@ import {LibERC721StorageTestHelper} from "./LibERC721StorageTestHelper.sol";
 contract ProviderReceivableHarness is ERC721, ProviderSettlementFacet {
     using LibAccessControlEnumerable for AppStorage;
     using EnumerableSet for EnumerableSet.AddressSet;
+    using EnumerableSet for EnumerableSet.Bytes32Set;
 
     constructor() ERC721("Labs", "LAB") {}
 
@@ -79,6 +80,9 @@ contract ProviderReceivableHarness is ERC721, ProviderSettlementFacet {
         reservation.providerShare = providerShare;
         s.payoutHeaps[labId].push(PayoutCandidate({end: end, key: reservationKey}));
         s.payoutHeapContains[reservationKey] = true;
+        s.reservationKeysByToken[labId].add(reservationKey);
+        s.renters[reservation.renter].add(reservationKey);
+        s.totalReservationsCount += 1;
         s.labActiveReservationCount[labId] += 1;
         s.providerActiveReservationCount[reservation.labProvider] += 1;
     }
@@ -104,6 +108,29 @@ contract ProviderReceivableHarness is ERC721, ProviderSettlementFacet {
         score = s.labReputation[labId].score;
         totalEvents = s.labReputation[labId].totalEvents;
         lastUpdated = s.labReputation[labId].lastUpdated;
+    }
+
+    function reservationIndexCount(
+        uint256 labId
+    ) external view returns (uint256) {
+        return LibAppStorage.diamondStorage().reservationKeysByToken[labId].length();
+    }
+
+    function totalReservations() external view returns (uint256) {
+        return LibAppStorage.diamondStorage().totalReservationsCount;
+    }
+
+    function setPayoutHeapInvalidCount(
+        uint256 labId,
+        uint256 count
+    ) external {
+        LibAppStorage.diamondStorage().payoutHeapInvalidCount[labId] = count;
+    }
+
+    function payoutHeapLength(
+        uint256 labId
+    ) external view returns (uint256) {
+        return LibAppStorage.diamondStorage().payoutHeaps[labId].length;
     }
 
     function updateLastReservation(
@@ -261,6 +288,50 @@ contract ProviderReceivableAliasesTest is Test {
         assertEq(totalEvents, uint32(1));
     }
 
+    function test_requestProviderPayout_cleans_settled_reservation_indexes() public {
+        bytes32 reservationKey = keccak256("indexed-session-started");
+        harness.setExpiredPayoutReservation(reservationKey, LAB_ID, ACCESS_AUTHORIZED, FIVE_CREDITS_U96, 999);
+        harness.markSessionStartedForTest(reservationKey);
+
+        vm.prank(PROVIDER);
+        harness.requestProviderPayout(LAB_ID, 10);
+
+        assertEq(harness.reservationIndexCount(LAB_ID), 0);
+        assertEq(harness.totalReservations(), 0);
+    }
+
+    function test_requestProviderPayout_cleans_more_than_100_historical_reservations() public {
+        vm.warp(1000);
+        for (uint256 i; i < 101; i++) {
+            bytes32 reservationKey = keccak256(abi.encodePacked("historical", i));
+            harness.setExpiredPayoutReservation(reservationKey, LAB_ID, ACCESS_AUTHORIZED, 1, 999);
+            harness.markSessionStartedForTest(reservationKey);
+        }
+
+        vm.prank(PROVIDER);
+        harness.requestProviderPayout(LAB_ID, 100);
+        assertEq(harness.reservationIndexCount(LAB_ID), 1);
+
+        vm.prank(PROVIDER);
+        harness.requestProviderPayout(LAB_ID, 1);
+        assertEq(harness.reservationIndexCount(LAB_ID), 0);
+        assertEq(harness.totalReservations(), 0);
+    }
+
+    function test_heap_compaction_preserves_future_confirmed_candidate() public {
+        bytes32 invalidKey = keccak256("invalid-before-future");
+        bytes32 futureKey = keccak256("future-confirmed");
+        harness.setExpiredPayoutReservation(invalidKey, LAB_ID, SETTLED, FIVE_CREDITS_U96, 100);
+        harness.setExpiredPayoutReservation(futureKey, LAB_ID, CONFIRMED, FIVE_CREDITS_U96, 10_000);
+        harness.setPayoutHeapInvalidCount(LAB_ID, 1);
+        harness.setPendingProviderPayout(LAB_ID, ONE_CREDIT);
+
+        vm.prank(PROVIDER);
+        harness.requestProviderPayout(LAB_ID, 10);
+
+        assertEq(harness.payoutHeapLength(LAB_ID), 1);
+    }
+
     function test_requestProviderPayout_skips_unattested_expired_candidate_and_settles_attested_candidate() public {
         bytes32 unattestedKey = keccak256("unattested-root");
         bytes32 attestedKey = keccak256("attested-next");
@@ -348,6 +419,14 @@ contract ProviderReceivableAliasesTest is Test {
         vm.prank(address(0xDEAD));
         vm.expectRevert("Not authorized");
         harness.transitionProviderReceivableState(LAB_ID, 2, 3, ONE_CREDIT, bytes32("nope"));
+    }
+
+    function test_transitionProviderReceivableState_provider_cannot_approve() public {
+        harness.setProviderReceivableBucket(LAB_ID, 2, TEN_CREDITS);
+
+        vm.prank(PROVIDER);
+        vm.expectRevert("Not authorized");
+        harness.transitionProviderReceivableState(LAB_ID, 2, 4, ONE_CREDIT, bytes32("invoice"));
     }
 
     function _getLifecycleWithoutTimestamp()

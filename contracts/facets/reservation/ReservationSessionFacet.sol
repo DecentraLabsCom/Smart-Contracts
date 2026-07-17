@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 pragma solidity ^0.8.33;
 
-import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
+import {SignatureChecker} from "@openzeppelin/contracts/utils/cryptography/SignatureChecker.sol";
 import {AppStorage, LibAppStorage, Reservation, ReservationSession} from "../../libraries/LibAppStorage.sol";
 import {LibERC721Storage} from "../../libraries/LibERC721Storage.sol";
 
@@ -9,6 +9,7 @@ import {LibERC721Storage} from "../../libraries/LibERC721Storage.sol";
 /// @notice Records provider-signed proof that the lab session actually started after payer access authorization.
 contract ReservationSessionFacet {
     uint8 internal constant _ACCESS_AUTHORIZED = 2;
+    uint64 internal constant _MAX_SESSION_ATTESTATION_DELAY = 1 days;
 
     bytes32 private constant EIP712_DOMAIN_TYPEHASH =
         keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)");
@@ -57,15 +58,17 @@ contract ReservationSessionFacet {
         bytes32 gatewayIdHash = keccak256(bytes(input.gatewayId));
         bytes32 sessionIdHash = keccak256(bytes(input.sessionId));
         bytes32 accessTypeHash = keccak256(bytes(input.accessType));
-        bytes32 observationKey = keccak256(abi.encode(sessionIdHash, accessTypeHash));
+        bytes32 observationKey =
+            keccak256(abi.encode(block.chainid, address(this), gatewayIdHash, sessionIdHash, accessTypeHash));
 
         if (s.reservationSessionStartedRecorded[input.reservationKey]) revert("Session already started");
         if (s.sessionStartedNonceUsed[input.nonce]) revert("Nonce already used");
         if (s.sessionStartedObservationUsed[observationKey]) revert("Session already used");
 
         bytes32 digest = _hashSessionStarted(input, gatewayIdHash, sessionIdHash, accessTypeHash);
-        address recovered = ECDSA.recover(digest, input.signature);
-        if (recovered != input.signer) revert("Signature mismatch");
+        if (!SignatureChecker.isValidSignatureNow(input.signer, digest, input.signature)) {
+            revert("Signature mismatch");
+        }
 
         s.reservationSessionStarted[input.reservationKey] = ReservationSession({
             signer: input.signer,
@@ -120,6 +123,9 @@ contract ReservationSessionFacet {
         // forge-lint: disable-next-line(block-timestamp)
         // slither-disable-next-line timestamp
         if (input.startedAt > block.timestamp) revert("StartedAt in future");
+        if (block.timestamp - input.startedAt > _MAX_SESSION_ATTESTATION_DELAY) {
+            revert("Attestation too old");
+        }
         if (keccak256(bytes(input.labId)) != keccak256(bytes(_uintToString(reservation.labId)))) {
             revert("LabId mismatch");
         }

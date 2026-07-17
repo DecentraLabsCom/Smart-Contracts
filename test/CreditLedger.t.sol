@@ -198,6 +198,18 @@ contract CreditLedgerTest is BaseTest {
         vm.stopPrank();
     }
 
+    function test_expired_lot_is_not_available_without_admin_sweep() public {
+        vm.prank(admin);
+        creditFacet.mintCredits(alice, 1000, bytes32("EXPIRING"), 0, uint48(block.timestamp + 100));
+
+        vm.warp(block.timestamp + 101);
+
+        assertEq(creditFacet.availableBalanceOf(alice), 0);
+        vm.prank(admin);
+        vm.expectRevert(LibCreditLedger.InsufficientAvailableCredits.selector);
+        creditFacet.lockCredits(alice, 1, bytes32("expired"));
+    }
+
     // ═══════════════════════════════════════════════════════════════════════
     //  captureLockedCredits
     // ═══════════════════════════════════════════════════════════════════════
@@ -291,6 +303,24 @@ contract CreditLedgerTest is BaseTest {
         assertEq(lots[1].eurGrossAmount, 0); // Refund has no EUR
     }
 
+    function test_cancel_refund_preserves_source_expiry() public {
+        uint48 expiry = uint48(block.timestamp + 100);
+        bytes32 reservationRef = keccak256("EXPIRING-REFUND");
+
+        vm.startPrank(admin);
+        creditFacet.mintCredits(alice, 100, bytes32("SOURCE"), 0, expiry);
+        creditFacet.lockCredits(alice, 100, reservationRef);
+        creditFacet.captureLockedCredits(alice, 100, reservationRef);
+        creditFacet.cancelCredits(alice, 100, reservationRef);
+        vm.stopPrank();
+
+        (CreditLot[] memory lots,) = creditFacet.getCreditLots(alice, 1, 1);
+        assertEq(lots[0].expiresAt, expiry);
+
+        vm.warp(block.timestamp + 101);
+        assertEq(creditFacet.availableBalanceOf(alice), 0);
+    }
+
     // ═══════════════════════════════════════════════════════════════════════
     //  expireCredits
     // ═══════════════════════════════════════════════════════════════════════
@@ -345,7 +375,7 @@ contract CreditLedgerTest is BaseTest {
         creditFacet.expireCredits(alice, 0);
 
         assertEq(creditFacet.totalBalanceOf(alice), 1000);
-        assertEq(creditFacet.availableBalanceOf(alice), 600);
+        assertEq(creditFacet.availableBalanceOf(alice), 0);
         assertEq(creditFacet.lockedBalanceOf(alice), 400);
     }
 

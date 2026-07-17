@@ -71,6 +71,7 @@
       "target": "contracts/facets/IntentRegistryFacet.sol:IntentRegistryFacet",
       "functions": [
         "cancelIntent(bytes32)",
+        "expireIntent(bytes32)",
         "getIntent(bytes32)",
         "nextIntentNonce(address)",
         "registerActionIntent((bytes32,address,address,uint8,bytes32,uint256,uint64,uint64,uint8),(address,string,bytes32,bytes32,uint256,bytes32,string,uint96,uint96,string,string,string,uint8),bytes)",
@@ -122,12 +123,13 @@
         "getInstitutionalUserRemainingAllowance(address,bytes32)",
         "getInstitutionalUserSpendingData(address,bytes32)",
         "getInstitutionalUserSpent(address,bytes32)",
-        "refundToInstitutionalTreasury(address,bytes32,uint256)",
+        "refundToInstitutionalTreasuryForReservation(address,bytes32,bytes32,uint256)",
         "resetInstitutionalSpendingPeriod()",
         "revokeBackend()",
         "setInstitutionalSpendingPeriod(uint256)",
         "setInstitutionalUserLimit(uint256)",
-        "spendFromInstitutionalTreasury(address,bytes32,uint256)"
+        "spendFromInstitutionalTreasury(address,bytes32,uint256)",
+        "spendFromInstitutionalTreasuryForReservation(address,bytes32,bytes32,uint256)"
       ]
     },
     {
@@ -142,6 +144,7 @@
         "findReservationAt(uint256,uint32)",
         "getApproved(uint256)",
         "getBookedSlots(uint256)",
+        "getBookedSlotsPaginated(uint256,uint256,uint256)",
         "getNextAvailableSlot(uint256,uint32)",
         "getNextExpiration(uint256)",
         "getReservation(bytes32)",

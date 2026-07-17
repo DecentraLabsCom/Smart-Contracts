@@ -64,16 +64,19 @@ contract ToggleRefundHarness {
     // capture refunds and support toggling failure
     address public lastRefundProvider;
     bytes32 public lastRefundPucHash;
+    bytes32 public lastRefundReservationKey;
     uint256 public lastRefundAmount;
 
-    function refundToInstitutionalTreasury(
+    function refundToInstitutionalTreasuryForReservation(
         address provider,
         bytes32 pucHash,
+        bytes32 reservationKey,
         uint256 amount
     ) external {
         if (failRefund) revert("refund failed");
         lastRefundProvider = provider;
         lastRefundPucHash = pucHash;
+        lastRefundReservationKey = reservationKey;
         lastRefundAmount = amount;
     }
 
@@ -154,6 +157,7 @@ contract IntegrationDiamondReservationTest is BaseTest {
         // after successful cancel, refund should be recorded in harness
         assertEq(inst.lastRefundProvider(), INSTITUTION);
         assertEq(inst.lastRefundPucHash(), keccak256(bytes(puc)));
+        assertEq(inst.lastRefundReservationKey(), key);
         // fee/refund arithmetic verifies at least non-zero refund amount
         assert(inst.lastRefundAmount() > 0);
         assertEq(inst.getReservationStatus(key), _CANCELLED);

@@ -64,6 +64,8 @@ abstract contract ReservableToken {
     error TokenNotFound();
     error OnlyTokenOwner();
     error ReservationNotFound();
+    error AvailabilityResultTruncated();
+    error InvalidAvailabilityPage();
 
     /// @dev Modifier to check if a token with the given ID exists.
     /// @param _tokenId The ID of the token to check.
@@ -233,6 +235,14 @@ abstract contract ReservableToken {
         uint256 candidate = 0;
 
         while (cursor != 0) {
+            // Check the predecessor interval as well as nodes that start at or
+            // after the requested timestamp. Otherwise a query inside a
+            // booking incorrectly reports the booking's start as the next
+            // available slot.
+            if (_afterTime >= cursor && _afterTime < calendar.nodes[cursor].end) {
+                // forge-lint: disable-next-line(unsafe-typecast)
+                return (_afterTime, uint32(calendar.nodes[cursor].end));
+            }
             if (cursor >= _afterTime) {
                 // This node starts at or after our target time
                 candidate = cursor;
@@ -255,9 +265,9 @@ abstract contract ReservableToken {
         return (uint32(candidate), uint32(calendar.nodes[candidate].end));
     }
 
-    /// @notice Retrieves up to 100 booked time slots for a given token (lab)
-    /// @dev In-order traversal with a hard cap of 100 entries; avoids pre-counting the tree.
-    ///      Returns start/end arrays in chronological order.
+    /// @notice Retrieves booked time slots for a given token (lab).
+    /// @dev Returns a complete result up to the safe 100-entry bound. Larger
+    ///      calendars fail closed instead of returning a misleading prefix.
     /// @param _tokenId The ID of the token (lab) to get booked slots for
     /// @return starts Array of start timestamps (max 100 results)
     /// @return ends Array of end timestamps (max 100 results)
@@ -266,30 +276,70 @@ abstract contract ReservableToken {
         uint256 _tokenId
     ) external view virtual exists(_tokenId) returns (uint32[] memory starts, uint32[] memory ends) {
         Tree storage calendar = _s().calendars[_tokenId];
+        uint256 bookingCount = _countSlotsLimited(calendar, calendar.root, 101);
+        if (bookingCount > 100) revert AvailabilityResultTruncated();
+        return _collectBookedSlots(calendar, bookingCount);
+    }
 
-        // If no reservations, return empty arrays
-        if (calendar.root == 0) {
-            return (new uint32[](0), new uint32[](0));
+    /// @notice Retrieves a bounded page of booked time slots.
+    /// @dev The `hasMore` flag makes pagination explicit and prevents callers
+    ///      from treating a capped response as a complete calendar.
+    function getBookedSlotsPaginated(
+        uint256 _tokenId,
+        uint256 _offset,
+        uint256 _limit
+    ) external view virtual exists(_tokenId) returns (uint32[] memory starts, uint32[] memory ends, bool hasMore) {
+        if (_limit == 0 || _limit > 100) revert InvalidAvailabilityPage();
+
+        Tree storage calendar = _s().calendars[_tokenId];
+        starts = new uint32[](_limit);
+        ends = new uint32[](_limit);
+
+        uint256 cursor = calendar.first();
+        uint256 visited = 0;
+        uint256 filled = 0;
+        while (cursor != 0) {
+            if (visited >= _offset) {
+                if (filled == _limit) {
+                    hasMore = true;
+                    break;
+                }
+                // forge-lint: disable-next-line(unsafe-typecast)
+                starts[filled] = uint32(cursor);
+                // forge-lint: disable-next-line(unsafe-typecast)
+                ends[filled] = uint32(calendar.nodes[cursor].end);
+                unchecked {
+                    ++filled;
+                }
+            }
+            unchecked {
+                ++visited;
+            }
+            cursor = calendar.next(cursor);
         }
 
-        uint256 maxResults = 100;
-
-        starts = new uint32[](maxResults);
-        ends = new uint32[](maxResults);
-
-        // Perform in-order traversal to collect slots (stops at 100)
-        uint256 filled = _collectSlotsLimited(calendar, calendar.root, starts, ends, 0, maxResults);
-
-        if (filled < maxResults) {
+        if (filled < _limit) {
             uint32[] memory trimmedStarts = new uint32[](filled);
             uint32[] memory trimmedEnds = new uint32[](filled);
             for (uint256 i; i < filled; i++) {
                 trimmedStarts[i] = starts[i];
                 trimmedEnds[i] = ends[i];
             }
-            return (trimmedStarts, trimmedEnds);
+            return (trimmedStarts, trimmedEnds, false);
         }
 
+        return (starts, ends, hasMore);
+    }
+
+    function _collectBookedSlots(
+        Tree storage calendar,
+        uint256 bookingCount
+    ) private view returns (uint32[] memory starts, uint32[] memory ends) {
+        starts = new uint32[](bookingCount);
+        ends = new uint32[](bookingCount);
+        if (bookingCount > 0) {
+            _collectSlotsLimited(calendar, calendar.root, starts, ends, 0, bookingCount);
+        }
         return (starts, ends);
     }
 
@@ -382,7 +432,8 @@ abstract contract ReservableToken {
     /// @notice Find all available time slots within a specific range
     /// @dev Returns gaps between reservations. Only returns slots >= minDuration.
     ///      Time complexity: O(n) where n is the number of reservations in range
-    ///      SECURITY: Inherits 100-result limit from getBookedSlots() to prevent DoS
+    ///      SECURITY: Fails closed when more than 100 bookings would make the
+    ///      bounded response incomplete. Use getBookedSlotsPaginated for reads.
     /// @param _tokenId The ID of the token (lab) to search
     /// @param _rangeStart Start of the search range (Unix timestamp)
     /// @param _rangeEnd End of the search range (Unix timestamp)
@@ -416,8 +467,14 @@ abstract contract ReservableToken {
             return (slotStarts, slotEnds);
         }
 
-        // Get all bookings first (already sorted chronologically)
-        (uint32[] memory bookStarts, uint32[] memory bookEnds) = this.getBookedSlots(_tokenId);
+        // A capped booking read must never be used to infer a complete set of
+        // gaps. Fail closed once a 101st booking exists instead of returning a
+        // potentially false final availability interval.
+        uint256 bookingCount = _countSlotsLimited(calendar, calendar.root, 101);
+        if (bookingCount > 100) revert AvailabilityResultTruncated();
+
+        // Get all bookings internally, avoiding a cross-selector self-call.
+        (uint32[] memory bookStarts, uint32[] memory bookEnds) = _collectBookedSlots(calendar, bookingCount);
 
         // Find gaps - worst case: n+1 gaps (before first, between each, after last)
         uint32[] memory tempStarts = new uint32[](bookStarts.length + 1);
@@ -477,6 +534,19 @@ abstract contract ReservableToken {
         }
 
         return (slotStarts, slotEnds);
+    }
+
+    function _countSlotsLimited(
+        Tree storage calendar,
+        uint256 cursor,
+        uint256 limit
+    ) private view returns (uint256 count) {
+        if (cursor == 0 || count >= limit) return 0;
+        count = _countSlotsLimited(calendar, calendar.nodes[cursor].left, limit);
+        if (count >= limit) return count;
+        count++;
+        if (count >= limit) return count;
+        count += _countSlotsLimited(calendar, calendar.nodes[cursor].right, limit - count);
     }
 
     /// @notice Fast check if lab has any active booking at the current time

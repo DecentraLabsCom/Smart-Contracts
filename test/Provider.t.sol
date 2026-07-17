@@ -235,4 +235,16 @@ contract ProviderTest is BaseTest {
         assertTrue(providerFacet.isLabProvider(provider1));
         assertEq(creditFacet.totalBalanceOf(provider1), 100_000_000);
     }
+
+    function test_addProvider_cannot_revive_terminated_provider() public {
+        vm.prank(admin);
+        providerFacet.addProvider("Provider1", provider1, "p1@x", "ES", "");
+
+        vm.prank(admin);
+        providerFacet.removeProvider(provider1);
+
+        vm.prank(admin);
+        vm.expectRevert(bytes("Provider terminated"));
+        providerFacet.addProvider("Provider1", provider1, "p1@x", "ES", "");
+    }
 }

@@ -39,9 +39,10 @@ interface IInstCreation {
 }
 
 interface IInstitutionalTreasuryFacet {
-    function refundToInstitutionalTreasury(
+    function refundToInstitutionalTreasuryForReservation(
         address provider,
         bytes32 pucHash,
+        bytes32 reservationKey,
         uint256 amount
     ) external;
 }
@@ -133,7 +134,9 @@ library LibInstitutionalReservation {
         }
 
         IInstitutionalTreasuryFacet(address(this))
-            .refundToInstitutionalTreasury(reservation.payerInstitution, pucHash, refundAmount);
+            .refundToInstitutionalTreasuryForReservation(
+                reservation.payerInstitution, pucHash, reservationKey, refundAmount
+            );
     }
 
     function _pucHashMatches(

@@ -18,7 +18,6 @@
                    "contracts/facets/reservation/institutional/InstitutionalReservationCancellationFacet.sol:InstitutionalReservationCancellationFacet":  "0x4984B2F3fFe73ca4A3D7dBF063a9e998D4C5D11A",
                    "contracts/facets/diamond/DiamondLoupeFacet.sol:DiamondLoupeFacet":  "0xb6De47B637b3110af051D8419641126DA6B59f3F",
                    "contracts/facets/reservation/institutional/InstitutionalReservationRequestFacet.sol:InstitutionalReservationRequestFacet":  "0xfC3f57616645B88215f2De771771Cf67aBB1e442",
-                   "contracts/facets/StakingFacet.sol:StakingFacet":  "0x70b13B5437D006C22Dfe1054111EAf565ad579E7",
                    "contracts/facets/IntentRegistryFacet.sol:IntentRegistryFacet":  "0x678c901EfcDc009fcAAe243f11D92A49fcc262EF",
                    "contracts/facets/reservation/ProviderSettlementFacet.sol:ProviderSettlementFacet":  "0x720DeFac05B63d52bEe903c59c5176E378b439EB",
                    "contracts/facets/lab/LabAdminFacet.sol:LabAdminFacet":  "0xA32315CE2d3588a5d8c16db71A970ED57F2a6D3F",

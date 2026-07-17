@@ -16,7 +16,7 @@ test("the credit-ledger selector manifest is complete and collision-free", () =>
   const result = validateSelectorManifest(rootDir, manifest);
 
   assert.deepEqual(result.errors, []);
-  assert.equal(result.allowedSelectors.size, 175);
+  assert.equal(result.allowedSelectors.size, 178);
 });
 
 test("legacy wallet, credit, migration, and generic role functions are forbidden", () => {

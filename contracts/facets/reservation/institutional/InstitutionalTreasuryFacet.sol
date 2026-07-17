@@ -48,6 +48,16 @@ contract InstitutionalTreasuryFacet is
         address indexed institution, bytes32 indexed pucHash, uint256 amount, uint256 totalSpent, uint256 periodStart
     );
 
+    /// @notice Emitted when a reservation refund restores treasury credits.
+    event InstitutionalTreasuryRefunded(
+        address indexed institution,
+        bytes32 indexed reservationKey,
+        bytes32 indexed pucHash,
+        uint256 amount,
+        uint256 remainingSpent,
+        uint256 periodStart
+    );
+
     /// @dev Modifier to check if caller is authorized (backend or internal Diamond call)
     /// @param institution The institution address
     /// @custom:security Allows two types of callers:
@@ -158,7 +168,8 @@ contract InstitutionalTreasuryFacet is
         require(amount <= uint256(type(int256).max), "Amount too large");
         AppStorage storage s = LibAppStorage.diamondStorage();
         // forge-lint: disable-next-line(unsafe-typecast)
-        uint256 newBalance = LibCreditLedger.adjustCredits(institution, -int256(amount), spendRef);
+        LibCreditLedger.debitCredits(institution, amount, spendRef);
+        uint256 newBalance = LibCreditLedger.totalBalanceOf(institution);
         require(newBalance == s.serviceCreditBalance[institution], "Credit ledger mismatch");
     }
 
@@ -257,8 +268,8 @@ contract InstitutionalTreasuryFacet is
     }
 
     /// @notice Set the spending period duration for institutional users
-    /// @param periodDuration The duration of the spending period in seconds (e.g., 30 days = 2592000)
-    /// @dev Common values: 1 day = 86400, 7 days = 604800, 30 days = 2592000, 1 year = 31536000
+    /// @param periodDuration The duration of the spending period in seconds (e.g., 120 days = 10368000)
+    /// @dev Common values: 1 day = 86400, 7 days = 604800, 30 days = 2592000, 120 days = 10368000
     function setInstitutionalSpendingPeriod(
         uint256 periodDuration
     ) external onlyInstitutionCaller {
@@ -328,7 +339,7 @@ contract InstitutionalTreasuryFacet is
         address institution,
         bytes32 pucHash,
         uint256 amount
-    ) external override onlyAuthorizedBackendOrInternal(institution) {
+    ) external onlyAuthorizedBackendOrInternal(institution) {
         AppStorage storage s = LibAppStorage.diamondStorage();
         _requireInstitution(institution);
 
@@ -355,6 +366,34 @@ contract InstitutionalTreasuryFacet is
         emit InstitutionalUserSpent(institution, pucHash, amount, newSpent, periodStart);
     }
 
+    /// @notice Spend treasury credits for a reservation and retain source-lot expiry.
+    /// @dev The reservation key is the primary ledger reference. Authorized
+    ///      backends may use this route when reconciling a reservation, while
+    ///      reservation facets call it through the Diamond self-call path.
+    function spendFromInstitutionalTreasuryForReservation(
+        address institution,
+        bytes32 pucHash,
+        bytes32 reservationKey,
+        uint256 amount
+    ) external override onlyAuthorizedBackendOrInternal(institution) {
+        AppStorage storage s = LibAppStorage.diamondStorage();
+        _requireInstitution(institution);
+
+        if (amount == 0) return;
+        require(_availableTreasuryBalance(institution) >= amount, "Insufficient treasury balance");
+
+        uint256 periodStart = _checkAndResetPeriod(institution, pucHash);
+        InstitutionalUserSpending storage spending = s.institutionalUserSpending[institution][pucHash];
+        uint256 newSpent = spending.amount + amount;
+        require(newSpent <= _getSpendingLimit(institution), "User spending limit exceeded for period");
+
+        _spendTreasuryBalance(institution, amount, reservationKey);
+        spending.amount = newSpent;
+        spending.totalHistoricalSpent += amount;
+
+        emit InstitutionalUserSpent(institution, pucHash, amount, newSpent, periodStart);
+    }
+
     /// @notice Refund balance back to the institution's institutional treasury (e.g., when canceling a reservation)
     /// @dev Only internal Diamond calls from reservation facets/libraries can invoke this
     ///      This reverses a previous spend, incrementing treasury and decrementing user's spent amount
@@ -362,9 +401,10 @@ contract InstitutionalTreasuryFacet is
     /// @param institution The institution who owns the treasury
     /// @param pucHash The canonical PUC hash of the user
     /// @param amount Amount to refund
-    function refundToInstitutionalTreasury(
+    function refundToInstitutionalTreasuryForReservation(
         address institution,
         bytes32 pucHash,
+        bytes32 reservationKey,
         uint256 amount
     ) external override {
         // Prevent compromised backends from calling this function arbitrarily
@@ -382,7 +422,7 @@ contract InstitutionalTreasuryFacet is
         // This allows refunds for bookings made in previous periods
         require(spending.totalHistoricalSpent >= amount, "Refund exceeds total spent amount");
 
-        LibCreditLedger.cancelCredits(institution, amount, pucHash);
+        LibCreditLedger.cancelCredits(institution, amount, reservationKey);
 
         // Always decrement totalHistoricalSpent (tracks all-time spending)
         spending.totalHistoricalSpent -= amount;
@@ -398,7 +438,10 @@ contract InstitutionalTreasuryFacet is
         uint256 periodDuration = _getSpendingPeriod(institution);
         uint256 currentPeriodStart = _currentPeriodStart(institution, periodDuration);
 
-        emit InstitutionalUserSpent(institution, pucHash, 0, spending.amount, currentPeriodStart); // Emit with 0 to indicate refund
+        emit InstitutionalUserSpent(institution, pucHash, 0, spending.amount, currentPeriodStart);
+        emit InstitutionalTreasuryRefunded(
+            institution, reservationKey, pucHash, amount, spending.amount, currentPeriodStart
+        );
     }
 
     /// @notice Get institution's institutional treasury balance
@@ -466,7 +509,7 @@ contract InstitutionalTreasuryFacet is
 
     /// @notice Get the spending period duration for an institution
     /// @param institution The institution address
-    /// @return The spending period duration in seconds (default: 30 days if not set)
+    /// @return The spending period duration in seconds (default: 120 days if not set)
     function getInstitutionalSpendingPeriod(
         address institution
     ) external view returns (uint256) {

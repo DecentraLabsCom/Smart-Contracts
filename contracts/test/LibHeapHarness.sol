@@ -26,6 +26,13 @@ contract LibHeapHarness {
         return LibHeap.popEligiblePayoutCandidate(s, labId, currentTime);
     }
 
+    function removePayoutCandidates(
+        uint256 labId,
+        bytes32 key
+    ) external {
+        LibHeap.removePayoutCandidates(_s(), labId, key);
+    }
+
     function rawPush(
         uint256 labId,
         bytes32 key,
@@ -44,6 +51,13 @@ contract LibHeapHarness {
         AppStorage storage s = _s();
         s.reservations[key].labId = labId;
         s.reservations[key].status = status;
+    }
+
+    function setReservationEnd(
+        bytes32 key,
+        uint32 end
+    ) external {
+        LibAppStorage.diamondStorage().reservations[key].end = end;
     }
 
     function heapLength(

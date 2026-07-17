@@ -111,6 +111,8 @@ contract ReservationIntentFacet {
     }
 
     /// @notice Institutional reservation request via intent
+    // State is committed before the final audit event; the library call stays within the Diamond.
+    // slither-disable-next-line reentrancy-events
     function institutionalReservationRequestWithIntent(
         bytes32 requestId,
         ReservationIntentPayload calldata payload
@@ -136,6 +138,8 @@ contract ReservationIntentFacet {
     /// @notice Atomic request + confirm for own-lab bookings (same institution is both payer and provider)
     /// @dev Only valid when the caller (institution) is also the ERC-721 owner of the lab.
     ///      Saves one on-chain transaction and one round-trip versus the two-step request→confirm flow.
+    // State is committed before the final audit event; the library calls stay within the Diamond.
+    // slither-disable-next-line reentrancy-events
     function institutionalDirectBookingWithIntent(
         bytes32 requestId,
         ReservationIntentPayload calldata payload
@@ -187,6 +191,8 @@ contract ReservationIntentFacet {
     }
 
     /// @notice Cancels a confirmed booking via intent
+    // State is committed before the final audit event; the library call stays within the Diamond.
+    // slither-disable-next-line reentrancy-events
     function cancelInstitutionalBookingWithIntent(
         bytes32 requestId,
         ActionIntentPayload calldata payload

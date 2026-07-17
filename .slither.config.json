@@ -4,13 +4,6 @@
         "naming-convention",
         "solc-version",
         "pragma",
-        "assembly",
-        "low-level-calls",
-        "reentrancy-eth",
-        "reentrancy-no-eth",
-        "reentrancy-benign",
-        "reentrancy-events",
-        "reentrancy-unlimited-gas",
-        "controlled-delegatecall"
+        "assembly"
     ]
 }

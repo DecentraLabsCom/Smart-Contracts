@@ -36,4 +36,10 @@ scripts/*
 !scripts/merge_abis.js
 !scripts/reconcile-live-selectors.cjs
 !scripts/selector-manifest.cjs
+!scripts/sync-consumer-abis.cjs
+!scripts/verify-repo-consistency.cjs
+!scripts/redeploy-and-replace-facets.js
+!scripts/align-three-facets-routing.js
+!scripts/verify-facet-selectors.js
+!scripts/prepare-align-sepolia.ps1
 !scripts/simulate-contract-surface-upgrade.cjs

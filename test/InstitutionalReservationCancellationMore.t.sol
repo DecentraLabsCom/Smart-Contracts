@@ -56,8 +56,9 @@ contract RevertingInstReservationHarness2 {
         return LibInstitutionalReservation.cancelBooking(institutionalProvider, pucHash, reservationKey);
     }
 
-    function refundToInstitutionalTreasury(
+    function refundToInstitutionalTreasuryForReservation(
         address,
+        bytes32,
         bytes32,
         uint256
     ) external pure {

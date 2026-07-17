@@ -1044,6 +1044,11 @@
   },
   {
     "type": "error",
+    "name": "ExpiryInPast",
+    "inputs": []
+  },
+  {
+    "type": "error",
     "name": "InvalidPaginationLimit",
     "inputs": []
   },
@@ -1681,8 +1686,26 @@
     "inputs": []
   },
   {
+    "type": "error",
+    "name": "UnbackedCreditBalance",
+    "inputs": []
+  },
+  {
     "type": "function",
     "name": "cancelIntent",
+    "inputs": [
+      {
+        "name": "requestId",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "expireIntent",
     "inputs": [
       {
         "name": "requestId",
@@ -2053,6 +2076,25 @@
   },
   {
     "type": "event",
+    "name": "IntentExpired",
+    "inputs": [
+      {
+        "name": "requestId",
+        "type": "bytes32",
+        "indexed": true,
+        "internalType": "bytes32"
+      },
+      {
+        "name": "signer",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
     "name": "IntentRegistered",
     "inputs": [
       {
@@ -2121,7 +2163,17 @@
   },
   {
     "type": "error",
+    "name": "IntentNotExpired",
+    "inputs": []
+  },
+  {
+    "type": "error",
     "name": "IntentNotPending",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "IntentNotRegistered",
     "inputs": []
   },
   {
@@ -2953,7 +3005,7 @@
   },
   {
     "type": "function",
-    "name": "refundToInstitutionalTreasury",
+    "name": "refundToInstitutionalTreasuryForReservation",
     "inputs": [
       {
         "name": "institution",
@@ -2962,6 +3014,11 @@
       },
       {
         "name": "pucHash",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      },
+      {
+        "name": "reservationKey",
         "type": "bytes32",
         "internalType": "bytes32"
       },
@@ -3038,6 +3095,34 @@
     "stateMutability": "nonpayable"
   },
   {
+    "type": "function",
+    "name": "spendFromInstitutionalTreasuryForReservation",
+    "inputs": [
+      {
+        "name": "institution",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "pucHash",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      },
+      {
+        "name": "reservationKey",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      },
+      {
+        "name": "amount",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
     "type": "event",
     "name": "BackendRevoked",
     "inputs": [
@@ -3087,6 +3172,49 @@
       },
       {
         "name": "newPeriod",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "InstitutionalTreasuryRefunded",
+    "inputs": [
+      {
+        "name": "institution",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "reservationKey",
+        "type": "bytes32",
+        "indexed": true,
+        "internalType": "bytes32"
+      },
+      {
+        "name": "pucHash",
+        "type": "bytes32",
+        "indexed": true,
+        "internalType": "bytes32"
+      },
+      {
+        "name": "amount",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      },
+      {
+        "name": "remainingSpent",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      },
+      {
+        "name": "periodStart",
         "type": "uint256",
         "indexed": false,
         "internalType": "uint256"
@@ -3336,6 +3464,45 @@
         "name": "ends",
         "type": "uint32[]",
         "internalType": "uint32[]"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "getBookedSlotsPaginated",
+    "inputs": [
+      {
+        "name": "_tokenId",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "_offset",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "_limit",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "starts",
+        "type": "uint32[]",
+        "internalType": "uint32[]"
+      },
+      {
+        "name": "ends",
+        "type": "uint32[]",
+        "internalType": "uint32[]"
+      },
+      {
+        "name": "hasMore",
+        "type": "bool",
+        "internalType": "bool"
       }
     ],
     "stateMutability": "view"
@@ -4093,6 +4260,11 @@
   },
   {
     "type": "error",
+    "name": "AvailabilityResultTruncated",
+    "inputs": []
+  },
+  {
+    "type": "error",
     "name": "ERC721IncorrectOwner",
     "inputs": [
       {
@@ -4193,6 +4365,11 @@
         "internalType": "uint256"
       }
     ]
+  },
+  {
+    "type": "error",
+    "name": "InvalidAvailabilityPage",
+    "inputs": []
   },
   {
     "type": "error",
@@ -5059,25 +5236,6 @@
   },
   {
     "type": "event",
-    "name": "IntentExpired",
-    "inputs": [
-      {
-        "name": "requestId",
-        "type": "bytes32",
-        "indexed": true,
-        "internalType": "bytes32"
-      },
-      {
-        "name": "signer",
-        "type": "address",
-        "indexed": true,
-        "internalType": "address"
-      }
-    ],
-    "anonymous": false
-  },
-  {
-    "type": "event",
     "name": "LabCreatorBound",
     "inputs": [
       {
@@ -5103,11 +5261,6 @@
   {
     "type": "error",
     "name": "ExecutorMismatch",
-    "inputs": []
-  },
-  {
-    "type": "error",
-    "name": "IntentNotRegistered",
     "inputs": []
   },
   {
@@ -5875,6 +6028,111 @@
     "anonymous": false
   },
   {
+    "type": "event",
+    "name": "TraceBHCheck",
+    "inputs": [
+      {
+        "name": "node",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      },
+      {
+        "name": "hl",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      },
+      {
+        "name": "hr",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      },
+      {
+        "name": "context",
+        "type": "string",
+        "indexed": false,
+        "internalType": "string"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "TraceRotateState",
+    "inputs": [
+      {
+        "name": "root",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      },
+      {
+        "name": "key",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      },
+      {
+        "name": "cursor",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      },
+      {
+        "name": "cursor_parent",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      },
+      {
+        "name": "key_parent",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "TraceRotation",
+    "inputs": [
+      {
+        "name": "step",
+        "type": "string",
+        "indexed": false,
+        "internalType": "string"
+      },
+      {
+        "name": "key",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      },
+      {
+        "name": "cursor",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      },
+      {
+        "name": "cursorChild",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      },
+      {
+        "name": "parent",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      }
+    ],
+    "anonymous": false
+  },
+  {
     "type": "function",
     "name": "validateInstRequest",
     "inputs": [
@@ -6193,111 +6451,6 @@
         "name": "tokenId",
         "type": "uint256",
         "indexed": true,
-        "internalType": "uint256"
-      }
-    ],
-    "anonymous": false
-  },
-  {
-    "type": "event",
-    "name": "TraceBHCheck",
-    "inputs": [
-      {
-        "name": "node",
-        "type": "uint256",
-        "indexed": false,
-        "internalType": "uint256"
-      },
-      {
-        "name": "hl",
-        "type": "uint256",
-        "indexed": false,
-        "internalType": "uint256"
-      },
-      {
-        "name": "hr",
-        "type": "uint256",
-        "indexed": false,
-        "internalType": "uint256"
-      },
-      {
-        "name": "context",
-        "type": "string",
-        "indexed": false,
-        "internalType": "string"
-      }
-    ],
-    "anonymous": false
-  },
-  {
-    "type": "event",
-    "name": "TraceRotateState",
-    "inputs": [
-      {
-        "name": "root",
-        "type": "uint256",
-        "indexed": false,
-        "internalType": "uint256"
-      },
-      {
-        "name": "key",
-        "type": "uint256",
-        "indexed": false,
-        "internalType": "uint256"
-      },
-      {
-        "name": "cursor",
-        "type": "uint256",
-        "indexed": false,
-        "internalType": "uint256"
-      },
-      {
-        "name": "cursor_parent",
-        "type": "uint256",
-        "indexed": false,
-        "internalType": "uint256"
-      },
-      {
-        "name": "key_parent",
-        "type": "uint256",
-        "indexed": false,
-        "internalType": "uint256"
-      }
-    ],
-    "anonymous": false
-  },
-  {
-    "type": "event",
-    "name": "TraceRotation",
-    "inputs": [
-      {
-        "name": "step",
-        "type": "string",
-        "indexed": false,
-        "internalType": "string"
-      },
-      {
-        "name": "key",
-        "type": "uint256",
-        "indexed": false,
-        "internalType": "uint256"
-      },
-      {
-        "name": "cursor",
-        "type": "uint256",
-        "indexed": false,
-        "internalType": "uint256"
-      },
-      {
-        "name": "cursorChild",
-        "type": "uint256",
-        "indexed": false,
-        "internalType": "uint256"
-      },
-      {
-        "name": "parent",
-        "type": "uint256",
-        "indexed": false,
         "internalType": "uint256"
       }
     ],

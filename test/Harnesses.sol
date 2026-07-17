@@ -84,12 +84,17 @@ contract InstReservationHarness {
         r.start = start;
         r.end = end;
         r.labProvider = payerInstitution;
+        r.providerShare = price;
         if (bytes(puc).length > 0) {
             bytes32 pucHash = keccak256(bytes(puc));
             s.reservationPucHash[key] = pucHash;
             address trackingKey = LibTracking.trackingKeyFromInstitutionHash(payerInstitution, pucHash);
             s.reservationKeysByTokenAndUser[labId][trackingKey].add(key);
             s.activeReservationCountByTokenAndUser[labId][trackingKey] += 1;
+            bytes32 currentKey = s.activeReservationByTokenAndUser[labId][trackingKey];
+            if (currentKey == bytes32(0) || start < s.reservations[currentKey].start) {
+                s.activeReservationByTokenAndUser[labId][trackingKey] = key;
+            }
         }
         s.reservationKeysByToken[labId].add(key);
         s.renters[renter].add(key);
@@ -136,15 +141,18 @@ contract InstReservationHarness {
     // capture refunds
     address public lastRefundProvider;
     bytes32 public lastRefundPucHash;
+    bytes32 public lastRefundReservationKey;
     uint256 public lastRefundAmount;
 
-    function refundToInstitutionalTreasury(
+    function refundToInstitutionalTreasuryForReservation(
         address provider,
         bytes32 pucHash,
+        bytes32 reservationKey,
         uint256 amount
     ) external {
         lastRefundProvider = provider;
         lastRefundPucHash = pucHash;
+        lastRefundReservationKey = reservationKey;
         lastRefundAmount = amount;
     }
 
@@ -156,12 +164,25 @@ contract InstReservationHarness {
         return s.reservations[key].status;
     }
 
+    function getActiveReservationKey(
+        uint256 labId,
+        address trackingKey
+    ) external view returns (bytes32) {
+        return LibAppStorage.diamondStorage().activeReservationByTokenAndUser[labId][trackingKey];
+    }
+
     function getLabReputation(
         uint256 labId
     ) external view returns (int32 score, uint32 totalEvents, uint32 ownerCancellations, uint64 lastUpdated) {
         AppStorage storage s = LibAppStorage.diamondStorage();
         LabReputation storage rep = s.labReputation[labId];
         return (rep.score, rep.totalEvents, rep.ownerCancellations, rep.lastUpdated);
+    }
+
+    function providerReceivable(
+        uint256 labId
+    ) external view returns (uint256) {
+        return LibAppStorage.diamondStorage().providerReceivableAccrued[labId];
     }
 }
 
@@ -284,18 +305,21 @@ contract ConfirmHarness is InstitutionalReservationConfirmationFacet {
         r.requestPeriodDuration = uint64(d);
     }
 
-    // for test: implement spendFromInstitutionalTreasury to succeed
+    // for test: implement reservation-scoped treasury spend to succeed
     address public lastSpentProvider;
     bytes32 public lastSpentPucHash;
+    bytes32 public lastSpentReservationKey;
     uint256 public lastSpentAmount;
 
-    function spendFromInstitutionalTreasury(
+    function spendFromInstitutionalTreasuryForReservation(
         address provider,
         bytes32 pucHash,
+        bytes32 reservationKey,
         uint256 amount
     ) external {
         lastSpentProvider = provider;
         lastSpentPucHash = pucHash;
+        lastSpentReservationKey = reservationKey;
         lastSpentAmount = amount;
         // succeed silently
     }

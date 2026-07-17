@@ -147,6 +147,7 @@ contract ProviderFacet is InternalAccessControl, ReentrancyGuardTransient {
 
         // Check if provider already exists (prevents duplicate additions)
         require(!hasRole(PROVIDER_ROLE, _account), "Provider already exists");
+        require(_s().providerNetworkStatus[_account] != ProviderNetworkStatus.TERMINATED, "Provider terminated");
 
         // Validate authURI format if provided
         if (bytes(_authURI).length > 0) {
@@ -187,7 +188,8 @@ contract ProviderFacet is InternalAccessControl, ReentrancyGuardTransient {
 
     /// @notice Removes a provider from the system by revoking their PROVIDER_ROLE.
     /// @dev This function can only be called by an account with the DEFAULT_ADMIN_ROLE.
-    ///      Clears provider service credits and institutional metadata.
+    ///      Clears active institutional metadata while retaining the closed
+    ///      credit ledger and movement history for auditability.
     ///      If the provider does not have the PROVIDER_ROLE, the transaction reverts with an error.
     ///      Emits a `ProviderRemoved` event upon successful removal.
     /// @param _provider The address of the provider to be removed.
@@ -210,10 +212,9 @@ contract ProviderFacet is InternalAccessControl, ReentrancyGuardTransient {
 
         _clearInstitutionalOrganizationState(s, _provider);
 
-        // Clear provider data
-        delete s.serviceCreditBalance[_provider];
-        delete s.creditLots[_provider];
-        delete s.creditMovements[_provider];
+        // Preserve the closed credit ledger and movement history. A
+        // terminated provider cannot be reactivated, so deleting this data
+        // would destroy its audit provenance.
         delete s.institutionalBackends[_provider];
         delete s.institutionalUserLimit[_provider];
         delete s.institutionalSpendingPeriod[_provider];

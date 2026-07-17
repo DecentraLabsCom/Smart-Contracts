@@ -76,6 +76,15 @@ contract InstitutionalReservationRequestCreationSecurityTest is Test {
         assertEq(harness.reservationRenter(reservationKey), INSTITUTION);
     }
 
+    function test_createInstReservation_self_call_cannot_overwrite_nonterminal_reservation() public {
+        bytes32 reservationKey = keccak256("self-create-nonterminal");
+
+        harness.createAsDiamondSelf(_input(reservationKey));
+
+        vm.expectRevert();
+        harness.createAsDiamondSelf(_input(reservationKey));
+    }
+
     function test_recordRecentInstReservation_allows_diamond_self_call() public {
         harness.recordAsDiamondSelf(LAB_ID, TRACKING_KEY, keccak256("self-record"), _start());
 

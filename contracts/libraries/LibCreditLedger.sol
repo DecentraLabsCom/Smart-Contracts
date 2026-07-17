@@ -7,7 +7,7 @@ import {AppStorage, LibAppStorage, CreditLot, CreditMovement, CreditMovementKind
 /// @notice Lot-based credit ledger with lock/capture/release semantics for MiCA 4.3.d compliance
 /// @dev All write operations record a CreditMovement entry for audit traceability.
 ///      Lot consumption follows FIFO order (oldest non-expired lot first).
-///      The available balance is: serviceCreditBalance[account] - creditLockedBalance[account].
+///      Available balance is the unexpired lot-backed balance minus locked credits.
 library LibCreditLedger {
     error ZeroAccount();
     error ZeroAmount();
@@ -16,13 +16,17 @@ library LibCreditLedger {
     error LotExpired();
     error LotAlreadyExpired();
     error LotNotExpired();
+    error ExpiryInPast();
+    error UnbackedCreditBalance();
 
     /// @notice Available (unlocked) credits for an account
     function availableBalanceOf(
         address account
     ) internal view returns (uint256) {
         AppStorage storage s = LibAppStorage.diamondStorage();
-        return s.serviceCreditBalance[account] - s.creditLockedBalance[account];
+        uint256 effectiveBalance = _effectiveBalance(s.creditLots[account]);
+        uint256 locked = s.creditLockedBalance[account];
+        return effectiveBalance > locked ? effectiveBalance - locked : 0;
     }
 
     /// @notice Locked credits for an account (reserved for pending reservations)
@@ -49,6 +53,7 @@ library LibCreditLedger {
     ) internal returns (uint256 lotId) {
         if (account == address(0)) revert ZeroAccount();
         if (creditAmount == 0) revert ZeroAmount();
+        if (expiresAt != 0 && expiresAt <= block.timestamp) revert ExpiryInPast();
 
         AppStorage storage s = LibAppStorage.diamondStorage();
 
@@ -70,8 +75,14 @@ library LibCreditLedger {
 
         AppStorage storage s = LibAppStorage.diamondStorage();
 
-        uint256 available = s.serviceCreditBalance[account] - s.creditLockedBalance[account];
+        uint256 available = availableBalanceOf(account);
         if (available < amount) revert InsufficientAvailableCredits();
+
+        uint48 lockedExpiry = _earliestExpiryForAmount(s.creditLots[account], s.creditLotCursor[account], amount);
+        uint48 existingExpiry = s.creditReservationExpiry[account][reservationRef];
+        if (existingExpiry == 0 || (lockedExpiry != 0 && lockedExpiry < existingExpiry)) {
+            s.creditReservationExpiry[account][reservationRef] = lockedExpiry;
+        }
 
         s.creditLockedBalance[account] += amount;
 
@@ -130,9 +141,38 @@ library LibCreditLedger {
 
         s.serviceCreditBalance[account] += amount;
 
-        _appendLot(s, account, amount, reservationRef, 0, 0);
+        uint48 refundExpiry = s.creditReservationExpiry[account][reservationRef];
+        delete s.creditReservationExpiry[account][reservationRef];
+        _appendLot(s, account, amount, reservationRef, 0, refundExpiry);
 
         _recordMovement(s, account, CreditMovementKind.CANCEL, amount, reservationRef);
+    }
+
+    /// @notice Debit available credits for an identified reservation.
+    /// @dev Unlike a generic administrative adjustment, this records the
+    ///      earliest source-lot expiry so a later reservation refund cannot
+    ///      create credits that outlive the credits originally spent.
+    function debitCredits(
+        address account,
+        uint256 amount,
+        bytes32 reservationRef
+    ) internal {
+        if (account == address(0)) revert ZeroAccount();
+        if (amount == 0) revert ZeroAmount();
+
+        AppStorage storage s = LibAppStorage.diamondStorage();
+        uint256 available = availableBalanceOf(account);
+        if (available < amount) revert InsufficientAvailableCredits();
+
+        uint48 spentExpiry = _earliestExpiryForAmount(s.creditLots[account], s.creditLotCursor[account], amount);
+        uint48 existingExpiry = s.creditReservationExpiry[account][reservationRef];
+        if (existingExpiry == 0 || (spentExpiry != 0 && spentExpiry < existingExpiry)) {
+            s.creditReservationExpiry[account][reservationRef] = spentExpiry;
+        }
+
+        s.serviceCreditBalance[account] -= amount;
+        _consumeFromLots(s, account, amount);
+        _recordMovement(s, account, CreditMovementKind.ADJUST, amount, reservationRef);
     }
 
     /// @notice Expire a specific lot and deduct its remaining balance
@@ -187,6 +227,9 @@ library LibCreditLedger {
             newBalance = s.serviceCreditBalance[account];
         } else {
             uint256 amount = uint256(-delta);
+            if (s.serviceCreditBalance[account] < s.creditLockedBalance[account]) {
+                revert InsufficientAvailableCredits();
+            }
             uint256 available = s.serviceCreditBalance[account] - s.creditLockedBalance[account];
             if (available < amount) revert InsufficientAvailableCredits();
 
@@ -242,6 +285,12 @@ library LibCreditLedger {
         for (uint256 i = cursor; i < len && remaining > 0;) {
             CreditLot storage lot = lots[i];
             if (!lot.expired && lot.remaining > 0) {
+                if (lot.expiresAt != 0 && lot.expiresAt <= block.timestamp) {
+                    unchecked {
+                        ++i;
+                    }
+                    continue;
+                }
                 uint256 take = lot.remaining < remaining ? lot.remaining : remaining;
                 lot.remaining -= take;
                 remaining -= take;
@@ -250,6 +299,8 @@ library LibCreditLedger {
                 ++i;
             }
         }
+
+        if (remaining != 0) revert UnbackedCreditBalance();
 
         s.creditLotCursor[account] = _nextActiveLotIndex(lots, cursor, len);
     }
@@ -292,7 +343,7 @@ library LibCreditLedger {
     ) private view returns (uint256) {
         while (index < len) {
             CreditLot storage lot = lots[index];
-            if (!lot.expired && lot.remaining > 0) {
+            if (!lot.expired && lot.remaining > 0 && (lot.expiresAt == 0 || lot.expiresAt > block.timestamp)) {
                 break;
             }
             unchecked {
@@ -300,6 +351,41 @@ library LibCreditLedger {
             }
         }
         return index;
+    }
+
+    function _effectiveBalance(
+        CreditLot[] storage lots
+    ) private view returns (uint256 total) {
+        for (uint256 i; i < lots.length;) {
+            CreditLot storage lot = lots[i];
+            if (!lot.expired && lot.remaining > 0 && (lot.expiresAt == 0 || lot.expiresAt > block.timestamp)) {
+                total += lot.remaining;
+            }
+            unchecked {
+                ++i;
+            }
+        }
+    }
+
+    function _earliestExpiryForAmount(
+        CreditLot[] storage lots,
+        uint256 cursor,
+        uint256 amount
+    ) private view returns (uint48 earliestExpiry) {
+        uint256 remaining = amount;
+        for (uint256 i = cursor; i < lots.length && remaining > 0;) {
+            CreditLot storage lot = lots[i];
+            if (!lot.expired && lot.remaining > 0 && (lot.expiresAt == 0 || lot.expiresAt > block.timestamp)) {
+                uint256 take = lot.remaining < remaining ? lot.remaining : remaining;
+                remaining -= take;
+                if (lot.expiresAt != 0 && (earliestExpiry == 0 || lot.expiresAt < earliestExpiry)) {
+                    earliestExpiry = lot.expiresAt;
+                }
+            }
+            unchecked {
+                ++i;
+            }
+        }
     }
 
     /// @dev Record a credit movement for audit trail

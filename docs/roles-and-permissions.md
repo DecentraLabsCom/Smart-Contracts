@@ -29,6 +29,10 @@ Provider network status is tracked separately:
 - `SUSPENDED`: temporarily excluded from fulfillment.
 - `TERMINATED`: permanently deactivated.
 
+Termination is terminal for the provider wallet. Re-adding that same wallet
+is rejected, and its closed credit lots and movement history remain available
+for audit purposes.
+
 Reservation fulfillment requires the lab to be listed and the current provider
 to have `ACTIVE` network status.
 
@@ -45,6 +49,10 @@ operations.
 
 Organization identifiers are normalized before hashing. The registry exposes
 both string-based resolution and hash-based lookup for backend integration.
+The mapping is a routing/ownership claim, not an external identity
+attestation; SAML/eduGAIN or equivalent trusted federation validation must be
+completed before a client treats the resolved wallet as the authenticated
+institution.
 
 ## Security rules for operators
 

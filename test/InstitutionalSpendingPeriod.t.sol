@@ -4,7 +4,7 @@ pragma solidity ^0.8.33;
 import "forge-std/Test.sol";
 import "./BaseTest.sol";
 import "../contracts/facets/reservation/institutional/InstitutionalTreasuryFacet.sol";
-import "../contracts/libraries/LibAppStorage.sol";
+import {AppStorage, CreditLot, LibAppStorage} from "../contracts/libraries/LibAppStorage.sol";
 import "../contracts/libraries/LibCreditLedger.sol";
 
 /// @dev Test harness that inherits from InstitutionalTreasuryFacet to expose internal storage for testing
@@ -35,10 +35,34 @@ contract InstitutionalTreasuryFacetHarness is InstitutionalTreasuryFacet {
         LibCreditLedger.mintCredits(inst, amount, keccak256("TEST-FUNDING"), amount, 0);
     }
 
+    function exposed_mintCreditsWithExpiry(
+        address inst,
+        uint256 amount,
+        uint48 expiresAt
+    ) external {
+        LibCreditLedger.mintCredits(inst, amount, keccak256("TEST-FUNDING-EXPIRING"), amount, expiresAt);
+    }
+
+    function exposed_refundForReservation(
+        address inst,
+        bytes32 pucHash,
+        bytes32 reservationKey,
+        uint256 amount
+    ) external {
+        this.refundToInstitutionalTreasuryForReservation(inst, pucHash, reservationKey, amount);
+    }
+
     function exposed_totalCreditBalance(
         address inst
     ) external view returns (uint256) {
         return LibCreditLedger.totalBalanceOf(inst);
+    }
+
+    function exposed_getCreditLot(
+        address account,
+        uint256 index
+    ) external view returns (CreditLot memory) {
+        return LibCreditLedger.getLot(account, index);
     }
 }
 
@@ -121,5 +145,24 @@ contract InstitutionalSpendingPeriodTest is BaseTest {
         assertEq(inst.getInstitutionalTreasuryBalance(INST), 940);
         assertEq(inst.exposed_totalCreditBalance(INST), 940);
         assertEq(inst.getInstitutionalUserSpent(INST, pucHash), 60);
+    }
+
+    function test_reservation_spend_and_refund_preserve_source_expiry_and_reference() public {
+        inst.exposed_setInstitutionRole(INST);
+        inst.exposed_setBackend(INST, BACKEND);
+        uint48 expiry = uint48(block.timestamp + 100);
+        inst.exposed_mintCreditsWithExpiry(INST, 1000, expiry);
+
+        bytes32 pucHash = keccak256(bytes("reservation-user@inst"));
+        bytes32 reservationKey = keccak256(bytes("reservation-001"));
+
+        vm.prank(BACKEND);
+        inst.spendFromInstitutionalTreasuryForReservation(INST, pucHash, reservationKey, 600);
+        inst.exposed_refundForReservation(INST, pucHash, reservationKey, 600);
+
+        CreditLot memory refundLot = inst.exposed_getCreditLot(INST, 1);
+        assertEq(refundLot.fundingOrderId, reservationKey);
+        assertEq(refundLot.expiresAt, expiry);
+        assertEq(inst.getInstitutionalTreasuryBalance(INST), 1000);
     }
 }

@@ -7,19 +7,22 @@
   },
   "scripts": {
     "abi:generate": "node scripts/merge_abis.js",
+    "abi:sync-consumers": "node scripts/sync-consumer-abis.cjs",
+    "abi:check-consumers": "node scripts/sync-consumer-abis.cjs --check-consumers",
     "selectors:plan-live": "node scripts/reconcile-live-selectors.cjs",
     "selectors:check": "node --test test/selector-manifest.test.cjs",
-    "verify:contract-surface": "node scripts/selector-manifest.cjs && npm run abi:generate && npm run selectors:check"
+    "verify:contract-surface": "node scripts/selector-manifest.cjs && npm run abi:generate && npm run selectors:check",
+    "verify:repo-consistency": "node scripts/verify-repo-consistency.cjs"
   },
   "devDependencies": {
-    "@nomicfoundation/hardhat-ethers": "^4.0.14",
-    "@nomicfoundation/hardhat-foundry": "^3.0.4",
-    "dotenv": "^17.4.2",
-    "ethers": "^6.17.0",
-    "hardhat": "^3.9.1"
+    "@nomicfoundation/hardhat-ethers": "4.0.14",
+    "@nomicfoundation/hardhat-foundry": "3.0.4",
+    "dotenv": "17.4.2",
+    "ethers": "6.17.0",
+    "hardhat": "3.9.1"
   },
   "dependencies": {
-    "@openzeppelin/contracts": "^5.5.0",
-    "@openzeppelin/contracts-upgradeable": "^5.6.1"
+    "@openzeppelin/contracts": "5.6.1",
+    "@openzeppelin/contracts-upgradeable": "5.6.1"
   }
 }

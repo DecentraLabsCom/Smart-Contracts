@@ -122,4 +122,20 @@ contract LibHeapStress is BaseTest {
         // At least one element should have been removed via popEligible (either invalids or a popped confirmed), but full compaction should be skipped
         assertTrue(harness.heapLength(labId) < beforeLen, "no elements were removed by popEligible");
     }
+
+    function test_removed_candidate_can_be_rebooked_without_stale_eligibility() public {
+        uint256 labId = 102;
+        bytes32 key = keccak256("rebooked-reservation");
+
+        harness.setReservation(key, labId, 1);
+        harness.setReservationEnd(key, 100);
+        harness.enqueueViaLib(labId, key, 100);
+        harness.removePayoutCandidates(labId, key);
+
+        harness.setReservationEnd(key, 200);
+        harness.enqueueViaLib(labId, key, 200);
+
+        assertEq(harness.popEligible(labId, 150), bytes32(0));
+        assertEq(harness.popEligible(labId, 250), key);
+    }
 }

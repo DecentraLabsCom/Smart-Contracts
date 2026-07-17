@@ -11,6 +11,11 @@ import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet
 contract IntentRegistryFacet {
     using EnumerableSet for EnumerableSet.AddressSet;
 
+    /// @dev Retained in the public ABI for clients that index intent lifecycle
+    /// events. Expiry is now derived on reads because a reverted consume call
+    /// cannot persist an event or state mutation.
+    event IntentExpired(bytes32 indexed requestId, address indexed signer);
+
     modifier onlyDefaultAdmin() {
         _onlyDefaultAdmin();
         _;
@@ -46,6 +51,13 @@ contract IntentRegistryFacet {
         bytes32 requestId
     ) external {
         LibIntent.cancelIntent(requestId, msg.sender);
+    }
+
+    /// @notice Permissionlessly materialize an intent that has passed expiry.
+    function expireIntent(
+        bytes32 requestId
+    ) external {
+        LibIntent.expireIntent(requestId);
     }
 
     /// @notice Read stored metadata for an intent

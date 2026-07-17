@@ -17,6 +17,11 @@ Use these checks before every upgrade:
   forbidden legacy signatures.
 - `npm run verify:contract-surface` validates the manifest and regenerates the
   public ABI.
+- `npm run abi:sync-consumers` copies that canonical ABI to Marketplace and the
+  embedded Lab Gateway backend; use `npm run abi:check-consumers` in a workspace
+  containing all three projects to detect drift without writing.
+- `npm run verify:repo-consistency` checks deployment manifests, package pins,
+  documented defaults and the selector manifest.
 - `npm run selectors:plan-live -- --simulate` compares the deployed Diamond with
   the manifest and simulates any removal as the current Diamond owner without
   broadcasting a transaction. `RPC_URL` must point to the target network.

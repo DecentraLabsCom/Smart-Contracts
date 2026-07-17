@@ -22,6 +22,8 @@ contract InitFacet is Initializable {
         bytes memory data
     ) private {
         // Delegate to the diamond so msg.sender stays the external caller (owner).
+        // This is the intentional Diamond initialization boundary; no untrusted target is involved.
+        // slither-disable-next-line low-level-calls
         (bool success, bytes memory error) = address(this).delegatecall(data);
         if (!success) {
             if (error.length > 0) {

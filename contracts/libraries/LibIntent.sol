@@ -10,6 +10,7 @@ import {LibAppStorage, AppStorage} from "./LibAppStorage.sol";
 error IntentNotRegistered();
 error IntentNotPending();
 error IntentExpiredError();
+error IntentNotExpired();
 error ActionMismatch();
 error PayloadHashMismatch();
 error ExecutorMismatch();
@@ -197,8 +198,6 @@ library LibIntent {
         if (meta.state != IntentState.Pending) revert IntentNotPending();
 
         if (block.timestamp > meta.expiresAt) {
-            meta.state = IntentState.Expired;
-            emit IntentExpired(requestId, meta.signer);
             revert IntentExpiredError();
         }
 
@@ -221,10 +220,29 @@ library LibIntent {
         emit IntentCancelled(requestId, caller);
     }
 
+    /// @notice Materialize an expired pending intent without coupling the
+    ///      state transition to an operation that must revert.
+    function expireIntent(
+        bytes32 requestId
+    ) internal {
+        AppStorage storage s = LibAppStorage.diamondStorage();
+        IntentMeta storage meta = s.intents[requestId];
+        if (meta.state == IntentState.None) revert IntentNotRegistered();
+        if (meta.state != IntentState.Pending) revert IntentNotPending();
+        if (block.timestamp <= meta.expiresAt) revert IntentNotExpired();
+
+        meta.state = IntentState.Expired;
+        emit IntentExpired(requestId, meta.signer);
+    }
+
     function getIntent(
         bytes32 requestId
     ) internal view returns (IntentMeta memory) {
-        return LibAppStorage.diamondStorage().intents[requestId];
+        IntentMeta memory meta = LibAppStorage.diamondStorage().intents[requestId];
+        if (meta.state == IntentState.Pending && block.timestamp > meta.expiresAt) {
+            meta.state = IntentState.Expired;
+        }
+        return meta;
     }
 
     function nextNonce(

@@ -66,4 +66,14 @@ contract ServiceCreditFacetTest is BaseTest {
         vm.expectRevert(LibCreditLedger.InsufficientAvailableCredits.selector);
         harness.ledgerAdjustCredits(user1, -int256(100_001), bytes32("overdraw"));
     }
+
+    function test_ledgerAdjustCredits_reverts_cleanly_when_balance_is_below_locked() public {
+        vm.startPrank(owner);
+        harness.mintCredits(user1, 100_000, bytes32("funding"), 1000, 0);
+        harness.lockCredits(user1, 80_000, bytes32("reservation"));
+
+        vm.expectRevert(LibCreditLedger.InsufficientAvailableCredits.selector);
+        harness.ledgerAdjustCredits(user1, -int256(30_000), bytes32("overdraw-locked"));
+        vm.stopPrank();
+    }
 }

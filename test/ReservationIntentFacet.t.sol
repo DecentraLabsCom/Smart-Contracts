@@ -13,6 +13,7 @@ contract ReservationIntentHarness is ReservationIntentFacet {
 
     address public lastRefundInstitution;
     bytes32 public lastRefundPucHash;
+    bytes32 public lastRefundReservationKey;
     uint256 public lastRefundAmount;
 
     function setInstitution(
@@ -73,13 +74,15 @@ contract ReservationIntentHarness is ReservationIntentFacet {
         return LibAppStorage.diamondStorage().reservations[reservationKey].status;
     }
 
-    function refundToInstitutionalTreasury(
+    function refundToInstitutionalTreasuryForReservation(
         address institution,
         bytes32 pucHash,
+        bytes32 reservationKey,
         uint256 amount
     ) external {
         lastRefundInstitution = institution;
         lastRefundPucHash = pucHash;
+        lastRefundReservationKey = reservationKey;
         lastRefundAmount = amount;
     }
 }

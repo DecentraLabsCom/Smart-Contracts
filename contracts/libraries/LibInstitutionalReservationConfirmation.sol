@@ -19,9 +19,10 @@ import {LibReservationCancellation} from "./LibReservationCancellation.sol";
 import {LibReservationDenyReason} from "./LibReservationDenyReason.sol";
 
 interface IInstitutionalTreasuryFacetConfirmLib {
-    function spendFromInstitutionalTreasury(
+    function spendFromInstitutionalTreasuryForReservation(
         address institution,
         bytes32 pucHash,
+        bytes32 reservationKey,
         uint256 amount
     ) external;
 }
@@ -106,7 +107,7 @@ library LibInstitutionalReservationConfirmation {
         }
 
         try IInstitutionalTreasuryFacetConfirmLib(address(this))
-            .spendFromInstitutionalTreasury(r.payerInstitution, pucHash, r.price) {
+            .spendFromInstitutionalTreasuryForReservation(r.payerInstitution, pucHash, key, r.price) {
             _finalize(s, r, key, trackingKey);
         } catch {
             LibReservationCancellation.cancelReservation(key);

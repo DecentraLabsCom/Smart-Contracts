@@ -2,6 +2,11 @@
 const fs = require('fs');
 const path = require('path');
 const { ethers } = require('ethers');
+const {
+  loadSelectorManifest,
+  validateSelectorManifest,
+  signatureFor,
+} = require('./selector-manifest.cjs');
 
 function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
@@ -33,6 +38,18 @@ async function main() {
   // Disable JSON-RPC request batching to avoid partial-batch failures on
   // rate-limited providers (e.g. Infura returning one error + one success).
   const provider = new ethers.JsonRpcProvider(rpc, undefined, { batchMaxCount: 1 });
+  const rootDir = path.resolve(__dirname, '..');
+  const selectorManifest = loadSelectorManifest(rootDir);
+  const manifestValidation = validateSelectorManifest(rootDir, selectorManifest);
+  if (manifestValidation.errors.length > 0) {
+    throw new Error(`Selector manifest is invalid:\n${manifestValidation.errors.join('\n')}`);
+  }
+  const manifestFacets = new Map(
+    (selectorManifest.facets || []).map((facet) => [
+      facet.target,
+      new Set(facet.functions || []),
+    ]),
+  );
   const resume = readJsonRobust(resumePath);
   const facetsMap = resume.facets || {};
 
@@ -133,9 +150,16 @@ async function main() {
     const targetAddress = facetAddress || expectedAddress;
     if (!targetAddress) return;
 
+    // Only the reviewed selector manifest is deployable. Compiled ABI
+    // functions that are not classified there must never become an automatic
+    // diamond cut candidate.
+    const allowedFunctions = manifestFacets.get(resumeKey);
+    if (!allowedFunctions) return;
+
     const functions = artifact.abi.filter(a => a.type === 'function');
     for (const fn of functions) {
-      const sig = `${fn.name}(${(fn.inputs || []).map(getCanonicalType).join(',')})`;
+      const sig = signatureFor(fn);
+      if (!allowedFunctions.has(sig)) continue;
       // compute selector
       const selector = ethers.id(sig).slice(0, 10);
       addSelector(targetAddress, selector);

@@ -63,6 +63,8 @@ contract InstitutionalReservationCancellationFacet {
         emit ReservationRequestCanceled(_reservationKey, labId);
     }
 
+    // The reservation library completes the Diamond state transition before this audit event.
+    // slither-disable-next-line reentrancy-events
     function _cancelInstitutionalBookingWithPucHash(
         address institutionalProvider,
         bytes32 _reservationKey,

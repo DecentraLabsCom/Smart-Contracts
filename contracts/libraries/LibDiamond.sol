@@ -65,6 +65,7 @@ library LibDiamond {
     function setContractOwner(
         address _newOwner
     ) internal {
+        require(_newOwner != address(0), "New owner cannot be zero address");
         DiamondStorage storage ds = diamondStorage();
         address previousOwner = ds.contractOwner;
         ds.contractOwner = _newOwner;

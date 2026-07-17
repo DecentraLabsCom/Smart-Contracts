@@ -3,6 +3,7 @@ pragma solidity ^0.8.33;
 
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import {LibProviderReceivable} from "./LibProviderReceivable.sol";
+import {LibHeap} from "./LibHeap.sol";
 import {
     LibAppStorage,
     AppStorage,
@@ -116,9 +117,7 @@ library LibReservationCancellation {
 
         reservation.status = _CANCELLED;
 
-        if (s.payoutHeapContains[reservationKey]) {
-            s.payoutHeapInvalidCount[reservation.labId]++;
-        }
+        LibHeap.removePayoutCandidates(s, reservation.labId, reservationKey);
 
         if (s.totalReservationsCount > 0) {
             s.totalReservationsCount--;

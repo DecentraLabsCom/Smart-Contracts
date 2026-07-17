@@ -1,1 +1,1 @@
-*.sol linguist-language=Solidity
+*.sol text eol=lf linguist-language=Solidity

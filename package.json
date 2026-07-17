@@ -14,7 +14,6 @@
   "devDependencies": {
     "@nomicfoundation/hardhat-ethers": "^4.0.14",
     "@nomicfoundation/hardhat-foundry": "^3.0.4",
-    "@nomicfoundation/hardhat-verify": "^3.0.21",
     "dotenv": "^17.4.2",
     "ethers": "^6.17.0",
     "hardhat": "^3.9.1"

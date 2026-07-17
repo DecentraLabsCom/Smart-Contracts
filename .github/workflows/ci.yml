@@ -111,7 +111,10 @@ jobs:
   slither:
     needs: test
     runs-on: ubuntu-latest
-    if: github.event_name == 'workflow_dispatch'
+    if: github.event_name == 'push' || github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
+    permissions:
+      contents: read
+      security-events: write
     steps:
       - name: checkout
         uses: actions/checkout@v7
@@ -149,4 +152,11 @@ jobs:
         with:
           name: slither-sarif
           path: results.sarif
+
+      - name: Upload Slither results to Code scanning
+        if: always() && hashFiles('results.sarif') != ''
+        uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: results.sarif
+          category: slither
     

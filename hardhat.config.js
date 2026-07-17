@@ -2,7 +2,6 @@ import "dotenv/config";
 import { defineConfig } from "hardhat/config";
 import hardhatEthers from "@nomicfoundation/hardhat-ethers";
 import hardhatFoundry from "@nomicfoundation/hardhat-foundry";
-import hardhatVerify from "@nomicfoundation/hardhat-verify";
 
 const rpcUrl = process.env.RPC_URL;
 const accounts = process.env.PRIVATE_KEY ? [process.env.PRIVATE_KEY] : [];
@@ -20,7 +19,7 @@ const networks = rpcUrl
   : {};
 
 export default defineConfig({
-  plugins: [hardhatEthers, hardhatFoundry, hardhatVerify],
+  plugins: [hardhatEthers, hardhatFoundry],
   solidity: {
     compilers: [
       {
@@ -40,14 +39,9 @@ export default defineConfig({
     ],
   },
   networks,
-  verify: {
-    etherscan: {
-      apiKey: process.env.ETHERSCAN_API_KEY || "",
-    },
-  },
   paths: {
     sources: "contracts",
-    // Hardhat is only used for contract verification here; Foundry owns .t.sol tests.
+    // Hardhat generates verification artifacts; Foundry owns .t.sol tests.
     tests: "test/hardhat",
     cache: "hh-cache",
     artifacts: "hh-artifacts",

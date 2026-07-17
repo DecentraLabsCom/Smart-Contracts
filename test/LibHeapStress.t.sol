@@ -21,7 +21,8 @@ contract LibHeapStress is BaseTest {
     ) public {
         // bound n to 1..1000
         uint256 nn = uint256(n % 1000) + 1;
-        vm.assume(nn > 0 && nn <= 1000);
+        assertGe(nn, 1, "nn below lower bound");
+        assertLe(nn, 1000, "nn above upper bound");
 
         uint256 labId = 42;
         bytes32[] memory keys = new bytes32[](nn);

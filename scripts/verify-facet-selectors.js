@@ -68,8 +68,8 @@ async function main(){
       const parts = r.contractId.split(':');
       const artifactPath = path.join('hh-artifacts', parts[0], parts[1] + '.json');
       const artifact = JSON.parse(fs.readFileSync(artifactPath,'utf8'));
-      const functions = artifact.abi.filter(a => a.type === 'function');
-      for(const fn of functions){
+      const allFunctions = artifact.abi.filter(a => a.type === 'function');
+      for(const fn of allFunctions){
         const sig = `${fn.name}(${(fn.inputs||[]).map(i=>i.type).join(',')})`;
         const sel = ethers.id(sig).slice(0,10);
         const addr = await provider.call({ to: DIAMOND, data: facetInterface.encodeFunctionData('facetAddress',[sel]) });

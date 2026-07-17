@@ -14,9 +14,10 @@ const rootDir = path.resolve(__dirname, "..");
 test("the credit-ledger selector manifest is complete and collision-free", () => {
   const manifest = loadSelectorManifest(rootDir);
   const result = validateSelectorManifest(rootDir, manifest);
+  const expectedSelectorCount = manifest.facets.flatMap((facet) => facet.functions).length;
 
   assert.deepEqual(result.errors, []);
-  assert.equal(result.allowedSelectors.size, 178);
+  assert.equal(result.allowedSelectors.size, expectedSelectorCount);
 });
 
 test("legacy wallet, credit, migration, and generic role functions are forbidden", () => {

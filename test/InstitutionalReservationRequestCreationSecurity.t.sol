@@ -6,6 +6,7 @@ import {
     InstitutionalReservationRequestCreationFacet
 } from "../contracts/facets/reservation/institutional/InstitutionalReservationRequestCreationFacet.sol";
 import {AppStorage, LibAppStorage} from "../contracts/libraries/LibAppStorage.sol";
+import {LibReservationConfig} from "../contracts/libraries/LibReservationConfig.sol";
 
 contract InstitutionalReservationRequestCreationSecurityHarness is InstitutionalReservationRequestCreationFacet {
     function seedBackend(
@@ -34,6 +35,12 @@ contract InstitutionalReservationRequestCreationSecurityHarness is Institutional
         bytes32 reservationKey
     ) external view returns (address) {
         return LibAppStorage.diamondStorage().reservations[reservationKey].renter;
+    }
+
+    function reservationRequestPeriodDuration(
+        bytes32 reservationKey
+    ) external view returns (uint64) {
+        return LibAppStorage.diamondStorage().reservations[reservationKey].requestPeriodDuration;
     }
 
     function recentReservationCount(
@@ -74,6 +81,16 @@ contract InstitutionalReservationRequestCreationSecurityTest is Test {
         harness.createAsDiamondSelf(_input(reservationKey));
 
         assertEq(harness.reservationRenter(reservationKey), INSTITUTION);
+    }
+
+    function test_createInstReservation_uses_pending_request_ttl_config() public {
+        bytes32 reservationKey = keccak256("configured-ttl");
+
+        harness.createAsDiamondSelf(_input(reservationKey));
+
+        assertEq(
+            harness.reservationRequestPeriodDuration(reservationKey), uint64(LibReservationConfig.PENDING_REQUEST_TTL)
+        );
     }
 
     function test_createInstReservation_self_call_cannot_overwrite_nonterminal_reservation() public {

@@ -3,6 +3,7 @@ pragma solidity ^0.8.31;
 
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import {AppStorage, LibAppStorage, RecentReservationBuffer, Reservation} from "../../../libraries/LibAppStorage.sol";
+import {LibReservationConfig} from "../../../libraries/LibReservationConfig.sol";
 
 interface IInstitutionalTreasuryFacetLight {
     function checkInstitutionalTreasuryAvailability(
@@ -71,7 +72,7 @@ contract InstitutionalReservationRequestCreationFacet {
         // forge-lint: disable-next-line(unsafe-typecast)
         uint64 rs = uint64(block.timestamp);
         // forge-lint: disable-next-line(unsafe-typecast)
-        uint64 period = uint64(5 minutes);
+        uint64 period = uint64(LibReservationConfig.PENDING_REQUEST_TTL);
 
         require(s.reservationKeysByToken[i.l].add(i.k), "Reservation index mismatch");
         Reservation storage r = s.reservations[i.k];

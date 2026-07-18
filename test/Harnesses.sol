@@ -160,6 +160,17 @@ contract InstReservationHarness is InstitutionalReservationCancellationFacet {
     bytes32 public lastRefundPucHash;
     bytes32 public lastRefundReservationKey;
     uint256 public lastRefundAmount;
+    bytes32 public reentrantReservationKey;
+    bool public reentrancyEnabled;
+    bool public reentrancyTriggered;
+
+    function configureReentrancy(
+        bytes32 reservationKey
+    ) external {
+        reentrantReservationKey = reservationKey;
+        reentrancyEnabled = true;
+        reentrancyTriggered = false;
+    }
 
     function refundToInstitutionalTreasuryForReservation(
         address provider,
@@ -171,6 +182,11 @@ contract InstReservationHarness is InstitutionalReservationCancellationFacet {
         lastRefundPucHash = pucHash;
         lastRefundReservationKey = reservationKey;
         lastRefundAmount = amount;
+
+        if (reentrancyEnabled && !reentrancyTriggered) {
+            reentrancyTriggered = true;
+            this.cancelConfirmedBookingByProvider(reentrantReservationKey, 7);
+        }
     }
 
     // helper to read reservation status from the harness storage

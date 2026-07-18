@@ -295,4 +295,29 @@ contract LibInstitutionalReservationTest is BaseTest {
         vm.expectRevert();
         harness.cancelConfirmedBookingByProvider(key, 7);
     }
+
+    function test_providerCancellation_rejects_reentrant_provider_cancellation() public {
+        address providerOwner = address(harness);
+        uint256 firstLabId = 31;
+        uint256 reentrantLabId = 32;
+        uint32 firstStart = uint32(block.timestamp + 1 days);
+        uint32 reentrantStart = firstStart + 1 hours;
+        bytes32 firstKey = keccak256(abi.encodePacked("provider-cancel-reentrancy", firstLabId, firstStart));
+        bytes32 reentrantKey = keccak256(abi.encodePacked("provider-cancel-reentrancy", reentrantLabId, reentrantStart));
+
+        harness.setLabOwner(firstLabId, providerOwner);
+        harness.setLabOwner(reentrantLabId, providerOwner);
+        harness.setReservation(firstKey, user1, address(0xCAFE), 2_000_000, _CONFIRMED, firstLabId, firstStart, "first");
+        harness.setReservation(
+            reentrantKey, user1, address(0xCAFE), 3_000_000, _CONFIRMED, reentrantLabId, reentrantStart, "reentrant"
+        );
+        harness.configureReentrancy(reentrantKey);
+
+        vm.prank(providerOwner);
+        vm.expectRevert();
+        harness.cancelConfirmedBookingByProvider(firstKey, 7);
+
+        assertEq(harness.getReservationStatus(firstKey), _CONFIRMED);
+        assertEq(harness.getReservationStatus(reentrantKey), _CONFIRMED);
+    }
 }

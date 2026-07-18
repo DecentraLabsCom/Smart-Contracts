@@ -2,6 +2,7 @@
 pragma solidity ^0.8.31;
 
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
+import {ReentrancyGuardTransient} from "@openzeppelin/contracts/utils/ReentrancyGuardTransient.sol";
 import {LibAppStorage, AppStorage, INSTITUTION_ROLE} from "../../../libraries/LibAppStorage.sol";
 import {LibInstitutionalReservation} from "../../../libraries/LibInstitutionalReservation.sol";
 
@@ -9,7 +10,7 @@ import {LibInstitutionalReservation} from "../../../libraries/LibInstitutionalRe
 /// @author Luis de la Torre Cubillo, Juan Luis Ramos Villalón
 /// @notice Cancellation functions for institutional reservations
 
-contract InstitutionalReservationCancellationFacet {
+contract InstitutionalReservationCancellationFacet is ReentrancyGuardTransient {
     using EnumerableSet for EnumerableSet.AddressSet;
 
     event ReservationRequestCanceled(bytes32 indexed reservationKey, uint256 indexed tokenId);
@@ -69,11 +70,11 @@ contract InstitutionalReservationCancellationFacet {
         uint8 reasonCode
     )
         external
+        nonReentrant
         returns (uint256 labId, address payerInstitution, address provider, bytes32 pucHash, uint96 refundAmount)
     {
-        (
-            labId, payerInstitution, provider, pucHash, refundAmount
-        ) = LibInstitutionalReservation.cancelConfirmedBookingByProvider(reservationKey, reasonCode);
+        (labId, payerInstitution, provider, pucHash, refundAmount) =
+            LibInstitutionalReservation.cancelConfirmedBookingByProvider(reservationKey, reasonCode);
         emit BookingCanceledByProvider(
             reservationKey, labId, payerInstitution, provider, pucHash, refundAmount, reasonCode
         );

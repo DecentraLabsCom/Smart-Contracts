@@ -5,6 +5,9 @@
   "engines": {
     "node": ">=22.10.0"
   },
+  "overrides": {
+    "adm-zip": "0.6.0"
+  },
   "scripts": {
     "abi:generate": "node scripts/merge_abis.js",
     "abi:sync-consumers": "node scripts/sync-consumer-abis.cjs",

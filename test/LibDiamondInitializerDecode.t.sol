@@ -6,7 +6,7 @@ import "./LibDiamondInitializer.t.sol";
 
 contract LibDiamondInitializerDecode is Test {
     DiamondHarness diamond;
-    UnsafeExternalInitializer unsafeInit;
+    UnmarkedExternalInitializer unmarkedInit;
 
     event RevertSelector(bytes4 selector);
     event RevertReason(string reason);
@@ -14,15 +14,17 @@ contract LibDiamondInitializerDecode is Test {
 
     function setUp() public {
         diamond = new DiamondHarness();
-        unsafeInit = new UnsafeExternalInitializer();
+        unmarkedInit = new UnmarkedExternalInitializer();
     }
 
     function test_captureWithoutMarkerRevertData() public {
         IDiamond.FacetCut[] memory cut = new IDiamond.FacetCut[](0);
-        bytes memory initData = abi.encodeWithSelector(UnsafeExternalInitializer.init.selector);
+        bytes memory initData = abi.encodeWithSelector(UnmarkedExternalInitializer.init.selector);
 
         (bool ok, bytes memory data) = address(diamond)
-            .call(abi.encodeWithSelector(diamond.callInitializeDiamondCut.selector, address(unsafeInit), initData, cut));
+            .call(
+                abi.encodeWithSelector(diamond.callInitializeDiamondCut.selector, address(unmarkedInit), initData, cut)
+            );
         assertFalse(ok, "call should have reverted");
 
         // data is the revert payload. If it's a standard Error(string) it starts with 0x08c379a0

@@ -20,7 +20,7 @@ test("the credit-ledger selector manifest is complete and collision-free", () =>
   assert.equal(result.allowedSelectors.size, expectedSelectorCount);
 });
 
-test("legacy wallet, credit, migration, and generic role functions are forbidden", () => {
+test("unsupported wallet, credit, migration, and generic role functions are forbidden", () => {
   const manifest = loadSelectorManifest(rootDir);
   const allowed = new Set(manifest.facets.flatMap((facet) => facet.functions));
   const expectedForbidden = [

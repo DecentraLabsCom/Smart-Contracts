@@ -9,12 +9,12 @@ the source file alone does not imply that a facet address is directly callable.
 `selectors/diamond.json` is the allowlist for the production Diamond. Deployment
 and upgrade scripts must derive each facet cut from that manifest; compiling a
 public function is not enough to install it. `abi/Diamond.json` is generated from
-the same source, so consumer ABIs cannot silently retain deprecated selectors.
+the same source, so consumer ABIs cannot silently retain unsupported selectors.
 
 Use these checks before every upgrade:
 
 - `npm run selectors:check` verifies selector uniqueness, facet ownership and the
-  forbidden legacy signatures.
+  unsupported signatures.
 - `npm run verify:contract-surface` validates the manifest and regenerates the
   public ABI.
 - `npm run abi:sync-consumers` copies that canonical ABI to Marketplace and the

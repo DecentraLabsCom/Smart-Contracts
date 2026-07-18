@@ -3,7 +3,7 @@ pragma solidity ^0.8.33;
 
 import {Initializable} from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
 
-/// @dev Internal-only access control compatible with OpenZeppelin's ERC-7201 storage layout.
+/// @dev Internal-only access control aligned with OpenZeppelin's ERC-7201 storage layout.
 ///      The generic grant/revoke/renounce entry points are intentionally not exposed.
 abstract contract InternalAccessControl is Initializable {
     struct RoleData {

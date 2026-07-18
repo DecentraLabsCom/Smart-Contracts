@@ -36,7 +36,7 @@ environment-specific deployment artifact is available.
 
 Facet upgrades use `diamondCut` and the selector/verification helpers in
 `scripts/`. Typical operations include adding selectors, replacing a facet,
-removing obsolete selectors and executing an initializer. Review the generated
+removing unsupported selectors and executing an initializer. Review the generated
 cut and verify that the target Diamond is the intended deployment before
 broadcasting.
 

@@ -70,20 +70,10 @@ contract ProviderSettlementFacet is ReentrancyGuardTransient {
     /// @notice Returns the provider receivable currently accrued or immediately settleable for a lab
     function getLabProviderReceivable(
         uint256 _labId
-    )
-        external
-        view
-        returns (
-            uint256 providerReceivable,
-            uint256 deferredInstitutionalReceivable,
-            uint256 totalReceivable,
-            uint256 eligibleReservationCount
-        )
-    {
+    ) external view returns (uint256 providerReceivable, uint256 totalReceivable, uint256 eligibleReservationCount) {
         AppStorage storage s = _s();
 
         providerReceivable = _outstandingProviderReceivable(s, _labId);
-        deferredInstitutionalReceivable = 0;
         eligibleReservationCount = 0;
 
         uint256 currentTime = block.timestamp;
@@ -97,7 +87,7 @@ contract ProviderSettlementFacet is ReentrancyGuardTransient {
             eligibleReservationCount = pendingClosures;
         }
 
-        totalReceivable = providerReceivable + deferredInstitutionalReceivable;
+        totalReceivable = providerReceivable;
     }
 
     /// @notice Bounded/paginated variant of getLabProviderReceivable to avoid large eth_call executions.
@@ -110,8 +100,7 @@ contract ProviderSettlementFacet is ReentrancyGuardTransient {
     /// @param offset Heap index offset to start scanning from
     /// @param limit Max heap entries to scan in this call (1-1000)
     /// @return providerReceivableChunk Provider receivable found in this chunk (+fixed onchain buckets if offset==0)
-    /// @return deferredInstitutionalReceivableChunk Reserved for compatibility (currently always 0)
-    /// @return totalReceivableChunk Sum of provider and institutional chunk outputs
+    /// @return totalReceivableChunk Sum of provider receivable outputs
     /// @return eligibleReservationCountChunk Number of closeable reservations found in this chunk
     /// @return nextOffset Offset to use in next page call
     /// @return hasMore True when more heap entries remain after this chunk
@@ -124,7 +113,6 @@ contract ProviderSettlementFacet is ReentrancyGuardTransient {
         view
         returns (
             uint256 providerReceivableChunk,
-            uint256 deferredInstitutionalReceivableChunk,
             uint256 totalReceivableChunk,
             uint256 eligibleReservationCountChunk,
             uint256 nextOffset,
@@ -134,8 +122,6 @@ contract ProviderSettlementFacet is ReentrancyGuardTransient {
         require(limit > 0 && limit <= 1000, "Invalid limit");
 
         AppStorage storage s = _s();
-        deferredInstitutionalReceivableChunk = 0;
-
         if (offset == 0) {
             providerReceivableChunk = _outstandingProviderReceivable(s, _labId);
         }
@@ -145,14 +131,7 @@ contract ProviderSettlementFacet is ReentrancyGuardTransient {
         if (offset >= heapLength) {
             nextOffset = heapLength;
             totalReceivableChunk = providerReceivableChunk;
-            return (
-                providerReceivableChunk,
-                deferredInstitutionalReceivableChunk,
-                totalReceivableChunk,
-                eligibleReservationCountChunk,
-                nextOffset,
-                false
-            );
+            return (providerReceivableChunk, totalReceivableChunk, eligibleReservationCountChunk, nextOffset, false);
         }
 
         uint256 end = offset + limit;
@@ -182,7 +161,7 @@ contract ProviderSettlementFacet is ReentrancyGuardTransient {
 
         nextOffset = end;
         hasMore = end < heapLength;
-        totalReceivableChunk = providerReceivableChunk + deferredInstitutionalReceivableChunk;
+        totalReceivableChunk = providerReceivableChunk;
     }
 
     /// @notice Returns explicit provider receivable lifecycle buckets for a lab.

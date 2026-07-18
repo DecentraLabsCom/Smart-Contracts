@@ -168,15 +168,10 @@ contract ProviderReceivableAliasesTest is Test {
     function test_getLabProviderReceivable_exposes_pending_provider_bucket() public {
         harness.setPendingProviderPayout(LAB_ID, FIVE_CREDITS);
 
-        (
-            uint256 providerReceivable,
-            uint256 deferredInstitutionalReceivable,
-            uint256 totalReceivable,
-            uint256 eligibleCount
-        ) = harness.getLabProviderReceivable(LAB_ID);
+        (uint256 providerReceivable, uint256 totalReceivable, uint256 eligibleCount) =
+            harness.getLabProviderReceivable(LAB_ID);
 
         assertEq(providerReceivable, FIVE_CREDITS);
-        assertEq(deferredInstitutionalReceivable, 0);
         assertEq(totalReceivable, FIVE_CREDITS);
         assertEq(eligibleCount, 0);
     }
@@ -187,7 +182,7 @@ contract ProviderReceivableAliasesTest is Test {
         vm.prank(PROVIDER);
         harness.requestProviderPayout(LAB_ID, 10);
 
-        (uint256 providerReceivable,, uint256 totalReceivable,) = harness.getLabProviderReceivable(LAB_ID);
+        (uint256 providerReceivable, uint256 totalReceivable,) = harness.getLabProviderReceivable(LAB_ID);
         assertEq(providerReceivable, TWELVE_CREDITS);
         assertEq(totalReceivable, TWELVE_CREDITS);
 
@@ -241,7 +236,7 @@ contract ProviderReceivableAliasesTest is Test {
         bytes32 reservationKey = keccak256("access-authorized-without-session");
         harness.setExpiredPayoutReservation(reservationKey, LAB_ID, ACCESS_AUTHORIZED, FIVE_CREDITS_U96, 999);
 
-        (uint256 providerReceivable,, uint256 totalReceivable, uint256 eligibleCount) =
+        (uint256 providerReceivable, uint256 totalReceivable, uint256 eligibleCount) =
             harness.getLabProviderReceivable(LAB_ID);
 
         assertEq(providerReceivable, 0);
@@ -371,7 +366,7 @@ contract ProviderReceivableAliasesTest is Test {
         harness.setProviderReceivableBucket(LAB_ID, 5, NINETEEN_CREDITS);
         harness.setProviderReceivableBucket(LAB_ID, 6, TWENTY_THREE_CREDITS);
 
-        (uint256 providerReceivable,, uint256 totalReceivable,) = harness.getLabProviderReceivable(LAB_ID);
+        (uint256 providerReceivable, uint256 totalReceivable,) = harness.getLabProviderReceivable(LAB_ID);
         assertEq(providerReceivable, 5_300_000);
         assertEq(totalReceivable, 5_300_000);
     }
@@ -400,7 +395,7 @@ contract ProviderReceivableAliasesTest is Test {
         assertEq(reversedReceivable, 0);
         assertEq(disputedReceivable, 0);
 
-        (uint256 providerReceivable,, uint256 totalReceivable,) = harness.getLabProviderReceivable(LAB_ID);
+        (uint256 providerReceivable, uint256 totalReceivable,) = harness.getLabProviderReceivable(LAB_ID);
         assertEq(providerReceivable, TWELVE_CREDITS);
         assertEq(totalReceivable, TWELVE_CREDITS);
     }

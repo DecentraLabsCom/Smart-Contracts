@@ -110,15 +110,7 @@ async function main() {
     // read artifact for this contract from hh-artifacts
     let artifactPath = path.join('hh-artifacts', d.contractId.replace(':', path.sep) + '.json');
     if (!fs.existsSync(artifactPath)) {
-      // fallback: try hh-artifacts path variation
-      const parts = d.contractId.split(':');
-      const ap = path.join('hh-artifacts', parts[0], parts[1] + '.json');
-      if (fs.existsSync(ap)) {
-        artifactPath = ap;
-      } else {
-        console.warn('Artifact not found for', d.contractId, 'skip');
-        continue;
-      }
+      throw new Error(`Artifact not found for ${d.contractId}: ${artifactPath}`);
     }
     const artifact = JSON.parse(fs.readFileSync(artifactPath, 'utf8'));
     const allowedFunctions = manifestByTarget.get(d.contractId);
@@ -165,7 +157,7 @@ async function main() {
 
   // Ensure canonical selectors are forced to point to the preferred facet address by adding replace cuts
   for (const [sel, preferredContractId] of Object.entries(CANONICAL)) {
-    // find the deployed entry for the preferred contract, or fallback to resume if not deployed in this run
+    // Use the deployment from this run, or persisted resume state when continuing an interrupted run.
     const desiredEntry = deployed.find(d => d.contractId === preferredContractId);
     let desiredAddr = desiredEntry ? desiredEntry.newAddr : (resume.facets && resume.facets[preferredContractId]) || null;
     if (!desiredAddr) {

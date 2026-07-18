@@ -89,10 +89,10 @@ contract FmuResourceTypeTest is BaseTest {
         harness.confirmInstitutionalReservationRequestWithPucHash(inst, key2, keccak256(bytes("bob@inst")));
     }
 
-    /// @notice FMU default resourceType value is 0 (backward compatible)
-    function test_default_resource_type_is_zero() public {
+    /// @notice The default resource type is a physical lab.
+    function test_default_resource_type_is_physical_lab() public {
         uint256 labId = 44;
-        // labId 44 has never been touched; resourceType should default to 0
+        // labId 44 has never been touched; resourceType defaults to 0
         // We can't easily read it from storage in this harness, but we verify
         // by confirming overlapping reservations fail (same as regular lab test)
         address inst = address(0x2222);

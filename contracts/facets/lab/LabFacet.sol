@@ -22,7 +22,7 @@ using EnumerableSet for EnumerableSet.AddressSet;
 ///      It extends the functionality of ERC721EnumerableUpgradeable and integrates with custom libraries
 ///      for application-specific storage and access control.
 ///      Throughout the contract, `labId` and `tokenId` are used interchangeably and refer to the same identifier.
-///      This convention is followed for compatibility with the ERC721 standard and to maintain homogeneity
+///      This convention is followed to align with the ERC721 standard and maintain homogeneity
 ///      across overridden functions from OpenZeppelin's implementation.
 /// @notice The contract allows Lab Providers to add, update, delete, and manage Labs, which are represented as NFTs.
 ///         Each Lab has associated metadata, including a URI, price, authentication details, and access information.

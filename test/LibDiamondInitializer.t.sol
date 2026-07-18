@@ -55,8 +55,8 @@ contract SafeExternalInitializer {
     }
 }
 
-/// @dev Mock initializer WITHOUT isInitializer() marker (unsafe/legacy)
-contract UnsafeExternalInitializer {
+/// @dev Mock initializer WITHOUT the isInitializer() marker.
+contract UnmarkedExternalInitializer {
     bool public wasCalled;
 
     function init() external {
@@ -106,14 +106,14 @@ contract LibDiamondInitializerTest is Test {
     DiamondHarness public diamond;
     MockFacet public mockFacet;
     SafeExternalInitializer public safeInit;
-    UnsafeExternalInitializer public unsafeInit;
+    UnmarkedExternalInitializer public unmarkedInit;
     FalseMarkerInitializer public falseMarkerInit;
 
     function setUp() public {
         diamond = new DiamondHarness();
         mockFacet = new MockFacet();
         safeInit = new SafeExternalInitializer();
-        unsafeInit = new UnsafeExternalInitializer();
+        unmarkedInit = new UnmarkedExternalInitializer();
         falseMarkerInit = new FalseMarkerInitializer();
     }
 
@@ -159,15 +159,15 @@ contract LibDiamondInitializerTest is Test {
         // Prepare an empty cut (initializer is NOT in the cut)
         IDiamond.FacetCut[] memory cut = new IDiamond.FacetCut[](0);
 
-        // Call initializeDiamondCut with unsafeInit (NO isInitializer() marker)
-        bytes memory initData = abi.encodeWithSelector(UnsafeExternalInitializer.init.selector);
+        // Call initializeDiamondCut with the unmarked initializer.
+        bytes memory initData = abi.encodeWithSelector(UnmarkedExternalInitializer.init.selector);
 
         // Expect revert with InitializationNotAllowed
-        vm.expectRevert(abi.encodeWithSelector(InitializationNotAllowed.selector, address(unsafeInit)));
-        diamond.callInitializeDiamondCut(address(unsafeInit), initData, cut);
+        vm.expectRevert(abi.encodeWithSelector(InitializationNotAllowed.selector, address(unmarkedInit)));
+        diamond.callInitializeDiamondCut(address(unmarkedInit), initData, cut);
 
         // Verify initialization was NOT executed
-        assertFalse(unsafeInit.wasCalled(), "UnsafeExternalInitializer should NOT be called");
+        assertFalse(unmarkedInit.wasCalled(), "UnmarkedExternalInitializer should NOT be called");
     }
 
     /// @dev Test 4: Calldata too short (< 4 bytes) reverts with InitializationCalldataTooShort

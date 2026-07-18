@@ -318,11 +318,11 @@ contract LabIntentTest is BaseTest {
         labIntent.updateLabWithIntent(requestId, payload);
     }
 
-    function test_updateLabWithIntent_reverts_for_legacy_lab_without_creator_hash() public {
+    function test_updateLabWithIntent_reverts_without_creator_hash() public {
         vm.prank(provider1);
         labAdmin.addLab("ipfs://original", PRICE_50, "https://old", "key-old", 0);
 
-        bytes32 requestId = keccak256("update-legacy");
+        bytes32 requestId = keccak256("update-without-creator-hash");
         ActionIntentPayload memory payload =
             _makePayload(provider1, 1, "ipfs://updated", PRICE_200, "https://new", "key-new", "");
         _setPendingIntent(requestId, provider1, ACTION_LAB_UPDATE, payload);

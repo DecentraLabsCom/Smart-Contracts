@@ -5752,11 +5752,6 @@
         "internalType": "uint256"
       },
       {
-        "name": "deferredInstitutionalReceivable",
-        "type": "uint256",
-        "internalType": "uint256"
-      },
-      {
         "name": "totalReceivable",
         "type": "uint256",
         "internalType": "uint256"
@@ -5846,11 +5841,6 @@
     "outputs": [
       {
         "name": "providerReceivableChunk",
-        "type": "uint256",
-        "internalType": "uint256"
-      },
-      {
-        "name": "deferredInstitutionalReceivableChunk",
         "type": "uint256",
         "internalType": "uint256"
       },
@@ -6374,6 +6364,50 @@
   },
   {
     "type": "function",
+    "name": "cancelConfirmedBookingByProvider",
+    "inputs": [
+      {
+        "name": "reservationKey",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      },
+      {
+        "name": "reasonCode",
+        "type": "uint8",
+        "internalType": "uint8"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "labId",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "payerInstitution",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "provider",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "pucHash",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      },
+      {
+        "name": "refundAmount",
+        "type": "uint96",
+        "internalType": "uint96"
+      }
+    ],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
     "name": "cancelInstitutionalBookingWithPucHash",
     "inputs": [
       {
@@ -6439,6 +6473,55 @@
   },
   {
     "type": "event",
+    "name": "BookingCanceledByProvider",
+    "inputs": [
+      {
+        "name": "reservationKey",
+        "type": "bytes32",
+        "indexed": true,
+        "internalType": "bytes32"
+      },
+      {
+        "name": "tokenId",
+        "type": "uint256",
+        "indexed": true,
+        "internalType": "uint256"
+      },
+      {
+        "name": "payerInstitution",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "provider",
+        "type": "address",
+        "indexed": false,
+        "internalType": "address"
+      },
+      {
+        "name": "pucHash",
+        "type": "bytes32",
+        "indexed": false,
+        "internalType": "bytes32"
+      },
+      {
+        "name": "refundAmount",
+        "type": "uint96",
+        "indexed": false,
+        "internalType": "uint96"
+      },
+      {
+        "name": "reasonCode",
+        "type": "uint8",
+        "indexed": false,
+        "internalType": "uint8"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
     "name": "ReservationRequestCanceled",
     "inputs": [
       {
@@ -6468,6 +6551,11 @@
   },
   {
     "type": "error",
+    "name": "InvalidProviderCancellationReason",
+    "inputs": []
+  },
+  {
+    "type": "error",
     "name": "InvalidStatus",
     "inputs": []
   },
@@ -6484,6 +6572,11 @@
   {
     "type": "error",
     "name": "PucMismatch",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "UnauthorizedProvider",
     "inputs": []
   },
   {
@@ -7533,6 +7626,11 @@
   {
     "type": "error",
     "name": "IntentExecutorMustBeCaller",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "IntentInstitutionBackendRequired",
     "inputs": []
   },
   {

@@ -140,7 +140,7 @@ contract LabQueryFacet {
     }
 
     /// @notice Returns the creator identity hash associated with a lab.
-    /// @dev Returns bytes32(0) for legacy labs created without creator binding.
+    /// @dev Returns bytes32(0) when creator binding is not present.
     function getPucHash(
         uint256 _labId
     ) external view exists(_labId) returns (bytes32) {

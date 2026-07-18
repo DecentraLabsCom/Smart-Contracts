@@ -7,14 +7,14 @@ import "./LibDiamondInitializer.t.sol";
 contract LibDiamondInitializerRepro is Test {
     DiamondHarness diamond;
     MockFacet mockFacet;
-    UnsafeExternalInitializer unsafeInit;
+    UnmarkedExternalInitializer unmarkedInit;
 
     event RevertData(bytes data);
 
     function setUp() public {
         diamond = new DiamondHarness();
         mockFacet = new MockFacet();
-        unsafeInit = new UnsafeExternalInitializer();
+        unmarkedInit = new UnmarkedExternalInitializer();
     }
 
     /// @dev Deterministic repro: construct a small but non-empty cut and call via low-level call
@@ -44,12 +44,14 @@ contract LibDiamondInitializerRepro is Test {
             facetAddress: address(0xBEEF), action: IDiamond.FacetCutAction.Add, functionSelectors: sel2
         });
 
-        // Use UnsafeExternalInitializer (no isInitializer marker) to provoke the "not allowed" path
-        bytes memory initData = abi.encodeWithSelector(UnsafeExternalInitializer.init.selector);
+        // Use an initializer without the isInitializer marker to provoke the "not allowed" path
+        bytes memory initData = abi.encodeWithSelector(UnmarkedExternalInitializer.init.selector);
 
         // Low-level call to capture the revert bytes instead of letting the test framework fail directly
         (bool ok, bytes memory data) = address(diamond)
-            .call(abi.encodeWithSelector(diamond.callInitializeDiamondCut.selector, address(unsafeInit), initData, cut));
+            .call(
+                abi.encodeWithSelector(diamond.callInitializeDiamondCut.selector, address(unmarkedInit), initData, cut)
+            );
 
         // We expect it to revert (no marker and init not present in cut)
         assertFalse(ok, "call should have reverted");

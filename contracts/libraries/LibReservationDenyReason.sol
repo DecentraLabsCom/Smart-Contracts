@@ -9,6 +9,8 @@ pragma solidity ^0.8.33;
 ///  3 = PAYMENT_FAILED (wallet transferFrom failed)
 ///  4 = REQUEST_EXPIRED (institutional request period expired)
 ///  5 = TREASURY_SPEND_FAILED (institutional treasury spend failed)
+///  6+ = provider cancellation reason codes (the provider supplies a non-zero
+///      code so the cancellation remains classifiable without changing the ABI)
 ///  255 = UNKNOWN (fallback)
 library LibReservationDenyReason {
     uint8 internal constant PROVIDER_MANUAL = 1;

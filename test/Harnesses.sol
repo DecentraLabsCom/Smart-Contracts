@@ -12,7 +12,7 @@ import "../contracts/libraries/LibInstitutionalReservationRelease.sol";
 import "../contracts/libraries/LibTracking.sol";
 import "../contracts/libraries/LibLabAdmin.sol";
 
-contract InstReservationHarness {
+contract InstReservationHarness is InstitutionalReservationCancellationFacet {
     using EnumerableSet for EnumerableSet.Bytes32Set;
     using EnumerableSet for EnumerableSet.AddressSet;
 
@@ -23,6 +23,13 @@ contract InstReservationHarness {
     ) external {
         AppStorage storage s = LibAppStorage.diamondStorage();
         s.institutionalBackends[inst] = backend;
+    }
+
+    function setLabOwner(
+        uint256 labId,
+        address owner
+    ) external {
+        LibERC721StorageTestHelper.setOwnerForTest(labId, owner);
     }
 
     function setInstitution(
@@ -125,6 +132,16 @@ contract InstReservationHarness {
         bytes32 reservationKey
     ) external returns (uint256) {
         return LibInstitutionalReservation.cancelBooking(institutionalProvider, pucHash, reservationKey);
+    }
+
+    function cancelConfirmedBookingByProviderWrapper(
+        bytes32 reservationKey,
+        uint8 reasonCode
+    )
+        external
+        returns (uint256 labId, address payerInstitution, address provider, bytes32 pucHash, uint96 refundAmount)
+    {
+        return LibInstitutionalReservation.cancelConfirmedBookingByProvider(reservationKey, reasonCode);
     }
 
     function releaseInstitutionalExpiredReservationsWrapper(

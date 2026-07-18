@@ -14,6 +14,15 @@ contract InstitutionalReservationCancellationFacet {
 
     event ReservationRequestCanceled(bytes32 indexed reservationKey, uint256 indexed tokenId);
     event BookingCanceled(bytes32 indexed reservationKey, uint256 indexed tokenId);
+    event BookingCanceledByProvider(
+        bytes32 indexed reservationKey,
+        uint256 indexed tokenId,
+        address indexed payerInstitution,
+        address provider,
+        bytes32 pucHash,
+        uint96 refundAmount,
+        uint8 reasonCode
+    );
 
     modifier onlyInstitution(
         address institution
@@ -51,6 +60,23 @@ contract InstitutionalReservationCancellationFacet {
         bytes32 pucHash
     ) external onlyInstitution(institutionalProvider) {
         _cancelInstitutionalBookingWithPucHash(institutionalProvider, _reservationKey, pucHash);
+    }
+
+    /// @notice Cancel a confirmed booking because the provider cannot honor it.
+    /// @dev Refunds the full institutional price and applies a minimal reputation penalty.
+    function cancelConfirmedBookingByProvider(
+        bytes32 reservationKey,
+        uint8 reasonCode
+    )
+        external
+        returns (uint256 labId, address payerInstitution, address provider, bytes32 pucHash, uint96 refundAmount)
+    {
+        (
+            labId, payerInstitution, provider, pucHash, refundAmount
+        ) = LibInstitutionalReservation.cancelConfirmedBookingByProvider(reservationKey, reasonCode);
+        emit BookingCanceledByProvider(
+            reservationKey, labId, payerInstitution, provider, pucHash, refundAmount, reasonCode
+        );
     }
 
     function _cancelInstitutionalReservationRequest(

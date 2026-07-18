@@ -4,6 +4,8 @@ pragma solidity ^0.8.33;
 import {LibAppStorage, AppStorage, Reservation} from "./LibAppStorage.sol";
 import {LibRevenue} from "./LibRevenue.sol";
 import {LibReservationCancellation} from "./LibReservationCancellation.sol";
+import {LibERC721Storage} from "./LibERC721Storage.sol";
+import {LibReputation} from "./LibReputation.sol";
 
 interface IInstValidation {
     function validateInstRequest(
@@ -55,6 +57,8 @@ library LibInstitutionalReservation {
     error NotPending();
     error PucMismatch();
     error InvalidStatus();
+    error UnauthorizedProvider();
+    error InvalidProviderCancellationReason();
 
     uint8 internal constant _PENDING = 0;
     uint8 internal constant _CONFIRMED = 1;
@@ -137,6 +141,42 @@ library LibInstitutionalReservation {
             .refundToInstitutionalTreasuryForReservation(
                 reservation.payerInstitution, pucHash, reservationKey, refundAmount
             );
+    }
+
+    /// @notice Cancel a confirmed institutional booking at the provider's initiative.
+    /// @dev Only the current lab owner or its authorized backend may use this path.
+    ///      It is intentionally separate from consumer cancellation: no provider fee
+    ///      is accrued and the complete reservation price is refunded to the payer.
+    function cancelConfirmedBookingByProvider(
+        bytes32 reservationKey,
+        uint8 reasonCode
+    )
+        internal
+        returns (uint256 labId, address payerInstitution, address provider, bytes32 pucHash, uint96 refundAmount)
+    {
+        AppStorage storage s = LibAppStorage.diamondStorage();
+        Reservation storage reservation = s.reservations[reservationKey];
+        if (reservation.renter == address(0) || reservation.status != _CONFIRMED) revert InvalidStatus();
+        if (block.timestamp >= reservation.start) revert InvalidStatus();
+        if (reasonCode == 0) revert InvalidProviderCancellationReason();
+
+        provider = LibERC721Storage.ownerOf(reservation.labId);
+        address backend = s.institutionalBackends[provider];
+        if (msg.sender != provider && (backend == address(0) || msg.sender != backend)) {
+            revert UnauthorizedProvider();
+        }
+
+        labId = reservation.labId;
+        payerInstitution = reservation.payerInstitution;
+        pucHash = s.reservationPucHash[reservationKey];
+        if (pucHash == bytes32(0)) revert PucMismatch();
+        refundAmount = reservation.price;
+
+        LibReservationCancellation.cancelReservation(reservationKey);
+        LibReputation.recordProviderCancellation(labId);
+
+        IInstitutionalTreasuryFacet(address(this))
+            .refundToInstitutionalTreasuryForReservation(payerInstitution, pucHash, reservationKey, refundAmount);
     }
 
     function _pucHashMatches(

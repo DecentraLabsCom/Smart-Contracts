@@ -17,6 +17,16 @@ contract LibInstitutionalReservationTest is BaseTest {
     uint8 internal constant _SETTLED = 3;
     uint8 internal constant _CANCELLED = 4;
 
+    event BookingCanceledByProvider(
+        bytes32 indexed reservationKey,
+        uint256 indexed tokenId,
+        address indexed payerInstitution,
+        address provider,
+        bytes32 pucHash,
+        uint96 refundAmount,
+        uint8 reasonCode
+    );
+
     function setUp() public override {
         super.setUp();
         harness = new InstReservationHarness();
@@ -217,5 +227,72 @@ contract LibInstitutionalReservationTest is BaseTest {
         vm.prank(backend);
         vm.expectRevert();
         harness.cancelBookingWrapper(inst, keccak256(bytes(puc)), key);
+    }
+
+    function test_providerCancellation_refundsFullPrice_and_penalizes_reputation_softly() public {
+        address payer = address(0xCAFE);
+        address providerOwner = address(0xD00D);
+        address providerBackend = address(0xB0B);
+        uint256 labId = 21;
+        uint32 start = uint32(block.timestamp + 1 days);
+        bytes32 key = keccak256(abi.encodePacked("provider-cancel", labId, start));
+        string memory puc = "provider-cancel-user@inst";
+        uint96 price = 2_000_000;
+
+        harness.setInstitution(payer);
+        harness.setBackend(providerOwner, providerBackend);
+        harness.setLabOwner(labId, providerOwner);
+        harness.setReservation(key, user1, payer, price, _CONFIRMED, labId, start, puc);
+
+        vm.expectEmit(true, true, true, true);
+        emit BookingCanceledByProvider(key, labId, payer, providerOwner, keccak256(bytes(puc)), price, 7);
+
+        vm.prank(providerBackend);
+        (
+            uint256 returnedLabId,
+            address returnedPayer,
+            address returnedProvider,
+            bytes32 returnedPuc,
+            uint96 refundAmount
+        ) = harness.cancelConfirmedBookingByProvider(key, 7);
+
+        assertEq(returnedLabId, labId);
+        assertEq(returnedPayer, payer);
+        assertEq(returnedProvider, providerOwner);
+        assertEq(returnedPuc, keccak256(bytes(puc)));
+        assertEq(refundAmount, price);
+        assertEq(harness.getReservationStatus(key), _CANCELLED);
+        assertEq(harness.lastRefundProvider(), payer);
+        assertEq(harness.lastRefundAmount(), price);
+        assertEq(harness.providerReceivable(labId), 0);
+
+        (int32 score, uint32 totalEvents, uint32 ownerCancellations,) = harness.getLabReputation(labId);
+        assertEq(score, -1);
+        assertEq(totalEvents, 1);
+        assertEq(ownerCancellations, 1);
+    }
+
+    function test_providerCancellation_rejects_afterCutoff_and_accessAuthorized() public {
+        address payer = address(0xCAFE);
+        address providerOwner = address(0xD00D);
+        uint256 labId = 22;
+        uint32 start = uint32(block.timestamp + 1 days);
+        bytes32 key = keccak256(abi.encodePacked("provider-cancel-cutoff", labId, start));
+        string memory puc = "provider-cancel-cutoff@inst";
+
+        harness.setInstitution(payer);
+        harness.setLabOwner(labId, providerOwner);
+        harness.setBackend(providerOwner, providerOwner);
+        harness.setReservation(key, user1, payer, 1_000_000, _ACCESS_AUTHORIZED, labId, start, puc);
+
+        vm.prank(providerOwner);
+        vm.expectRevert();
+        harness.cancelConfirmedBookingByProvider(key, 7);
+
+        harness.setReservation(key, user1, payer, 1_000_000, _CONFIRMED, labId, start, puc);
+        vm.warp(start);
+        vm.prank(providerOwner);
+        vm.expectRevert();
+        harness.cancelConfirmedBookingByProvider(key, 7);
     }
 }

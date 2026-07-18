@@ -19,11 +19,24 @@ library LibReputation {
     function recordOwnerCancellation(
         uint256 labId
     ) internal {
+        _recordCancellation(labId, "OWNER_CANCEL");
+    }
+
+    function recordProviderCancellation(
+        uint256 labId
+    ) internal {
+        _recordCancellation(labId, "PROVIDER_CANCEL");
+    }
+
+    function _recordCancellation(
+        uint256 labId,
+        string memory reason
+    ) private {
         AppStorage storage s = LibAppStorage.diamondStorage();
         LabReputation storage rep = s.labReputation[labId];
         rep.ownerCancellations += 1;
         int32 newScore = _applyDelta(rep, CANCELLATION_PENALTY);
-        emit LabReputationAdjusted(labId, CANCELLATION_PENALTY, newScore, rep.totalEvents, "OWNER_CANCEL");
+        emit LabReputationAdjusted(labId, CANCELLATION_PENALTY, newScore, rep.totalEvents, reason);
     }
 
     function recordCompletion(

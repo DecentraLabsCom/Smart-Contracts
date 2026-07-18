@@ -260,6 +260,7 @@
       "name": "InstitutionalReservationCancellationFacet",
       "target": "contracts/facets/reservation/institutional/InstitutionalReservationCancellationFacet.sol:InstitutionalReservationCancellationFacet",
       "functions": [
+        "cancelConfirmedBookingByProvider(bytes32,uint8)",
         "cancelInstitutionalBookingWithPucHash(address,bytes32,bytes32)",
         "cancelInstitutionalReservationRequest(address,bytes32,bytes32)"
       ]

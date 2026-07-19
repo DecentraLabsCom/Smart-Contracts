@@ -164,6 +164,7 @@ contract InstitutionalSpendingPeriodTest is BaseTest {
         assertEq(refundLot.fundingOrderId, reservationKey);
         assertEq(refundLot.expiresAt, expiry);
         assertEq(inst.getInstitutionalTreasuryBalance(INST), 1000);
+        assertEq(inst.getInstitutionalUserSpent(INST, pucHash), 0);
     }
 
     function test_refund_from_previous_period_does_not_reduce_current_period_spending() public {

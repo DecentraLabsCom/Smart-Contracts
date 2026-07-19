@@ -430,11 +430,14 @@ contract InstitutionalTreasuryFacet is
 
         uint256 periodDuration = _getSpendingPeriod(institution);
         uint256 currentPeriodStart = _currentPeriodStart(institution, periodDuration);
+        // Reservation markers use the same deterministic period boundary derived from chain time.
+        // slither-disable-next-line timestamp,incorrect-equality
         bool reservationWasSpentInCurrentPeriod =
             s.institutionalReservationPeriodStartPlusOne[reservationKey] == currentPeriodStart + 1;
 
         // A refund from a previous period restores treasury credits but must not
         // reduce the current period's spend or revive its allowance.
+        // slither-disable-next-line timestamp
         if (reservationWasSpentInCurrentPeriod && spending.amount >= amount) {
             spending.amount -= amount;
         }

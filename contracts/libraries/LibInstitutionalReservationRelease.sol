@@ -26,9 +26,6 @@ library LibInstitutionalReservationRelease {
     error InvalidBatchSize();
     error InvalidPucHash();
     error UnknownInstitution();
-    error UnauthorizedInstitution();
-    error BackendMissing();
-    error NotBackend();
 
     uint8 internal constant _PENDING = 0;
     uint8 internal constant _CONFIRMED = 1;
@@ -37,6 +34,10 @@ library LibInstitutionalReservationRelease {
 
     uint256 internal constant _PENDING_REQUEST_TTL = LibReservationConfig.PENDING_REQUEST_TTL;
 
+    /// @notice Finalize expired reservations for an institutional user.
+    /// @dev Permissionless by design: refunds and provider receivable accruals are
+    ///      determined from the reservation state, so they do not depend on the
+    ///      payer institution's backend remaining available or cooperating.
     function releaseInstitutionalExpiredReservations(
         address institutionalProvider,
         bytes32 pucHash,
@@ -45,9 +46,6 @@ library LibInstitutionalReservationRelease {
     ) external returns (uint256 processed) {
         AppStorage storage s = LibAppStorage.diamondStorage();
         if (!s.roleMembers[INSTITUTION_ROLE].contains(institutionalProvider)) revert UnknownInstitution();
-        address backend = s.institutionalBackends[institutionalProvider];
-        if (backend == address(0)) revert BackendMissing();
-        if (msg.sender != backend) revert NotBackend();
 
         if (maxBatch == 0 || maxBatch > 50) revert InvalidBatchSize();
         if (pucHash == bytes32(0)) revert InvalidPucHash();

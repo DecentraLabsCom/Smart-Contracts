@@ -83,7 +83,13 @@ function DiamondCutBatch {
 
     if ($Broadcast) {
         Write-Host "  Sending batch diamondCut..."
-        cast send $Diamond $calldata --rpc-url $Env:RPC_URL --private-key $Env:PRIVATE_KEY
+        $rawResult = & cast send $Diamond $calldata --rpc-url $Env:RPC_URL --private-key $Env:PRIVATE_KEY 2>&1
+        $sendExitCode = $LASTEXITCODE
+        $result = ($rawResult | Out-String).Trim()
+        if ($sendExitCode -ne 0 -or $result -notmatch 'status\s+1') {
+            throw "diamondCut transaction failed (exit code $sendExitCode): $result"
+        }
+        Write-Host $result
     } else {
         Write-Output "  Dry-run: cast send $Diamond <calldata> --rpc-url ..."
     }
@@ -547,28 +553,29 @@ function Send-Call {
         }
     }
     if ($missingArgs.Count -gt 0) {
-        Write-Warning "SKIPPING $Sig - missing/empty arguments: $($missingArgs -join ', ') (check .env)"
-        return
+        throw "Initialization $Sig has missing/empty arguments: $($missingArgs -join ', ') (check .env)"
     }
     
-    $calldata = & cast calldata $Sig @CallArgs 2>&1
-    if ($LASTEXITCODE -ne 0 -or -not $calldata -or $calldata -notmatch '^0x') {
-        Write-Warning "SKIPPING $Sig - failed to encode calldata: $calldata"
-        return
+    $calldataOutput = & cast calldata $Sig @CallArgs 2>&1
+    $calldataExitCode = $LASTEXITCODE
+    $calldata = ($calldataOutput | Out-String).Trim()
+    if ($calldataExitCode -ne 0 -or -not $calldata -or $calldata -notmatch '^0x') {
+        throw "Initialization $Sig failed to encode calldata (exit code $calldataExitCode): $calldata"
     }
     
     if ($Broadcast) {
         Write-Host "Calling $Sig on $To..."
-        $result = cast send $To $calldata --rpc-url $Env:RPC_URL --private-key $Env:PRIVATE_KEY 2>&1 | Out-String
-        if ($result -match "already initialized") {
+        $rawResult = & cast send $To $calldata --rpc-url $Env:RPC_URL --private-key $Env:PRIVATE_KEY 2>&1
+        $sendExitCode = $LASTEXITCODE
+        $result = ($rawResult | Out-String).Trim()
+        if ($sendExitCode -ne 0) {
+            throw "Initialization $Sig transaction failed (exit code $sendExitCode): $result"
+        } elseif ($result -match "already initialized") {
             Write-Host "  [OK] $Sig - already initialized (skipping)" -ForegroundColor Yellow
         } elseif ($result -match "status\s+1") {
             Write-Host "  [OK] $Sig - success" -ForegroundColor Green
-        } elseif ($result -match "error|revert|failed") {
-            Write-Warning "  [WARN] $Sig may have failed: check transaction"
-            Write-Host $result
         } else {
-            Write-Host $result
+            throw "Initialization $Sig did not return a successful receipt: $result"
         }
     } else {
         Write-Output "Dry-run: cast send $To $calldata --rpc-url <RPC_URL> --private-key <PRIVATE_KEY>"

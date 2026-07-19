@@ -8,7 +8,6 @@ import {LibAccessControlEnumerable} from "../../libraries/LibAccessControlEnumer
 import {LibERC721Storage} from "../../libraries/LibERC721Storage.sol";
 import {LibReputation} from "../../libraries/LibReputation.sol";
 import {LibProviderReceivable, SETTLEMENT_OPERATOR_ROLE} from "../../libraries/LibProviderReceivable.sol";
-import {LibHeap} from "../../libraries/LibHeap.sol";
 import {LibTracking} from "../../libraries/LibTracking.sol";
 import {RivalIntervalTreeLibrary, Tree} from "../../libraries/RivalIntervalTreeLibrary.sol";
 
@@ -642,7 +641,9 @@ contract ProviderSettlementFacet is ReentrancyGuardTransient {
         }
 
         _cleanupSettledReservationIndexes(s, key, reservation, labId);
-        LibHeap.removePayoutCandidates(s, labId, key);
+        // `_popEligiblePayoutCandidate` already removed this exact heap root.
+        // Do not scan the remaining heap for the same key: doing so once per
+        // reservation would turn a batch settlement into O(n^2).
 
         // Accrue shares to canonical on-chain provider debt buckets.
         LibProviderReceivable.accrueReceivable(labId, reservation.providerShare, key);

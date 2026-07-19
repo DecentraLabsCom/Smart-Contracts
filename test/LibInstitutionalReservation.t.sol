@@ -181,6 +181,29 @@ contract LibInstitutionalReservationTest is BaseTest {
         assertEq(harness.providerReceivable(labId), 1_000_000);
     }
 
+    function test_releaseInstitutionalExpiredReservations_allows_third_party_without_payer_backend() public {
+        vm.warp(10_000);
+        address inst = address(0xCAFE);
+        address thirdParty = address(0xD00D);
+        uint256 labId = 16;
+        uint32 start = uint32(block.timestamp - 7200);
+        uint32 end = uint32(block.timestamp - 3600);
+        bytes32 key = keccak256(abi.encodePacked("expired-without-backend", labId, start));
+        bytes32 pucHash = keccak256(bytes("orphaned-backend@inst"));
+
+        harness.setInstitution(inst);
+        harness.setIndexedExpiredReservation(
+            key, user1, inst, 1_000_000, _ACCESS_AUTHORIZED, labId, start, end, "orphaned-backend@inst"
+        );
+
+        vm.prank(thirdParty);
+        uint256 processed = harness.releaseInstitutionalExpiredReservationsWrapper(inst, pucHash, labId, 10);
+
+        assertEq(processed, 1);
+        assertEq(harness.getReservationStatus(key), _SETTLED);
+        assertEq(harness.lastRefundAmount(), 1_000_000);
+    }
+
     function test_releaseInstitutionalExpiredReservations_repairs_active_reservation_pointer() public {
         vm.warp(10_000);
         address inst = address(0xCAFE);

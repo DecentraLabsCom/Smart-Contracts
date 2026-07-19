@@ -165,4 +165,35 @@ contract InstitutionalSpendingPeriodTest is BaseTest {
         assertEq(refundLot.expiresAt, expiry);
         assertEq(inst.getInstitutionalTreasuryBalance(INST), 1000);
     }
+
+    function test_refund_from_previous_period_does_not_reduce_current_period_spending() public {
+        inst.exposed_setInstitutionRole(INST);
+        inst.exposed_setBackend(INST, BACKEND);
+        inst.exposed_mintCredits(INST, 1000);
+
+        vm.prank(INST);
+        inst.setInstitutionalUserLimit(100);
+        vm.prank(INST);
+        inst.setInstitutionalSpendingPeriod(100);
+
+        bytes32 pucHash = keccak256(bytes("period-aware-refund@inst"));
+        bytes32 oldReservationKey = keccak256(bytes("old-reservation"));
+        bytes32 currentReservationKey = keccak256(bytes("current-reservation"));
+
+        vm.warp(1000);
+        vm.prank(BACKEND);
+        inst.spendFromInstitutionalTreasuryForReservation(INST, pucHash, oldReservationKey, 60);
+
+        vm.warp(1100);
+        vm.prank(BACKEND);
+        inst.spendFromInstitutionalTreasuryForReservation(INST, pucHash, currentReservationKey, 80);
+        assertEq(inst.getInstitutionalUserSpent(INST, pucHash), 80);
+
+        inst.exposed_refundForReservation(INST, pucHash, oldReservationKey, 60);
+
+        assertEq(inst.getInstitutionalUserSpent(INST, pucHash), 80);
+        vm.prank(BACKEND);
+        vm.expectRevert(bytes("User spending limit exceeded for period"));
+        inst.checkInstitutionalTreasuryAvailability(INST, pucHash, 21);
+    }
 }

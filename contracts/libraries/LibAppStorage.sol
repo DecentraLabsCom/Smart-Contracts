@@ -273,6 +273,10 @@ struct AppStorage {
     // Original expiry carried through a reservation lock so refunds cannot
     // silently become perpetual credits.
     mapping(address account => mapping(bytes32 reservationRef => uint48 expiresAt)) creditReservationExpiry;
+
+    // Spending period captured when a reservation charge is recorded. The value
+    // is periodStart + 1 so zero remains the unset value for legacy reservations.
+    mapping(bytes32 reservationKey => uint256 periodStartPlusOne) institutionalReservationPeriodStartPlusOne;
 }
 
 /// @notice Provider participation status within the limited service network

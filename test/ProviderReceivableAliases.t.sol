@@ -313,6 +313,13 @@ contract ProviderReceivableAliasesTest is Test {
         assertEq(harness.totalReservations(), 0);
     }
 
+    function test_requestProviderPayout_batch_growth_is_not_quadratic_in_heap_size() public {
+        uint256 gasForSmallBatch = _measurePayoutGas(16);
+        uint256 gasForLargeBatch = _measurePayoutGas(96);
+
+        assertLt(gasForLargeBatch, gasForSmallBatch * 8);
+    }
+
     function test_heap_compaction_preserves_future_confirmed_candidate() public {
         bytes32 invalidKey = keccak256("invalid-before-future");
         bytes32 futureKey = keccak256("future-confirmed");
@@ -449,5 +456,25 @@ contract ProviderReceivableAliasesTest is Test {
             ignoredLastAccruedAt
         ) = harness.getLabProviderReceivableLifecycle(LAB_ID);
         ignoredLastAccruedAt;
+    }
+
+    function _measurePayoutGas(
+        uint256 batchSize
+    ) internal returns (uint256 gasUsed) {
+        ProviderReceivableHarness measurementHarness = new ProviderReceivableHarness();
+        measurementHarness.initialize(address(this), PROVIDER, LAB_ID);
+
+        for (uint256 i; i < batchSize; i++) {
+            bytes32 reservationKey = keccak256(abi.encodePacked("gas-batch", batchSize, i));
+            measurementHarness.setExpiredPayoutReservation(
+                reservationKey, LAB_ID, ACCESS_AUTHORIZED, FIVE_CREDITS_U96, uint32(100 + i)
+            );
+            measurementHarness.markSessionStartedForTest(reservationKey);
+        }
+
+        uint256 gasBefore = gasleft();
+        vm.prank(PROVIDER);
+        measurementHarness.requestProviderPayout(LAB_ID, batchSize);
+        gasUsed = gasBefore - gasleft();
     }
 }

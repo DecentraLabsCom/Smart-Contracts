@@ -390,6 +390,7 @@ contract InstitutionalTreasuryFacet is
         _spendTreasuryBalance(institution, amount, reservationKey);
         spending.amount = newSpent;
         spending.totalHistoricalSpent += amount;
+        s.institutionalReservationPeriodStartPlusOne[reservationKey] = periodStart + 1;
 
         emit InstitutionalUserSpent(institution, pucHash, amount, newSpent, periodStart);
     }
@@ -427,16 +428,16 @@ contract InstitutionalTreasuryFacet is
         // Always decrement totalHistoricalSpent (tracks all-time spending)
         spending.totalHistoricalSpent -= amount;
 
-        // Check if we're in the same period as when the spend was tracked
-        // Only decrement current period amount if refund doesn't exceed it
-        // (prevents underflow when refunding old-period bookings after rollover)
-        if (spending.amount >= amount) {
-            spending.amount -= amount;
-        }
-
-        // Get current period for event logging
         uint256 periodDuration = _getSpendingPeriod(institution);
         uint256 currentPeriodStart = _currentPeriodStart(institution, periodDuration);
+        bool reservationWasSpentInCurrentPeriod =
+            s.institutionalReservationPeriodStartPlusOne[reservationKey] == currentPeriodStart + 1;
+
+        // A refund from a previous period restores treasury credits but must not
+        // reduce the current period's spend or revive its allowance.
+        if (reservationWasSpentInCurrentPeriod && spending.amount >= amount) {
+            spending.amount -= amount;
+        }
 
         emit InstitutionalUserSpent(institution, pucHash, 0, spending.amount, currentPeriodStart);
         emit InstitutionalTreasuryRefunded(

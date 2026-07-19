@@ -131,10 +131,14 @@ contract LibHeapStress is BaseTest {
         harness.setReservation(key, labId, 1);
         harness.setReservationEnd(key, 100);
         harness.enqueueViaLib(labId, key, 100);
+        assertEq(harness.payoutHeapIndexPlusOne(key), 1);
         harness.removePayoutCandidates(labId, key);
+        assertEq(harness.payoutHeapIndexPlusOne(key), 0);
+        assertFalse(harness.payoutHeapContains(key));
 
         harness.setReservationEnd(key, 200);
         harness.enqueueViaLib(labId, key, 200);
+        assertEq(harness.payoutHeapIndexPlusOne(key), 1);
 
         assertEq(harness.popEligible(labId, 150), bytes32(0));
         assertEq(harness.popEligible(labId, 250), key);

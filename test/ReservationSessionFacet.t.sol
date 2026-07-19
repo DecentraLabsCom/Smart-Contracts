@@ -123,6 +123,24 @@ contract ReservationSessionFacetTest is Test {
         assertEq(session.credentialHash, credentialHash);
     }
 
+    function test_markSessionStarted_acceptsAttestation_atGraceBoundary() public {
+        vm.warp(uint256(startedAt) + 1 days);
+        ReservationSessionFacet.SessionStartedInput memory input =
+            _input(provider, PROVIDER_PK, nonce, "guac-session-boundary");
+
+        harness.markSessionStarted(input);
+        assertTrue(harness.hasReservationSessionStarted(reservationKey));
+    }
+
+    function test_markSessionStarted_rejectsAttestation_afterGraceBoundary() public {
+        vm.warp(uint256(startedAt) + 1 days + 1);
+        ReservationSessionFacet.SessionStartedInput memory input =
+            _input(provider, PROVIDER_PK, nonce, "guac-session-too-late");
+
+        vm.expectRevert("Attestation too old");
+        harness.markSessionStarted(input);
+    }
+
     function test_markSessionStarted_requiresAccessAuthorizedState() public {
         harness.setReservation(
             reservationKey, address(0xCAFE), _CONFIRMED, LAB_ID, reservationStart, reservationEnd, pucHash

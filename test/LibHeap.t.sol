@@ -59,4 +59,45 @@ contract LibHeapTest is BaseTest {
         assertEq(popped, good);
         assertEq(harness.heapLength(labId), 0);
     }
+
+    function test_accessAuthorizedWithoutAttestation_staysInHeapDuringGrace() public {
+        uint256 labId = 4;
+        bytes32 key = keccak256("access-authorized-without-attestation");
+
+        harness.setReservation(key, labId, 2); // ACCESS_AUTHORIZED
+        harness.setReservationEnd(key, 1000);
+        harness.enqueueViaLib(labId, key, 1000);
+
+        vm.warp(1000 + 1 days);
+        assertEq(harness.popEligible(labId, block.timestamp), bytes32(0));
+        assertEq(harness.heapLength(labId), 1);
+        assertTrue(harness.payoutHeapContains(key));
+
+        harness.setSessionStarted(key);
+        assertEq(harness.popEligible(labId, block.timestamp), key);
+        assertEq(harness.heapLength(labId), 0);
+    }
+
+    function test_removePayoutCandidate_updatesIndexes_afterMiddleRemoval() public {
+        uint256 labId = 5;
+        bytes32 first = keccak256("first");
+        bytes32 middle = keccak256("middle");
+        bytes32 last = keccak256("last");
+
+        harness.setReservation(first, labId, 1);
+        harness.setReservation(middle, labId, 1);
+        harness.setReservation(last, labId, 1);
+        harness.setReservationEnd(first, 100);
+        harness.setReservationEnd(middle, 300);
+        harness.setReservationEnd(last, 200);
+        harness.enqueueViaLib(labId, first, 100);
+        harness.enqueueViaLib(labId, middle, 300);
+        harness.enqueueViaLib(labId, last, 200);
+
+        harness.removePayoutCandidates(labId, middle);
+
+        assertEq(harness.payoutHeapIndexPlusOne(middle), 0);
+        assertEq(harness.popEligible(labId, 250), first);
+        assertEq(harness.popEligible(labId, 250), last);
+    }
 }

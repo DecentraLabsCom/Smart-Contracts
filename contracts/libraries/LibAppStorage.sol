@@ -277,6 +277,10 @@ struct AppStorage {
     // Spending period captured when a reservation charge is recorded. The value
     // is periodStart + 1 so zero remains the unset value for legacy reservations.
     mapping(bytes32 reservationKey => uint256 periodStartPlusOne) institutionalReservationPeriodStartPlusOne;
+
+    // Payout heap index. Zero means the candidate is not indexed (including legacy
+    // entries); indexed entries store their zero-based array index plus one.
+    mapping(bytes32 reservationKey => uint256 indexPlusOne) payoutHeapIndexPlusOne;
 }
 
 /// @notice Provider participation status within the limited service network

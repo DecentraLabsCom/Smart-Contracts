@@ -142,6 +142,20 @@ contract LibInstitutionalReservationTest is BaseTest {
         vm.prank(backend);
         uint256 processed = harness.releaseInstitutionalExpiredReservationsWrapper(inst, pucHash, labId, 10);
 
+        assertEq(processed, 0);
+        assertEq(harness.getReservationStatus(key), _ACCESS_AUTHORIZED);
+        assertEq(harness.lastRefundAmount(), 0);
+
+        vm.warp(uint256(end) + 1 days);
+        vm.prank(backend);
+        processed = harness.releaseInstitutionalExpiredReservationsWrapper(inst, pucHash, labId, 10);
+        assertEq(processed, 0);
+        assertEq(harness.getReservationStatus(key), _ACCESS_AUTHORIZED);
+
+        vm.warp(uint256(end) + 1 days + 1);
+        vm.prank(backend);
+        processed = harness.releaseInstitutionalExpiredReservationsWrapper(inst, pucHash, labId, 10);
+
         assertEq(processed, 1);
         assertEq(harness.getReservationStatus(key), _SETTLED);
         (int32 score, uint32 totalEvents, uint32 ownerCancellations,) = harness.getLabReputation(labId);
@@ -196,6 +210,7 @@ contract LibInstitutionalReservationTest is BaseTest {
             key, user1, inst, 1_000_000, _ACCESS_AUTHORIZED, labId, start, end, "orphaned-backend@inst"
         );
 
+        vm.warp(uint256(end) + 1 days + 1);
         vm.prank(thirdParty);
         uint256 processed = harness.releaseInstitutionalExpiredReservationsWrapper(inst, pucHash, labId, 10);
 
@@ -225,6 +240,7 @@ contract LibInstitutionalReservationTest is BaseTest {
             secondKey, user1, inst, 1_000_000, _ACCESS_AUTHORIZED, labId, secondStart, secondStart + 300, puc
         );
 
+        vm.warp(uint256(secondStart + 300) + 1 days + 1);
         vm.prank(backend);
         harness.releaseInstitutionalExpiredReservationsWrapper(inst, pucHash, labId, 1);
 

@@ -334,13 +334,22 @@ contract ProviderReceivableAliasesTest is Test {
         assertEq(harness.payoutHeapLength(LAB_ID), 1);
     }
 
-    function test_requestProviderPayout_skips_unattested_expired_candidate_and_settles_attested_candidate() public {
+    function test_requestProviderPayout_waits_for_unattested_attestation_grace() public {
         bytes32 unattestedKey = keccak256("unattested-root");
         bytes32 attestedKey = keccak256("attested-next");
         harness.setExpiredPayoutReservation(unattestedKey, LAB_ID, ACCESS_AUTHORIZED, FIVE_CREDITS_U96, 998);
         harness.setExpiredPayoutReservation(attestedKey, LAB_ID, ACCESS_AUTHORIZED, FIVE_CREDITS_U96, 999);
         harness.markSessionStartedForTest(attestedKey);
 
+        vm.prank(PROVIDER);
+        vm.expectRevert("No settleable reservations");
+        harness.requestProviderPayout(LAB_ID, 10);
+
+        assertEq(harness.payoutHeapLength(LAB_ID), 2);
+        assertEq(harness.getReservationStatus(unattestedKey), ACCESS_AUTHORIZED);
+        assertEq(harness.getReservationStatus(attestedKey), ACCESS_AUTHORIZED);
+
+        vm.warp(999 + 1 days + 1);
         vm.prank(PROVIDER);
         harness.requestProviderPayout(LAB_ID, 10);
 

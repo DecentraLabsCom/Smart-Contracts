@@ -69,10 +69,7 @@ library LibInstitutionalReservationRelease {
             bytes32 key = userReservations.at(i);
             Reservation storage reservation = s.reservations[key];
 
-            if (
-                reservation.end < currentTime
-                    && (reservation.status == _CONFIRMED || reservation.status == _ACCESS_AUTHORIZED)
-            ) {
+            if (_isEconomicallyExpired(s, reservation, key, currentTime)) {
                 _simpleFinalizeReservation(s, key, reservation, labId, trackingKey);
                 len = userReservations.length();
                 unchecked {
@@ -100,6 +97,26 @@ library LibInstitutionalReservationRelease {
         }
 
         return processed;
+    }
+
+    function _isEconomicallyExpired(
+        AppStorage storage s,
+        Reservation storage reservation,
+        bytes32 key,
+        uint256 currentTime
+    ) private view returns (bool) {
+        if (reservation.status == _CONFIRMED) {
+            return reservation.end < currentTime;
+        }
+        if (reservation.status != _ACCESS_AUTHORIZED) {
+            return false;
+        }
+
+        if (s.reservationSessionStartedRecorded[key]) {
+            return reservation.end < currentTime;
+        }
+
+        return currentTime > LibReservationConfig.sessionAttestationDeadline(reservation.end);
     }
 
     function _simpleFinalizeReservation(

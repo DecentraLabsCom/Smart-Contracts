@@ -4,12 +4,12 @@ pragma solidity ^0.8.33;
 import {SignatureChecker} from "@openzeppelin/contracts/utils/cryptography/SignatureChecker.sol";
 import {AppStorage, LibAppStorage, Reservation, ReservationSession} from "../../libraries/LibAppStorage.sol";
 import {LibERC721Storage} from "../../libraries/LibERC721Storage.sol";
+import {LibReservationConfig} from "../../libraries/LibReservationConfig.sol";
 
 /// @title ReservationSessionFacet
 /// @notice Records provider-signed proof that the lab session actually started after payer access authorization.
 contract ReservationSessionFacet {
     uint8 internal constant _ACCESS_AUTHORIZED = 2;
-    uint64 internal constant _MAX_SESSION_ATTESTATION_DELAY = 1 days;
 
     bytes32 private constant EIP712_DOMAIN_TYPEHASH =
         keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)");
@@ -123,7 +123,7 @@ contract ReservationSessionFacet {
         // forge-lint: disable-next-line(block-timestamp)
         // slither-disable-next-line timestamp
         if (input.startedAt > block.timestamp) revert("StartedAt in future");
-        if (block.timestamp - input.startedAt > _MAX_SESSION_ATTESTATION_DELAY) {
+        if (block.timestamp - input.startedAt > LibReservationConfig.SESSION_ATTESTATION_GRACE) {
             revert("Attestation too old");
         }
         if (keccak256(bytes(input.labId)) != keccak256(bytes(_uintToString(reservation.labId)))) {

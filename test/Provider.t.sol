@@ -115,10 +115,11 @@ contract ProviderTest is BaseTest {
             functionSelectors: treasurySelectors
         });
 
-        bytes4[] memory orgSelectors = new bytes4[](3);
+        bytes4[] memory orgSelectors = new bytes4[](4);
         orgSelectors[0] = _selector("registerSchacHomeOrganization(string)");
-        orgSelectors[1] = _selector("resolveSchacHomeOrganization(string)");
-        orgSelectors[2] = _selector("getRegisteredSchacHomeOrganizations(address)");
+        orgSelectors[1] = _selector("adminRegisterSchacHomeOrganization(address,string)");
+        orgSelectors[2] = _selector("resolveSchacHomeOrganization(string)");
+        orgSelectors[3] = _selector("getRegisteredSchacHomeOrganizations(address)");
         cut2[6] = IDiamond.FacetCut({
             facetAddress: address(orgRegistryFacetImpl),
             action: IDiamond.FacetCutAction.Add,
@@ -200,8 +201,12 @@ contract ProviderTest is BaseTest {
 
         vm.startPrank(provider1);
         treasuryFacet.authorizeBackend(backend);
+        vm.expectRevert(bytes("Only admin"));
         orgRegistryFacet.registerSchacHomeOrganization("Example.EDU");
         vm.stopPrank();
+
+        vm.prank(admin);
+        orgRegistryFacet.adminRegisterSchacHomeOrganization(provider1, "Example.EDU");
 
         assertEq(treasuryFacet.getAuthorizedBackend(provider1), backend);
         assertEq(orgRegistryFacet.resolveSchacHomeOrganization("example.edu"), provider1);

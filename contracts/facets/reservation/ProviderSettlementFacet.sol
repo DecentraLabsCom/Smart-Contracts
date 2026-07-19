@@ -9,6 +9,7 @@ import {LibERC721Storage} from "../../libraries/LibERC721Storage.sol";
 import {LibReputation} from "../../libraries/LibReputation.sol";
 import {LibProviderReceivable, SETTLEMENT_OPERATOR_ROLE} from "../../libraries/LibProviderReceivable.sol";
 import {LibTracking} from "../../libraries/LibTracking.sol";
+import {LibReservationConfig} from "../../libraries/LibReservationConfig.sol";
 import {RivalIntervalTreeLibrary, Tree} from "../../libraries/RivalIntervalTreeLibrary.sol";
 
 /// @title ProviderSettlementFacet
@@ -498,6 +499,7 @@ contract ProviderSettlementFacet is ReentrancyGuardTransient {
         if (heapSize > 0 && invalidCount > heapSize / 5) {
             _compactHeap(s, labId);
             heapSize = heap.length;
+            invalidCount = s.payoutHeapInvalidCount[labId];
         }
 
         while (heapSize > 0) {
@@ -507,13 +509,17 @@ contract ProviderSettlementFacet is ReentrancyGuardTransient {
             if (root.end > currentTime) {
                 return bytes32(0);
             }
-            _removeHeapRoot(heap);
-            s.payoutHeapContains[root.key] = false;
             Reservation storage reservation = s.reservations[root.key];
+            bool isCurrent = reservation.labId == labId && (reservation.end == 0 || reservation.end == root.end);
             if (
-                (reservation.end == 0 || reservation.end == root.end)
-                    && _isProviderSettleableSession(s, root.key, reservation, labId)
+                isCurrent && reservation.status == _ACCESS_AUTHORIZED && !s.reservationSessionStartedRecorded[root.key]
+                    && LibReservationConfig.isWithinSessionAttestationGrace(reservation.end, currentTime)
             ) {
+                return bytes32(0);
+            }
+
+            _removeHeapRoot(s, heap);
+            if (isCurrent && _isProviderSettleableSession(s, root.key, reservation, labId)) {
                 return root.key;
             }
             if (invalidCount > 0) {
@@ -526,19 +532,26 @@ contract ProviderSettlementFacet is ReentrancyGuardTransient {
     }
 
     function _removeHeapRoot(
+        AppStorage storage s,
         PayoutCandidate[] storage heap
     ) internal {
         uint256 lastIndex = heap.length - 1;
+        bytes32 removedKey = heap[0].key;
+        s.payoutHeapIndexPlusOne[removedKey] = 0;
+        s.payoutHeapContains[removedKey] = false;
         if (lastIndex == 0) {
             heap.pop();
             return;
         }
+        bytes32 movedKey = heap[lastIndex].key;
         heap[0] = heap[lastIndex];
         heap.pop();
-        _heapifyDown(heap, 0);
+        s.payoutHeapIndexPlusOne[movedKey] = 1;
+        _heapifyDown(s, heap, 0);
     }
 
     function _heapifyDown(
+        AppStorage storage s,
         PayoutCandidate[] storage heap,
         uint256 index
     ) internal {
@@ -556,9 +569,13 @@ contract ProviderSettlementFacet is ReentrancyGuardTransient {
             if (heap[index].end <= heap[smallest].end) {
                 break;
             }
+            bytes32 currentKey = heap[index].key;
+            bytes32 smallestKey = heap[smallest].key;
             PayoutCandidate memory temp = heap[index];
             heap[index] = heap[smallest];
             heap[smallest] = temp;
+            s.payoutHeapIndexPlusOne[currentKey] = smallest + 1;
+            s.payoutHeapIndexPlusOne[smallestKey] = index + 1;
             index = smallest;
         }
     }
@@ -585,9 +602,12 @@ contract ProviderSettlementFacet is ReentrancyGuardTransient {
                 if (writeIndex != readIndex) {
                     heap[writeIndex] = heap[readIndex];
                 }
+                s.payoutHeapContains[key] = true;
+                s.payoutHeapIndexPlusOne[key] = writeIndex + 1;
                 writeIndex++;
             } else {
                 s.payoutHeapContains[key] = false;
+                s.payoutHeapIndexPlusOne[key] = 0;
             }
         }
 
@@ -597,7 +617,7 @@ contract ProviderSettlementFacet is ReentrancyGuardTransient {
 
         if (writeIndex > 1) {
             for (uint256 i = (writeIndex - 1) / 2 + 1; i > 0; i--) {
-                _heapifyDown(heap, i - 1);
+                _heapifyDown(s, heap, i - 1);
             }
         }
 

@@ -41,6 +41,7 @@ contract LibHeapHarness {
         AppStorage storage s = _s();
         s.payoutHeaps[labId].push(PayoutCandidate({end: end, key: key}));
         s.payoutHeapContains[key] = true;
+        s.payoutHeapIndexPlusOne[key] = s.payoutHeaps[labId].length;
     }
 
     function setReservation(
@@ -81,6 +82,24 @@ contract LibHeapHarness {
     ) external {
         AppStorage storage s = _s();
         s.reservations[key].status = status;
+    }
+
+    function setSessionStarted(
+        bytes32 key
+    ) external {
+        _s().reservationSessionStartedRecorded[key] = true;
+    }
+
+    function payoutHeapIndexPlusOne(
+        bytes32 key
+    ) external view returns (uint256) {
+        return _s().payoutHeapIndexPlusOne[key];
+    }
+
+    function payoutHeapContains(
+        bytes32 key
+    ) external view returns (bool) {
+        return _s().payoutHeapContains[key];
     }
 
     // Test helpers for stress/fuzz/gas tests

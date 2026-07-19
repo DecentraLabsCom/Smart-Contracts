@@ -7,17 +7,18 @@ import {LibInstitutionalOrg} from "../../../libraries/LibInstitutionalOrg.sol";
 
 /// @title InstitutionalOrgRegistryFacet
 /// @notice On-chain registry that maps schacHomeOrganization identifiers to provider wallets
-/// @dev Allows lab providers to self-register the domains (usually the institution's schacHomeOrganization)
-///      they control so authorized backends can resolve which institutional treasury should be charged.
+/// @dev Domain registration is administration-controlled in production. Role holders may manage
+///      their existing records, but cannot claim an unverified schacHomeOrganization namespace.
 contract InstitutionalOrgRegistryFacet {
     using EnumerableSet for EnumerableSet.AddressSet;
     using EnumerableSet for EnumerableSet.Bytes32Set;
 
-    /// @notice Register a schacHomeOrganization for the caller's provider account
+    /// @notice Register the default administrator's own schacHomeOrganization
+    /// @dev Registration for any other institution must use the explicit admin helper below.
     /// @param schacHomeOrganization The organization identifier (will be normalized to lowercase)
     function registerSchacHomeOrganization(
         string calldata schacHomeOrganization
-    ) external onlyInstitution {
+    ) external onlyDefaultAdmin {
         string memory normalized = LibInstitutionalOrg.normalizeOrganization(schacHomeOrganization);
         LibInstitutionalOrg.registerOrganization(_s(), msg.sender, normalized);
     }

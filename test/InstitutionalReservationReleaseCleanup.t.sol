@@ -113,6 +113,8 @@ contract InstitutionalReservationReleaseCleanupHarness {
 }
 
 contract InstitutionalReservationReleaseCleanupTest is Test {
+    uint8 internal constant CONFIRMED = 1;
+    uint8 internal constant SETTLED = 3;
     InstitutionalReservationReleaseCleanupHarness internal harness;
 
     function setUp() public {
@@ -134,11 +136,34 @@ contract InstitutionalReservationReleaseCleanupTest is Test {
         vm.warp(end + 1);
         assertEq(harness.release(institution, pucHash, labId), 1);
 
-        assertEq(harness.reservationStatus(key), 3);
+        assertEq(harness.reservationStatus(key), SETTLED);
         assertFalse(harness.hasCalendarSlot(labId, start));
         assertFalse(harness.hasGlobalReservation(labId, key));
         assertFalse(harness.hasUserReservation(renter, key));
         assertFalse(harness.hasUserReservation(trackingIndex, key));
         assertFalse(harness.hasInstitutionalReservation(labId, trackingIndex, key));
+    }
+
+    function test_release_does_not_clean_when_reservation_not_expired() public {
+        address institution = address(0xCAFE);
+        address renter = institution;
+        uint256 labId = 42;
+        uint32 start = 1000;
+        uint32 end = 2000;
+        bytes32 pucHash = keccak256("cleanup-user");
+        bytes32 key = keccak256("cleanup-reservation-not-expired");
+
+        harness.seedExpiredReservation(key, institution, renter, labId, start, end, pucHash);
+        address trackingIndex = harness.trackingKey(institution, pucHash);
+
+        vm.warp(end);
+        assertEq(harness.release(institution, pucHash, labId), 0);
+
+        assertEq(harness.reservationStatus(key), CONFIRMED);
+        assertTrue(harness.hasCalendarSlot(labId, start));
+        assertTrue(harness.hasGlobalReservation(labId, key));
+        assertTrue(harness.hasUserReservation(renter, key));
+        assertTrue(harness.hasUserReservation(trackingIndex, key));
+        assertTrue(harness.hasInstitutionalReservation(labId, trackingIndex, key));
     }
 }

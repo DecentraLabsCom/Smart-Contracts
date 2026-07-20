@@ -86,7 +86,7 @@ contract ProviderSettlementFacet is ReentrancyGuardTransient {
         s = LibAppStorage.diamondStorage();
     }
 
-    /// @notice Requests settlement of the currently accrued provider receivable for a lab
+    /// @notice Processes eligible reservations and queues receivable accrued by this batch for a lab
     function requestProviderPayout(
         uint256 _labId,
         uint256 maxBatch
@@ -379,8 +379,10 @@ contract ProviderSettlementFacet is ReentrancyGuardTransient {
         emit ProviderReceivableLifecycleTransition(msg.sender, _labId, fromState, toState, amount, referenceHash);
     }
 
-    /// @dev Traverses payout heap with pruning:
-    ///      if node.end > currentTime, all descendants are also ineligible.
+    /// @dev Traverses payout heap with pruning under a strict invariant:
+    ///      `heap` must be a strict min-heap ordered by `end` for all active nodes.
+    ///      Under that invariant, if `node.end > currentTime`, all descendants are also ineligible.
+    ///      Any heap rebuild, compaction, or update path must preserve this ordering assumption.
     function _accumulateEligiblePayoutFromHeap(
         AppStorage storage s,
         PayoutCandidate[] storage heap,
@@ -446,6 +448,7 @@ contract ProviderSettlementFacet is ReentrancyGuardTransient {
 
         uint256 processed = 0;
         uint256 currentTime = block.timestamp;
+        uint256 accruedBefore = s.providerReceivableAccrued[_labId];
 
         while (processed < maxBatch) {
             bytes32 key = _popEligiblePayoutCandidate(s, _labId, currentTime);
@@ -460,7 +463,8 @@ contract ProviderSettlementFacet is ReentrancyGuardTransient {
             }
         }
 
-        uint256 providerPayout = s.providerReceivableAccrued[_labId];
+        uint256 accruedAfter = s.providerReceivableAccrued[_labId];
+        uint256 providerPayout = accruedAfter - accruedBefore;
         if (providerPayout == 0 && processed == 0) revert("No settleable reservations");
 
         if (providerPayout > 0) {

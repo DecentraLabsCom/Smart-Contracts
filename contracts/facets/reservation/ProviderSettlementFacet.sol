@@ -832,5 +832,4 @@ contract ProviderSettlementFacet is ReentrancyGuardTransient {
 
         return true;
     }
-
 }

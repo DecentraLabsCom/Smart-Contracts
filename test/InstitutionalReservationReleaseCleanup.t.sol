@@ -3,12 +3,7 @@ pragma solidity ^0.8.33;
 
 import "forge-std/Test.sol";
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
-import {
-    AppStorage,
-    LibAppStorage,
-    Reservation,
-    INSTITUTION_ROLE
-} from "../contracts/libraries/LibAppStorage.sol";
+import {AppStorage, LibAppStorage, Reservation, INSTITUTION_ROLE} from "../contracts/libraries/LibAppStorage.sol";
 import {LibInstitutionalReservationRelease} from "../contracts/libraries/LibInstitutionalReservationRelease.sol";
 import {LibTracking} from "../contracts/libraries/LibTracking.sol";
 import {RivalIntervalTreeLibrary, Tree} from "../contracts/libraries/RivalIntervalTreeLibrary.sol";
@@ -19,6 +14,7 @@ contract InstitutionalReservationReleaseCleanupHarness {
     using RivalIntervalTreeLibrary for Tree;
 
     uint8 internal constant CONFIRMED = 1;
+
     function seedExpiredReservation(
         bytes32 key,
         address institution,
@@ -61,9 +57,8 @@ contract InstitutionalReservationReleaseCleanupHarness {
         bytes32 pucHash,
         uint256 labId
     ) external returns (uint256) {
-        return LibInstitutionalReservationRelease.releaseInstitutionalExpiredReservations(
-            institution, pucHash, labId, 1
-        );
+        return
+            LibInstitutionalReservationRelease.releaseInstitutionalExpiredReservations(institution, pucHash, labId, 1);
     }
 
     function refundToInstitutionalTreasuryForReservation(
@@ -73,31 +68,45 @@ contract InstitutionalReservationReleaseCleanupHarness {
         uint256
     ) external {}
 
-    function reservationStatus(bytes32 key) external view returns (uint8) {
+    function reservationStatus(
+        bytes32 key
+    ) external view returns (uint8) {
         return LibAppStorage.diamondStorage().reservations[key].status;
     }
 
-    function trackingKey(address institution, bytes32 pucHash) external pure returns (address) {
+    function trackingKey(
+        address institution,
+        bytes32 pucHash
+    ) external pure returns (address) {
         return LibTracking.trackingKeyFromInstitutionHash(institution, pucHash);
     }
 
-    function hasGlobalReservation(uint256 labId, bytes32 key) external view returns (bool) {
+    function hasGlobalReservation(
+        uint256 labId,
+        bytes32 key
+    ) external view returns (bool) {
         return LibAppStorage.diamondStorage().reservationKeysByToken[labId].contains(key);
     }
 
-    function hasUserReservation(address user, bytes32 key) external view returns (bool) {
+    function hasUserReservation(
+        address user,
+        bytes32 key
+    ) external view returns (bool) {
         return LibAppStorage.diamondStorage().renters[user].contains(key);
     }
 
-    function hasInstitutionalReservation(uint256 labId, address user, bytes32 key)
-        external
-        view
-        returns (bool)
-    {
+    function hasInstitutionalReservation(
+        uint256 labId,
+        address user,
+        bytes32 key
+    ) external view returns (bool) {
         return LibAppStorage.diamondStorage().reservationKeysByTokenAndUser[labId][user].contains(key);
     }
 
-    function hasCalendarSlot(uint256 labId, uint32 start) external view returns (bool) {
+    function hasCalendarSlot(
+        uint256 labId,
+        uint32 start
+    ) external view returns (bool) {
         AppStorage storage s = LibAppStorage.diamondStorage();
         return s.calendars[labId].root != 0 && s.calendars[labId].exists(start);
     }
@@ -114,8 +123,8 @@ contract InstitutionalReservationReleaseCleanupTest is Test {
         address institution = address(0xCAFE);
         address renter = institution;
         uint256 labId = 42;
-        uint32 start = 1_000;
-        uint32 end = 2_000;
+        uint32 start = 1000;
+        uint32 end = 2000;
         bytes32 pucHash = keccak256("cleanup-user");
         bytes32 key = keccak256("cleanup-reservation");
 

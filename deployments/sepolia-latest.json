@@ -1,49 +1,48 @@
 {
   "network": "sepolia",
-  "timestamp": "2026-07-09T09:04:47.534Z",
+  "timestamp": "2026-07-20T15:27:18.0622302+02:00",
   "chainId": 11155111,
   "contracts": {
-    "Diamond": "0xe49a2f59631717691642f929E0FeF1f705866600",
-    "DiamondCutFacet": "0x1C997544b09dD3CF505FEca019b0EBeC171C7C97",
-    "DiamondInit": "0xd8441c8C03e342409F517FD9726b79f49681D284"
+    "Diamond": "0x1170d2D322Ff2cCeb20e6E79D2b3D2dfABFe6372",
+    "DiamondCutFacet": "0x0292dbF67Fb9D7B6d853c7e9d1F8BE73a50463c2",
+    "DiamondInit": "0xcb862aD921960c0c656E5ED68Fb20bA113cf5025"
   },
   "libraries": {
-    "RivalIntervalTreeLibrary": "0x5752aA567Ae6008ddD2cAae8e4ba207683784F89",
-    "LibLabTransfer": "0xC19B71C4fF39Adb4914FE224A6EA0bcbA3587BDd",
-    "LibReservationConfirmation": "0xC0188205bd9fc8fD5947C0049A94D717c598578C",
-    "LibInstitutionalReservationConfirmation": "0x1215a656C03B5cB805C51C3B4a75f8cb9E8cCcE2",
-    "LibInstitutionalReservationRequestValidation": "0xc1A0022aF103Ac9Bf5d06Abacf2bAA8b74666B26",
-    "LibInstitutionalReservationRelease": "0xd6E9Bfe9Df40F8d744391Dcc93a9389Be87D3dd1"
+    "RivalIntervalTreeLibrary": "0x7be46FFf0566EC750a437a9a167bc2A3f753A536",
+    "LibLabTransfer": "0x75F187855Cc301D096D8715D67C098EdeB63f5E4",
+    "LibReservationConfirmation": "0x51e73D04b7b22628507a8de6f5a0306E091A9CBE",
+    "LibInstitutionalReservationConfirmation": "0x2325989f79b721a42b5dFFc55bAFcbB8d9a29f2A",
+    "LibInstitutionalReservationRequestValidation": "0xb9aF9134beF8FF40dCc9e0F08A34010090A38C87",
+    "LibInstitutionalReservationRelease": "0x58429e7a11cfa5500B1d8996f95bE0AdD06fBdb2"
   },
   "facets": {
-    "DiamondLoupeFacet": "0x3007d6B09451087f1fF1BfE885c614d22B733C77",
-    "OwnershipFacet": "0xEB1EA6e04C618F7A428831a64aFcA73811cC250f",
-    "InitFacet": "0x3505567A179c24cfeD29620553ff52Ea12FBAf71",
-    "ProviderFacet": "0xadb630098C985AAf03D9612dc765481F682f060c",
-    "ServiceCreditFacet": "0x53726d8C868B1D24173256B0c15BcF6965a6F1EF",
-    "IntentRegistryFacet": "0x6069fF12963B0D972d1d406aC1a7b3a772edd4Eb",
-    "InstitutionFacet": "0xe6a4E4878B0850f3e982E32eE44B820bFA03E3d6",
-    "InstitutionalOrgRegistryFacet": "0x5dE35d10289DaFDFdEF0B6D0c09aa1dcB4743365",
-    "InstitutionalTreasuryFacet": "0x5cCC5bCE2fF02a3f5f76EB2002EEC4476dfC3a39",
-    "LabFacet": "0x7b94bc9EA9E17E09a4dB68c5c8E405f7Be0328C1",
-    "LabAdminFacet": "0x07133489d0a9c50a19a5462CA7ec1E8657B80128",
-    "LabIntentFacet": "0x90E99cd2383E6fFdE6FB314E1571B94B8a32516E",
-    "LabQueryFacet": "0xa3B2EEEeb66C92573931dA7b3B87a506661e6B01",
-    "LabReputationFacet": "0xC74D3BF0f48affBcE22917F244bAf83f8115faef",
-    "ProviderSettlementFacet": "0xC23029c5E2d272eB7B94168B1B96e93aB93f56b6",
-    "InstitutionalReservationRequestValidationFacet": "0x4a76dA235D71ec08c34897Ea18d534162DDcdB6D",
-    "InstitutionalReservationRequestCreationFacet": "0xbAA8c2492C90613865730dbc4fA12aE16a881786",
-    "InstitutionalReservationRequestFacet": "0x276C54beFE17830D48c58cB541b510dA00D368D4",
-    "InstitutionalReservationConfirmationFacet": "0x738Fe99E5315DB98B996FF3b179333bEe140586e",
-    "InstitutionalReservationCancellationFacet": "0x545ef5122b99F6f1Ea8333343CaC6680fE3fE1A4",
-    "InstitutionalReservationQueryFacet": "0x16797a09860506CF48e47e7dAc5259F36AA672eB",
-    "InstitutionalReservationFacet": "0xD6A31A5CDa1fA1faa555FB44536A93397893a685",
-    "ReservationCheckInFacet": "0x417F44E190CF1113C967bbda820020fEa0b411DD",
-    "ReservationStatsFacet": "0x9DdD6201dECAC27066D5F5a1d82C5FC2003e8Ff3",
-    "ReservationDenialFacet": "0xE24a9197D2B8b41FAfafACb97aFB2FF766D96d2a",
-    "ReservationIntentFacet": "0x362636b137D44b805D2Cb6788d4e4A4877EBeF38",
-    "ReservationSessionFacet": "0x3A1A0166C9e093EC167E10a46dc22E52Ed0e1b96",
-    "CheckInUpgradeAt": "2026-07-09T09:04:47.532Z"
+    "DiamondLoupeFacet": "0x6C1457c6Cf48B389Bc10f59B069779d672aa9a71",
+    "OwnershipFacet": "0xB143255718cfF3C3E33e11E77CdC7CA37a8c8EA8",
+    "InitFacet": "0x8B00fcAFCab7cba0E030Ebe1fc769682fBC6D5A5",
+    "ProviderFacet": "0x315d87620c591ead17CC9F844D03d97e888126Fe",
+    "ServiceCreditFacet": "0xD6535D6Dd914e08DE9dCC9e40F4F180783ec3061",
+    "IntentRegistryFacet": "0xd4355fF5d9bFd4B8D0100128465dA5f4Fdc7ABcf",
+    "InstitutionFacet": "0xf579DE34fe86487edE8542EBCbad5DdE7be9c018",
+    "InstitutionalOrgRegistryFacet": "0x461Ee020C3007Dff92Cb05a75F10A06D13fc551A",
+    "InstitutionalTreasuryFacet": "0x9a44a7663fdEf5996959a091Ac872cf75BCCeA80",
+    "LabFacet": "0xD44902FcAc5f2e68c79471F34aB7a9B6f3D37C19",
+    "LabAdminFacet": "0x57bF7A61982f76E3Cdb5eA2a4Ad21E057553042e",
+    "LabIntentFacet": "0x2Eb927eBAe78ab4ce15aEbE69f435b2A77B514c5",
+    "LabQueryFacet": "0x61311Be0496e82A3f330D0F527fb78a7A0D2aA5A",
+    "LabReputationFacet": "0xe0684F4a63f41cFb8E81B3fC574b8931b937015f",
+    "ProviderSettlementFacet": "0xa430827Dd2d79f5126fc20a3b0eb6D21ca56bBf2",
+    "InstitutionalReservationRequestValidationFacet": "0x91b4cBFAC0F607848cc4371B7D9E359073cDA473",
+    "InstitutionalReservationRequestCreationFacet": "0x1F21186a6B2257CDb6De51D4B6b0Aaea03dFE491",
+    "InstitutionalReservationRequestFacet": "0x4b2A8c4F4261181c43911d86f2bB087c3a8F294d",
+    "InstitutionalReservationConfirmationFacet": "0x746f73a8F0C6328c4FEc9FcF2398F655A16b1bD6",
+    "InstitutionalReservationCancellationFacet": "0x046200d0798df47110Af10d58656e7B5280fFA5e",
+    "InstitutionalReservationQueryFacet": "0x4eA2D8355504260dd05b1e261fb47C3a04BC9B80",
+    "InstitutionalReservationFacet": "0xb38F2667D56078097E48fD4FC536339C0fe6605e",
+    "ReservationCheckInFacet": "0xb15eee4625Cb8E79D8549Ef6d04e99cAf9e4ec14",
+    "ReservationSessionFacet": "0x2E211e5f7D1865deF7b9bbFDdae47444FE60f924",
+    "ReservationStatsFacet": "0xe2a5358E2DCAD531BF73A65CEb1910437A6963C1",
+    "ReservationDenialFacet": "0x15579AC7f6C6bc79C19646cf2322176F78e74366",
+    "ReservationIntentFacet": "0x806d12604AEfAEd159364CCdaaA70cCa0101A536"
   },
   "deployer": "0x183f062b6a8c39b9a9e71898741acf8f25e11561",
   "configuration": {
@@ -53,8 +52,6 @@
     "diamondName": "DecentraLabs",
     "diamondSymbol": "dLAB",
     "deploymentModel": "credit-ledger",
-    "accountingBuckets": [
-      "providerReceivable"
-    ]
+    "accountingBuckets": ["providerReceivable"]
   }
 }

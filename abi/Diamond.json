@@ -612,21 +612,6 @@
   },
   {
     "type": "function",
-    "name": "provisionProvider",
-    "inputs": [
-      { "name": "_name", "type": "string", "internalType": "string" },
-      { "name": "_account", "type": "address", "internalType": "address" },
-      { "name": "_email", "type": "string", "internalType": "string" },
-      { "name": "_country", "type": "string", "internalType": "string" },
-      { "name": "_authURI", "type": "string", "internalType": "string" },
-      { "name": "organization", "type": "string", "internalType": "string" },
-      { "name": "backendUrl", "type": "string", "internalType": "string" }
-    ],
-    "outputs": [],
-    "stateMutability": "nonpayable"
-  },
-  {
-    "type": "function",
     "name": "getProviderAuthURI",
     "inputs": [
       {
@@ -766,6 +751,49 @@
       }
     ],
     "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "provisionProvider",
+    "inputs": [
+      {
+        "name": "_name",
+        "type": "string",
+        "internalType": "string"
+      },
+      {
+        "name": "_account",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "_email",
+        "type": "string",
+        "internalType": "string"
+      },
+      {
+        "name": "_country",
+        "type": "string",
+        "internalType": "string"
+      },
+      {
+        "name": "_authURI",
+        "type": "string",
+        "internalType": "string"
+      },
+      {
+        "name": "organization",
+        "type": "string",
+        "internalType": "string"
+      },
+      {
+        "name": "backendUrl",
+        "type": "string",
+        "internalType": "string"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
   },
   {
     "type": "function",
@@ -1042,6 +1070,62 @@
     "anonymous": false
   },
   {
+    "type": "event",
+    "name": "SchacHomeOrganizationBackendUpdated",
+    "inputs": [
+      {
+        "name": "institution",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "organization",
+        "type": "string",
+        "indexed": false,
+        "internalType": "string"
+      },
+      {
+        "name": "organizationHash",
+        "type": "bytes32",
+        "indexed": true,
+        "internalType": "bytes32"
+      },
+      {
+        "name": "backendUrl",
+        "type": "string",
+        "indexed": false,
+        "internalType": "string"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "SchacHomeOrganizationRegistered",
+    "inputs": [
+      {
+        "name": "institution",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "organization",
+        "type": "string",
+        "indexed": false,
+        "internalType": "string"
+      },
+      {
+        "name": "organizationHash",
+        "type": "bytes32",
+        "indexed": true,
+        "internalType": "bytes32"
+      }
+    ],
+    "anonymous": false
+  },
+  {
     "type": "error",
     "name": "AccessControlUnauthorizedAccount",
     "inputs": [
@@ -1064,7 +1148,37 @@
   },
   {
     "type": "error",
+    "name": "InvalidInstitutionAddress",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "InvalidOrgCharacter",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "InvalidOrgLength",
+    "inputs": []
+  },
+  {
+    "type": "error",
     "name": "InvalidPaginationLimit",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "OrganizationAlreadyRegistered",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "OrganizationAlreadyTracked",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "OrganizationNotRegisteredByWallet",
     "inputs": []
   },
   {
@@ -1086,6 +1200,16 @@
   {
     "type": "error",
     "name": "ReentrancyGuardReentrantCall",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "TooManyOrganizations",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "UnknownInstitution",
     "inputs": []
   },
   {
@@ -2374,6 +2498,29 @@
   },
   {
     "type": "function",
+    "name": "provisionInstitution",
+    "inputs": [
+      {
+        "name": "institution",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "organization",
+        "type": "string",
+        "internalType": "string"
+      },
+      {
+        "name": "backendUrl",
+        "type": "string",
+        "internalType": "string"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
     "name": "revokeInstitutionRole",
     "inputs": [
       {
@@ -2386,17 +2533,6 @@
         "type": "string",
         "internalType": "string"
       }
-    ],
-    "outputs": [],
-    "stateMutability": "nonpayable"
-  },
-  {
-    "type": "function",
-    "name": "provisionInstitution",
-    "inputs": [
-      { "name": "institution", "type": "address", "internalType": "address" },
-      { "name": "organization", "type": "string", "internalType": "string" },
-      { "name": "backendUrl", "type": "string", "internalType": "string" }
     ],
     "outputs": [],
     "stateMutability": "nonpayable"
@@ -2435,31 +2571,6 @@
   },
   {
     "type": "event",
-    "name": "SchacHomeOrganizationRegistered",
-    "inputs": [
-      {
-        "name": "institution",
-        "type": "address",
-        "indexed": true,
-        "internalType": "address"
-      },
-      {
-        "name": "organization",
-        "type": "string",
-        "indexed": false,
-        "internalType": "string"
-      },
-      {
-        "name": "organizationHash",
-        "type": "bytes32",
-        "indexed": true,
-        "internalType": "bytes32"
-      }
-    ],
-    "anonymous": false
-  },
-  {
-    "type": "event",
     "name": "SchacHomeOrganizationRemoved",
     "inputs": [
       {
@@ -2485,47 +2596,7 @@
   },
   {
     "type": "error",
-    "name": "InvalidInstitutionAddress",
-    "inputs": []
-  },
-  {
-    "type": "error",
-    "name": "InvalidOrgCharacter",
-    "inputs": []
-  },
-  {
-    "type": "error",
-    "name": "InvalidOrgLength",
-    "inputs": []
-  },
-  {
-    "type": "error",
-    "name": "OrganizationAlreadyRegistered",
-    "inputs": []
-  },
-  {
-    "type": "error",
-    "name": "OrganizationAlreadyTracked",
-    "inputs": []
-  },
-  {
-    "type": "error",
-    "name": "OrganizationNotRegisteredByWallet",
-    "inputs": []
-  },
-  {
-    "type": "error",
     "name": "OrganizationNotTracked",
-    "inputs": []
-  },
-  {
-    "type": "error",
-    "name": "TooManyOrganizations",
-    "inputs": []
-  },
-  {
-    "type": "error",
-    "name": "UnknownInstitution",
     "inputs": []
   },
   {
@@ -2817,37 +2888,6 @@
     ],
     "outputs": [],
     "stateMutability": "nonpayable"
-  },
-  {
-    "type": "event",
-    "name": "SchacHomeOrganizationBackendUpdated",
-    "inputs": [
-      {
-        "name": "institution",
-        "type": "address",
-        "indexed": true,
-        "internalType": "address"
-      },
-      {
-        "name": "organization",
-        "type": "string",
-        "indexed": false,
-        "internalType": "string"
-      },
-      {
-        "name": "organizationHash",
-        "type": "bytes32",
-        "indexed": true,
-        "internalType": "bytes32"
-      },
-      {
-        "name": "backendUrl",
-        "type": "string",
-        "indexed": false,
-        "internalType": "string"
-      }
-    ],
-    "anonymous": false
   },
   {
     "type": "function",

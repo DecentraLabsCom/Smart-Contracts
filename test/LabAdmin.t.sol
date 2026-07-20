@@ -86,22 +86,26 @@ contract LabAdminTest is BaseTest {
             facetAddress: address(labFacetImpl), action: IDiamond.FacetCutAction.Add, functionSelectors: labSelectors
         });
 
-        bytes4[] memory labAdminSelectors = new bytes4[](5);
+        bytes4[] memory labAdminSelectors = new bytes4[](8);
         labAdminSelectors[0] = _selector("addLab(string,uint96,string,string,uint8)");
         labAdminSelectors[1] = _selector("updateLab(uint256,string,uint96,string,string,uint8)");
         labAdminSelectors[2] = _selector("deleteLab(uint256)");
         labAdminSelectors[3] = _selector("listLab(uint256)");
         labAdminSelectors[4] = _selector("unlistLab(uint256)");
+        labAdminSelectors[5] = _selector("addLabWithPucHash(string,uint96,string,string,uint8,bytes32)");
+        labAdminSelectors[6] = _selector("addAndListLabWithPucHash(string,uint96,string,string,uint8,bytes32)");
+        labAdminSelectors[7] = _selector("bindLabCreatorPucHash(uint256,bytes32)");
         cut2[3] = IDiamond.FacetCut({
             facetAddress: address(labAdminImpl),
             action: IDiamond.FacetCutAction.Add,
             functionSelectors: labAdminSelectors
         });
 
-        bytes4[] memory labQuerySelectors = new bytes4[](3);
+        bytes4[] memory labQuerySelectors = new bytes4[](4);
         labQuerySelectors[0] = _selector("getLab(uint256)");
         labQuerySelectors[1] = _selector("isLabListed(uint256)");
         labQuerySelectors[2] = _selector("getLabsPaginated(uint256,uint256)");
+        labQuerySelectors[3] = _selector("getPucHash(uint256)");
         cut2[4] = IDiamond.FacetCut({
             facetAddress: address(labQueryImpl),
             action: IDiamond.FacetCutAction.Add,
@@ -138,6 +142,34 @@ contract LabAdminTest is BaseTest {
         // Lab memory lab = labQuery.getLab(1);
         // assertEq(lab.uri, "ipfs://lab-metadata");
         // assertEq(lab.price, PRICE_100);
+    }
+
+    function test_addLabWithPucHash_binds_creator_atomically() public {
+        bytes32 creatorHash = keccak256("provider-admin-puc");
+
+        vm.prank(provider1);
+        labAdmin.addLabWithPucHash(
+            "ipfs://puc-bound-lab", PRICE_100, "https://access.example.com", "accessKey123", 0, creatorHash
+        );
+
+        assertEq(labFacet.ownerOf(1), provider1);
+        assertEq(labQuery.getPucHash(1), creatorHash);
+    }
+
+    function test_bindLabCreatorPucHash_migrates_unbound_lab_once() public {
+        bytes32 creatorHash = keccak256("migrated-provider-puc");
+
+        vm.prank(provider1);
+        labAdmin.addLab("ipfs://legacy-lab", PRICE_100, "https://access.example.com", "accessKey123", 0);
+
+        vm.prank(provider1);
+        labAdmin.bindLabCreatorPucHash(1, creatorHash);
+
+        assertEq(labQuery.getPucHash(1), creatorHash);
+
+        vm.prank(provider1);
+        vm.expectRevert();
+        labAdmin.bindLabCreatorPucHash(1, keccak256("replacement-puc"));
     }
 
     /// @notice SPEC: Precondition "Caller must be the lab provider"
@@ -185,6 +217,18 @@ contract LabAdminTest is BaseTest {
         // Verify NFT burned
         vm.expectRevert();
         labFacet.ownerOf(1);
+    }
+
+    function test_deleteLab_retains_creator_hash_for_offchain_cleanup() public {
+        bytes32 creatorHash = keccak256("retained-cleanup-creator");
+
+        vm.prank(provider1);
+        labAdmin.addLabWithPucHash("uri1", PRICE_100, "access1", "key1", 0, creatorHash);
+
+        vm.prank(provider1);
+        labAdmin.deleteLab(1);
+
+        assertEq(labQuery.getPucHash(1), creatorHash);
     }
 
     /// @notice Test listing lab for reservations

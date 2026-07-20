@@ -1,66 +1,68 @@
 # Roles and permissions
 
-The Diamond combines contract ownership with application roles. A provider,
-institution or backend must be authorized in the contract before it can use the
-corresponding domain operations.
+## Separation of authority
 
-## Actors
+Diamond ownership, the default-admin role and application roles are distinct.
+Keep their keys separate: an upgrade key should not be the everyday provider or
+backend key.
 
-| Actor | Main authority |
+| Actor or role | Authority | Important limit |
+| --- | --- | --- |
+| Diamond owner | Executes `diamondCut` and privileged initialization | Does not replace application-role checks inside facets. |
+| Default admin | Onboards/removes providers and institutions; administers credits and other protected operations | Must not be used as a general backend wallet. |
+| Provider | Creates labs and maintains its provider profile | A lab's ERC-721 owner controls owner-sensitive lab operations. |
+| Institution | Owns its treasury, spending policy and institutional reservation context | An organization name alone does not authorize a transaction. |
+| Authorized backend | Executes the institution/provider paths explicitly delegated to its address | It is a delegate, not a new economic owner. |
+| Settlement operator | Can perform the privileged financial claim transitions when configured | Claim references and lifecycle checks still apply. |
+| Institutional user | Is represented by the reservation's `pucHash` and tracking key | The raw identifier is not stored on-chain. |
+
+## Provider lifecycle
+
+`ProviderFacet` manages provider membership and profile data. Adding a provider
+also grants `INSTITUTION_ROLE`, creates the provider's initial institutional
+defaults, and authorizes the provider wallet as its own backend. A provider is
+therefore ready for the institutional side of the protocol, but an external
+backend address still requires explicit authorization.
+
+Provider network status is independent of role membership:
+
+| Status | Reservation effect |
 | --- | --- |
-| Diamond owner | Performs Diamond cuts and privileged initialization. |
-| Default admin | Manages providers, institutional roles, credit adjustments and other administrative operations. |
-| Provider | Owns and publishes labs, controls listing and lab configuration, and receives settlement receivables. |
-| Institution | Registers organization identifiers, configures its backend and initiates institutional reservations. |
-| Institutional backend | Acts for a registered institution when the contract explicitly authorizes that backend. |
-| Renter / institutional user | Is represented by the reservation renter and, for institutional flows, a hashed PUC (`pucHash`). |
+| `NONE` | Not participating in the fulfilment network. |
+| `ACTIVE` | May confirm listed labs that are accepting new reservations. |
+| `SUSPENDED` | Cannot fulfil new reservations. |
+| `TERMINATED` | Permanently deactivated; the same wallet cannot be re-added. |
 
-## Provider authorization
+Removing a provider is guarded. It must have no locked credits and own no labs;
+closed credit history is retained for audit. Confirmation also requires the
+current lab owner to be `ACTIVE` and the lab to be listed and accepting intake.
 
-`ProviderFacet` manages provider membership and provider metadata. The provider
-role is separate from ERC-721 ownership: a provider account must be authorized
-to create or administer labs, while the token owner remains the authority used
-by ownership-sensitive operations.
+## Institutional onboarding and organization registry
 
-Provider network status is tracked separately:
+Use one of the atomic onboarding operations when possible:
 
-- `NONE`: no active network participation.
-- `ACTIVE`: the provider may fulfill reservations.
-- `SUSPENDED`: temporarily excluded from fulfillment.
-- `TERMINATED`: permanently deactivated.
+| Operation | Result |
+| --- | --- |
+| `provisionProvider` | Creates the provider, grants institution capability, and registers or updates its organization record in one transaction. |
+| `provisionInstitution` | Grants `INSTITUTION_ROLE` if needed, registers an organization, and can store its backend URL. |
+| `grantInstitutionRole` | Grants the role and registers an organization without the optional URL. |
 
-Termination is terminal for the provider wallet. Re-adding that same wallet
-is rejected, and its closed credit lots and movement history remain available
-for audit purposes.
+Organization strings are normalized before hashing. An organization can belong
+to only one institution wallet, and the registry's URL is configuration for
+off-chain routing. It does **not** authorize an EVM address. Transactional
+delegation is stored separately by `authorizeBackend`, `revokeBackend` and the
+admin recovery operation; inspect `getAuthorizedBackend` for the active address.
 
-Reservation fulfillment requires the lab to be listed and the current provider
-to have `ACTIVE` network status.
+The registry is an ownership/routing claim, not an identity proof. Validate
+SAML/eduGAIN or equivalent federation evidence off-chain before treating an
+organization-to-wallet result as an authenticated institution.
 
-## Institutions and backends
+## Operational rules
 
-An institution is granted `INSTITUTION_ROLE`. It can register normalized
-`schacHomeOrganization` identifiers and associate a backend URL with each
-identifier through `InstitutionalOrgRegistryFacet`.
-
-The registered backend is an execution delegate, not a new economic owner. The
-contract checks that the caller is either the institution wallet or its
-configured backend before allowing institution-scoped intent and reservation
-operations.
-
-Organization identifiers are normalized before hashing. The registry exposes
-both string-based resolution and hash-based lookup for backend integration.
-The mapping is a routing/ownership claim, not an external identity
-attestation; SAML/eduGAIN or equivalent trusted federation validation must be
-completed before a client treats the resolved wallet as the authenticated
-institution.
-
-## Security rules for operators
-
-- Keep Diamond ownership separate from routine provider or backend keys.
-- Treat `accessKey`, backend URLs and metadata URIs as identifiers/configuration,
-  not as a place for secrets.
-- Never grant a backend address unless it is controlled by the institution and
-  is configured in the corresponding backend service.
-- Use the generated ABI for the deployed Diamond; calling a facet address
-  directly bypasses the Diamond storage context and is not the normal protocol
-  path.
+- Never place secrets in `accessKey`, metadata URIs or backend URLs.
+- Keep the deployment's Diamond address and generated ABI together; never call
+  a facet address as if it were the Diamond.
+- Treat a `pucHash` as personal-data-derived and only submit the canonical hash
+  expected by the relevant integration.
+- Verify roles, the authorized backend and provider network status before
+  diagnosing a failed booking or settlement call.

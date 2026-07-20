@@ -13,4 +13,13 @@ contract ReservationDenialFacet is ReentrancyGuardTransient {
     ) external nonReentrant {
         LibReservationConfirmation.denyReservationRequest(_reservationKey);
     }
+
+    /// @notice Denies a pending request while preserving the operational reason
+    ///      used by automated provider processing.
+    function denyReservationRequestWithReason(
+        bytes32 _reservationKey,
+        uint8 _reason
+    ) external nonReentrant {
+        LibReservationConfirmation.denyReservationRequestWithReason(_reservationKey, _reason);
+    }
 }

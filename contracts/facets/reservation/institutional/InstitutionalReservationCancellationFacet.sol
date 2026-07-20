@@ -3,8 +3,15 @@ pragma solidity ^0.8.31;
 
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import {ReentrancyGuardTransient} from "@openzeppelin/contracts/utils/ReentrancyGuardTransient.sol";
-import {LibAppStorage, AppStorage, INSTITUTION_ROLE} from "../../../libraries/LibAppStorage.sol";
+import {
+    LibAppStorage,
+    AppStorage,
+    INSTITUTION_ROLE,
+    CreditReservationAllocation,
+    Reservation
+} from "../../../libraries/LibAppStorage.sol";
 import {LibInstitutionalReservation} from "../../../libraries/LibInstitutionalReservation.sol";
+import {LibRevenue} from "../../../libraries/LibRevenue.sol";
 
 /// @title InstitutionalReservationCancellationFacet
 /// @author Luis de la Torre Cubillo, Juan Luis Ramos Villalón
@@ -12,6 +19,8 @@ import {LibInstitutionalReservation} from "../../../libraries/LibInstitutionalRe
 
 contract InstitutionalReservationCancellationFacet is ReentrancyGuardTransient {
     using EnumerableSet for EnumerableSet.AddressSet;
+
+    uint8 internal constant CANCELLATION_POLICY_VERSION = 1;
 
     event ReservationRequestCanceled(bytes32 indexed reservationKey, uint256 indexed tokenId);
     event BookingCanceled(bytes32 indexed reservationKey, uint256 indexed tokenId);
@@ -61,6 +70,69 @@ contract InstitutionalReservationCancellationFacet is ReentrancyGuardTransient {
         bytes32 pucHash
     ) external onlyInstitution(institutionalProvider) {
         _cancelInstitutionalBookingWithPucHash(institutionalProvider, _reservationKey, pucHash);
+    }
+
+    /// @notice Returns the exact cancellation accounting that the current contract would apply.
+    /// @dev This is deliberately sourced from the reservation and credit-lot ledger so the
+    ///      confirmation UI cannot silently diverge from the cancellation transaction.
+    function previewInstitutionalBookingCancellation(
+        bytes32 reservationKey
+    )
+        external
+        view
+        returns (
+            uint8 reservationStatus,
+            bool cancellable,
+            address refundDestination,
+            uint96 price,
+            uint96 totalFee,
+            uint96 providerFee,
+            uint96 refundAmount,
+            uint32 cancellationCutoff,
+            uint256 spendingPeriodStart,
+            uint256 spendingPeriodEnd,
+            uint48 sourceCreditExpiry,
+            CreditReservationAllocation[] memory allocations,
+            uint8 policyVersion
+        )
+    {
+        AppStorage storage s = _s();
+        Reservation storage reservation = s.reservations[reservationKey];
+
+        reservationStatus = reservation.status;
+        refundDestination = reservation.payerInstitution;
+        price = reservation.price;
+        cancellationCutoff = reservation.start;
+        policyVersion = CANCELLATION_POLICY_VERSION;
+        cancellable = reservationStatus == 1 && block.timestamp < cancellationCutoff;
+
+        if (reservationStatus == 1) {
+            uint96 calculatedRefund;
+            (providerFee, calculatedRefund) = LibRevenue.computeCancellationFee(price);
+            refundAmount = calculatedRefund;
+            totalFee = price - refundAmount;
+        } else {
+            refundAmount = 0;
+        }
+
+        uint256 periodStartPlusOne = s.institutionalReservationPeriodStartPlusOne[reservationKey];
+        if (periodStartPlusOne != 0) {
+            spendingPeriodStart = periodStartPlusOne - 1;
+            uint256 duration = s.institutionalSpendingPeriod[reservation.payerInstitution];
+            if (duration == 0) duration = LibAppStorage.DEFAULT_SPENDING_PERIOD;
+            spendingPeriodEnd = spendingPeriodStart + duration;
+        }
+
+        sourceCreditExpiry = s.creditReservationExpiry[reservation.payerInstitution][reservationKey];
+        CreditReservationAllocation[] storage storedAllocations =
+            s.creditReservationAllocations[reservation.payerInstitution][reservationKey];
+        allocations = new CreditReservationAllocation[](storedAllocations.length);
+        for (uint256 i; i < storedAllocations.length;) {
+            allocations[i] = storedAllocations[i];
+            unchecked {
+                ++i;
+            }
+        }
     }
 
     /// @notice Cancel a confirmed booking because the provider cannot honor it.

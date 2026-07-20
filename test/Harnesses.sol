@@ -70,6 +70,29 @@ contract InstReservationHarness is InstitutionalReservationCancellationFacet {
         // reservation index sets are not required by these unit tests and are omitted in the harness
     }
 
+    function setReservationAccounting(
+        bytes32 key,
+        uint256 periodStart,
+        uint48 sourceCreditExpiry,
+        bytes32 fundingOrderId,
+        uint256 allocatedAmount
+    ) external {
+        AppStorage storage s = LibAppStorage.diamondStorage();
+        address payer = s.reservations[key].payerInstitution;
+        s.institutionalReservationPeriodStartPlusOne[key] = periodStart + 1;
+        s.creditReservationExpiry[payer][key] = sourceCreditExpiry;
+        s.creditReservationAllocations[payer][key].push(
+            CreditReservationAllocation({
+                fundingOrderId: fundingOrderId,
+                amount: allocatedAmount,
+                refundedAmount: 0,
+                eurGrossAmount: allocatedAmount,
+                refundedEurGrossAmount: 0,
+                expiresAt: sourceCreditExpiry
+            })
+        );
+    }
+
     function setIndexedExpiredReservation(
         bytes32 key,
         address renter,
@@ -468,6 +491,31 @@ contract LabAdminResourceTypeHarness {
     ) external {
         AppStorage storage s = LibAppStorage.diamondStorage();
         s.providerReceivableAccrued[labId] = amount;
+    }
+
+    function listLab(
+        uint256 labId
+    ) external {
+        LibLabAdmin.listLab(labId);
+    }
+
+    function unlistLab(
+        uint256 labId
+    ) external {
+        LibLabAdmin.unlistLab(labId);
+    }
+
+    function isListed(
+        uint256 labId
+    ) external view returns (bool) {
+        return LibAppStorage.diamondStorage().tokenStatus[labId];
+    }
+
+    function isAcceptingNewReservations(
+        uint256 labId
+    ) external view returns (bool) {
+        AppStorage storage s = LibAppStorage.diamondStorage();
+        return s.tokenStatus[labId] && !s.labReservationIntakeStopped[labId];
     }
 
     function updateLab(

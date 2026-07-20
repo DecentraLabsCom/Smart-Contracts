@@ -19,13 +19,30 @@ library LibReservationConfirmation {
     function denyReservationRequest(
         bytes32 reservationKey
     ) external {
+        _denyReservationRequest(reservationKey, LibReservationDenyReason.PROVIDER_MANUAL);
+    }
+
+    function denyReservationRequestWithReason(
+        bytes32 reservationKey,
+        uint8 reason
+    ) external {
+        _denyReservationRequest(reservationKey, reason);
+    }
+
+    function _denyReservationRequest(
+        bytes32 reservationKey,
+        uint8 reason
+    ) private {
         AppStorage storage s = LibAppStorage.diamondStorage();
         Reservation storage reservation = s.reservations[reservationKey];
         _requirePending(reservation);
         _requireLabProviderOrBackend(s, reservation);
-        LibReputation.recordOwnerCancellation(reservation.labId);
+        _requireProviderDenialReason(reason);
+        if (reason == LibReservationDenyReason.PROVIDER_MANUAL) {
+            LibReputation.recordOwnerCancellation(reservation.labId);
+        }
         LibReservationCancellation.cancelReservation(reservationKey);
-        emit ReservationRequestDenied(reservationKey, reservation.labId, LibReservationDenyReason.PROVIDER_MANUAL);
+        emit ReservationRequestDenied(reservationKey, reservation.labId, reason);
     }
 
     function _requirePending(
@@ -44,5 +61,17 @@ library LibReservationConfirmation {
         if (msg.sender != labOwner && (authorizedBackend == address(0) || msg.sender != authorizedBackend)) {
             revert Unauthorized();
         }
+    }
+
+    function _requireProviderDenialReason(
+        uint8 reason
+    ) private pure {
+        require(
+            reason == LibReservationDenyReason.PROVIDER_MANUAL
+                || reason == LibReservationDenyReason.PROVIDER_NOT_ELIGIBLE
+                || reason == LibReservationDenyReason.PROVIDER_TECHNICAL_FAILURE
+                || reason == LibReservationDenyReason.PROVIDER_UNAVAILABLE,
+            "Invalid provider denial reason"
+        );
     }
 }

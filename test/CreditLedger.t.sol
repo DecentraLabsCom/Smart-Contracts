@@ -11,7 +11,12 @@ import "../contracts/facets/ServiceCreditFacet.sol";
 import "../contracts/facets/lab/LabFacet.sol";
 import {IDiamondCut} from "../contracts/interfaces/IDiamondCut.sol";
 import "../contracts/interfaces/IDiamond.sol";
-import {CreditLot, CreditMovement, CreditMovementKind} from "../contracts/libraries/LibAppStorage.sol";
+import {
+    CreditLot,
+    CreditMovement,
+    CreditMovementKind,
+    CreditReservationAllocation
+} from "../contracts/libraries/LibAppStorage.sol";
 import {LibCreditLedger} from "../contracts/libraries/LibCreditLedger.sol";
 
 /// @title Credit Ledger Tests (MiCA 4.3.d — Lot-based credit model)
@@ -70,7 +75,7 @@ contract CreditLedgerTest is BaseTest {
         });
 
         // ServiceCreditFacet (lot-backed credit ledger only)
-        bytes4[] memory creditSelectors = new bytes4[](12);
+        bytes4[] memory creditSelectors = new bytes4[](13);
         creditSelectors[0] = _selector("mintCredits(address,uint256,bytes32,uint256,uint48)");
         creditSelectors[1] = _selector("lockCredits(address,uint256,bytes32)");
         creditSelectors[2] = _selector("captureLockedCredits(address,uint256,bytes32)");
@@ -83,6 +88,7 @@ contract CreditLedgerTest is BaseTest {
         creditSelectors[9] = _selector("totalBalanceOf(address)");
         creditSelectors[10] = _selector("getCreditLots(address,uint256,uint256)");
         creditSelectors[11] = _selector("getCreditMovements(address,uint256,uint256)");
+        creditSelectors[12] = _selector("getCreditReservationAllocations(address,bytes32,uint256,uint256)");
         cut2[2] = IDiamond.FacetCut({
             facetAddress: address(creditFacetImpl),
             action: IDiamond.FacetCutAction.Add,
@@ -283,13 +289,14 @@ contract CreditLedgerTest is BaseTest {
     // ═══════════════════════════════════════════════════════════════════════
 
     function test_cancel_refunds_and_creates_lot() public {
+        bytes32 resRef = keccak256("RES-CANCEL");
+
         vm.startPrank(admin);
-        creditFacet.mintCredits(alice, 1000, bytes32(0), 0, 0);
-        creditFacet.lockCredits(alice, 500, bytes32(0));
-        creditFacet.captureLockedCredits(alice, 500, bytes32(0));
+        creditFacet.mintCredits(alice, 1000, bytes32("FUNDING-1"), 950, 0);
+        creditFacet.lockCredits(alice, 500, resRef);
+        creditFacet.captureLockedCredits(alice, 500, resRef);
 
         // Balance now 500. Refund 200.
-        bytes32 resRef = keccak256("RES-CANCEL");
         creditFacet.cancelCredits(alice, 200, resRef);
         vm.stopPrank();
 
@@ -300,7 +307,67 @@ contract CreditLedgerTest is BaseTest {
         assertEq(total, 2);
         assertEq(lots[1].creditAmount, 200);
         assertEq(lots[1].remaining, 200);
-        assertEq(lots[1].eurGrossAmount, 0); // Refund has no EUR
+        assertEq(lots[1].fundingOrderId, bytes32("FUNDING-1"));
+        assertEq(lots[1].eurGrossAmount, 190);
+    }
+
+    function test_cancel_refund_reconstructs_multi_lot_provenance_and_partial_refund() public {
+        bytes32 reservationRef = keccak256("RES-MULTI-LOT");
+
+        vm.startPrank(admin);
+        creditFacet.mintCredits(alice, 100, bytes32("FUNDING-A"), 1000, 0);
+        creditFacet.mintCredits(alice, 100, bytes32("FUNDING-B"), 500, 0);
+        creditFacet.lockCredits(alice, 150, reservationRef);
+        creditFacet.captureLockedCredits(alice, 150, reservationRef);
+        vm.stopPrank();
+
+        (CreditReservationAllocation[] memory allocations, uint256 allocationTotal) =
+            creditFacet.getCreditReservationAllocations(alice, reservationRef, 0, 10);
+        assertEq(allocationTotal, 2);
+        assertEq(allocations[0].fundingOrderId, bytes32("FUNDING-A"));
+        assertEq(allocations[0].amount, 100);
+        assertEq(allocations[0].eurGrossAmount, 1000);
+        assertEq(allocations[1].fundingOrderId, bytes32("FUNDING-B"));
+        assertEq(allocations[1].amount, 50);
+        assertEq(allocations[1].eurGrossAmount, 250);
+
+        vm.prank(admin);
+        creditFacet.cancelCredits(alice, 75, reservationRef);
+
+        (CreditLot[] memory lots, uint256 total) = creditFacet.getCreditLots(alice, 2, 10);
+        assertEq(total, 3);
+        assertEq(lots.length, 1);
+        assertEq(lots[0].fundingOrderId, bytes32("FUNDING-A"));
+        assertEq(lots[0].creditAmount, 75);
+        assertEq(lots[0].eurGrossAmount, 750);
+
+        vm.prank(admin);
+        creditFacet.cancelCredits(alice, 75, reservationRef);
+
+        (CreditLot[] memory finalLots,) = creditFacet.getCreditLots(alice, 3, 10);
+        assertEq(finalLots.length, 2);
+        assertEq(finalLots[0].fundingOrderId, bytes32("FUNDING-A"));
+        assertEq(finalLots[0].creditAmount, 25);
+        assertEq(finalLots[0].eurGrossAmount, 250);
+        assertEq(finalLots[1].fundingOrderId, bytes32("FUNDING-B"));
+        assertEq(finalLots[1].creditAmount, 50);
+        assertEq(finalLots[1].eurGrossAmount, 250);
+
+        (CreditReservationAllocation[] memory refundedAllocations,) =
+            creditFacet.getCreditReservationAllocations(alice, reservationRef, 0, 10);
+        assertEq(refundedAllocations[0].refundedAmount, 100);
+        assertEq(refundedAllocations[0].refundedEurGrossAmount, 1000);
+        assertEq(refundedAllocations[1].refundedAmount, 50);
+        assertEq(refundedAllocations[1].refundedEurGrossAmount, 250);
+    }
+
+    function test_cancel_refund_reverts_when_reservation_has_no_consumed_allocation() public {
+        vm.prank(admin);
+        creditFacet.mintCredits(alice, 100, bytes32("FUNDING"), 100, 0);
+
+        vm.prank(admin);
+        vm.expectRevert(LibCreditLedger.NoReservationAllocation.selector);
+        creditFacet.cancelCredits(alice, 1, keccak256("UNKNOWN-RESERVATION"));
     }
 
     function test_cancel_refund_preserves_source_expiry() public {

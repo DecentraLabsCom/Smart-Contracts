@@ -46,6 +46,38 @@ contract InstitutionFacet is InternalAccessControl {
         emit InstitutionRoleGranted(institution, keccak256(bytes(normalized)));
     }
 
+    /// @notice Grants the institution role, registers the organization, and optionally stores
+    ///         its backend URL in one transaction.
+    /// @dev This is the atomic onboarding primitive used by consumer registration and by
+    ///      reconciliation of a provider that already exists on-chain.
+    function provisionInstitution(
+        address institution,
+        string calldata organization,
+        string calldata backendUrl
+    ) external onlyDefaultAdmin {
+        AppStorage storage s = _s();
+        require(institution != address(0), "Invalid institution");
+
+        string memory normalized = LibInstitutionalOrg.normalizeOrganization(organization);
+        if (!s.roleMembers[INSTITUTION_ROLE].contains(institution)) {
+            _grantRole(INSTITUTION_ROLE, institution);
+        }
+
+        bytes32 organizationHash = keccak256(bytes(normalized));
+        address currentOwner = s.organizationInstitutionWallet[organizationHash];
+        if (currentOwner == address(0)) {
+            LibInstitutionalOrg.registerOrganization(s, institution, normalized);
+        } else {
+            require(currentOwner == institution, "Organization owned by another institution");
+        }
+
+        if (bytes(backendUrl).length > 0) {
+            LibInstitutionalOrg.setOrganizationBackend(s, institution, normalized, backendUrl);
+        }
+
+        emit InstitutionRoleGranted(institution, organizationHash);
+    }
+
     /// @notice Revokes the INSTITUTION_ROLE from `institution` (when it no longer controls the domain)
     /// @param institution Wallet whose role should be revoked
     /// @param organization schacHomeOrganization string to unregister

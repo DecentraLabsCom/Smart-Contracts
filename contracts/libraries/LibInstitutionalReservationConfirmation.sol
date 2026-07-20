@@ -143,7 +143,7 @@ library LibInstitutionalReservationConfirmation {
         address labProvider,
         uint256 labId
     ) private view returns (bool) {
-        if (!s.tokenStatus[labId]) return false;
+        if (!s.tokenStatus[labId] || s.labReservationIntakeStopped[labId]) return false;
         if (s.providerNetworkStatus[labProvider] != ProviderNetworkStatus.ACTIVE) return false;
         return true;
     }

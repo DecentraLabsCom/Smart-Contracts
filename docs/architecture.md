@@ -1,70 +1,70 @@
 # Architecture
 
-DecentraLabs uses one EIP-2535 Diamond as the on-chain entry point. The
-Diamond owns the storage and delegates function calls to facet contracts. A
-facet can be added, replaced or removed without changing the address that
-Marketplace, `blockchain-services` or indexers use.
+## Purpose and entry point
 
-## Runtime layout
+DecentraLabs exposes one EIP-2535 Diamond address per deployment. Consumers
+call that address; the Diamond resolves the calldata selector, delegates to the
+installed facet and keeps every protocol record in the same `AppStorage` slot.
+A facet deployment is therefore an implementation detail, not an alternative
+endpoint.
 
-```text
-Users, institutions and authorized backends
-                    |
-                    v
-          DecentraLabs Diamond
-          |       |       |
-       labs   reservations  credits/settlement
-          \       |       /
-           shared AppStorage
+```mermaid
+flowchart LR
+    M[Marketplace] -->|read calls and user transactions| D[DecentraLabs Diamond]
+    B[Institutional backend] -->|authorized transactions and intents| D
+    G[Provider gateway / backend] -->|session-start signature| D
+    D --> F[Installed facets]
+    F --> S[(Shared AppStorage)]
+    M -. metadata discovery .-> X[Off-chain metadata]
+    B -. identity and payment systems .-> O[Off-chain services]
 ```
 
-`contracts/Diamond.sol` contains the fallback that resolves a function selector
-to a facet and executes it with `delegatecall`. `contracts/libraries/LibDiamond.sol`
-stores the selector-to-facet routing and ownership data. Domain state is kept in
-`LibAppStorage.AppStorage` at the fixed application storage position.
+`contracts/Diamond.sol` contains the fallback dispatcher.
+`contracts/libraries/LibDiamond.sol` owns selector routing and Diamond
+ownership. `LibAppStorage.diamondStorage()` resolves the fixed storage position
+used by all domain facets.
 
-## Facet groups
+## Domain responsibilities
 
-| Group | Responsibilities |
-| --- | --- |
-| Diamond core | Ownership, loupe queries, and `diamondCut` upgrades. |
-| Initialization | First-time and reinitializer flows through `InitFacet` and initializer contracts. |
-| Providers | Provider accounts, provider metadata, authorized backends and network status. |
-| Labs | ERC-721 lab assets, metadata URI, listing, updates, transfers and reputation. |
-| Reservations | Calendar availability, reservation state transitions, institutional requests and queries. |
-| Access | On-chain authorization and SessionStarted evidence for settlement. |
-| Credits | Service-credit issuance, lots, locks, captures, releases, expiry and audit movements. |
-| Settlement | Provider receivables, batches, payout collection and settlement accounting. |
-| Intents | Request/action intent registration, nonce management and one-time consumption. |
+| Domain | On-chain responsibility | Main documentation |
+| --- | --- | --- |
+| Core and upgrades | Ownership, loupe inspection, selector cuts and initialization | The deployed ABI and selector manifest |
+| Providers and institutions | Roles, organization registry, backend authorization and network status | [Roles and permissions](roles-and-permissions.md) |
+| Labs | ERC-721 ownership, listing, immutable creator binding, metadata pointer and reputation | [Labs and metadata](labs.md) |
+| Reservations | Validation, confirmation, cancellation, access state and bounded indexes | [Reservations](reservations.md) |
+| Credits and settlement | Lots, treasury spending, receivables, claims and payment evidence | [Service credits and settlement](credits-and-settlement.md) |
+| Intents and session evidence | EIP-712 one-time authorization and provider-signed session proof | [Intents](reference/intents.md) and [Institutional access](institutional-access.md) |
 
-The complete source mapping is in the [facet reference](reference/facets.md).
+## On-chain and off-chain boundary
+
+The Diamond is authoritative for roles, lab ownership/configuration,
+reservation timestamps and status, credit balances, recorded evidence and
+receivable lifecycle. It does not authenticate a user through SAML, store a
+JWT, host metadata, move fiat, or open a remote session.
+
+- **Marketplace** reads the Diamond and builds user-facing operations.
+- **`blockchain-services`** validates institutional identity and reservation
+  context off-chain, then submits transactions from its authorized wallet.
+- **Lab Gateway** opens the provider resource only after the off-chain access
+  flow; it can provide the signed inputs that become SessionStarted evidence.
+- **Lab-Metadata** hosts the JSON document referenced by `LabBase.uri`.
+
+An off-chain document or identifier may be hashed into a transaction for audit,
+but it cannot override the values already stored by the Diamond.
 
 ## Upgrade boundary
 
-Only the Diamond owner may call `diamondCut`. A cut may add, replace or remove
-selectors and may execute an initializer using `delegatecall`. Upgrade scripts
-must therefore be treated as privileged production operations:
+Only the Diamond owner may execute `diamondCut`. A cut can add, replace or
+remove selectors and may run initialization code via `delegatecall`, so it is a
+privileged production operation.
 
-1. Build the facet and regenerate its ABI.
-2. Verify selectors and inheritance before preparing the cut.
-3. Use an initializer when storage needs to be populated.
-4. Simulate and test the cut before broadcasting it.
-5. Record the resulting Diamond and facet addresses in the deployment artifact.
+1. Change a facet and its focused tests.
+2. Keep `AppStorage` append-only; never reorder or remove deployed members.
+3. Classify the selector in `selectors/diamond.json` and validate the public
+   ABI.
+4. Simulate the exact cut and use an initializer only when state needs setup.
+5. Broadcast only against the intended Diamond, then record the resulting
+   artifact and update consumer ABI/configuration together.
 
 The Diamond deliberately has no `receive()` function. Bare native-asset
-transfers revert instead of leaving funds without a contract operation.
-
-## Cross-project boundaries
-
-- **Marketplace** reads lab and reservation state through the Diamond ABI and
-  builds user-facing booking/intents.
-- **`blockchain-services`** is the institutional backend that validates identity
-  and reservation context, then submits signed transactions through its wallet
-  and outbox infrastructure.
-- **Lab Gateway** enforces access to the provider resource after the backend
-  authorizes the reservation.
-- **Lab-Metadata** stores the off-chain JSON document referenced by `LabBase.uri`.
-
-The contract is the authority for ownership, price, reservation timestamps,
-reservation status, credit balances and settlement state. Off-chain documents
-are descriptive and must not be used to override those values.
+transfers revert rather than becoming stranded protocol funds.

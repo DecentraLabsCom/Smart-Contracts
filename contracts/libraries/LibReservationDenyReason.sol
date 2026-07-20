@@ -9,7 +9,9 @@ pragma solidity ^0.8.33;
 ///  3 = PAYMENT_FAILED (wallet transferFrom failed)
 ///  4 = REQUEST_EXPIRED (institutional request period expired)
 ///  5 = TREASURY_SPEND_FAILED (institutional treasury spend failed)
-///  6+ = provider cancellation reason codes (the provider supplies a non-zero
+///  6 = PROVIDER_TECHNICAL_FAILURE (automatic processing failed technically)
+///  7 = PROVIDER_UNAVAILABLE (metadata/configuration or provider availability)
+///  8+ = provider cancellation reason codes (the provider supplies a non-zero
 ///      code so the cancellation remains classifiable without changing the ABI)
 ///  255 = UNKNOWN (fallback)
 library LibReservationDenyReason {
@@ -18,5 +20,7 @@ library LibReservationDenyReason {
     uint8 internal constant PAYMENT_FAILED = 3;
     uint8 internal constant REQUEST_EXPIRED = 4;
     uint8 internal constant TREASURY_SPEND_FAILED = 5;
+    uint8 internal constant PROVIDER_TECHNICAL_FAILURE = 6;
+    uint8 internal constant PROVIDER_UNAVAILABLE = 7;
     uint8 internal constant UNKNOWN = 255;
 }

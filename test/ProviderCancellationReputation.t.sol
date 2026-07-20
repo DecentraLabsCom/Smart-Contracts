@@ -33,4 +33,27 @@ contract ProviderCancellationReputationTest is BaseTest {
         assertEq(totalEvents, 1);
         assertEq(ownerCancellations, 1);
     }
+
+    function test_technical_denial_reason_does_not_penalize_lab_reputation() public {
+        uint256 labId = 78;
+        uint32 start = uint32(block.timestamp + 1 days);
+        bytes32 key = keccak256(abi.encodePacked("provider-technical-denial", labId, start));
+
+        harness.setOwner(labId, provider);
+        harness.setReservation(key, user1, _PENDING, labId, start);
+
+        vm.expectEmit(true, true, false, true);
+        emit ReservationRequestDenied(key, labId, 6);
+
+        vm.prank(provider);
+        harness.denyReservationRequestWithReason(key, 6);
+
+        (int32 score, uint32 totalEvents, uint32 ownerCancellations,) = harness.getLabReputation(labId);
+        assertEq(harness.getReservationStatus(key), _CANCELLED);
+        assertEq(score, 0);
+        assertEq(totalEvents, 0);
+        assertEq(ownerCancellations, 0);
+    }
+
+    event ReservationRequestDenied(bytes32 indexed reservationKey, uint256 indexed tokenId, uint8 reason);
 }

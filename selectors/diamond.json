@@ -34,6 +34,7 @@
       "functions": [
         "DEFAULT_ADMIN_ROLE()",
         "addProvider(string,address,string,string,string)",
+        "provisionProvider(string,address,string,string,string,string,string)",
         "getLabProvidersPaginated(uint256,uint256)",
         "getProviderAuthURI(address)",
         "getProviderNetworkStatus(address)",
@@ -58,6 +59,7 @@
         "expireCredits(address,uint256)",
         "getCreditLots(address,uint256,uint256)",
         "getCreditMovements(address,uint256,uint256)",
+        "getCreditReservationAllocations(address,bytes32,uint256,uint256)",
         "ledgerAdjustCredits(address,int256,bytes32)",
         "lockCredits(address,uint256,bytes32)",
         "lockedBalanceOf(address)",
@@ -85,6 +87,7 @@
         "getAllInstitutions()",
         "getInstitutionsPaginated(uint256,uint256)",
         "grantInstitutionRole(address,string)",
+        "provisionInstitution(address,string,string)",
         "revokeInstitutionRole(address,string)"
       ]
     },
@@ -153,7 +156,6 @@
         "isApprovedForAll(address,address)",
         "isLabBusy(uint256)",
         "isTokenListed(uint256)",
-        "listToken(uint256)",
         "name()",
         "ownerOf(uint256)",
         "safeMintTo(address,uint256)",
@@ -163,7 +165,6 @@
         "symbol()",
         "tokenURI(uint256)",
         "transferFrom(address,address,uint256)",
-        "unlistToken(uint256)",
         "userOfReservation(bytes32)"
       ]
     },
@@ -172,7 +173,10 @@
       "target": "contracts/facets/lab/LabAdminFacet.sol:LabAdminFacet",
       "functions": [
         "addAndListLab(string,uint96,string,string,uint8)",
+        "addAndListLabWithPucHash(string,uint96,string,string,uint8,bytes32)",
         "addLab(string,uint96,string,string,uint8)",
+        "addLabWithPucHash(string,uint96,string,string,uint8,bytes32)",
+        "bindLabCreatorPucHash(uint256,bytes32)",
         "deleteLab(uint256)",
         "listLab(uint256)",
         "setTokenURI(uint256,string)",
@@ -229,6 +233,10 @@
         "getLabProviderReceivable(uint256)",
         "getLabProviderReceivableLifecycle(uint256)",
         "getLabProviderReceivablePaginated(uint256,uint256,uint256)",
+        "getProviderSettlementClaim(bytes32)",
+        "submitProviderSettlementClaim(bytes32,uint256,uint256,bytes32,bytes32)",
+        "approveProviderSettlementClaim(bytes32,bytes32)",
+        "recordProviderSettlementClaimPayment(bytes32,bytes32,bytes32)",
         "requestProviderPayout(uint256,uint256)",
         "transitionProviderReceivableState(uint256,uint8,uint8,uint256,bytes32)"
       ]
@@ -262,7 +270,8 @@
       "functions": [
         "cancelConfirmedBookingByProvider(bytes32,uint8)",
         "cancelInstitutionalBookingWithPucHash(address,bytes32,bytes32)",
-        "cancelInstitutionalReservationRequest(address,bytes32,bytes32)"
+        "cancelInstitutionalReservationRequest(address,bytes32,bytes32)",
+        "previewInstitutionalBookingCancellation(bytes32)"
       ]
     },
     {
@@ -309,7 +318,10 @@
     {
       "name": "ReservationDenialFacet",
       "target": "contracts/facets/reservation/ReservationDenialFacet.sol:ReservationDenialFacet",
-      "functions": ["denyReservationRequest(bytes32)"]
+      "functions": [
+        "denyReservationRequest(bytes32)",
+        "denyReservationRequestWithReason(bytes32,uint8)"
+      ]
     },
     {
       "name": "ReservationIntentFacet",
@@ -341,6 +353,8 @@
     "confirmReservationRequest(bytes32)",
     "cancelReservationRequest(bytes32)",
     "cancelBooking(bytes32)",
+    "listToken(uint256)",
+    "unlistToken(uint256)",
     "issueServiceCredits(address,uint256,bytes32)",
     "adjustServiceCredits(address,int256,bytes32)",
     "getServiceCreditBalance(address)",

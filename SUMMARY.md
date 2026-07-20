@@ -1,6 +1,7 @@
 # DecentraLabs Smart Contracts
 
 - [Overview](README.md)
+- [Documentation guide](docs/README.md)
 
 ## Concepts
 
@@ -14,10 +15,7 @@
 ## Operations
 
 - [Deployment and networks](docs/deployment.md)
-- [Development and testing](docs/development.md)
 
 ## Reference
 
-- [Facet reference](docs/reference/facets.md)
-- [Storage and data types](docs/reference/storage.md)
 - [Intent registry](docs/reference/intents.md)

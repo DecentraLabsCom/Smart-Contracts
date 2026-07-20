@@ -1,61 +1,114 @@
 # Service credits and settlement
 
-The active economic model is an internal service-credit ledger. Credits are
-accounting units used by the reservation and provider-settlement facets; they
-are not an external ERC-20 token and are not native currency held by the
-Diamond.
+## Economic model
 
-## Credit units
+Service credits are internal accounting units. They are not native currency,
+an ERC-20 token, or an externally redeemable balance held by the Diamond.
+Prices, reservations and provider receivables use raw credit units.
 
-The shared storage library defines:
+| Constant | Value | Meaning |
+| --- | ---: | --- |
+| Credit decimals | `5` | Display precision for one service credit. |
+| Raw units per credit | `100,000` | Conversion from whole credits to stored amount. |
+| Accounting reference | `10` credits/EUR | Reference used for configured funding and reporting paths. |
+| Default user limit | `1,000,000` raw units | Ten credits per institutional spending period. |
+| Default spending period | `120 days` | Used when an institution has not configured another duration. |
 
-- 5 decimal places per credit;
-- `100,000` raw units per credit;
-- a fixed accounting reference of 10 credits per EUR for configured funding
-  and reporting paths.
+Keep conversion at the integration boundary. A `LabBase.price` is a raw amount
+per second, and the reservation price is the raw total for the booked duration.
 
-Prices in `LabBase.price` and reservation amounts are raw credit units. Keep
-all off-chain conversions explicit and do not silently treat raw units as whole
-credits.
+## Credit lifecycle and provenance
 
-## Credit lifecycle
+```mermaid
+flowchart LR
+    F[Funding order] --> M[Mint credit lot]
+    M --> A[Available credits]
+    A --> L[Lock, when the operation uses a lock]
+    L --> C[Capture]
+    A --> C
+    C --> R[Reservation source allocations]
+    R --> X[Cancellation refund]
+    X --> A
+    M --> E[Expiry of remaining lot balance]
+```
 
-`ServiceCreditFacet` exposes the administrative and reservation-side movement
-operations:
+Each mint creates a `CreditLot` with a funding-order reference, EUR gross basis,
+issue time, optional expiry and remaining amount. Consumption is FIFO across
+available, non-expired lots. Every ledger movement records its kind, amount,
+resulting available/locked balances, reference and timestamp.
 
-| Operation | Effect |
+| Movement | Accounting effect |
 | --- | --- |
-| Issue/mint | Creates available credits or a traceable credit lot. |
-| Lock | Moves available balance into reservation-locked balance. |
-| Capture | Consumes locked credits for a completed reservation. |
-| Release | Returns locked credits when a request is denied or released. |
-| Cancel | Applies the configured cancellation accounting. |
-| Expire | Removes credits from expired lots. |
-| Adjust | Records an explicitly referenced administrative correction. |
+| `MINT` | Creates a traceable funding lot and available balance. |
+| `LOCK` / `RELEASE` | Moves value into or out of the locked balance without consuming a lot. |
+| `CAPTURE` | Consumes locked value from lots in FIFO order. |
+| `CANCEL` | Refunds a previously allocated reservation amount. |
+| `EXPIRE` | Removes a lot's remaining balance. |
+| `ADJUST` | Records a referenced administrative correction. |
 
-Every movement is represented in the credit movement audit trail with a kind,
-amount, resulting balances, reference and timestamp. Funding lots preserve the
-funding order, issue time, expiration and remaining amount; consumption is FIFO
-within an account's lots.
+`ServiceCreditFacet` exposes the administrative ledger API and protects writes
+with the default-admin role. Institutional booking uses the treasury path from
+the reservation facets; clients should not substitute an arbitrary ledger call
+for reservation confirmation.
 
-## Reservation funding
+## Reservation allocations and refunds
 
-For an institutional booking, the contract checks the payer institution's
-available treasury and user spending policy before the reservation can be
-created or confirmed. The exact path depends on whether the payer and provider
-are the same institution and whether a direct-booking intent is used.
+When a reservation consumes credits, the contract persists a
+`CreditReservationAllocation` for every source lot. It retains the funding
+order, amount, proportional EUR basis, expiry and the separately tracked refund
+amounts. This lets reconciliation connect a reservation charge or refund to its
+original funding provenance.
 
-## Provider revenue
+Use `getCreditReservationAllocations(account, reservationRef, offset, limit)`
+for that evidence. Credit lots, movements and allocations are paginated and the
+public facet caps each response at 50 records. Refunds cannot exceed the
+recorded allocations and keep the original expiry context, so a cancellation
+cannot create perpetual credits from an expiring lot.
 
-At confirmation, the reservation caches the provider share. The current split is
-75% of the reservation price for the provider; the remaining 25% is the platform
-margin and is not represented as a separate token balance.
+## Institutional spending and cancellation
 
-When a reservation is finalized, provider revenue moves through receivable
-buckets. `ProviderSettlementFacet` exposes the provider's eligible payout and
-settlement operations, while `LibProviderReceivable` keeps accrued, invoiced,
-approved, paid, reversed and disputed amounts separate.
+Reservation confirmation checks the payer institution's available balance and
+the PUC-scoped spending allowance. The successful charge records the spending
+period used by that reservation, allowing a later refund to reconcile the same
+period correctly.
 
-Cancellation uses a 5% total fee with a minimum of 0.1 credits where applicable.
-The provider allocation is 3% of the price and the remaining cancellation fee is
-the platform share. Zero-price reservations do not create a credit movement.
+For an eligible consumer cancellation before the start time, the current policy
+charges a total fee of 5% with a minimum of 0.1 credits (or the entire price
+when it is lower). Three fifths of that fee go to the provider, equivalent to
+3% of the price when the percentage fee applies; the remainder is the implicit
+platform margin. A zero-price reservation creates no credit movement. A
+provider-initiated pre-start cancellation instead refunds the full price and
+does not accrue a provider cancellation fee.
+
+Always call `previewInstitutionalBookingCancellation` before presenting a
+confirmation screen. It returns the actual current fee, refund, spending-period
+data, source expiry and allocations, rather than an off-chain estimate.
+
+## Provider receivable and claim lifecycle
+
+Provider revenue is a receivable, not a token payout. On successful finalization
+with SessionStarted evidence, the reservation's cached provider share is added
+to the lab's accrued receivable. `requestProviderPayout` processes a bounded
+batch of eligible records and moves accrued value into the settlement queue.
+
+```mermaid
+stateDiagram-v2
+    [*] --> ACCRUED: eligible reservation finalizes
+    ACCRUED --> QUEUED: requestProviderPayout
+    QUEUED --> INVOICED: submitProviderSettlementClaim
+    INVOICED --> APPROVED: approveProviderSettlementClaim
+    APPROVED --> PAID: recordProviderSettlementClaimPayment
+```
+
+The receivable read exposes `ACCRUED`, `QUEUED`, `INVOICED`, `APPROVED`, `PAID`,
+`REVERSED` and `DISPUTED` buckets. A settlement claim has a unique non-zero
+`claimId`, a lab, amount, reservation-scope hash and invoice-reference hash.
+Submitting it atomically moves the claimed amount from `QUEUED` to `INVOICED`.
+Approval requires an external reference. Payment requires a non-zero,
+previously unused payment reference plus an attestation hash, then moves the
+claim from `APPROVED` to `PAID`.
+
+Use `getLabProviderReceivableLifecycle` for aggregate amounts and
+`getProviderSettlementClaim` for the audit record. Claim and financial
+transitions are restricted to the current provider/authorized backend, a
+configured settlement operator, or the default admin as defined by the facet.

@@ -424,6 +424,63 @@ contract ProviderReceivableAliasesTest is Test {
         harness.transitionProviderReceivableState(LAB_ID, 2, 5, ONE_CREDIT, bytes32("bad"));
     }
 
+    function test_transitionProviderReceivableState_requires_reference() public {
+        harness.setProviderReceivableBucket(LAB_ID, 2, TEN_CREDITS);
+
+        vm.prank(PROVIDER);
+        vm.expectRevert("Reference required");
+        harness.transitionProviderReceivableState(LAB_ID, 2, 3, ONE_CREDIT, bytes32(0));
+    }
+
+    function test_provider_claim_requires_reservation_scope_and_payment_attestation() public {
+        bytes32 claimId = keccak256("claim-001");
+        bytes32 reservationHash = keccak256("reservations-001");
+        bytes32 invoiceHash = keccak256("invoice-001");
+        bytes32 paymentRef = keccak256("payment-001");
+        bytes32 attestation = keccak256("attestation-001");
+        address settler = address(this);
+        harness.setProviderReceivableBucket(LAB_ID, 2, FIVE_CREDITS);
+
+        vm.prank(PROVIDER);
+        harness.submitProviderSettlementClaim(claimId, LAB_ID, FIVE_CREDITS, reservationHash, invoiceHash);
+
+        vm.prank(settler);
+        harness.approveProviderSettlementClaim(claimId, keccak256("approval-001"));
+
+        vm.prank(settler);
+        harness.recordProviderSettlementClaimPayment(claimId, paymentRef, attestation);
+
+        (
+            uint256 labId,
+            uint256 amount,
+            uint8 status,
+            bytes32 storedReservationHash,
+            bytes32 storedInvoiceHash,
+            bytes32 storedPaymentRef,
+            bytes32 storedAttestation,
+            address submittedBy,
+            address approvedBy,
+            address paidBy,
+            uint64 submittedAt,
+            uint64 approvedAt,
+            uint64 paidAt
+        ) = harness.getProviderSettlementClaim(claimId);
+
+        assertEq(labId, LAB_ID);
+        assertEq(amount, FIVE_CREDITS);
+        assertEq(status, 3);
+        assertEq(storedReservationHash, reservationHash);
+        assertEq(storedInvoiceHash, invoiceHash);
+        assertEq(storedPaymentRef, paymentRef);
+        assertEq(storedAttestation, attestation);
+        assertEq(submittedBy, PROVIDER);
+        assertEq(approvedBy, settler);
+        assertEq(paidBy, settler);
+        assertGt(submittedAt, 0);
+        assertGe(approvedAt, submittedAt);
+        assertGe(paidAt, approvedAt);
+    }
+
     function test_transitionProviderReceivableState_reverts_for_unauthorized_caller() public {
         harness.setProviderReceivableBucket(LAB_ID, 2, TEN_CREDITS);
 

@@ -113,6 +113,24 @@ struct PayoutCandidate {
     bytes32 key;
 }
 
+/// @notice Individual provider settlement claim with immutable reservation and
+///      invoice scope plus an auditable payment proof.
+struct ProviderSettlementClaim {
+    uint256 labId;
+    uint256 amount;
+    bytes32 reservationsHash;
+    bytes32 invoiceReferenceHash;
+    bytes32 paymentReferenceHash;
+    bytes32 paymentAttestationHash;
+    address submittedBy;
+    address approvedBy;
+    address paidBy;
+    uint64 submittedAt;
+    uint64 approvedAt;
+    uint64 paidAt;
+    uint8 status;
+}
+
 struct RecentReservationBuffer {
     bytes32[50] keys;
     uint32[50] starts;
@@ -281,6 +299,25 @@ struct AppStorage {
     // Payout heap index. Zero means the candidate is not indexed (including legacy
     // entries); indexed entries store their zero-based array index plus one.
     mapping(bytes32 reservationKey => uint256 indexPlusOne) payoutHeapIndexPlusOne;
+
+    // Remaining EUR gross basis per lot. Kept separately so the existing CreditLot
+    // layout remains stable while sequential consumption can preserve exact
+    // proportional provenance, including rounding on the final source slice.
+    mapping(uint256 lotId => uint256 remainingEurGrossAmount) creditLotRemainingEurGrossAmount;
+
+    // Immutable source allocations recorded when a reservation consumes credits.
+    mapping(address account => mapping(bytes32 reservationRef => CreditReservationAllocation[]))
+        creditReservationAllocations;
+
+    // Independent stop-selling switch. It defaults to false so legacy listed
+    // labs keep accepting reservations until their provider explicitly stops
+    // new intake; tokenStatus remains the public listing state.
+    mapping(uint256 labId => bool) labReservationIntakeStopped;
+
+    // Individual settlement claims. Appended so existing Diamond storage slots
+    // remain stable for already deployed contracts.
+    mapping(bytes32 claimId => ProviderSettlementClaim claim) providerSettlementClaims;
+    mapping(bytes32 paymentReferenceHash => bool used) providerSettlementPaymentReferenceUsed;
 }
 
 /// @notice Provider participation status within the limited service network
@@ -325,6 +362,18 @@ struct CreditMovement {
     uint256 lockedAfter; // Locked balance after movement
     bytes32 ref; // External reference (reservation key, funding order, etc.)
     uint48 timestamp;
+}
+
+/// @notice Portion of a reservation charge attributable to one source credit lot.
+/// @dev The original allocation remains immutable; refund fields track how much
+///      of that allocation has already been restored without losing provenance.
+struct CreditReservationAllocation {
+    bytes32 fundingOrderId;
+    uint256 amount;
+    uint256 refundedAmount;
+    uint256 eurGrossAmount;
+    uint256 refundedEurGrossAmount;
+    uint48 expiresAt;
 }
 
 /// @title LibAppStorage

@@ -28,6 +28,8 @@ test("unsupported wallet, credit, migration, and generic role functions are forb
     "confirmReservationRequest(bytes32)",
     "cancelReservationRequest(bytes32)",
     "cancelBooking(bytes32)",
+    "listToken(uint256)",
+    "unlistToken(uint256)",
     "issueServiceCredits(address,uint256,bytes32)",
     "adjustServiceCredits(address,int256,bytes32)",
     "getServiceCreditBalance(address)",

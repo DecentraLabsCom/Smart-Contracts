@@ -1,53 +1,66 @@
-# Institutional access and check-in
+# Institutional access and session evidence
 
-Institutional access is split into two on-chain facts:
+## Two separate facts
 
-1. the reservation becomes `ACCESS_AUTHORIZED`; and
-2. the provider/backend records cryptographic evidence that the session started.
+The contract deliberately separates authorization to access a lab from proof
+that a remote session started. `ACCESS_AUTHORIZED` is not enough to earn a
+provider receivable.
 
-Keeping these facts separate prevents an authorization transaction from being
-mistaken for proof that a remote connection was actually established.
+```mermaid
+sequenceDiagram
+    participant I as Institution / backend
+    participant D as Diamond
+    participant G as Provider gateway
+    I->>D: Confirmed reservation
+    I->>D: checkInReservation or signed check-in
+    D-->>I: ACCESS_AUTHORIZED
+    G->>G: Open off-chain session
+    G->>D: markSessionStarted(provider signature)
+    D-->>G: Hash-only session evidence recorded
+    Note over D: Finalization uses status + evidence
+```
 
-## Authorization
+JWTs, SAML assertions, passwords and raw session IDs stay off-chain. The
+contract stores only the protocol fields and hashes needed to verify and audit
+the evidence.
 
-`ReservationCheckInFacet` moves a confirmed reservation to
-`ACCESS_AUTHORIZED` after validating the institution, reservation and identity
-context required by the selected flow. The status remains active until the
-reservation is finalized.
+## Check-in: authorization
 
-## SessionStarted evidence
+`ReservationCheckInFacet` moves a reservation from `CONFIRMED` to
+`ACCESS_AUTHORIZED` only inside its reservation window. The default admin can
+make the direct call. The signature path accepts an EIP-712 check-in signed by:
 
-`ReservationSessionFacet` stores a reservation-scoped session record containing
-the protocol's hashed identifiers and timestamps, including:
+- the renter for a non-institutional record; or
+- the payer institution or its authorized backend for an institutional record.
 
-- signer/provider identity;
-- gateway and session identifiers;
-- access type;
-- start timestamp;
-- one-time nonce;
-- credential hash;
-- client proof hash.
+The signature binds signer, reservation key, PUC hash, chain ID and Diamond
+address. Its timestamp must not be in the future or more than five minutes old.
+The gateway still performs the technical access flow independently.
 
-The signed payload is domain-separated with the chain ID and Diamond address.
-The contract validates the reservation window, provider signer, PUC hash, lab
-identifier and nonce/observation uniqueness before recording the evidence.
+## SessionStarted: proof
 
-The session record is durable protocol evidence, not a bearer credential. Raw
-JWTs, passwords and private keys must remain off-chain.
+`ReservationSessionFacet.markSessionStarted` accepts provider-signed EIP-712
+evidence only after access has been authorized. The input binds the reservation
+key, string form of the lab ID, PUC hash, gateway/session/access-type hashes,
+start time, nonce, credential hash and client-proof hash.
 
-## Intent-based execution
+The contract verifies all of the following:
 
-Institutional backends can submit one-time intents for reservation and action
-operations. An intent binds a request ID, action code, payload hash, executor
-and signer nonce. The contract consumes it exactly once and rejects mismatched
-or replayed payloads.
+- the reservation is `ACCESS_AUTHORIZED` and `startedAt` is inside its window;
+- the signer is the current ERC-721 lab owner;
+- PUC and lab ID match the reservation;
+- the attestation is not future-dated or older than the configured one-day
+  grace window;
+- the reservation, nonce and gateway/session/access-type observation have not
+  already been used.
 
-See the [intent registry reference](reference/intents.md) for the intent
-boundary and the [reservations guide](reservations.md) for the state machine.
+Only hash values are persisted. Reusing a credential, nonce or observed session
+across reservations is rejected by the corresponding uniqueness guard.
 
-## Settlement requirement
+## Economic consequence
 
-Provider settlement only treats an access-authorized reservation as eligible
-when the required SessionStarted evidence is present. If an access flow fails
-after authorization, operators must reconcile the attestation and settlement
-state rather than manually changing the reservation status.
+After the reservation ends, permissionless finalization waits through the
+session-attestation deadline. An access-authorized reservation with valid
+SessionStarted evidence can accrue provider revenue and contributes to
+completion reputation. If that evidence never arrives, finalization refunds the
+priced reservation instead of treating access authorization as proof of service.

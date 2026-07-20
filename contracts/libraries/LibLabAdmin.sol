@@ -20,6 +20,7 @@ library LibLabAdmin {
 
     error LabCreatorMismatch(uint256 labId);
     error LabCreatorHashRequired();
+    error LabCreatorHashAlreadyBound(uint256 labId);
 
     event LabAdded(
         uint256 indexed _labId,
@@ -39,6 +40,7 @@ library LibLabAdmin {
     event LabURISet(uint256 indexed _labId, string _uri);
     event LabListed(uint256 indexed _labId, address indexed _provider);
     event LabUnlisted(uint256 indexed _labId, address indexed _provider);
+    event LabCreatorPucHashBound(uint256 indexed labId, bytes32 indexed pucHash, address indexed actor, bool migration);
 
     function addLab(
         string calldata _uri,
@@ -61,6 +63,50 @@ library LibLabAdmin {
         uint256 nextLabId = _createLab(_uri, _price, _accessUri, _accessKey, _resourceType, true);
         emit LabAdded(nextLabId, msg.sender, _uri, _price, _accessUri, _accessKey, _resourceType);
         emit LabListed(nextLabId, msg.sender);
+    }
+
+    function addLabWithPucHash(
+        string calldata _uri,
+        uint96 _price,
+        string calldata _accessUri,
+        string calldata _accessKey,
+        uint8 _resourceType,
+        bytes32 pucHash
+    ) internal {
+        _requirePucHash(pucHash);
+        uint256 nextLabId = _createLab(_uri, _price, _accessUri, _accessKey, _resourceType, false);
+        _bindCreatorPucHash(nextLabId, pucHash, false);
+        emit LabAdded(nextLabId, msg.sender, _uri, _price, _accessUri, _accessKey, _resourceType);
+    }
+
+    function addAndListLabWithPucHash(
+        string calldata _uri,
+        uint96 _price,
+        string calldata _accessUri,
+        string calldata _accessKey,
+        uint8 _resourceType,
+        bytes32 pucHash
+    ) internal {
+        _requirePucHash(pucHash);
+        uint256 nextLabId = _createLab(_uri, _price, _accessUri, _accessKey, _resourceType, true);
+        _bindCreatorPucHash(nextLabId, pucHash, false);
+        emit LabAdded(nextLabId, msg.sender, _uri, _price, _accessUri, _accessKey, _resourceType);
+        emit LabListed(nextLabId, msg.sender);
+    }
+
+    /// @notice Bind the creator PUC hash for an existing legacy lab.
+    /// @dev Only the current token owner may migrate an unbound lab. The
+    ///      binding is write-once so later Marketplace checks cannot be
+    ///      redirected to another identity.
+    function bindLabCreatorPucHash(
+        uint256 labId,
+        bytes32 pucHash
+    ) internal {
+        _requireExists(labId);
+        _requireOnlyTokenOwner(labId);
+        _requirePucHash(pucHash);
+        if (_s().pucHashByLab[labId] != bytes32(0)) revert LabCreatorHashAlreadyBound(labId);
+        _bindCreatorPucHash(labId, pucHash, true);
     }
 
     function updateLab(
@@ -117,6 +163,7 @@ library LibLabAdmin {
             s.tokenStatus[_labId] = false;
             emit LabUnlisted(_labId, msg.sender);
         }
+        s.labReservationIntakeStopped[_labId] = true;
 
         ILabFacetMint(address(this)).burnToken(_labId);
         _removeActiveLabFromIndex(s, _labId);
@@ -134,6 +181,7 @@ library LibLabAdmin {
         require(!s.tokenStatus[_labId], "Lab already listed");
 
         s.tokenStatus[_labId] = true;
+        s.labReservationIntakeStopped[_labId] = false;
 
         emit LabListed(_labId, msg.sender);
     }
@@ -146,9 +194,9 @@ library LibLabAdmin {
 
         AppStorage storage s = _s();
         require(s.tokenStatus[_labId], "Lab not listed");
-        require(!_hasActiveBookings(_labId), "Cannot unlist lab with uncollected reservations");
 
         s.tokenStatus[_labId] = false;
+        s.labReservationIntakeStopped[_labId] = true;
 
         emit LabUnlisted(_labId, msg.sender);
     }
@@ -177,6 +225,21 @@ library LibLabAdmin {
 
         bytes32 creatorHash = _s().pucHashByLab[_labId];
         if (creatorHash != pucHash) revert LabCreatorMismatch(_labId);
+    }
+
+    function _requirePucHash(
+        bytes32 pucHash
+    ) private pure {
+        if (pucHash == bytes32(0)) revert LabCreatorHashRequired();
+    }
+
+    function _bindCreatorPucHash(
+        uint256 labId,
+        bytes32 pucHash,
+        bool migration
+    ) private {
+        _s().pucHashByLab[labId] = pucHash;
+        emit LabCreatorPucHashBound(labId, pucHash, msg.sender, migration);
     }
 
     function _validateLabParams(
@@ -225,9 +288,8 @@ library LibLabAdmin {
         });
         _addActiveLabToIndex(s, nextLabId);
 
-        if (listImmediately) {
-            s.tokenStatus[nextLabId] = true;
-        }
+        s.tokenStatus[nextLabId] = listImmediately;
+        s.labReservationIntakeStopped[nextLabId] = !listImmediately;
     }
 
     function _addActiveLabToIndex(

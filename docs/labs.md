@@ -1,53 +1,80 @@
 # Labs and metadata
 
-Each laboratory is an ERC-721 asset. The token ID is the stable on-chain
-identifier used by reservations, access authorization, reputation and provider
-settlement.
-
 ## On-chain lab record
 
-`LabBase` contains the fields that affect protocol behavior:
+Every laboratory is an ERC-721 token. Its token ID is the stable identifier
+used by reservations, access authorization, reputation and settlement.
 
-| Field | Meaning |
+| `LabBase` field | Protocol meaning |
 | --- | --- |
 | `uri` | URI of the off-chain lab metadata JSON. |
 | `price` | Raw service-credit price per second. |
-| `accessURI` | Provider gateway/service endpoint identifier. |
-| `accessKey` | Public provider-side routing identifier; it is not a password. |
-| `createdAt` | Registration timestamp. |
-| `resourceType` | `0` for an exclusive physical/remote lab; `1` for a concurrent FMU simulation. |
+| `accessURI` | Provider routing or service endpoint identifier. |
+| `accessKey` | Public routing identifier; never a password or bearer token. |
+| `createdAt` | On-chain registration time. |
+| `resourceType` | `0` is exclusive physical/remote capacity; `1` is concurrent FMU capacity. |
 
-The contract does not store the full descriptive document. Consumers resolve
-`uri` and validate the JSON using the [Lab-Metadata repository](https://github.com/DecentraLabsCom/Lab-Metadata).
+The metadata document is descriptive. Changing JSON at `uri` cannot change the
+stored price, resource type, owner or reservation state. Validate its schema
+and availability off-chain before publishing a lab.
 
-## Provider workflow
+## Lifecycle
 
-The lab administration facets provide the following lifecycle:
+```mermaid
+stateDiagram-v2
+    [*] --> Created: addLab / addLabWithPucHash
+    Created --> Listed: listLab
+    Created --> Deleted: deleteLab
+    Listed --> Unlisted: unlistLab or transfer
+    Unlisted --> Listed: listLab
+    Unlisted --> Deleted: deleteLab
+    Deleted --> [*]
+```
 
-1. A provider creates a lab and supplies its URI, price and access identifiers.
-2. The provider lists the lab when it is ready to accept reservations.
-3. The provider may update metadata and access configuration while respecting
-   the ownership and reservation guards in the facet.
-4. The provider unlists or deletes the lab when it should no longer be offered.
+`addAndListLab` combines creation and listing. The corresponding
+`*WithPucHash` functions atomically bind a non-zero creator PUC hash. For a
+legacy unbound lab, its current token owner can call `bindLabCreatorPucHash`
+once; the binding cannot later be replaced. `getPucHash` deliberately remains
+available after a burn so off-chain deletion cleanup can authenticate the
+record.
 
-`addAndListLab` is available for the atomic create-and-list path. Lab transfers
-and owner migrations are handled by their dedicated facet/library logic and
-must preserve the relationship between token ownership and provider state.
+Intent-based creation also requires a non-zero PUC hash. Subsequent
+`*WithIntent` lab changes check that hash in addition to consuming the signed
+intent. Direct owner calls use ERC-721 ownership checks; integrators that need
+creator-identity binding should select the PUC-aware or intent path.
 
-## Resource types
+## Listing, changes and deletion
 
-`resourceType = 0` uses the interval calendar to prevent overlapping active
-reservations. `resourceType = 1` identifies a concurrent FMU simulation, so the
-exclusive calendar conflict rule is not applied in the same way; concurrency is
-described by off-chain metadata and provider runtime capacity.
+`listLab` makes a lab eligible for new reservations and clears its
+stop-intake flag. `unlistLab` removes it from new intake while preserving
+existing reservation obligations. The legacy `listToken` and `unlistToken`
+selectors are intentionally forbidden from the production surface.
 
-The numeric value in `LabBase` is authoritative. Metadata is useful for
-discovery, but changing a JSON attribute cannot change the resource type or
-reservation economics already stored on-chain.
+The owner may update URI, price and access identifiers. Changing
+`resourceType` is blocked while active bookings exist. Deletion is blocked
+while the lab has active reservations or an unsettled receivable position; it
+unlists the lab, stops intake, burns the token and removes it from the active
+catalog only once those obligations are clear.
+
+An ERC-721 transfer unlists the lab. Pending reservations prevent transfer;
+confirmed and access-authorized records migrate their provider association to
+the recipient within the transfer safeguards. Treat a transfer as an
+operational handover, not as a way to erase active obligations.
+
+## Capacity model
+
+| Resource type | On-chain scheduling | Operational responsibility |
+| --- | --- | --- |
+| `0` | Inserts confirmed ranges into the interval calendar and rejects overlaps. | One exclusive physical or remote resource per booked range. |
+| `1` | Does not apply the exclusive calendar conflict rule in the same way. | FMU/runtime capacity and concurrency remain provider-side policy. |
+
+The numeric on-chain value is authoritative. Metadata can describe capacity,
+but cannot turn an exclusive lab into a concurrent resource.
 
 ## Reputation
 
-`LabReputationFacet` exposes a score and rating derived from lab lifecycle
-events. A completed access-authorized reservation contributes to completion
-tracking when the required SessionStarted evidence exists. Provider
-cancellations and other configured events are recorded separately.
+`LabReputationFacet` exposes score, rating and event counters. A completed
+access-authorized reservation records a completion only when the required
+SessionStarted evidence exists. Provider-initiated cancellation records a
+separate cancellation event. Operators may use the read values for discovery,
+but they are not an authorization mechanism.

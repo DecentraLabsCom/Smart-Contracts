@@ -2,7 +2,13 @@
 pragma solidity ^0.8.33;
 
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
-import {AppStorage, LibAppStorage, CreditLot, CreditMovement} from "../libraries/LibAppStorage.sol";
+import {
+    AppStorage,
+    LibAppStorage,
+    CreditLot,
+    CreditMovement,
+    CreditReservationAllocation
+} from "../libraries/LibAppStorage.sol";
 import {LibCreditLedger} from "../libraries/LibCreditLedger.sol";
 
 contract ServiceCreditFacet {
@@ -215,6 +221,34 @@ contract ServiceCreditFacet {
         movements = new CreditMovement[](end - offset);
         for (uint256 i = offset; i < end;) {
             movements[i - offset] = storedMovements[i];
+            unchecked {
+                ++i;
+            }
+        }
+    }
+
+    /// @notice Get paginated source-lot allocations for a reservation.
+    /// @dev Allocations retain original funding and EUR provenance; refunded
+    ///      amounts are exposed separately for reconciliation.
+    function getCreditReservationAllocations(
+        address account,
+        bytes32 reservationRef,
+        uint256 offset,
+        uint256 limit
+    ) external view returns (CreditReservationAllocation[] memory allocations, uint256 total) {
+        total = LibCreditLedger.reservationAllocationCount(account, reservationRef);
+        if (offset >= total) return (new CreditReservationAllocation[](0), total);
+
+        uint256 end = offset + limit;
+        if (end > total) end = total;
+        if (limit > 50) {
+            end = offset + 50;
+            if (end > total) end = total;
+        }
+
+        allocations = new CreditReservationAllocation[](end - offset);
+        for (uint256 i = offset; i < end;) {
+            allocations[i - offset] = LibCreditLedger.getReservationAllocation(account, reservationRef, i);
             unchecked {
                 ++i;
             }

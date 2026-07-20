@@ -9,12 +9,11 @@ import {RivalIntervalTreeLibrary, Tree} from "../libraries/RivalIntervalTreeLibr
 /// @author
 /// - Juan Luis Ramos Villalón
 /// - Luis de la Torre Cubillo
-/// @notice Lab listing and read-only reservation/availability functionality for ERC721 tokens.
+/// @notice Read-only reservation and availability functionality for ERC721 lab tokens.
 /// @dev Reservation writes live in the institutional and intent facets.
 ///
-/// @notice This contract allows token owners to:
-/// - List and unlist their tokens for reservation
-/// - Query reservation status and availability
+/// @notice Listing lifecycle operations are exposed by LabAdminFacet so every path
+///         applies the same active-booking and ownership policy.
 ///
 /// @dev Key features include:
 /// - Reservation request system with pending/confirmed/access-authorized/settled/cancelled states
@@ -49,20 +48,9 @@ abstract contract ReservableToken {
     uint8 internal constant _CONFIRMED = 1;
     uint8 internal constant _ACCESS_AUTHORIZED = 2;
 
-    /// @notice Emitted when a token is listed for reservations.
-    /// @param tokenId The ID of the token that was listed.
-    /// @param owner The address of the token owner who listed it.
-    event LabListed(uint256 indexed tokenId, address indexed owner);
-
-    /// @notice Emitted when a token is unlisted from reservations.
-    /// @param tokenId The ID of the token that was unlisted.
-    /// @param owner The address of the token owner who unlisted it.
-    event LabUnlisted(uint256 indexed tokenId, address indexed owner);
-
     /// @dev Custom errors to replace require strings for better gas efficiency and clarity.
     /// @dev These errors are used to revert transactions with specific error messages.
     error TokenNotFound();
-    error OnlyTokenOwner();
     error ReservationNotFound();
     error AvailabilityResultTruncated();
     error InvalidAvailabilityPage();
@@ -81,58 +69,6 @@ abstract contract ReservableToken {
         uint256 _tokenId
     ) internal view {
         if (LibERC721Storage.ownerOfOptional(_tokenId) == address(0)) revert TokenNotFound();
-    }
-
-    /// @dev Modifier to check if the caller is the owner of a specific token.
-    /// @param _tokenId The ID of the token to check.
-    /// @notice Reverts if the caller is not the owner of the token.
-    modifier onlyTokenOwner(
-        uint256 _tokenId
-    ) {
-        _onlyTokenOwner(_tokenId);
-        _;
-    }
-
-    function _onlyTokenOwner(
-        uint256 _tokenId
-    ) internal view {
-        if (LibERC721Storage.ownerOf(_tokenId) != msg.sender) revert OnlyTokenOwner();
-    }
-
-    /// @notice Marks a token as listed by updating its status so it's possible to reserve.
-    /// @dev This function can only be called by the owner of the token.
-    /// @param _tokenId The unique identifier of the token to be listed.
-    function listToken(
-        uint256 _tokenId
-    ) public onlyTokenOwner(_tokenId) {
-        AppStorage storage s = _s();
-
-        // Check if already listed to avoid double-counting
-        if (s.tokenStatus[_tokenId]) {
-            revert("Lab already listed");
-        }
-
-        s.tokenStatus[_tokenId] = true;
-
-        emit LabListed(_tokenId, msg.sender);
-    }
-
-    /// @notice Unlists a token, marking it as unavailable for new reservations.
-    /// @dev This function updates the token's status to `false` in the storage mapping.
-    /// @dev Allows unlisting even with active reservations (existing reservations remain valid).
-    /// @param _tokenId The unique identifier of the token to be unlisted.
-    function unlistToken(
-        uint256 _tokenId
-    ) public onlyTokenOwner(_tokenId) {
-        AppStorage storage s = _s();
-
-        // Check if actually listed to avoid under-counting
-        if (!s.tokenStatus[_tokenId]) {
-            revert("Lab not listed");
-        }
-
-        s.tokenStatus[_tokenId] = false;
-        emit LabUnlisted(_tokenId, msg.sender);
     }
 
     /// @notice Checks if a token with the given ID is listed.

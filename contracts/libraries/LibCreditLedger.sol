@@ -1,7 +1,14 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 pragma solidity ^0.8.33;
 
-import {AppStorage, LibAppStorage, CreditLot, CreditMovement, CreditMovementKind} from "./LibAppStorage.sol";
+import {
+    AppStorage,
+    LibAppStorage,
+    CreditLot,
+    CreditMovement,
+    CreditMovementKind,
+    CreditReservationAllocation
+} from "./LibAppStorage.sol";
 
 /// @title LibCreditLedger
 /// @notice Lot-based credit ledger with lock/capture/release semantics for MiCA 4.3.d compliance
@@ -18,6 +25,8 @@ library LibCreditLedger {
     error LotNotExpired();
     error ExpiryInPast();
     error UnbackedCreditBalance();
+    error NoReservationAllocation();
+    error RefundExceedsReservationAllocation();
 
     /// @notice Available (unlocked) credits for an account
     function availableBalanceOf(
@@ -105,7 +114,7 @@ library LibCreditLedger {
         s.creditLockedBalance[account] -= amount;
         s.serviceCreditBalance[account] -= amount;
 
-        _consumeFromLots(s, account, amount);
+        _consumeFromLots(s, account, amount, reservationRef, true);
 
         _recordMovement(s, account, CreditMovementKind.CAPTURE, amount, reservationRef);
     }
@@ -141,9 +150,31 @@ library LibCreditLedger {
 
         s.serviceCreditBalance[account] += amount;
 
-        uint48 refundExpiry = s.creditReservationExpiry[account][reservationRef];
+        CreditReservationAllocation[] storage allocations = s.creditReservationAllocations[account][reservationRef];
+        if (allocations.length == 0) revert NoReservationAllocation();
+        uint256 remainingToRefund = amount;
+        for (uint256 i; i < allocations.length && remainingToRefund > 0;) {
+            CreditReservationAllocation storage allocation = allocations[i];
+            uint256 refundableAmount = allocation.amount - allocation.refundedAmount;
+            if (refundableAmount > 0) {
+                uint256 refundAmount = refundableAmount < remainingToRefund ? refundableAmount : remainingToRefund;
+                uint256 refundableEur = allocation.eurGrossAmount - allocation.refundedEurGrossAmount;
+                uint256 refundEur = refundAmount == refundableAmount
+                    ? refundableEur
+                    : (refundableEur * refundAmount) / refundableAmount;
+
+                allocation.refundedAmount += refundAmount;
+                allocation.refundedEurGrossAmount += refundEur;
+                _appendLot(s, account, refundAmount, allocation.fundingOrderId, refundEur, allocation.expiresAt);
+                remainingToRefund -= refundAmount;
+            }
+            unchecked {
+                ++i;
+            }
+        }
+
+        if (remainingToRefund != 0) revert RefundExceedsReservationAllocation();
         delete s.creditReservationExpiry[account][reservationRef];
-        _appendLot(s, account, amount, reservationRef, 0, refundExpiry);
 
         _recordMovement(s, account, CreditMovementKind.CANCEL, amount, reservationRef);
     }
@@ -171,7 +202,7 @@ library LibCreditLedger {
         }
 
         s.serviceCreditBalance[account] -= amount;
-        _consumeFromLots(s, account, amount);
+        _consumeFromLots(s, account, amount, reservationRef, true);
         _recordMovement(s, account, CreditMovementKind.ADJUST, amount, reservationRef);
     }
 
@@ -234,7 +265,7 @@ library LibCreditLedger {
             if (available < amount) revert InsufficientAvailableCredits();
 
             s.serviceCreditBalance[account] -= amount;
-            _consumeFromLots(s, account, amount);
+            _consumeFromLots(s, account, amount, adjustmentRef, false);
 
             _recordMovement(s, account, CreditMovementKind.ADJUST, amount, adjustmentRef);
             newBalance = s.serviceCreditBalance[account];
@@ -271,11 +302,30 @@ library LibCreditLedger {
         return LibAppStorage.diamondStorage().creditMovements[account][index];
     }
 
+    /// @notice Get the number of source-lot allocations recorded for a reservation.
+    function reservationAllocationCount(
+        address account,
+        bytes32 reservationRef
+    ) internal view returns (uint256) {
+        return LibAppStorage.diamondStorage().creditReservationAllocations[account][reservationRef].length;
+    }
+
+    /// @notice Get one source-lot allocation recorded for a reservation.
+    function getReservationAllocation(
+        address account,
+        bytes32 reservationRef,
+        uint256 index
+    ) internal view returns (CreditReservationAllocation memory) {
+        return LibAppStorage.diamondStorage().creditReservationAllocations[account][reservationRef][index];
+    }
+
     /// @dev Consume `amount` credits from lots FIFO (oldest first, skip expired)
     function _consumeFromLots(
         AppStorage storage s,
         address account,
-        uint256 amount
+        uint256 amount,
+        bytes32 reservationRef,
+        bool recordAllocation
     ) private {
         CreditLot[] storage lots = s.creditLots[account];
         uint256 remaining = amount;
@@ -292,7 +342,29 @@ library LibCreditLedger {
                     continue;
                 }
                 uint256 take = lot.remaining < remaining ? lot.remaining : remaining;
+                uint256 lotRemainingBefore = lot.remaining;
+                uint256 eurRemaining = s.creditLotRemainingEurGrossAmount[lot.lotId];
+                // Initialize the appended sidecar lazily for lots created before
+                // this provenance mapping was introduced.
+                if (eurRemaining == 0 && lot.eurGrossAmount > 0) {
+                    eurRemaining = lot.eurGrossAmount;
+                }
+                uint256 eurTake = take == lotRemainingBefore ? eurRemaining : (eurRemaining * take) / lotRemainingBefore;
+
                 lot.remaining -= take;
+                s.creditLotRemainingEurGrossAmount[lot.lotId] = eurRemaining - eurTake;
+                if (recordAllocation) {
+                    s.creditReservationAllocations[account][reservationRef].push(
+                        CreditReservationAllocation({
+                            fundingOrderId: lot.fundingOrderId,
+                            amount: take,
+                            refundedAmount: 0,
+                            eurGrossAmount: eurTake,
+                            refundedEurGrossAmount: 0,
+                            expiresAt: lot.expiresAt
+                        })
+                    );
+                }
                 remaining -= take;
             }
             unchecked {
@@ -326,6 +398,7 @@ library LibCreditLedger {
                 expired: false
             })
         );
+        s.creditLotRemainingEurGrossAmount[lotId] = eurGrossAmount;
     }
 
     function _advanceLotCursor(

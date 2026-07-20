@@ -3,14 +3,19 @@ pragma solidity ^0.8.31;
 
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import {ReentrancyGuardTransient} from "@openzeppelin/contracts/utils/ReentrancyGuardTransient.sol";
-import {AppStorage, Reservation, PayoutCandidate, LibAppStorage} from "../../libraries/LibAppStorage.sol";
+import {
+    AppStorage,
+    Reservation,
+    PayoutCandidate,
+    ProviderSettlementClaim,
+    LibAppStorage
+} from "../../libraries/LibAppStorage.sol";
 import {LibAccessControlEnumerable} from "../../libraries/LibAccessControlEnumerable.sol";
 import {LibERC721Storage} from "../../libraries/LibERC721Storage.sol";
 import {LibReputation} from "../../libraries/LibReputation.sol";
 import {LibProviderReceivable, SETTLEMENT_OPERATOR_ROLE} from "../../libraries/LibProviderReceivable.sol";
-import {LibTracking} from "../../libraries/LibTracking.sol";
 import {LibReservationConfig} from "../../libraries/LibReservationConfig.sol";
-import {RivalIntervalTreeLibrary, Tree} from "../../libraries/RivalIntervalTreeLibrary.sol";
+import {LibReservationIndexCleanup} from "../../libraries/LibReservationIndexCleanup.sol";
 
 /// @title ProviderSettlementFacet
 /// @author
@@ -20,10 +25,8 @@ import {RivalIntervalTreeLibrary, Tree} from "../../libraries/RivalIntervalTreeL
 /// Reservation completion accrues provider debt onchain; settlement remains a separate workflow.
 
 contract ProviderSettlementFacet is ReentrancyGuardTransient {
-    using EnumerableSet for EnumerableSet.Bytes32Set;
     using EnumerableSet for EnumerableSet.AddressSet;
     using LibAccessControlEnumerable for AppStorage;
-    using RivalIntervalTreeLibrary for Tree;
 
     /// @dev Reservation status constants (must match reservation facets)
     uint8 internal constant _CONFIRMED = 1;
@@ -39,6 +42,10 @@ contract ProviderSettlementFacet is ReentrancyGuardTransient {
     uint8 internal constant _RECEIVABLE_REVERSED = 6;
     uint8 internal constant _RECEIVABLE_DISPUTED = 7;
 
+    uint8 internal constant _CLAIM_SUBMITTED = 1;
+    uint8 internal constant _CLAIM_APPROVED = 2;
+    uint8 internal constant _CLAIM_PAID = 3;
+
     /// @notice Emitted when a provider payout request queues newly accrued provider receivable for settlement
     event ProviderPayoutRequested(
         address indexed provider, uint256 indexed labId, uint256 amount, uint256 reservationsProcessed
@@ -52,6 +59,26 @@ contract ProviderSettlementFacet is ReentrancyGuardTransient {
         uint8 toState,
         uint256 amount,
         bytes32 referenceHash
+    );
+
+    event ProviderSettlementClaimSubmitted(
+        bytes32 indexed claimId,
+        uint256 indexed labId,
+        uint256 amount,
+        bytes32 reservationsHash,
+        bytes32 invoiceReferenceHash,
+        address indexed actor
+    );
+
+    event ProviderSettlementClaimApproved(
+        bytes32 indexed claimId, bytes32 approvalReferenceHash, address indexed actor
+    );
+
+    event ProviderSettlementClaimPaid(
+        bytes32 indexed claimId,
+        bytes32 indexed paymentReferenceHash,
+        bytes32 paymentAttestationHash,
+        address indexed actor
     );
 
     /// @dev Returns the AppStorage struct from the diamond storage slot.
@@ -192,6 +219,136 @@ contract ProviderSettlementFacet is ReentrancyGuardTransient {
         lastAccruedAt = s.providerReceivableLastAccruedAt[_labId];
     }
 
+    /// @notice Creates a claim for a bounded amount already queued for settlement.
+    /// @dev The claim atomically moves the amount QUEUED -> INVOICED so a later
+    ///      batch cannot silently absorb unrelated receivables.
+    function submitProviderSettlementClaim(
+        bytes32 claimId,
+        uint256 labId,
+        uint256 amount,
+        bytes32 reservationsHash,
+        bytes32 invoiceReferenceHash
+    ) external nonReentrant {
+        require(claimId != bytes32(0), "Claim ID required");
+        require(amount > 0, "Amount required");
+        require(reservationsHash != bytes32(0), "Reservations reference required");
+        require(invoiceReferenceHash != bytes32(0), "Invoice reference required");
+
+        AppStorage storage s = _s();
+        require(s.providerSettlementClaims[claimId].submittedBy == address(0), "Claim already exists");
+        _requireSettlementOperator(s, labId);
+        require(s.providerSettlementQueue[labId] >= amount, "Insufficient queued receivable");
+
+        ProviderSettlementClaim storage claim = s.providerSettlementClaims[claimId];
+        claim.labId = labId;
+        claim.amount = amount;
+        claim.reservationsHash = reservationsHash;
+        claim.invoiceReferenceHash = invoiceReferenceHash;
+        claim.submittedBy = msg.sender;
+        claim.submittedAt = uint64(block.timestamp);
+        claim.status = _CLAIM_SUBMITTED;
+
+        _decreaseReceivableBucket(s, labId, _RECEIVABLE_QUEUED, amount);
+        _increaseReceivableBucket(s, labId, _RECEIVABLE_INVOICED, amount);
+        emit ProviderReceivableLifecycleTransition(
+            msg.sender, labId, _RECEIVABLE_QUEUED, _RECEIVABLE_INVOICED, amount, claimId
+        );
+        emit ProviderSettlementClaimSubmitted(
+            claimId, labId, amount, reservationsHash, invoiceReferenceHash, msg.sender
+        );
+    }
+
+    /// @notice Approves a submitted claim with a non-empty external approval reference hash.
+    function approveProviderSettlementClaim(
+        bytes32 claimId,
+        bytes32 approvalReferenceHash
+    ) external nonReentrant {
+        require(approvalReferenceHash != bytes32(0), "Approval reference required");
+        AppStorage storage s = _s();
+        ProviderSettlementClaim storage claim = s.providerSettlementClaims[claimId];
+        require(claim.status == _CLAIM_SUBMITTED, "Claim is not submitted");
+        _requireSettlementOperatorForFinancialTransition(s);
+
+        claim.approvedBy = msg.sender;
+        claim.approvedAt = uint64(block.timestamp);
+        claim.status = _CLAIM_APPROVED;
+        _decreaseReceivableBucket(s, claim.labId, _RECEIVABLE_INVOICED, claim.amount);
+        _increaseReceivableBucket(s, claim.labId, _RECEIVABLE_APPROVED, claim.amount);
+        emit ProviderReceivableLifecycleTransition(
+            msg.sender, claim.labId, _RECEIVABLE_INVOICED, _RECEIVABLE_APPROVED, claim.amount, claimId
+        );
+        emit ProviderSettlementClaimApproved(claimId, approvalReferenceHash, msg.sender);
+    }
+
+    /// @notice Records a paid claim only with a unique payment reference and proof hash.
+    function recordProviderSettlementClaimPayment(
+        bytes32 claimId,
+        bytes32 paymentReferenceHash,
+        bytes32 paymentAttestationHash
+    ) external nonReentrant {
+        require(paymentReferenceHash != bytes32(0), "Payment reference required");
+        require(paymentAttestationHash != bytes32(0), "Payment attestation required");
+
+        AppStorage storage s = _s();
+        ProviderSettlementClaim storage claim = s.providerSettlementClaims[claimId];
+        require(claim.status == _CLAIM_APPROVED, "Claim is not approved");
+        require(!s.providerSettlementPaymentReferenceUsed[paymentReferenceHash], "Payment reference already used");
+        _requireSettlementOperatorForFinancialTransition(s);
+
+        s.providerSettlementPaymentReferenceUsed[paymentReferenceHash] = true;
+        claim.paymentReferenceHash = paymentReferenceHash;
+        claim.paymentAttestationHash = paymentAttestationHash;
+        claim.paidBy = msg.sender;
+        claim.paidAt = uint64(block.timestamp);
+        claim.status = _CLAIM_PAID;
+        _decreaseReceivableBucket(s, claim.labId, _RECEIVABLE_APPROVED, claim.amount);
+        _increaseReceivableBucket(s, claim.labId, _RECEIVABLE_PAID, claim.amount);
+        emit ProviderReceivableLifecycleTransition(
+            msg.sender, claim.labId, _RECEIVABLE_APPROVED, _RECEIVABLE_PAID, claim.amount, claimId
+        );
+        emit ProviderSettlementClaimPaid(claimId, paymentReferenceHash, paymentAttestationHash, msg.sender);
+    }
+
+    /// @notice Returns the complete claim audit record.
+    function getProviderSettlementClaim(
+        bytes32 claimId
+    )
+        external
+        view
+        returns (
+            uint256 labId,
+            uint256 amount,
+            uint8 status,
+            bytes32 reservationsHash,
+            bytes32 invoiceReferenceHash,
+            bytes32 paymentReferenceHash,
+            bytes32 paymentAttestationHash,
+            address submittedBy,
+            address approvedBy,
+            address paidBy,
+            uint64 submittedAt,
+            uint64 approvedAt,
+            uint64 paidAt
+        )
+    {
+        ProviderSettlementClaim storage claim = _s().providerSettlementClaims[claimId];
+        return (
+            claim.labId,
+            claim.amount,
+            claim.status,
+            claim.reservationsHash,
+            claim.invoiceReferenceHash,
+            claim.paymentReferenceHash,
+            claim.paymentAttestationHash,
+            claim.submittedBy,
+            claim.approvedBy,
+            claim.paidBy,
+            claim.submittedAt,
+            claim.approvedAt,
+            claim.paidAt
+        );
+    }
+
     /// @notice Moves provider receivable amount between explicit lifecycle buckets.
     /// @dev Writable only by the lab owner, its configured backend, or protocol admin.
     function transitionProviderReceivableState(
@@ -202,6 +359,7 @@ contract ProviderSettlementFacet is ReentrancyGuardTransient {
         bytes32 referenceHash
     ) external nonReentrant {
         require(amount > 0, "Amount required");
+        require(referenceHash != bytes32(0), "Reference required");
 
         AppStorage storage s = _s();
         require(_isSupportedReceivableState(fromState) && _isSupportedReceivableState(toState), "Invalid state");
@@ -660,7 +818,10 @@ contract ProviderSettlementFacet is ReentrancyGuardTransient {
             s.providerActiveReservationCount[labProvider]--;
         }
 
-        _cleanupSettledReservationIndexes(s, key, reservation, labId);
+        LibReservationIndexCleanup.removeFinalizedReservationIndexes(s, key, reservation);
+        if (s.totalReservationsCount > 0) {
+            s.totalReservationsCount--;
+        }
         // `_popEligiblePayoutCandidate` already removed this exact heap root.
         // Do not scan the remaining heap for the same key: doing so once per
         // reservation would turn a batch settlement into O(n^2).
@@ -672,81 +833,4 @@ contract ProviderSettlementFacet is ReentrancyGuardTransient {
         return true;
     }
 
-    function _cleanupSettledReservationIndexes(
-        AppStorage storage s,
-        bytes32 key,
-        Reservation storage reservation,
-        uint256 labId
-    ) private {
-        if (s.calendars[labId].root != 0 && s.calendars[labId].exists(reservation.start)) {
-            _removeCalendarSlot(s, labId, reservation.start);
-        }
-
-        _removeReservationKey(s.reservationKeysByToken[labId], key);
-        _removeReservationKey(s.renters[reservation.renter], key);
-        if (s.totalReservationsCount > 0) s.totalReservationsCount--;
-
-        _removeUserReservationIndex(s, labId, reservation.renter, key);
-
-        bytes32 pucHash = s.reservationPucHash[key];
-        if (pucHash != bytes32(0)) {
-            address trackingKey = LibTracking.trackingKeyFromInstitutionHash(reservation.renter, pucHash);
-            _removeUserReservationIndex(s, labId, trackingKey, key);
-            _removeReservationKey(s.renters[trackingKey], key);
-        }
-    }
-
-    function _removeCalendarSlot(
-        AppStorage storage s,
-        uint256 labId,
-        uint32 start
-    ) private {
-        s.calendars[labId].remove(start);
-    }
-
-    function _removeReservationKey(
-        EnumerableSet.Bytes32Set storage set,
-        bytes32 key
-    ) private {
-        if (!set.remove(key)) return;
-    }
-
-    function _removeUserReservationIndex(
-        AppStorage storage s,
-        uint256 labId,
-        address user,
-        bytes32 key
-    ) private {
-        EnumerableSet.Bytes32Set storage reservations = s.reservationKeysByTokenAndUser[labId][user];
-        if (!reservations.remove(key)) return;
-        if (s.activeReservationCountByTokenAndUser[labId][user] > 0) {
-            s.activeReservationCountByTokenAndUser[labId][user]--;
-        }
-        if (s.activeReservationByTokenAndUser[labId][user] == key) {
-            s.activeReservationByTokenAndUser[labId][user] = _findNextActiveReservation(s, labId, user);
-        }
-    }
-
-    function _findNextActiveReservation(
-        AppStorage storage s,
-        uint256 labId,
-        address user
-    ) private view returns (bytes32 nextKey) {
-        EnumerableSet.Bytes32Set storage reservations = s.reservationKeysByTokenAndUser[labId][user];
-        uint32 earliestStart = type(uint32).max;
-        for (uint256 i; i < reservations.length();) {
-            bytes32 candidateKey = reservations.at(i);
-            Reservation storage candidate = s.reservations[candidateKey];
-            if (
-                (candidate.status == _CONFIRMED || candidate.status == _ACCESS_AUTHORIZED)
-                    && candidate.start < earliestStart
-            ) {
-                earliestStart = candidate.start;
-                nextKey = candidateKey;
-            }
-            unchecked {
-                ++i;
-            }
-        }
-    }
 }

@@ -140,10 +140,12 @@ contract LabQueryFacet {
     }
 
     /// @notice Returns the creator identity hash associated with a lab.
-    /// @dev Returns bytes32(0) when creator binding is not present.
+    /// @dev The binding is retained after a lab burn so off-chain cleanup can
+    /// authenticate the owner of the deletion transaction. Returns
+    /// bytes32(0) when creator binding is not present.
     function getPucHash(
         uint256 _labId
-    ) external view exists(_labId) returns (bytes32) {
+    ) external view returns (bytes32) {
         return _s().pucHashByLab[_labId];
     }
 

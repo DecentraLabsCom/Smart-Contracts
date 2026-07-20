@@ -17,6 +17,7 @@ import {ReentrancyGuardTransient} from "@openzeppelin/contracts/utils/Reentrancy
 import {LibAccessControlEnumerable} from "../libraries/LibAccessControlEnumerable.sol";
 import {LibERC721Storage} from "../libraries/LibERC721Storage.sol";
 import {LibCreditLedger} from "../libraries/LibCreditLedger.sol";
+import {LibInstitutionalOrg} from "../libraries/LibInstitutionalOrg.sol";
 
 /// @title ProviderFacet Contract
 /// @author Juan Luis Ramos Villalón
@@ -138,6 +139,33 @@ contract ProviderFacet is InternalAccessControl, ReentrancyGuardTransient {
         string calldata _country,
         string calldata _authURI
     ) external onlyDefaultAdminRole nonReentrant {
+        _addProvider(_name, _account, _email, _country, _authURI);
+    }
+
+    /// @notice Adds a provider and registers its institutional organization in one transaction.
+    /// @dev The organization registration is deliberately part of the same revert boundary as
+    ///      provider creation so callers cannot observe a provider whose institutional namespace
+    ///      was only partially provisioned.
+    function provisionProvider(
+        string calldata _name,
+        address _account,
+        string calldata _email,
+        string calldata _country,
+        string calldata _authURI,
+        string calldata organization,
+        string calldata backendUrl
+    ) external onlyDefaultAdminRole nonReentrant {
+        _addProvider(_name, _account, _email, _country, _authURI);
+        _provisionInstitutionalOrganization(_account, organization, backendUrl);
+    }
+
+    function _addProvider(
+        string memory _name,
+        address _account,
+        string memory _email,
+        string memory _country,
+        string memory _authURI
+    ) internal {
         require(_account != address(0), "Invalid provider address");
 
         // Validate string lengths to prevent DoS attacks
@@ -184,6 +212,27 @@ contract ProviderFacet is InternalAccessControl, ReentrancyGuardTransient {
         emit ProviderServiceCreditsIssued(_account, INITIAL_SERVICE_CREDITS);
         emit ProviderNetworkStatusChanged(_account, ProviderNetworkStatus.NONE, ProviderNetworkStatus.ACTIVE);
         emit ProviderAdded(_account, _name, _email, _country);
+    }
+
+    function _provisionInstitutionalOrganization(
+        address institution,
+        string memory organization,
+        string memory backendUrl
+    ) internal {
+        AppStorage storage s = _s();
+        string memory normalized = LibInstitutionalOrg.normalizeOrganization(organization);
+        bytes32 organizationHash = keccak256(bytes(normalized));
+        address currentOwner = s.organizationInstitutionWallet[organizationHash];
+
+        if (currentOwner == address(0)) {
+            LibInstitutionalOrg.registerOrganization(s, institution, normalized);
+        } else {
+            require(currentOwner == institution, "Organization owned by another institution");
+        }
+
+        if (bytes(backendUrl).length > 0) {
+            LibInstitutionalOrg.setOrganizationBackend(s, institution, normalized, backendUrl);
+        }
     }
 
     /// @notice Removes a provider from the system by revoking their PROVIDER_ROLE.
@@ -278,7 +327,7 @@ contract ProviderFacet is InternalAccessControl, ReentrancyGuardTransient {
     ///      Ensures the URI starts with https://, ends with /auth, and doesn't have a trailing slash.
     /// @param _authURI The authentication URI to validate.
     function _validateAuthURI(
-        string calldata _authURI
+        string memory _authURI
     ) internal pure {
         bytes memory uri = bytes(_authURI);
 

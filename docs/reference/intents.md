@@ -1,36 +1,70 @@
 # Intent registry
 
-The intent registry provides one-time authorization for institution-driven
-operations. An intent is not a reservation and does not itself move credits; it
-binds an authorized payload to an executor and allows the matching operation to
-be consumed once.
+## Purpose
 
-## Intent lifecycle
+An intent is a signed, one-time authorization for an exact payload and
+executor. It is not a reservation and does not itself move credits. The
+reservation or lab facet consumes the matching intent as part of the state
+change it authorizes.
 
-1. The authorized signer registers a reservation or action intent with a request
-   ID, action code, payload hash and nonce.
-2. The institution or configured backend submits the matching operation.
-3. The facet recomputes the payload hash, checks the executor and authorization,
-   and consumes the intent.
-4. A second submission or a payload mismatch reverts.
+```mermaid
+stateDiagram-v2
+    [*] --> PENDING: register signed intent
+    PENDING --> EXECUTED: matching payload is consumed
+    PENDING --> CANCELLED: signer cancels
+    PENDING --> EXPIRED: expiry is materialized
+    EXECUTED --> [*]
+    CANCELLED --> [*]
+    EXPIRED --> [*]
+```
 
-`IntentRegistryFacet` exposes registration, cancellation, lookup and nonce
-operations. `ReservationIntentFacet` applies those checks to institutional
-booking, direct booking and cancellation operations.
+## Registration and signature binding
 
-## Payload binding
+`IntentRegistryFacet` accepts registration only from the default admin and
+requires `meta.signer == msg.sender`. The supplied EIP-712 signature is checked
+against the signer (including ERC-1271 contract-signature support). This is a
+deliberate administrative registration boundary; consuming a registered intent
+is then governed by the relevant institution/provider flow.
 
-Reservation payloads bind the lab, reservation key, time range, expected price,
-PUC hash and executor context. Action payloads bind the reservation and the
-action-specific fields. The contract also checks that the reservation key and
-price agree with current on-chain state before applying the action.
+The EIP-712 domain binds the intent to the chain ID and Diamond address. Intent
+metadata binds all of the following:
 
-## Integration guidance
+- globally unique `requestId`;
+- signer and required executor;
+- action code and canonical payload hash;
+- signer-scoped sequential nonce;
+- requested timestamp and expiry.
 
-- Persist the request ID and nonce with the off-chain operation.
-- Retry the same signed payload when delivery fails; do not create a second
-  intent for the same business operation unless the original is explicitly
-  cancelled or expired by the protocol.
-- Treat a successful transaction receipt as the source of truth for intent
-  consumption.
-- Keep raw signatures and private keys out of metadata and application logs.
+At consumption, `*WithIntent` functions require the caller to equal the payload
+executor, recompute the payload hash, check the expected action and mark the
+intent as executed. A replay, action change, executor change or payload change
+reverts.
+
+## Action codes
+
+| Code | Action |
+| ---: | --- |
+| `1`–`7` | Add, add-and-list, set URI, update, delete, list and unlist a lab. |
+| `8` | Request an institutional booking. |
+| `9` | Cancel an institutional reservation request. |
+| `10` | Cancel a confirmed institutional booking. |
+| `11` | Create and confirm an own-lab institutional direct booking. |
+
+Reservation payloads bind organization text, PUC hash, optional assertion hash,
+lab, range, expected total price and reservation key. Action payloads bind the
+same identity context plus the lab administration or cancellation fields. The
+reservation intent facet independently recalculates the reservation key and
+price from live lab state before acting.
+
+## Expiry, cancellation and integration
+
+The signer can cancel only a pending intent. Anyone can call `expireIntent`
+after its deadline to persist the `EXPIRED` state. `getIntent` reports a
+pending intent as expired after its deadline even before that write occurs.
+Neither operation cancels a reservation that has already been created.
+
+Persist the request ID and nonce with the off-chain business operation. On a
+delivery failure, inspect the transaction receipt and intent state before
+retrying; resend the same signed payload rather than generating a second intent
+for the same operation. Keep raw signatures and private keys out of metadata
+and logs.

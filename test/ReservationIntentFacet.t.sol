@@ -8,6 +8,7 @@ import "../contracts/libraries/IntentTypes.sol";
 import "../contracts/libraries/LibAppStorage.sol";
 import "../contracts/libraries/LibIntent.sol";
 import "../contracts/libraries/LibRevenue.sol";
+import "../contracts/libraries/LibERC721Storage.sol";
 
 contract ReservationIntentHarness is ReservationIntentFacet {
     using EnumerableSet for EnumerableSet.AddressSet;
@@ -108,6 +109,25 @@ contract ReservationIntentHarness is ReservationIntentFacet {
             expiresAt: uint64(block.timestamp + 1 hours),
             state: IntentState.Pending
         });
+    }
+
+    function setLabOwnerAndPrice(
+        uint256 labId,
+        address owner,
+        uint96 price
+    ) external {
+        AppStorage storage s = LibAppStorage.diamondStorage();
+        s.labs[labId].price = price;
+        LibERC721Storage.layout()._owners[labId] = owner;
+    }
+
+    function reservationPrice(
+        address institution,
+        uint256 labId,
+        uint32 start,
+        uint32 end
+    ) external view returns (uint96) {
+        return _reservationPrice(LibAppStorage.diamondStorage(), institution, labId, start, end);
     }
 
     function intentState(
@@ -248,5 +268,21 @@ contract ReservationIntentFacetTest is Test {
         vm.prank(institution);
         vm.expectRevert(bytes("RESERVATION_PUC_MISMATCH"));
         harness.cancelInstitutionalBookingWithIntent(requestId, payload);
+    }
+
+    function test_reservationPrice_isZeroForOwnInstitutionLab() public {
+        uint256 labId = 42;
+        uint32 start = uint32(block.timestamp + 1 hours);
+        harness.setLabOwnerAndPrice(labId, institution, 23);
+
+        assertEq(harness.reservationPrice(institution, labId, start, start + 1800), 0);
+    }
+
+    function test_reservationPrice_usesRawPriceForExternalInstitutionLab() public {
+        uint256 labId = 43;
+        uint32 start = uint32(block.timestamp + 1 hours);
+        harness.setLabOwnerAndPrice(labId, address(0xD00D), 23);
+
+        assertEq(harness.reservationPrice(institution, labId, start, start + 1800), 23 * 1800);
     }
 }

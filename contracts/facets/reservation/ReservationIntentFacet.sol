@@ -121,6 +121,25 @@ contract ReservationIntentFacet {
         return storedHash != bytes32(0) && storedHash == pucHash;
     }
 
+    /// @dev Own-institution reservations follow the same zero-price rule as
+    /// InstitutionalReservationRequestCreationFacet. Keep the intent
+    /// validation aligned with the reservation record that is created later.
+    function _reservationPrice(
+        AppStorage storage s,
+        address institution,
+        uint256 labId,
+        uint32 start,
+        uint32 end
+    ) internal view returns (uint96) {
+        if (s.institutionalBackends[institution] != address(0) && LibERC721Storage.ownerOf(labId) == institution) {
+            return 0;
+        }
+
+        uint256 totalPrice = uint256(s.labs[labId].price) * uint256(end - start);
+        if (totalPrice > type(uint96).max) revert ReservationPriceOverflow();
+        return uint96(totalPrice);
+    }
+
     /// @notice Institutional reservation request via intent
     // State is committed before the final audit event; the library call stays within the Diamond.
     // slither-disable-next-line reentrancy-events
@@ -131,11 +150,8 @@ contract ReservationIntentFacet {
         AppStorage storage s = _s();
         bytes32 expectedKey = _getReservationKey(payload.labId, payload.start);
         require(payload.reservationKey == expectedKey, "RESERVATION_KEY_MISMATCH");
-        uint96 pricePerSecond = s.labs[payload.labId].price;
-        uint256 durationSeconds = uint256(payload.end - payload.start);
-        uint256 totalPrice = uint256(pricePerSecond) * durationSeconds;
-        if (totalPrice > type(uint96).max) revert ReservationPriceOverflow();
-        require(payload.price == uint96(totalPrice), "LAB_PRICE_MISMATCH");
+        uint96 expectedPrice = _reservationPrice(s, msg.sender, payload.labId, payload.start, payload.end);
+        require(payload.price == expectedPrice, "LAB_PRICE_MISMATCH");
         _consumeReservationIntent(requestId, LibIntent.ACTION_REQUEST_BOOKING, payload);
 
         LibInstitutionalReservation.requestReservation(
@@ -159,11 +175,8 @@ contract ReservationIntentFacet {
         require(LibERC721Storage.ownerOf(payload.labId) == msg.sender, "NOT_OWN_LAB");
         bytes32 expectedKey = _getReservationKey(payload.labId, payload.start);
         require(payload.reservationKey == expectedKey, "RESERVATION_KEY_MISMATCH");
-        uint96 pricePerSecond = s.labs[payload.labId].price;
-        uint256 durationSeconds = uint256(payload.end - payload.start);
-        uint256 totalPrice = uint256(pricePerSecond) * durationSeconds;
-        if (totalPrice > type(uint96).max) revert ReservationPriceOverflow();
-        require(payload.price == uint96(totalPrice), "LAB_PRICE_MISMATCH");
+        uint96 expectedPrice = _reservationPrice(s, msg.sender, payload.labId, payload.start, payload.end);
+        require(payload.price == expectedPrice, "LAB_PRICE_MISMATCH");
         _consumeReservationIntent(requestId, LibIntent.ACTION_DIRECT_BOOKING, payload);
 
         LibInstitutionalReservation.requestReservation(

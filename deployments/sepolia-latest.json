@@ -1,6 +1,6 @@
 {
   "network": "sepolia",
-  "timestamp": "2026-07-20T15:27:18.0622302+02:00",
+  "timestamp": "2026-07-25T19:51:21.5681267+02:00",
   "chainId": 11155111,
   "contracts": {
     "Diamond": "0x1170d2D322Ff2cCeb20e6E79D2b3D2dfABFe6372",
@@ -42,7 +42,7 @@
     "ReservationSessionFacet": "0x2E211e5f7D1865deF7b9bbFDdae47444FE60f924",
     "ReservationStatsFacet": "0xe2a5358E2DCAD531BF73A65CEb1910437A6963C1",
     "ReservationDenialFacet": "0x15579AC7f6C6bc79C19646cf2322176F78e74366",
-    "ReservationIntentFacet": "0x806d12604AEfAEd159364CCdaaA70cCa0101A536"
+    "ReservationIntentFacet": "0x5e21Cb564994FC2458826C23d53d2069EaF5A190"
   },
   "deployer": "0x183f062b6a8c39b9a9e71898741acf8f25e11561",
   "configuration": {

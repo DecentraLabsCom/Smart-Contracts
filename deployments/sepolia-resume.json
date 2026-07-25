@@ -1,6 +1,6 @@
 {
   "network": "sepolia",
-  "updated": "2026-07-20T15:27:18.0622302+02:00",
+  "updated": "2026-07-25T19:51:21.5681267+02:00",
   "base": {
     "DiamondCutFacet": "0x0292dbF67Fb9D7B6d853c7e9d1F8BE73a50463c2",
     "DiamondInit": "0xcb862aD921960c0c656E5ED68Fb20bA113cf5025",
@@ -39,6 +39,6 @@
     "contracts/facets/reservation/ReservationSessionFacet.sol:ReservationSessionFacet": "0x2E211e5f7D1865deF7b9bbFDdae47444FE60f924",
     "contracts/facets/reservation/ReservationStatsFacet.sol:ReservationStatsFacet": "0xe2a5358E2DCAD531BF73A65CEb1910437A6963C1",
     "contracts/facets/reservation/ReservationDenialFacet.sol:ReservationDenialFacet": "0x15579AC7f6C6bc79C19646cf2322176F78e74366",
-    "contracts/facets/reservation/ReservationIntentFacet.sol:ReservationIntentFacet": "0x806d12604AEfAEd159364CCdaaA70cCa0101A536"
+    "contracts/facets/reservation/ReservationIntentFacet.sol:ReservationIntentFacet": "0x5e21Cb564994FC2458826C23d53d2069EaF5A190"
   }
 }

@@ -238,7 +238,7 @@ contract ProviderTest is BaseTest {
         providerFacet.removeProvider(provider1);
 
         assertTrue(providerFacet.isLabProvider(provider1));
-        assertEq(creditFacet.totalBalanceOf(provider1), 100_000_000);
+        assertEq(creditFacet.totalBalanceOf(provider1), 10_000_000_000);
     }
 
     function test_addProvider_cannot_revive_terminated_provider() public {

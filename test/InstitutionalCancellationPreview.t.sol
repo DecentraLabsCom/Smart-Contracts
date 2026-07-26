@@ -12,10 +12,10 @@ contract InstitutionalCancellationPreviewTest is Test {
     function setUp() public {
         harness = new InstReservationHarness();
         harness.setReservation(
-            reservationKey, makeAddr("renter"), payer, 1_000_000, 1, 7, uint32(block.timestamp + 7 days), "puc"
+            reservationKey, makeAddr("renter"), payer, 100_000_000, 1, 7, uint32(block.timestamp + 7 days), "puc"
         );
         harness.setReservationAccounting(
-            reservationKey, 1_890_000_000, uint48(1_905_000_000), keccak256("funding-order"), 1_000_000
+            reservationKey, 1_890_000_000, uint48(1_905_000_000), keccak256("funding-order"), 100_000_000
         );
     }
 
@@ -39,17 +39,17 @@ contract InstitutionalCancellationPreviewTest is Test {
         assertEq(status, 1);
         assertTrue(cancellable);
         assertEq(destination, payer);
-        assertEq(price, 1_000_000);
-        assertEq(totalFee, 50_000);
-        assertEq(providerFee, 30_000);
-        assertEq(refundAmount, 950_000);
+        assertEq(price, 100_000_000);
+        assertEq(totalFee, 5_000_000);
+        assertEq(providerFee, 3_000_000);
+        assertEq(refundAmount, 95_000_000);
         assertEq(cutoff, uint32(block.timestamp + 7 days));
         assertEq(periodStart, 1_890_000_000);
         assertEq(periodEnd, 1_890_000_000 + 120 days);
         assertEq(sourceExpiry, 1_905_000_000);
         assertEq(allocations.length, 1);
         assertEq(allocations[0].fundingOrderId, keccak256("funding-order"));
-        assertEq(allocations[0].amount, 1_000_000);
+        assertEq(allocations[0].amount, 100_000_000);
         assertEq(policyVersion, 1);
     }
 }

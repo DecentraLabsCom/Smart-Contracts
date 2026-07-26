@@ -8,7 +8,7 @@ used by reservations, access authorization, reputation and settlement.
 | `LabBase` field | Protocol meaning |
 | --- | --- |
 | `uri` | URI of the off-chain lab metadata JSON. |
-| `price` | Raw service-credit price per second. |
+| `price` | Raw service-credit price per second, using `10,000,000` raw units per credit. |
 | `accessURI` | Provider routing or service endpoint identifier. |
 | `accessKey` | Public routing identifier; never a password or bearer token. |
 | `createdAt` | On-chain registration time. |

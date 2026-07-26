@@ -1,6 +1,6 @@
 {
   "network": "sepolia",
-  "timestamp": "2026-07-25T19:51:21.5681267+02:00",
+  "timestamp": "2026-07-25T21:52:00+02:00",
   "chainId": 11155111,
   "contracts": {
     "Diamond": "0x1170d2D322Ff2cCeb20e6E79D2b3D2dfABFe6372",
@@ -19,12 +19,12 @@
     "DiamondLoupeFacet": "0x6C1457c6Cf48B389Bc10f59B069779d672aa9a71",
     "OwnershipFacet": "0xB143255718cfF3C3E33e11E77CdC7CA37a8c8EA8",
     "InitFacet": "0x8B00fcAFCab7cba0E030Ebe1fc769682fBC6D5A5",
-    "ProviderFacet": "0x315d87620c591ead17CC9F844D03d97e888126Fe",
+    "ProviderFacet": "0x72bd1E548126857529b3fd4A94E26f2AA296D26c",
     "ServiceCreditFacet": "0xD6535D6Dd914e08DE9dCC9e40F4F180783ec3061",
     "IntentRegistryFacet": "0xd4355fF5d9bFd4B8D0100128465dA5f4Fdc7ABcf",
     "InstitutionFacet": "0xf579DE34fe86487edE8542EBCbad5DdE7be9c018",
     "InstitutionalOrgRegistryFacet": "0x461Ee020C3007Dff92Cb05a75F10A06D13fc551A",
-    "InstitutionalTreasuryFacet": "0x9a44a7663fdEf5996959a091Ac872cf75BCCeA80",
+    "InstitutionalTreasuryFacet": "0x506237e3B067eb07878321b7Ab91341a1Afd489E",
     "LabFacet": "0xD44902FcAc5f2e68c79471F34aB7a9B6f3D37C19",
     "LabAdminFacet": "0x57bF7A61982f76E3Cdb5eA2a4Ad21E057553042e",
     "LabIntentFacet": "0x2Eb927eBAe78ab4ce15aEbE69f435b2A77B514c5",
@@ -35,14 +35,14 @@
     "InstitutionalReservationRequestCreationFacet": "0x1F21186a6B2257CDb6De51D4B6b0Aaea03dFE491",
     "InstitutionalReservationRequestFacet": "0x4b2A8c4F4261181c43911d86f2bB087c3a8F294d",
     "InstitutionalReservationConfirmationFacet": "0x746f73a8F0C6328c4FEc9FcF2398F655A16b1bD6",
-    "InstitutionalReservationCancellationFacet": "0x046200d0798df47110Af10d58656e7B5280fFA5e",
+    "InstitutionalReservationCancellationFacet": "0x25069200ED84D7d2312f8409478eE6b50526ffC2",
     "InstitutionalReservationQueryFacet": "0x4eA2D8355504260dd05b1e261fb47C3a04BC9B80",
     "InstitutionalReservationFacet": "0xb38F2667D56078097E48fD4FC536339C0fe6605e",
     "ReservationCheckInFacet": "0xb15eee4625Cb8E79D8549Ef6d04e99cAf9e4ec14",
     "ReservationSessionFacet": "0x2E211e5f7D1865deF7b9bbFDdae47444FE60f924",
     "ReservationStatsFacet": "0xe2a5358E2DCAD531BF73A65CEb1910437A6963C1",
     "ReservationDenialFacet": "0x15579AC7f6C6bc79C19646cf2322176F78e74366",
-    "ReservationIntentFacet": "0x5e21Cb564994FC2458826C23d53d2069EaF5A190"
+    "ReservationIntentFacet": "0x2Fa66bF9DeEbAd541de71f6Fe7d6BB94Aea05441"
   },
   "deployer": "0x183f062b6a8c39b9a9e71898741acf8f25e11561",
   "configuration": {

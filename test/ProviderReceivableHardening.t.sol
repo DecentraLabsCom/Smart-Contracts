@@ -128,15 +128,15 @@ contract ProviderReceivableHardeningTest is Test {
     address internal constant SETTLER = address(0x5E77);
     address internal constant NOBODY = address(0xDEAD);
     uint256 internal constant LAB = 7;
-    uint256 internal constant ONE_CREDIT = 100_000;
-    uint256 internal constant THREE_CREDITS = 300_000;
-    uint256 internal constant FIVE_CREDITS = 500_000;
-    uint256 internal constant SEVEN_CREDITS = 700_000;
-    uint256 internal constant TEN_CREDITS = 1_000_000;
-    uint256 internal constant FORTY_TWO_CREDITS = 4_200_000;
-    uint256 internal constant FIFTY_CREDITS = 5_000_000;
-    uint256 internal constant NINETY_NINE_CREDITS = 9_900_000;
-    uint256 internal constant ONE_HUNDRED_CREDITS = 10_000_000;
+    uint256 internal constant ONE_CREDIT = 10_000_000;
+    uint256 internal constant THREE_CREDITS = 30_000_000;
+    uint256 internal constant FIVE_CREDITS = 50_000_000;
+    uint256 internal constant SEVEN_CREDITS = 70_000_000;
+    uint256 internal constant TEN_CREDITS = 100_000_000;
+    uint256 internal constant FORTY_TWO_CREDITS = 420_000_000;
+    uint256 internal constant FIFTY_CREDITS = 500_000_000;
+    uint256 internal constant NINETY_NINE_CREDITS = 990_000_000;
+    uint256 internal constant ONE_HUNDRED_CREDITS = 1_000_000_000;
 
     event ProviderReceivableAccrued(uint256 indexed labId, uint256 amount, bytes32 indexed reservationKey);
 

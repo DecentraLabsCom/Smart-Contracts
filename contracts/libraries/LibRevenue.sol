@@ -11,7 +11,7 @@ library LibRevenue {
 
     uint256 internal constant CANCEL_FEE_TOTAL = 5;
     uint256 internal constant CANCEL_FEE_PROVIDER = 3;
-    uint256 internal constant MIN_CANCELLATION_FEE = 10_000;
+    uint256 internal constant MIN_CANCELLATION_FEE = 1_000_000; // 0.1 credits with 7 decimals
 
     /// @dev Computes a scaled share and clamps to uint96 to avoid unsafe downcasts.
     function _safeScaledShare(

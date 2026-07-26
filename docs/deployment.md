@@ -61,6 +61,11 @@ Only the Diamond owner can cut selectors. A cut can execute an initializer via
 `delegatecall`, so treat it with the same key-management and review discipline
 as a privileged production migration.
 
+For the service-credit scale migration, update raw balances through the ledger
+adjustment path and update each active lab price from its intended display price.
+Do not reuse five-decimal raw prices unchanged: the same numeric raw value would
+be interpreted as one hundredth of its former credit value after the migration.
+
 ## Verification and artifacts
 
 Use `scripts/verify_facets.ps1` for block-explorer verification when required.

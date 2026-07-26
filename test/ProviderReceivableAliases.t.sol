@@ -182,17 +182,17 @@ contract ProviderReceivableAliasesTest is Test {
     address internal constant PROVIDER = address(0xABCD);
     address internal constant BACKEND = address(0xBEEF);
     uint256 internal constant LAB_ID = 7;
-    uint256 internal constant ONE_CREDIT = 100_000;
-    uint256 internal constant FIVE_CREDITS = 500_000;
-    uint96 internal constant FIVE_CREDITS_U96 = 500_000;
-    uint256 internal constant SEVEN_CREDITS = 700_000;
-    uint256 internal constant TEN_CREDITS = 1_000_000;
-    uint256 internal constant ELEVEN_CREDITS = 1_100_000;
-    uint256 internal constant TWELVE_CREDITS = 1_200_000;
-    uint256 internal constant THIRTEEN_CREDITS = 1_300_000;
-    uint256 internal constant SEVENTEEN_CREDITS = 1_700_000;
-    uint256 internal constant NINETEEN_CREDITS = 1_900_000;
-    uint256 internal constant TWENTY_THREE_CREDITS = 2_300_000;
+    uint256 internal constant ONE_CREDIT = 10_000_000;
+    uint256 internal constant FIVE_CREDITS = 50_000_000;
+    uint96 internal constant FIVE_CREDITS_U96 = 50_000_000;
+    uint256 internal constant SEVEN_CREDITS = 70_000_000;
+    uint256 internal constant TEN_CREDITS = 100_000_000;
+    uint256 internal constant ELEVEN_CREDITS = 110_000_000;
+    uint256 internal constant TWELVE_CREDITS = 120_000_000;
+    uint256 internal constant THIRTEEN_CREDITS = 130_000_000;
+    uint256 internal constant SEVENTEEN_CREDITS = 170_000_000;
+    uint256 internal constant NINETEEN_CREDITS = 190_000_000;
+    uint256 internal constant TWENTY_THREE_CREDITS = 230_000_000;
     uint8 internal constant CONFIRMED = 1;
     uint8 internal constant ACCESS_AUTHORIZED = 2;
     uint8 internal constant SETTLED = 3;
@@ -451,8 +451,8 @@ contract ProviderReceivableAliasesTest is Test {
         harness.setProviderReceivableBucket(LAB_ID, 6, TWENTY_THREE_CREDITS);
 
         (uint256 providerReceivable, uint256 totalReceivable,) = harness.getLabProviderReceivable(LAB_ID);
-        assertEq(providerReceivable, 5_300_000);
-        assertEq(totalReceivable, 5_300_000);
+        assertEq(providerReceivable, 530_000_000);
+        assertEq(totalReceivable, 530_000_000);
     }
 
     function test_transitionProviderReceivableState_moves_between_lifecycle_buckets() public {

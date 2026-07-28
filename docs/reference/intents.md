@@ -51,7 +51,10 @@ reverts.
 | `11` | Create and confirm an own-lab institutional direct booking. |
 
 Reservation payloads bind organization text, PUC hash, optional assertion hash,
-lab, range, expected total price and reservation key. Action payloads bind the
+lab, range, expected total price and reservation key. The contract resolves the
+organization to its registered institution and authorizes that institution or
+its backend as executor; the backend is never substituted for the payer.
+Action payloads bind the
 same identity context plus the lab administration or cancellation fields. The
 reservation intent facet independently recalculates the reservation key and
 price from live lab state before acting.

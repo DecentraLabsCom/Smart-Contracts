@@ -37,14 +37,14 @@ contract FuzzReservationPucTest is BaseTest {
         bytes32 key = keccak256(abi.encodePacked(labId, start));
 
         confirmHarness.setInstitutionRole(inst);
-        confirmHarness.setBackend(inst, address(confirmHarness));
+        confirmHarness.setBackend(provider, address(confirmHarness));
         // make provider able to fulfill
         confirmHarness.setOwner(labId, provider);
         confirmHarness.setTokenStatus(labId, true);
         confirmHarness.setProviderActive(provider);
         confirmHarness.setReservation(key, user1, inst, 1000, 0, labId, start, puc);
 
-        vm.prank(inst);
+        vm.prank(provider);
         confirmHarness.ext_confirmWithPucHash(inst, key, keccak256(bytes(puc)));
 
         assertEq(confirmHarness.getReservationStatus(key), 1);
@@ -67,14 +67,14 @@ contract FuzzReservationPucTest is BaseTest {
         bytes32 key = keccak256(abi.encodePacked(labId, start));
 
         confirmHarness.setInstitutionRole(inst);
-        confirmHarness.setBackend(inst, address(confirmHarness));
+        confirmHarness.setBackend(provider, address(confirmHarness));
         // make provider able to fulfill
         confirmHarness.setOwner(labId, provider);
         confirmHarness.setTokenStatus(labId, true);
         confirmHarness.setProviderActive(provider);
         confirmHarness.setReservation(key, user1, inst, 1000, 0, labId, start, puc);
 
-        vm.prank(inst);
+        vm.prank(provider);
         vm.expectRevert();
         confirmHarness.ext_confirmWithPucHash(inst, key, keccak256(bytes(wrong)));
     }

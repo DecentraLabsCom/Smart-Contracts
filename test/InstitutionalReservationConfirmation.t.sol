@@ -34,10 +34,28 @@ contract InstitutionalReservationConfirmationTest is BaseTest {
         harness.setTokenStatus(labId, true);
         harness.setProviderActive(provider);
 
-        vm.prank(inst);
+        vm.prank(provider);
         harness.confirmInstitutionalReservationRequestWithPucHash(inst, key, keccak256(bytes(puc)));
 
         assertEq(harness.getReservationStatus(key), _CONFIRMED);
         assertEq(harness.lastSpentAmount(), uint256(price));
+    }
+
+    function test_payer_cannot_confirm_external_reservation() public {
+        address inst = address(0x2222);
+        uint256 labId = 100;
+        uint32 start = 1234;
+        bytes32 key = keccak256(abi.encodePacked(labId, start));
+        string memory puc = "external@inst";
+
+        harness.setReservation(key, user1, inst, 50, _PENDING, labId, start, puc);
+        harness.setOwner(labId, provider);
+        harness.setInstitutionRole(inst);
+        harness.setTokenStatus(labId, true);
+        harness.setProviderActive(provider);
+
+        vm.prank(inst);
+        vm.expectRevert();
+        harness.confirmInstitutionalReservationRequestWithPucHash(inst, key, keccak256(bytes(puc)));
     }
 }

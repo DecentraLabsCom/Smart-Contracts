@@ -55,5 +55,36 @@ contract ProviderCancellationReputationTest is BaseTest {
         assertEq(ownerCancellations, 0);
     }
 
+    function test_authorized_provider_backend_can_deny_pending_request() public {
+        uint256 labId = 79;
+        uint32 start = uint32(block.timestamp + 1 days);
+        bytes32 key = keccak256(abi.encodePacked("provider-backend-denial", labId, start));
+        address providerBackend = address(0xBEEF);
+
+        harness.setOwner(labId, provider);
+        harness.setBackend(provider, providerBackend);
+        harness.setReservation(key, user1, _PENDING, labId, start);
+
+        vm.prank(providerBackend);
+        harness.denyReservationRequestWithReason(key, 6);
+
+        assertEq(harness.getReservationStatus(key), _CANCELLED);
+    }
+
+    function test_payer_cannot_deny_external_request() public {
+        uint256 labId = 80;
+        uint32 start = uint32(block.timestamp + 1 days);
+        bytes32 key = keccak256(abi.encodePacked("payer-denial", labId, start));
+
+        harness.setOwner(labId, provider);
+        harness.setReservation(key, user1, _PENDING, labId, start);
+
+        vm.prank(user1);
+        vm.expectRevert();
+        harness.denyReservationRequest(key);
+
+        assertEq(harness.getReservationStatus(key), _PENDING);
+    }
+
     event ReservationRequestDenied(bytes32 indexed reservationKey, uint256 indexed tokenId, uint8 reason);
 }

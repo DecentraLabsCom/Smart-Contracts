@@ -9,6 +9,8 @@ import "../contracts/libraries/LibAppStorage.sol";
 import "../contracts/libraries/LibIntent.sol";
 import "../contracts/libraries/LibRevenue.sol";
 import "../contracts/libraries/LibERC721Storage.sol";
+import "../contracts/libraries/LibInstitutionalReservation.sol";
+import "../contracts/libraries/LibTracking.sol";
 
 contract ReservationIntentHarness is ReservationIntentFacet {
     using EnumerableSet for EnumerableSet.AddressSet;
@@ -31,6 +33,7 @@ contract ReservationIntentHarness is ReservationIntentFacet {
         AppStorage storage s = LibAppStorage.diamondStorage();
         s.roleMembers[INSTITUTION_ROLE].add(institution);
         s.institutionalBackends[institution] = backend;
+        s.organizationInstitutionWallet[keccak256(bytes("institution.example"))] = institution;
     }
 
     function setConfirmedReservation(
@@ -111,6 +114,42 @@ contract ReservationIntentHarness is ReservationIntentFacet {
         });
     }
 
+    function setPendingDirectBookingIntent(
+        bytes32 requestId,
+        ReservationIntentPayload memory payload
+    ) external {
+        AppStorage storage s = LibAppStorage.diamondStorage();
+        s.intents[requestId] = IntentMeta({
+            requestId: requestId,
+            signer: payload.executor,
+            executor: payload.executor,
+            action: LibIntent.ACTION_DIRECT_BOOKING,
+            payloadHash: LibIntent.hashReservationPayload(payload),
+            nonce: 0,
+            requestedAt: uint64(block.timestamp),
+            expiresAt: uint64(block.timestamp + 1 hours),
+            state: IntentState.Pending
+        });
+    }
+
+    function setPendingReservationRequestIntent(
+        bytes32 requestId,
+        ReservationIntentPayload memory payload
+    ) external {
+        AppStorage storage s = LibAppStorage.diamondStorage();
+        s.intents[requestId] = IntentMeta({
+            requestId: requestId,
+            signer: payload.executor,
+            executor: payload.executor,
+            action: LibIntent.ACTION_REQUEST_BOOKING,
+            payloadHash: LibIntent.hashReservationPayload(payload),
+            nonce: 0,
+            requestedAt: uint64(block.timestamp),
+            expiresAt: uint64(block.timestamp + 1 hours),
+            state: IntentState.Pending
+        });
+    }
+
     function setLabOwnerAndPrice(
         uint256 labId,
         address owner,
@@ -118,8 +157,48 @@ contract ReservationIntentHarness is ReservationIntentFacet {
     ) external {
         AppStorage storage s = LibAppStorage.diamondStorage();
         s.labs[labId].price = price;
+        s.activeLabIndexPlusOne[labId] = 1;
+        s.tokenStatus[labId] = true;
+        s.providerNetworkStatus[owner] = ProviderNetworkStatus.ACTIVE;
         LibERC721Storage.layout()._owners[labId] = owner;
     }
+
+    function validateInstRequest(
+        address institution,
+        bytes32 pucHash,
+        uint256 labId,
+        uint32 start,
+        uint32
+    ) external view returns (address owner, bytes32 key, address trackingKey) {
+        owner = LibERC721Storage.ownerOf(labId);
+        key = keccak256(abi.encodePacked(labId, start));
+        trackingKey = LibTracking.trackingKeyFromInstitutionHash(institution, pucHash);
+    }
+
+    function createInstReservation(
+        InstInput calldata input
+    ) external {
+        AppStorage storage s = LibAppStorage.diamondStorage();
+        Reservation storage reservation = s.reservations[input.k];
+        reservation.labId = input.l;
+        reservation.renter = input.p;
+        reservation.payerInstitution = input.p;
+        reservation.labProvider = input.o;
+        reservation.price = 0;
+        reservation.status = 0;
+        reservation.start = input.s;
+        reservation.end = input.e;
+        reservation.requestPeriodStart = uint64(block.timestamp);
+        reservation.requestPeriodDuration = uint64(1 days);
+        s.reservationPucHash[input.k] = input.u;
+    }
+
+    function recordRecentInstReservation(
+        uint256,
+        address,
+        bytes32,
+        uint32
+    ) external {}
 
     function reservationPrice(
         address institution,
@@ -140,6 +219,12 @@ contract ReservationIntentHarness is ReservationIntentFacet {
         bytes32 reservationKey
     ) external view returns (uint8) {
         return LibAppStorage.diamondStorage().reservations[reservationKey].status;
+    }
+
+    function reservationPayer(
+        bytes32 reservationKey
+    ) external view returns (address) {
+        return LibAppStorage.diamondStorage().reservations[reservationKey].payerInstitution;
     }
 
     function refundToInstitutionalTreasuryForReservation(
@@ -284,5 +369,119 @@ contract ReservationIntentFacetTest is Test {
         harness.setLabOwnerAndPrice(labId, address(0xD00D), 23);
 
         assertEq(harness.reservationPrice(institution, labId, start, start + 1800), 23 * 1800);
+    }
+
+    function test_directBookingWithIntent_confirmsOwnLabAtomically() public {
+        uint256 labId = 44;
+        uint32 start = uint32(block.timestamp + 1 hours);
+        uint32 end = start + 1800;
+        bytes32 reservationKey = keccak256(abi.encodePacked(labId, start));
+        bytes32 requestId = keccak256("direct-booking-own-lab");
+        ReservationIntentPayload memory payload = ReservationIntentPayload({
+            executor: institution,
+            schacHomeOrganization: "institution.example",
+            pucHash: keccak256(bytes(PUC)),
+            assertionHash: bytes32(0),
+            labId: labId,
+            start: start,
+            end: end,
+            price: 0,
+            reservationKey: reservationKey
+        });
+
+        harness.setLabOwnerAndPrice(labId, institution, 23);
+        harness.setPendingDirectBookingIntent(requestId, payload);
+
+        vm.prank(institution);
+        harness.institutionalDirectBookingWithIntent(requestId, payload);
+
+        assertEq(uint8(harness.intentState(requestId)), uint8(IntentState.Executed));
+        assertEq(harness.reservationStatus(reservationKey), 1);
+    }
+
+    function test_directBookingWithIntent_allowsOwnerBackendAndKeepsOwnerAsPayer() public {
+        uint256 labId = 45;
+        uint32 start = uint32(block.timestamp + 1 hours);
+        uint32 end = start + 1800;
+        bytes32 reservationKey = keccak256(abi.encodePacked(labId, start));
+        bytes32 requestId = keccak256("direct-booking-owner-backend");
+        ReservationIntentPayload memory payload = ReservationIntentPayload({
+            executor: institutionBackend,
+            schacHomeOrganization: "institution.example",
+            pucHash: keccak256(bytes(PUC)),
+            assertionHash: bytes32(0),
+            labId: labId,
+            start: start,
+            end: end,
+            price: 0,
+            reservationKey: reservationKey
+        });
+
+        harness.setInstitutionWithBackend(institution, institutionBackend);
+        harness.setLabOwnerAndPrice(labId, institution, 23);
+        harness.setPendingDirectBookingIntent(requestId, payload);
+
+        vm.prank(institutionBackend);
+        harness.institutionalDirectBookingWithIntent(requestId, payload);
+
+        assertEq(uint8(harness.intentState(requestId)), uint8(IntentState.Executed));
+        assertEq(harness.reservationStatus(reservationKey), 1);
+        assertEq(harness.reservationPayer(reservationKey), institution);
+    }
+
+    function test_directBookingWithIntent_rejectsUnrelatedExecutor() public {
+        uint256 labId = 47;
+        uint32 start = uint32(block.timestamp + 1 hours);
+        bytes32 reservationKey = keccak256(abi.encodePacked(labId, start));
+        bytes32 requestId = keccak256("direct-booking-unrelated-executor");
+        address unrelatedExecutor = address(0xD00D);
+        ReservationIntentPayload memory payload = ReservationIntentPayload({
+            executor: unrelatedExecutor,
+            schacHomeOrganization: "institution.example",
+            pucHash: keccak256(bytes(PUC)),
+            assertionHash: bytes32(0),
+            labId: labId,
+            start: start,
+            end: start + 1800,
+            price: 0,
+            reservationKey: reservationKey
+        });
+
+        harness.setLabOwnerAndPrice(labId, institution, 23);
+        harness.setPendingDirectBookingIntent(requestId, payload);
+
+        vm.prank(unrelatedExecutor);
+        vm.expectRevert(IntentNotAuthorizedInstitution.selector);
+        harness.institutionalDirectBookingWithIntent(requestId, payload);
+    }
+
+    function test_reservationRequestWithIntent_allowsInstitutionBackendAndKeepsInstitutionAsPayer() public {
+        uint256 labId = 46;
+        uint32 start = uint32(block.timestamp + 1 hours);
+        uint32 end = start + 1800;
+        bytes32 reservationKey = keccak256(abi.encodePacked(labId, start));
+        bytes32 requestId = keccak256("reservation-request-institution-backend");
+        ReservationIntentPayload memory payload = ReservationIntentPayload({
+            executor: institutionBackend,
+            schacHomeOrganization: "institution.example",
+            pucHash: keccak256(bytes(PUC)),
+            assertionHash: bytes32(0),
+            labId: labId,
+            start: start,
+            end: end,
+            price: 23 * 1800,
+            reservationKey: reservationKey
+        });
+
+        harness.setInstitutionWithBackend(institution, institutionBackend);
+        harness.setLabOwnerAndPrice(labId, address(0xD00D), 23);
+        harness.setPendingReservationRequestIntent(requestId, payload);
+
+        vm.prank(institutionBackend);
+        harness.institutionalReservationRequestWithIntent(requestId, payload);
+
+        assertEq(uint8(harness.intentState(requestId)), uint8(IntentState.Executed));
+        assertEq(harness.reservationStatus(reservationKey), 0);
+        assertEq(harness.reservationPayer(reservationKey), institution);
     }
 }

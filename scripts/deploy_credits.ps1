@@ -213,6 +213,10 @@ function Deploy-Contract {
         [string]$ExistingAddress
     )
 
+    # A resume file is safe only for the same source and linked bytecode. In
+    # particular, reservation authorization lives in linked libraries, so a
+    # security fix must use a fresh deployment/upgrade cut rather than reuse an
+    # old facet or library address from a prior resume.
     if (Is-ValidAddress $ExistingAddress) {
         Write-Host "Using existing deployment for $Target -> $ExistingAddress"
         return $ExistingAddress
@@ -528,8 +532,18 @@ function Assert-CriticalSelectors {
     Assert-SelectorLinked -Diamond $Diamond -Selector $registerReservationIntentSelector -Label "registerReservationIntent"
 
     $denialFacet = $resumeState.facets["contracts/facets/reservation/ReservationDenialFacet.sol:ReservationDenialFacet"]
+    $confirmationFacet = $resumeState.facets["contracts/facets/reservation/institutional/InstitutionalReservationConfirmationFacet.sol:InstitutionalReservationConfirmationFacet"]
+    $intentFacet = $resumeState.facets["contracts/facets/reservation/ReservationIntentFacet.sol:ReservationIntentFacet"]
 
-    Assert-SelectorOwner -Diamond $Diamond -Selector "0x8eaf612f" -ExpectedFacet $denialFacet -Label "denyReservationRequest(bytes32)"
+    Assert-SelectorOwner -Diamond $Diamond `
+        -Selector (Get-FunctionSelector -Target "contracts/facets/reservation/ReservationDenialFacet.sol:ReservationDenialFacet" -FunctionName "denyReservationRequest") `
+        -ExpectedFacet $denialFacet -Label "denyReservationRequest(bytes32)"
+    Assert-SelectorOwner -Diamond $Diamond `
+        -Selector (Get-FunctionSelector -Target "contracts/facets/reservation/institutional/InstitutionalReservationConfirmationFacet.sol:InstitutionalReservationConfirmationFacet" -FunctionName "confirmInstitutionalReservationRequestWithPucHash") `
+        -ExpectedFacet $confirmationFacet -Label "confirmInstitutionalReservationRequestWithPucHash(address,bytes32,bytes32)"
+    Assert-SelectorOwner -Diamond $Diamond `
+        -Selector (Get-FunctionSelector -Target "contracts/facets/reservation/ReservationIntentFacet.sol:ReservationIntentFacet" -FunctionName "institutionalDirectBookingWithIntent") `
+        -ExpectedFacet $intentFacet -Label "institutionalDirectBookingWithIntent(bytes32,ReservationIntentPayload)"
 }
 
 Assert-CriticalSelectors -Diamond $diamondAddress

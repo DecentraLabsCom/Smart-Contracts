@@ -123,6 +123,7 @@ contract IntegrationDiamondReservationTest is BaseTest {
 
         // set lab owner and provider readiness
         confirm.setOwner(labId, LAB_OWNER);
+        confirm.setBackend(LAB_OWNER, BACKEND);
         confirm.setProviderActive(LAB_OWNER);
         confirm.setTokenStatus(labId, true);
 
@@ -131,7 +132,7 @@ contract IntegrationDiamondReservationTest is BaseTest {
         // sanity check it was written
         assertEq(confirm.getReservationStatus(key), _PENDING);
 
-        // confirm as backend
+        // confirm as provider backend
         vm.prank(BACKEND);
         confirm.confirmInstitutionalReservationRequestWithPucHash(INSTITUTION, key, keccak256(bytes(puc)));
 

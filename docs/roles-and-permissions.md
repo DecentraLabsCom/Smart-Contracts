@@ -13,6 +13,7 @@ backend key.
 | Provider | Creates labs and maintains its provider profile | A lab's ERC-721 owner controls owner-sensitive lab operations. |
 | Institution | Owns its treasury, spending policy and institutional reservation context | An organization name alone does not authorize a transaction. |
 | Authorized backend | Executes the institution/provider paths explicitly delegated to its address | It is a delegate, not a new economic owner. |
+| External reservation authority | The current lab owner or that owner's authorized backend confirms or denies a pending request | The payer can request/cancel; it cannot confirm or deny an external request. `DIRECT_BOOKING` is only for an own-lab request. |
 | Settlement operator | Can perform the privileged financial claim transitions when configured | Claim references and lifecycle checks still apply. |
 | Institutional user | Is represented by the reservation's `pucHash` and tracking key | The raw identifier is not stored on-chain. |
 

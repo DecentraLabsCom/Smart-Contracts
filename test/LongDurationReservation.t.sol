@@ -18,7 +18,7 @@ contract LongDurationReservationTest is Test {
     function setUp() public {
         harness = new ConfirmHarness();
         harness.setInstitutionRole(institution);
-        harness.setBackend(institution, backend);
+        harness.setBackend(provider, backend);
         harness.setOwner(labId, provider);
         harness.setTokenStatus(labId, true);
         harness.setProviderActive(provider);

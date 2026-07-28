@@ -34,17 +34,21 @@ abstract contract ReservableToken {
     /// - _ACCESS_AUTHORIZED: Access has been authorized on-chain. This is not proof that a remote session started.
     /// - status value 3 is reserved and unused.
     /// - _SETTLED: Service credits have been captured and provider receivable accrued for settlement processing.
-    /// - _CANCELLED: Reservation cancelled by user, admin, or provider.
+    /// - _CANCELLED: Reservation cancelled by payer, provider or expiry.
     /// @dev The status is represented as an 8-bit unsigned integer for gas efficiency.
     /// @dev State transition rules:
-    ///      _PENDING → _CONFIRMED (on admin confirmation with credit lock)
-    ///      _PENDING → _CANCELLED (on denial or user cancellation)
+    ///      _PENDING → _CONFIRMED (on provider confirmation with credit lock,
+    ///      or the atomic own-lab DIRECT_BOOKING path)
+    ///      _PENDING → _CANCELLED (on provider denial or payer cancellation)
     ///      _CONFIRMED → _ACCESS_AUTHORIZED (on access authorization/check-in)
     ///      _CONFIRMED → _SETTLED (when expired, via releaseExpiredReservations — credits captured)
     ///      _CONFIRMED → _CANCELLED (on cancellation with partial release/capture)
     ///      _ACCESS_AUTHORIZED → _CANCELLED is intentionally disallowed
     ///      _SETTLED, _CANCELLED are terminal states
 
+    /// @dev External institutional requests are confirmed or denied by the
+    ///      current lab owner or its authorized backend. Payer-side authority
+    ///      applies only to request/cancellation paths and own-lab DIRECT_BOOKING.
     uint8 internal constant _CONFIRMED = 1;
     uint8 internal constant _ACCESS_AUTHORIZED = 2;
 

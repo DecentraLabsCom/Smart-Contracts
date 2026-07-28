@@ -5,6 +5,7 @@ import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet
 import {AppStorage, LibAppStorage, Reservation, INSTITUTION_ROLE} from "../../libraries/LibAppStorage.sol";
 import {LibIntent} from "../../libraries/LibIntent.sol";
 import {ReservationIntentPayload, ActionIntentPayload} from "../../libraries/IntentTypes.sol";
+import {LibInstitutionalOrg} from "../../libraries/LibInstitutionalOrg.sol";
 import {LibInstitutionalReservation} from "../../libraries/LibInstitutionalReservation.sol";
 import {LibERC721Storage} from "../../libraries/LibERC721Storage.sol";
 import {LibInstitutionalReservationConfirmation} from "../../libraries/LibInstitutionalReservationConfirmation.sol";
@@ -42,25 +43,6 @@ contract ReservationIntentFacet {
         s = LibAppStorage.diamondStorage();
     }
 
-    modifier onlyInstitution(
-        address institution
-    ) {
-        _onlyInstitution(institution);
-        _;
-    }
-
-    function _onlyInstitution(
-        address institution
-    ) internal view {
-        AppStorage storage s = _s();
-        require(s.roleMembers[INSTITUTION_ROLE].contains(institution), IntentUnknownInstitution());
-        address backend = s.institutionalBackends[institution];
-        require(
-            msg.sender == institution || (backend != address(0) && msg.sender == backend),
-            IntentNotAuthorizedInstitution()
-        );
-    }
-
     function _onlyInstitutionalBackend(
         address institution
     ) internal view {
@@ -69,6 +51,44 @@ contract ReservationIntentFacet {
         address backend = s.institutionalBackends[institution];
         require(backend != address(0), IntentInstitutionBackendRequired());
         require(msg.sender == backend, IntentNotAuthorizedInstitution());
+    }
+
+    /// @dev Resolves the institution from the lab owner for the atomic own-lab
+    /// path. The executor may be the owner wallet or its registered backend;
+    /// the reservation itself must remain owned and paid by the institution,
+    /// never by the backend address.
+    function _ownLabBookingInstitution(
+        AppStorage storage s,
+        uint256 labId
+    ) internal view returns (address institution) {
+        institution = LibERC721Storage.ownerOf(labId);
+        require(s.roleMembers[INSTITUTION_ROLE].contains(institution), IntentUnknownInstitution());
+        address backend = s.institutionalBackends[institution];
+        require(
+            msg.sender == institution || (backend != address(0) && msg.sender == backend),
+            IntentNotAuthorizedInstitution()
+        );
+    }
+
+    /// @dev Resolves the payer institution from the organization bound into
+    /// the signed reservation intent. The executor may be that institution or
+    /// its registered backend, but the backend is never stored as the payer.
+    function _institutionFromIntentOrganization(
+        AppStorage storage s,
+        string memory organization
+    ) internal view returns (address institution) {
+        string memory normalized = LibInstitutionalOrg.normalizeOrganization(organization);
+        // forge-lint: disable-next-line(asm-keccak256)
+        bytes32 organizationHash = keccak256(bytes(normalized));
+        institution = s.organizationInstitutionWallet[organizationHash];
+        require(institution != address(0), IntentUnknownInstitution());
+        require(s.roleMembers[INSTITUTION_ROLE].contains(institution), IntentUnknownInstitution());
+
+        address backend = s.institutionalBackends[institution];
+        require(
+            msg.sender == institution || (backend != address(0) && msg.sender == backend),
+            IntentNotAuthorizedInstitution()
+        );
     }
 
     modifier exists(
@@ -146,47 +166,52 @@ contract ReservationIntentFacet {
     function institutionalReservationRequestWithIntent(
         bytes32 requestId,
         ReservationIntentPayload calldata payload
-    ) external exists(payload.labId) onlyInstitution(msg.sender) {
+    ) external exists(payload.labId) {
         AppStorage storage s = _s();
+        address institution = _institutionFromIntentOrganization(s, payload.schacHomeOrganization);
         bytes32 expectedKey = _getReservationKey(payload.labId, payload.start);
         require(payload.reservationKey == expectedKey, "RESERVATION_KEY_MISMATCH");
-        uint96 expectedPrice = _reservationPrice(s, msg.sender, payload.labId, payload.start, payload.end);
+        uint96 expectedPrice = _reservationPrice(s, institution, payload.labId, payload.start, payload.end);
         require(payload.price == expectedPrice, "LAB_PRICE_MISMATCH");
         _consumeReservationIntent(requestId, LibIntent.ACTION_REQUEST_BOOKING, payload);
 
         LibInstitutionalReservation.requestReservation(
-            msg.sender, payload.pucHash, payload.labId, payload.start, payload.end
+            institution, payload.pucHash, payload.labId, payload.start, payload.end
         );
         emit ReservationIntentProcessed(
-            requestId, payload.reservationKey, "RESERVATION_REQUEST", payload.pucHash, msg.sender, true, ""
+            requestId, payload.reservationKey, "RESERVATION_REQUEST", payload.pucHash, institution, true, ""
         );
     }
 
     /// @notice Atomic request + confirm for own-lab bookings (same institution is both payer and provider)
-    /// @dev Only valid when the caller (institution) is also the ERC-721 owner of the lab.
+    /// @dev Only valid when the caller is the ERC-721 owner of the lab or its
+    ///      registered backend. The owner remains the payer/provider identity.
     ///      Saves one on-chain transaction and one round-trip versus the two-step request→confirm flow.
     // State is committed before the final audit event; the library calls stay within the Diamond.
     // slither-disable-next-line reentrancy-events
     function institutionalDirectBookingWithIntent(
         bytes32 requestId,
         ReservationIntentPayload calldata payload
-    ) external exists(payload.labId) onlyInstitution(msg.sender) {
+    ) external exists(payload.labId) {
         AppStorage storage s = _s();
-        require(LibERC721Storage.ownerOf(payload.labId) == msg.sender, "NOT_OWN_LAB");
+        address institution = _ownLabBookingInstitution(s, payload.labId);
+        require(
+            _institutionFromIntentOrganization(s, payload.schacHomeOrganization) == institution, "INSTITUTION_MISMATCH"
+        );
         bytes32 expectedKey = _getReservationKey(payload.labId, payload.start);
         require(payload.reservationKey == expectedKey, "RESERVATION_KEY_MISMATCH");
-        uint96 expectedPrice = _reservationPrice(s, msg.sender, payload.labId, payload.start, payload.end);
+        uint96 expectedPrice = _reservationPrice(s, institution, payload.labId, payload.start, payload.end);
         require(payload.price == expectedPrice, "LAB_PRICE_MISMATCH");
         _consumeReservationIntent(requestId, LibIntent.ACTION_DIRECT_BOOKING, payload);
 
         LibInstitutionalReservation.requestReservation(
-            msg.sender, payload.pucHash, payload.labId, payload.start, payload.end
+            institution, payload.pucHash, payload.labId, payload.start, payload.end
         );
         LibInstitutionalReservationConfirmation._confirmInstitutionalReservationRequestWithPucHash(
-            s, msg.sender, expectedKey, payload.pucHash
+            s, institution, expectedKey, payload.pucHash
         );
         emit ReservationIntentProcessed(
-            requestId, payload.reservationKey, "DIRECT_BOOKING", payload.pucHash, msg.sender, true, ""
+            requestId, payload.reservationKey, "DIRECT_BOOKING", payload.pucHash, institution, true, ""
         );
     }
 

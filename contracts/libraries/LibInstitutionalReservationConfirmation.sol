@@ -57,12 +57,10 @@ library LibInstitutionalReservationConfirmation {
         if (r.status != _PENDING) revert();
 
         address labOwner = LibERC721Storage.ownerOf(r.labId);
-        address instBackend = s.institutionalBackends[institution];
         address providerBackend = s.institutionalBackends[labOwner];
 
-        bool institutionCaller = msg.sender == institution || (instBackend != address(0) && msg.sender == instBackend);
         bool providerCaller = msg.sender == labOwner || (providerBackend != address(0) && msg.sender == providerBackend);
-        if (!institutionCaller && !providerCaller) revert UnauthorizedInstitutionCall();
+        if (!providerCaller) revert UnauthorizedInstitutionCall();
 
         _confirmInstitutionalReservationRequestWithPucHash(s, institution, key, pucHash);
     }

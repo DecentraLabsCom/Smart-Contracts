@@ -43,7 +43,7 @@ contract FmuResourceTypeTest is BaseTest {
         harness.setProviderActive(provider);
 
         // confirm first
-        vm.prank(inst);
+        vm.prank(provider);
         harness.confirmInstitutionalReservationRequestWithPucHash(inst, key1, keccak256(bytes("alice@inst")));
         assertEq(harness.getReservationStatus(key1), _CONFIRMED);
 
@@ -51,7 +51,7 @@ contract FmuResourceTypeTest is BaseTest {
         harness.setReservation(key2, address(0xBBBB), inst, 50, _PENDING, labId, start2, "bob@inst");
 
         // confirm second — should NOT revert because FMU bypasses calendar insert
-        vm.prank(inst);
+        vm.prank(provider);
         harness.confirmInstitutionalReservationRequestWithPucHash(inst, key2, keccak256(bytes("bob@inst")));
         assertEq(harness.getReservationStatus(key2), _CONFIRMED);
     }
@@ -76,7 +76,7 @@ contract FmuResourceTypeTest is BaseTest {
         harness.setProviderActive(provider);
 
         // confirm first
-        vm.prank(inst);
+        vm.prank(provider);
         harness.confirmInstitutionalReservationRequestWithPucHash(inst, key1, keccak256(bytes("alice@inst")));
         assertEq(harness.getReservationStatus(key1), _CONFIRMED);
 
@@ -84,7 +84,7 @@ contract FmuResourceTypeTest is BaseTest {
         harness.setReservation(key2, address(0xBBBB), inst, 50, _PENDING, labId, start2, "bob@inst");
 
         // confirm second — should revert because regular lab uses exclusive calendar
-        vm.prank(inst);
+        vm.prank(provider);
         vm.expectRevert();
         harness.confirmInstitutionalReservationRequestWithPucHash(inst, key2, keccak256(bytes("bob@inst")));
     }
@@ -109,13 +109,13 @@ contract FmuResourceTypeTest is BaseTest {
         harness.setTokenStatus(labId, true);
         harness.setProviderActive(provider);
 
-        vm.prank(inst);
+        vm.prank(provider);
         harness.confirmInstitutionalReservationRequestWithPucHash(inst, key1, keccak256(bytes("alice@inst")));
 
         harness.setReservation(key2, address(0xBBBB), inst, 50, _PENDING, labId, start2, "bob@inst");
 
         // should revert — default resourceType is 0 (exclusive calendar)
-        vm.prank(inst);
+        vm.prank(provider);
         vm.expectRevert();
         harness.confirmInstitutionalReservationRequestWithPucHash(inst, key2, keccak256(bytes("bob@inst")));
     }
@@ -144,7 +144,7 @@ contract FmuResourceTypeTest is BaseTest {
 
             harness.setReservation(key, renter, inst, 50, _PENDING, labId, start, puc);
 
-            vm.prank(inst);
+            vm.prank(provider);
             harness.confirmInstitutionalReservationRequestWithPucHash(inst, key, keccak256(bytes(puc)));
             assertEq(harness.getReservationStatus(key), _CONFIRMED);
         }

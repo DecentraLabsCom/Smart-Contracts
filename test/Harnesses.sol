@@ -250,6 +250,14 @@ contract ReservationDenialHarness is ReservationDenialFacet {
         LibERC721StorageTestHelper.setOwnerForTest(tokenId, owner);
     }
 
+    function setBackend(
+        address provider,
+        address backend
+    ) external {
+        AppStorage storage s = LibAppStorage.diamondStorage();
+        s.institutionalBackends[provider] = backend;
+    }
+
     function setReservation(
         bytes32 key,
         address renter,

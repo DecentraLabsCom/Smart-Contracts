@@ -39,18 +39,22 @@ stateDiagram-v2
 ## Request and confirmation
 
 An institution wallet or its authorized backend creates a request with a
-non-zero PUC hash, an existing lab and a valid time range. Validation enforces
+non-zero PUC hash, an existing lab and a valid time range. The intent-bound
+organization must resolve on-chain to that institution; the backend is only
+the transaction executor and is never stored as the payer. Validation enforces
 the request TTL (currently five minutes), the lab's booking rules and the
 institutional user's policy. A pending request can be denied by the eligible
 provider side, cancelled through the institutional path, or released after its
 TTL.
 
-Confirmation may be submitted by the payer institution/backend or the current
-lab owner/backend. It checks the PUC binding, provider network status, listing
-and stop-intake state. For a priced booking it spends the institutional treasury
-and captures the current spending-period context; a failed treasury spend
-cancels the request. A same-institution own-lab intent can atomically request
-and confirm through the direct-booking path.
+External-request confirmation may be submitted only by the current lab owner or
+its authorized backend. It checks the PUC binding, provider network status,
+listing and stop-intake state. For a priced booking it spends the payer
+institution's treasury and captures the current spending-period context; a
+failed treasury spend cancels the request. A same-institution own-lab intent
+can atomically request and confirm through the direct-booking path. The current
+lab owner or its authorized backend may execute that path, while the owner
+remains the payer/provider identity. It is a separate payer-authorized flow.
 
 Confirmation inserts an exclusive (`resourceType = 0`) range into the interval
 calendar, queues the reservation for later settlement, and stores the provider
@@ -83,6 +87,13 @@ hash. It applies the configured cancellation accounting. A provider-side
 cancellation is separate: the current provider or its authorized backend must
 provide a non-zero reason code; the payer receives the full price and provider
 reputation is adjusted.
+
+For a pending external request, only the current ERC-721 lab owner or the
+backend currently authorized by that owner may deny. The payer institution and
+its backend may cancel their own pending request, but they cannot deny it or
+turn it into a confirmed external booking. Own-lab `DIRECT_BOOKING` is the
+explicit atomic exception because the payer and provider are the same
+institution.
 
 `previewInstitutionalBookingCancellation` returns the contract's current
 calculation before a transaction: status, eligibility, refund destination,

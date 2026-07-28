@@ -57,6 +57,14 @@ network's `*-latest.json` snapshot after a successful deployment.
    preserve the exact output artifact.
 6. Update Marketplace and backend ABI/address configuration together.
 
+Reservation authorization is implemented in the linked
+`LibInstitutionalReservationConfirmation` and `LibReservationConfirmation`
+libraries as well as their facets. If either library or its facet changes,
+the upgrade must deploy the new linked bytecode and replace the live facet;
+reusing an old resume artifact is not a valid security upgrade. Verify the
+live routes for external confirmation, denial and `DIRECT_BOOKING` before
+enabling provider automation.
+
 Only the Diamond owner can cut selectors. A cut can execute an initializer via
 `delegatecall`, so treat it with the same key-management and review discipline
 as a privileged production migration.

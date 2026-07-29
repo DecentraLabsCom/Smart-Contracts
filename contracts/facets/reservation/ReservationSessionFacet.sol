@@ -123,7 +123,7 @@ contract ReservationSessionFacet {
         // forge-lint: disable-next-line(block-timestamp)
         // slither-disable-next-line timestamp
         if (input.startedAt > block.timestamp) revert("StartedAt in future");
-        if (block.timestamp - input.startedAt > LibReservationConfig.SESSION_ATTESTATION_GRACE) {
+        if (!LibReservationConfig.isWithinSessionAttestationGrace(reservation.end, block.timestamp)) {
             revert("Attestation too old");
         }
         if (keccak256(bytes(input.labId)) != keccak256(bytes(_uintToString(reservation.labId)))) {

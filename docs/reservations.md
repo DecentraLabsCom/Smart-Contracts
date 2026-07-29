@@ -72,8 +72,17 @@ maximum batch of 50 records. It finalizes:
 
 Finalization removes calendar, lab, renter and institutional-user indexes as
 one operation. When valid session evidence is present, it accrues the provider
-share. Without it, the priced reservation is refunded through the institutional
-treasury path instead.
+share. For a physical lab without it, the no-show settlement refunds 75%,
+accrues 15% to the provider and retains 10% as the implicit platform margin.
+A simulation without evidence is refunded in full.
+
+The same economic deadline is also enforced by the bounded cleanup performed
+while validating a new request for a user near the per-lab reservation cap. That
+cleanup cannot settle an `ACCESS_AUTHORIZED` reservation without
+`SessionStarted` evidence until `end + 1 day`; a delayed attestation therefore
+cannot be invalidated by requesting another reservation. Permissionless release,
+cap cleanup and provider payout all delegate their terminal transition to the
+same `LibInstitutionalReservationSettlement` path.
 
 Use `getReservation`, availability reads and the paginated institutional/query
 functions for state inspection. Do not infer availability from a pending request
@@ -83,10 +92,15 @@ or from off-chain calendar data.
 
 The normal institutional cancellation path is limited to a confirmed booking
 before its start time and requires the configured backend plus the matching PUC
-hash. It applies the configured cancellation accounting. A provider-side
-cancellation is separate: the current provider or its authorized backend must
-provide a non-zero reason code; the payer receives the full price and provider
-reputation is adjusted.
+hash. Physical labs charge 10% (with the configured minimum); simulations
+refund 100%. A provider-side cancellation is separate: the current provider
+or its authorized backend must provide a non-zero reason code; the payer
+receives the full price and provider reputation is adjusted. At least 24 hours'
+notice is scored -1, less than 24 hours' notice is scored -2, and the explicit
+`PROVIDER_SERVICE_FAILURE` reason is scored -3. The latter is permitted for a
+confirmed or access-authorized reservation only while the attestation grace
+period is open and only when `SessionStarted` has not been recorded. Therefore
+an ordinary payer no-show is not itself treated as provider misconduct.
 
 For a pending external request, only the current ERC-721 lab owner or the
 backend currently authorized by that owner may deny. The payer institution and

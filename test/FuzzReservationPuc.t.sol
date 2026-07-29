@@ -12,6 +12,12 @@ contract RevenueHarness {
     ) external pure returns (uint96, uint96) {
         return LibRevenue.computeCancellationFee(price);
     }
+
+    function computeNoShowSettlementPublic(
+        uint96 price
+    ) external pure returns (uint96, uint96) {
+        return LibRevenue.computeNoShowSettlement(price);
+    }
 }
 
 contract FuzzReservationPucTest is BaseTest {
@@ -86,6 +92,14 @@ contract FuzzReservationPucTest is BaseTest {
         (uint96 providerFee, uint96 refund) = rev.computeCancellationFeePublic(price);
         uint256 sum = uint256(providerFee) + uint256(refund);
         assert(sum <= uint256(price));
+        assert(refund <= price);
+    }
+
+    function test_fuzz_computeNoShowSettlement(
+        uint96 price
+    ) public {
+        (uint96 providerFee, uint96 refund) = rev.computeNoShowSettlementPublic(price);
+        assert(uint256(providerFee) + uint256(price - refund) <= uint256(price));
         assert(refund <= price);
     }
 }

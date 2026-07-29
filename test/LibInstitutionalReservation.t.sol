@@ -6,6 +6,7 @@ import "./BaseTest.sol";
 import "./Harnesses.sol";
 import "../contracts/libraries/LibAppStorage.sol";
 import "../contracts/libraries/LibRevenue.sol";
+import "../contracts/libraries/LibReservationDenyReason.sol";
 import "../contracts/libraries/LibTracking.sol";
 
 contract LibInstitutionalReservationTest is BaseTest {
@@ -93,6 +94,26 @@ contract LibInstitutionalReservationTest is BaseTest {
         assertEq(harness.lastRefundProvider(), inst);
     }
 
+    function test_cancelBooking_simulation_refundsFullPrice() public {
+        address inst = address(0xCAFE);
+        address backend = address(0xF00D);
+        uint256 labId = 70;
+        uint32 start = 2000;
+        bytes32 key = keccak256(abi.encodePacked("fmu-cancel", labId, start));
+        string memory puc = "fmu@inst";
+        uint96 price = 1_000_000;
+
+        harness.setBackend(inst, backend);
+        harness.setLabResourceType(labId, 1);
+        harness.setReservation(key, user1, inst, price, _CONFIRMED, labId, start, puc);
+
+        vm.prank(backend);
+        harness.cancelBookingWrapper(inst, keccak256(bytes(puc)), key);
+
+        assertEq(harness.lastRefundAmount(), price);
+        assertEq(harness.providerReceivable(labId), 0);
+    }
+
     function test_cancelBooking_unauthorized_reverts() public {
         address inst = address(0x1111);
         uint256 labId = 8;
@@ -162,7 +183,33 @@ contract LibInstitutionalReservationTest is BaseTest {
         assertEq(score, 0);
         assertEq(totalEvents, 0);
         assertEq(ownerCancellations, 0);
+        assertEq(harness.lastRefundAmount(), 750_000);
+        assertEq(harness.providerReceivable(labId), 150_000);
+    }
+
+    function test_releaseInstitutionalExpiredReservations_simulationWithoutSessionStarted_refundsFullPrice() public {
+        vm.warp(10_000);
+        address inst = address(0xCAFE);
+        address backend = address(0xF00D);
+        uint256 labId = 15;
+        uint32 start = uint32(block.timestamp - 7200);
+        uint32 end = uint32(block.timestamp - 3600);
+        bytes32 key = keccak256(abi.encodePacked("expired-fmu-without-session", labId, start));
+        string memory puc = "fmu-sessionless@inst";
+        bytes32 pucHash = keccak256(bytes(puc));
+
+        harness.setInstitution(inst);
+        harness.setBackend(inst, backend);
+        harness.setLabResourceType(labId, 1);
+        harness.setIndexedExpiredReservation(key, user1, inst, 1_000_000, _CONFIRMED, labId, start, end, puc);
+
+        vm.prank(backend);
+        uint256 processed = harness.releaseInstitutionalExpiredReservationsWrapper(inst, pucHash, labId, 10);
+
+        assertEq(processed, 1);
+        assertEq(harness.getReservationStatus(key), _SETTLED);
         assertEq(harness.lastRefundAmount(), 1_000_000);
+        assertEq(harness.providerReceivable(labId), 0);
     }
 
     function test_releaseInstitutionalExpiredReservations_accessAuthorizedWithSessionStarted_rewardsReputation()
@@ -216,7 +263,8 @@ contract LibInstitutionalReservationTest is BaseTest {
 
         assertEq(processed, 1);
         assertEq(harness.getReservationStatus(key), _SETTLED);
-        assertEq(harness.lastRefundAmount(), 1_000_000);
+        assertEq(harness.lastRefundAmount(), 750_000);
+        assertEq(harness.providerReceivable(labId), 150_000);
     }
 
     function test_releaseInstitutionalExpiredReservations_repairs_active_reservation_pointer() public {
@@ -268,7 +316,7 @@ contract LibInstitutionalReservationTest is BaseTest {
         harness.cancelBookingWrapper(inst, keccak256(bytes(puc)), key);
     }
 
-    function test_providerCancellation_refundsFullPrice_and_penalizes_reputation_softly() public {
+    function test_providerCancellation_refundsFullPrice_and_penalizes_reputationWithEarlyNotice() public {
         address payer = address(0xCAFE);
         address providerOwner = address(0xD00D);
         address providerBackend = address(0xB0B);
@@ -284,7 +332,15 @@ contract LibInstitutionalReservationTest is BaseTest {
         harness.setReservation(key, user1, payer, price, _CONFIRMED, labId, start, puc);
 
         vm.expectEmit(true, true, true, true);
-        emit BookingCanceledByProvider(key, labId, payer, providerOwner, keccak256(bytes(puc)), price, 7);
+        emit BookingCanceledByProvider(
+            key,
+            labId,
+            payer,
+            providerOwner,
+            keccak256(bytes(puc)),
+            price,
+            LibReservationDenyReason.PROVIDER_UNAVAILABLE
+        );
 
         vm.prank(providerBackend);
         (
@@ -293,7 +349,7 @@ contract LibInstitutionalReservationTest is BaseTest {
             address returnedProvider,
             bytes32 returnedPuc,
             uint96 refundAmount
-        ) = harness.cancelConfirmedBookingByProvider(key, 7);
+        ) = harness.cancelConfirmedBookingByProvider(key, LibReservationDenyReason.PROVIDER_UNAVAILABLE);
 
         assertEq(returnedLabId, labId);
         assertEq(returnedPayer, payer);
@@ -309,6 +365,74 @@ contract LibInstitutionalReservationTest is BaseTest {
         assertEq(score, -1);
         assertEq(totalEvents, 1);
         assertEq(ownerCancellations, 1);
+    }
+
+    function test_providerCancellation_withLessThanOneDayNotice_penalizesMinusTwo() public {
+        address payer = address(0xCAFE);
+        address providerOwner = address(0xD00D);
+        uint256 labId = 23;
+        uint32 start = uint32(block.timestamp + 1 days);
+        bytes32 key = keccak256(abi.encodePacked("provider-cancel-late", labId, start));
+        string memory puc = "provider-cancel-late@inst";
+        uint96 price = 2_000_000;
+
+        harness.setInstitution(payer);
+        harness.setLabOwner(labId, providerOwner);
+        harness.setBackend(providerOwner, providerOwner);
+        harness.setReservation(key, user1, payer, price, _CONFIRMED, labId, start, puc);
+
+        vm.warp(uint256(start) - 1);
+        vm.prank(providerOwner);
+        harness.cancelConfirmedBookingByProvider(key, LibReservationDenyReason.PROVIDER_UNAVAILABLE);
+
+        (int32 score, uint32 totalEvents,,) = harness.getLabReputation(labId);
+        assertEq(score, -2);
+        assertEq(totalEvents, 1);
+        assertEq(harness.lastRefundAmount(), price);
+    }
+
+    function test_providerServiceFailure_afterStart_refundsFullPrice_and_penalizesMinusThree() public {
+        address payer = address(0xCAFE);
+        address providerOwner = address(0xD00D);
+        uint256 labId = 24;
+        uint32 start = uint32(block.timestamp + 1 hours);
+        bytes32 key = keccak256(abi.encodePacked("provider-service-failure", labId, start));
+        string memory puc = "provider-service-failure@inst";
+        uint96 price = 2_000_000;
+
+        harness.setInstitution(payer);
+        harness.setLabOwner(labId, providerOwner);
+        harness.setBackend(providerOwner, providerOwner);
+        harness.setReservation(key, user1, payer, price, _CONFIRMED, labId, start, puc);
+
+        vm.warp(uint256(start) + 10 minutes);
+        vm.prank(providerOwner);
+        harness.cancelConfirmedBookingByProvider(key, LibReservationDenyReason.PROVIDER_SERVICE_FAILURE);
+
+        assertEq(harness.getReservationStatus(key), _CANCELLED);
+        assertEq(harness.lastRefundAmount(), price);
+        (int32 score, uint32 totalEvents,,) = harness.getLabReputation(labId);
+        assertEq(score, -3);
+        assertEq(totalEvents, 1);
+    }
+
+    function test_providerServiceFailure_rejectsWhenSessionStartedWasRecorded() public {
+        address payer = address(0xCAFE);
+        address providerOwner = address(0xD00D);
+        uint256 labId = 25;
+        uint32 start = uint32(block.timestamp + 1 hours);
+        bytes32 key = keccak256(abi.encodePacked("provider-service-started", labId, start));
+
+        harness.setInstitution(payer);
+        harness.setLabOwner(labId, providerOwner);
+        harness.setBackend(providerOwner, providerOwner);
+        harness.setReservation(key, user1, payer, 2_000_000, _ACCESS_AUTHORIZED, labId, start, "started@inst");
+        harness.markSessionStartedForTest(key);
+
+        vm.warp(uint256(start) + 10 minutes);
+        vm.prank(providerOwner);
+        vm.expectRevert();
+        harness.cancelConfirmedBookingByProvider(key, LibReservationDenyReason.PROVIDER_SERVICE_FAILURE);
     }
 
     function test_providerCancellation_rejects_afterCutoff_and_accessAuthorized() public {

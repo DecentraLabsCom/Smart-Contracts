@@ -49,8 +49,8 @@ The contract verifies all of the following:
 - the reservation is `ACCESS_AUTHORIZED` and `startedAt` is inside its window;
 - the signer is the current ERC-721 lab owner;
 - PUC and lab ID match the reservation;
-- the attestation is not future-dated or older than the configured one-day
-  grace window;
+- the attestation is not future-dated and is submitted no later than the
+  reservation's `end + 1 day` session-attestation deadline;
 - the reservation, nonce and gateway/session/access-type observation have not
   already been used.
 

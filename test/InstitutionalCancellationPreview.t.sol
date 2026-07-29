@@ -40,9 +40,9 @@ contract InstitutionalCancellationPreviewTest is Test {
         assertTrue(cancellable);
         assertEq(destination, payer);
         assertEq(price, 100_000_000);
-        assertEq(totalFee, 5_000_000);
-        assertEq(providerFee, 3_000_000);
-        assertEq(refundAmount, 95_000_000);
+        assertEq(totalFee, 10_000_000);
+        assertEq(providerFee, 6_000_000);
+        assertEq(refundAmount, 90_000_000);
         assertEq(cutoff, uint32(block.timestamp + 7 days));
         assertEq(periodStart, 1_890_000_000);
         assertEq(periodEnd, 1_890_000_000 + 120 days);
@@ -50,6 +50,27 @@ contract InstitutionalCancellationPreviewTest is Test {
         assertEq(allocations.length, 1);
         assertEq(allocations[0].fundingOrderId, keccak256("funding-order"));
         assertEq(allocations[0].amount, 100_000_000);
-        assertEq(policyVersion, 1);
+        assertEq(policyVersion, 2);
+    }
+
+    function test_previewForSimulationReturnsFullRefund() public {
+        harness.setLabResourceType(7, 1);
+
+        (
+            ,
+            bool cancellable,,
+            uint96 price,
+            uint96 totalFee,
+            uint96 providerFee,
+            uint96 refundAmount,,,,,,
+            uint8 policyVersion
+        ) = harness.previewInstitutionalBookingCancellation(reservationKey);
+
+        assertTrue(cancellable);
+        assertEq(price, 100_000_000);
+        assertEq(totalFee, 0);
+        assertEq(providerFee, 0);
+        assertEq(refundAmount, price);
+        assertEq(policyVersion, 2);
     }
 }

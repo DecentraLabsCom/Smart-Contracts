@@ -425,7 +425,7 @@ contract ProviderReceivableAliasesTest is Test {
 
         assertEq(harness.releaseInstitutionalReservation(unattestedKey, LAB_ID), 1);
         assertEq(harness.getReservationStatus(unattestedKey), SETTLED);
-        assertEq(harness.lastRefundAmount(), FIVE_CREDITS);
+        assertEq(harness.lastRefundAmount(), 37_500_000);
     }
 
     function test_requestProviderPayout_rejects_settled_reservation() public {

@@ -86,13 +86,23 @@ the PUC-scoped spending allowance. The successful charge records the spending
 period used by that reservation, allowing a later refund to reconcile the same
 period correctly.
 
-For an eligible consumer cancellation before the start time, the current policy
-charges a total fee of 5% with a minimum of 0.1 credits (or the entire price
-when it is lower). Three fifths of that fee go to the provider, equivalent to
-3% of the price when the percentage fee applies; the remainder is the implicit
-platform margin. A zero-price reservation creates no credit movement. A
-provider-initiated pre-start cancellation instead refunds the full price and
-does not accrue a provider cancellation fee.
+For an eligible consumer cancellation before the start time on a physical lab,
+the current policy charges a total fee of 10% with a minimum of 0.1 credits (or
+the entire price when it is lower). Three fifths of that fee go to the provider,
+equivalent to 6% of the price when the percentage fee applies; the remaining 4%
+is the implicit platform margin. Simulations have no cancellation fee and refund
+the full price. A zero-price reservation creates no credit movement. A
+provider-initiated cancellation refunds the full price and does not accrue a
+provider cancellation fee. It does, however, affect lab reputation: a
+cancellation with at least 24 hours' notice applies -1, one with less than 24
+hours' notice applies -2, and an explicit provider service-failure report
+applies -3.
+
+The service-failure path is only available while the reservation is still
+active and its one-day `SessionStarted` attestation grace period remains open.
+It requires that no `SessionStarted` evidence exists, so a payer no-show is not
+automatically attributed to the provider. A technical denial of a pending
+request does not carry this penalty.
 
 Always call `previewInstitutionalBookingCancellation` before presenting a
 confirmation screen. It returns the actual current fee, refund, spending-period
@@ -104,6 +114,17 @@ Provider revenue is a receivable, not a token payout. On successful finalization
 with SessionStarted evidence, the reservation's cached provider share is added
 to the lab's accrued receivable. `requestProviderPayout` processes a bounded
 batch of eligible records and moves accrued value into the settlement queue.
+
+All reservation finalization routes use the same economic transition: the
+permissionless release, the per-user cap cleanup and provider payout share the
+attestation deadline, refund/receivable decision, reputation update, counter
+decrement and index/heap cleanup. An `ACCESS_AUTHORIZED` reservation without
+`SessionStarted` is not refunded before the one-day grace period expires.
+
+For a physical lab without `SessionStarted` after that deadline, the no-show
+settlement retains 25%: 15% becomes provider receivable and 10% remains the
+implicit platform margin; the remaining 75% is refunded. A simulation without
+evidence is refunded in full.
 
 ```mermaid
 stateDiagram-v2

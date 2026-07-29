@@ -20,7 +20,7 @@ import {LibRevenue} from "../../../libraries/LibRevenue.sol";
 contract InstitutionalReservationCancellationFacet is ReentrancyGuardTransient {
     using EnumerableSet for EnumerableSet.AddressSet;
 
-    uint8 internal constant CANCELLATION_POLICY_VERSION = 1;
+    uint8 internal constant CANCELLATION_POLICY_VERSION = 2;
 
     event ReservationRequestCanceled(bytes32 indexed reservationKey, uint256 indexed tokenId);
     event BookingCanceled(bytes32 indexed reservationKey, uint256 indexed tokenId);
@@ -106,11 +106,13 @@ contract InstitutionalReservationCancellationFacet is ReentrancyGuardTransient {
         policyVersion = CANCELLATION_POLICY_VERSION;
         cancellable = reservationStatus == 1 && block.timestamp < cancellationCutoff;
 
-        if (reservationStatus == 1) {
+        if (reservationStatus == 1 && s.labs[reservation.labId].resourceType == 0) {
             uint96 calculatedRefund;
             (providerFee, calculatedRefund) = LibRevenue.computeCancellationFee(price);
             refundAmount = calculatedRefund;
             totalFee = price - refundAmount;
+        } else if (reservationStatus == 1) {
+            refundAmount = price;
         } else {
             refundAmount = 0;
         }
@@ -136,7 +138,8 @@ contract InstitutionalReservationCancellationFacet is ReentrancyGuardTransient {
     }
 
     /// @notice Cancel a confirmed booking because the provider cannot honor it.
-    /// @dev Refunds the full institutional price and applies a minimal reputation penalty.
+    /// @dev Refunds the full institutional price and applies the reason/notice-based
+    ///      provider reputation penalty enforced by LibInstitutionalReservation.
     function cancelConfirmedBookingByProvider(
         bytes32 reservationKey,
         uint8 reasonCode

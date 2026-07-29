@@ -12,10 +12,8 @@ import {
 } from "../../libraries/LibAppStorage.sol";
 import {LibAccessControlEnumerable} from "../../libraries/LibAccessControlEnumerable.sol";
 import {LibERC721Storage} from "../../libraries/LibERC721Storage.sol";
-import {LibReputation} from "../../libraries/LibReputation.sol";
 import {LibProviderReceivable, SETTLEMENT_OPERATOR_ROLE} from "../../libraries/LibProviderReceivable.sol";
-import {LibReservationConfig} from "../../libraries/LibReservationConfig.sol";
-import {LibReservationIndexCleanup} from "../../libraries/LibReservationIndexCleanup.sol";
+import {LibInstitutionalReservationSettlement} from "../../libraries/LibInstitutionalReservationSettlement.sol";
 
 /// @title ProviderSettlementFacet
 /// @author
@@ -31,7 +29,6 @@ contract ProviderSettlementFacet is ReentrancyGuardTransient {
     /// @dev Reservation status constants (must match reservation facets)
     uint8 internal constant _CONFIRMED = 1;
     uint8 internal constant _ACCESS_AUTHORIZED = 2;
-    uint8 internal constant _SETTLED = 3;
 
     /// @dev Provider receivable lifecycle buckets
     uint8 internal constant _RECEIVABLE_ACCRUED = 1;
@@ -171,11 +168,13 @@ contract ProviderSettlementFacet is ReentrancyGuardTransient {
             PayoutCandidate storage candidate = heap[i];
             // Settlement eligibility is intentionally evaluated against chain time.
             // slither-disable-next-line timestamp
-            if (candidate.end <= currentTime) {
+            if (candidate.end < currentTime) {
                 Reservation storage reservation = s.reservations[candidate.key];
                 if (
                     (reservation.end == 0 || reservation.end == candidate.end)
-                        && _isProviderSettleableSession(s, candidate.key, reservation, _labId)
+                        && LibInstitutionalReservationSettlement.isProviderPayoutEligible(
+                            s, candidate.key, reservation, _labId, currentTime
+                        )
                 ) {
                     providerReceivableChunk += reservation.providerShare;
                     eligibleReservationCountChunk++;
@@ -398,12 +397,14 @@ contract ProviderSettlementFacet is ReentrancyGuardTransient {
         PayoutCandidate storage candidate = heap[nodeIndex];
         // Settlement eligibility is intentionally evaluated against chain time.
         // slither-disable-next-line timestamp
-        if (candidate.end > currentTime) {
+        if (candidate.end >= currentTime) {
             return (0, 0);
         }
 
         Reservation storage reservation = s.reservations[candidate.key];
-        if (_isProviderSettleableSession(s, candidate.key, reservation, labId)) {
+        if (LibInstitutionalReservationSettlement.isProviderPayoutEligible(
+                s, candidate.key, reservation, labId, currentTime
+            )) {
             providerPayout = reservation.providerShare;
             pendingClosures = 1;
         }
@@ -510,17 +511,6 @@ contract ProviderSettlementFacet is ReentrancyGuardTransient {
         return s.providerReceivableAccrued[labId] + s.providerSettlementQueue[labId]
             + s.providerReceivableInvoiced[labId] + s.providerReceivableApproved[labId]
             + s.providerReceivableDisputed[labId];
-    }
-
-    function _isProviderSettleableSession(
-        AppStorage storage s,
-        bytes32 key,
-        Reservation storage reservation,
-        uint256 labId
-    ) internal view returns (bool) {
-        // Provider settlement requires AccessAuthorized (_ACCESS_AUTHORIZED) plus observed SessionStarted.
-        bool sessionStartedRecorded = s.reservationSessionStartedRecorded[key];
-        return reservation.labId == labId && reservation.status == _ACCESS_AUTHORIZED && sessionStartedRecorded;
     }
 
     function _isSupportedReceivableState(
@@ -668,20 +658,27 @@ contract ProviderSettlementFacet is ReentrancyGuardTransient {
             PayoutCandidate memory root = heap[0];
             // Settlement eligibility is intentionally evaluated against chain time.
             // slither-disable-next-line timestamp
-            if (root.end > currentTime) {
+            if (root.end >= currentTime) {
                 return bytes32(0);
             }
             Reservation storage reservation = s.reservations[root.key];
             bool isCurrent = reservation.labId == labId && (reservation.end == 0 || reservation.end == root.end);
             if (
                 isCurrent && reservation.status == _ACCESS_AUTHORIZED && !s.reservationSessionStartedRecorded[root.key]
-                    && LibReservationConfig.isWithinSessionAttestationGrace(reservation.end, currentTime)
+                    && !LibInstitutionalReservationSettlement.isEconomicallyExpired(
+                        s, reservation, root.key, currentTime
+                    )
             ) {
                 return bytes32(0);
             }
 
             _removeHeapRoot(s, heap);
-            if (isCurrent && _isProviderSettleableSession(s, root.key, reservation, labId)) {
+            if (
+                isCurrent
+                    && LibInstitutionalReservationSettlement.isProviderPayoutEligible(
+                        s, root.key, reservation, labId, currentTime
+                    )
+            ) {
                 return root.key;
             }
             if (invalidCount > 0) {
@@ -795,45 +792,15 @@ contract ProviderSettlementFacet is ReentrancyGuardTransient {
             && (reservation.status == _CONFIRMED || reservation.status == _ACCESS_AUTHORIZED);
     }
 
-    /// @dev Finalizes a reservation for settlement processing: marks as _SETTLED, updates counters, accrues shares
+    /// @dev Delegates finalization to the shared institutional settlement path.
     function _finalizeReservationForPayout(
         AppStorage storage s,
         bytes32 key,
         Reservation storage reservation,
         uint256 labId
     ) internal returns (bool) {
-        // Skip if wrong lab or already finalized
-        if (!_isProviderSettleableSession(s, key, reservation, labId)) return false;
-
-        // Mark as settled
-        uint8 previousStatus = reservation.status;
-        reservation.status = _SETTLED;
-        if (previousStatus == _ACCESS_AUTHORIZED) {
-            LibReputation.recordCompletion(labId);
-        }
-
-        // Decrement active reservation counter
-        if (s.labActiveReservationCount[labId] > 0) {
-            s.labActiveReservationCount[labId]--;
-        }
-
-        address labProvider = reservation.labProvider;
-        if (s.providerActiveReservationCount[labProvider] > 0) {
-            s.providerActiveReservationCount[labProvider]--;
-        }
-
-        LibReservationIndexCleanup.removeFinalizedReservationIndexes(s, key, reservation);
-        if (s.totalReservationsCount > 0) {
-            s.totalReservationsCount--;
-        }
-        // `_popEligiblePayoutCandidate` already removed this exact heap root.
-        // Do not scan the remaining heap for the same key: doing so once per
-        // reservation would turn a batch settlement into O(n^2).
-
-        // Accrue shares to canonical on-chain provider debt buckets.
-        LibProviderReceivable.accrueReceivable(labId, reservation.providerShare, key);
-        LibProviderReceivable.updateAccruedTimestamp(labId, block.timestamp);
-
-        return true;
+        return LibInstitutionalReservationSettlement.finalizeProviderPayoutReservation(
+            s, key, reservation, labId, block.timestamp
+        );
     }
 }

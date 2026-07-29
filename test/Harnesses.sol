@@ -32,6 +32,13 @@ contract InstReservationHarness is InstitutionalReservationCancellationFacet {
         LibERC721StorageTestHelper.setOwnerForTest(labId, owner);
     }
 
+    function setLabResourceType(
+        uint256 labId,
+        uint8 resourceType
+    ) external {
+        LibAppStorage.diamondStorage().labs[labId].resourceType = resourceType;
+    }
+
     function setInstitution(
         address inst
     ) external {

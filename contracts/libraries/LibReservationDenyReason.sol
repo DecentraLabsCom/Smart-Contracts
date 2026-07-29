@@ -11,7 +11,9 @@ pragma solidity ^0.8.33;
 ///  5 = TREASURY_SPEND_FAILED (institutional treasury spend failed)
 ///  6 = PROVIDER_TECHNICAL_FAILURE (automatic processing failed technically)
 ///  7 = PROVIDER_UNAVAILABLE (metadata/configuration or provider availability)
-///  8+ = provider cancellation reason codes (the provider supplies a non-zero
+///  8 = PROVIDER_SERVICE_FAILURE (the provider explicitly reports that the
+///      confirmed service was not delivered; applies a -3 reputation penalty)
+///  9+ = provider cancellation reason codes (the provider supplies a non-zero
 ///      code so the cancellation remains classifiable without changing the ABI)
 ///  255 = UNKNOWN (fallback)
 library LibReservationDenyReason {
@@ -22,5 +24,6 @@ library LibReservationDenyReason {
     uint8 internal constant TREASURY_SPEND_FAILED = 5;
     uint8 internal constant PROVIDER_TECHNICAL_FAILURE = 6;
     uint8 internal constant PROVIDER_UNAVAILABLE = 7;
+    uint8 internal constant PROVIDER_SERVICE_FAILURE = 8;
     uint8 internal constant UNKNOWN = 255;
 }

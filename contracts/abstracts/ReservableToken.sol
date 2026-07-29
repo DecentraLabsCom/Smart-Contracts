@@ -33,7 +33,9 @@ abstract contract ReservableToken {
     /// - _CONFIRMED: Reservation confirmed and paid. Blocks calendar slot. Actively reserving the lab.
     /// - _ACCESS_AUTHORIZED: Access has been authorized on-chain. This is not proof that a remote session started.
     /// - status value 3 is reserved and unused.
-    /// - _SETTLED: Service credits have been captured and provider receivable accrued for settlement processing.
+    /// - _SETTLED: The reservation's economic outcome was applied: provider
+    ///             receivable accrued when SessionStarted evidence exists, or
+    ///             the priced reservation was refunded otherwise.
     /// - _CANCELLED: Reservation cancelled by payer, provider or expiry.
     /// @dev The status is represented as an 8-bit unsigned integer for gas efficiency.
     /// @dev State transition rules:
@@ -41,7 +43,9 @@ abstract contract ReservableToken {
     ///      or the atomic own-lab DIRECT_BOOKING path)
     ///      _PENDING → _CANCELLED (on provider denial or payer cancellation)
     ///      _CONFIRMED → _ACCESS_AUTHORIZED (on access authorization/check-in)
-    ///      _CONFIRMED → _SETTLED (when expired, via releaseExpiredReservations — credits captured)
+    ///      _CONFIRMED → _SETTLED (after end through the common economic finalizer)
+    ///      _ACCESS_AUTHORIZED → _SETTLED (after end with SessionStarted, or
+    ///      after the one-day attestation deadline without it)
     ///      _CONFIRMED → _CANCELLED (on cancellation with partial release/capture)
     ///      _ACCESS_AUTHORIZED → _CANCELLED is intentionally disallowed
     ///      _SETTLED, _CANCELLED are terminal states

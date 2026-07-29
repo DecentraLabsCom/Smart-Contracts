@@ -6,6 +6,8 @@ import {LibRevenue} from "./LibRevenue.sol";
 import {LibReservationCancellation} from "./LibReservationCancellation.sol";
 import {LibERC721Storage} from "./LibERC721Storage.sol";
 import {LibReputation} from "./LibReputation.sol";
+import {LibReservationConfig} from "./LibReservationConfig.sol";
+import {LibReservationDenyReason} from "./LibReservationDenyReason.sol";
 
 interface IInstValidation {
     function validateInstRequest(
@@ -127,7 +129,7 @@ library LibInstitutionalReservation {
         uint96 providerFee = 0;
         uint96 refundAmount = price;
 
-        if (price > 0) {
+        if (price > 0 && s.labs[labId].resourceType == 0) {
             (providerFee, refundAmount) = LibRevenue.computeCancellationFee(price);
         }
 
@@ -145,8 +147,11 @@ library LibInstitutionalReservation {
 
     /// @notice Cancel a confirmed institutional booking at the provider's initiative.
     /// @dev Only the current lab owner or its authorized backend may use this path.
-    ///      It is intentionally separate from consumer cancellation: no provider fee
-    ///      is accrued and the complete reservation price is refunded to the payer.
+    ///      Ordinary cancellations are limited to the pre-start window and apply a
+    ///      notice-based reputation penalty. PROVIDER_SERVICE_FAILURE is the explicit
+    ///      provider admission that service was not delivered; it is also available
+    ///      after start while the session-attestation grace remains open and applies
+    ///      the stronger penalty. Every provider path refunds the full price.
     function cancelConfirmedBookingByProvider(
         bytes32 reservationKey,
         uint8 reasonCode
@@ -156,8 +161,18 @@ library LibInstitutionalReservation {
     {
         AppStorage storage s = LibAppStorage.diamondStorage();
         Reservation storage reservation = s.reservations[reservationKey];
-        if (reservation.renter == address(0) || reservation.status != _CONFIRMED) revert InvalidStatus();
-        if (block.timestamp >= reservation.start) revert InvalidStatus();
+        if (reservation.renter == address(0)) revert InvalidStatus();
+        bool serviceFailure = reasonCode == LibReservationDenyReason.PROVIDER_SERVICE_FAILURE;
+        if (serviceFailure) {
+            if (reservation.status != _CONFIRMED && reservation.status != _ACCESS_AUTHORIZED) revert InvalidStatus();
+            if (s.reservationSessionStartedRecorded[reservationKey]) revert InvalidStatus();
+            if (!LibReservationConfig.isWithinSessionAttestationGrace(reservation.end, block.timestamp)) {
+                revert InvalidStatus();
+            }
+        } else {
+            if (reservation.status != _CONFIRMED) revert InvalidStatus();
+            if (block.timestamp >= reservation.start) revert InvalidStatus();
+        }
         if (reasonCode == 0) revert InvalidProviderCancellationReason();
 
         provider = LibERC721Storage.ownerOf(reservation.labId);
@@ -173,7 +188,11 @@ library LibInstitutionalReservation {
         refundAmount = reservation.price;
 
         LibReservationCancellation.cancelReservation(reservationKey);
-        LibReputation.recordProviderCancellation(labId);
+        if (serviceFailure) {
+            LibReputation.recordProviderServiceFailure(labId);
+        } else {
+            LibReputation.recordProviderCancellation(labId, reservation.start);
+        }
 
         IInstitutionalTreasuryFacet(address(this))
             .refundToInstitutionalTreasuryForReservation(payerInstitution, pucHash, reservationKey, refundAmount);

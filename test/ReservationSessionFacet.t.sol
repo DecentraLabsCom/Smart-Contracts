@@ -124,7 +124,7 @@ contract ReservationSessionFacetTest is Test {
     }
 
     function test_markSessionStarted_acceptsAttestation_atGraceBoundary() public {
-        vm.warp(uint256(startedAt) + 1 days);
+        vm.warp(uint256(reservationEnd) + 1 days);
         ReservationSessionFacet.SessionStartedInput memory input =
             _input(provider, PROVIDER_PK, nonce, "guac-session-boundary");
 
@@ -133,7 +133,7 @@ contract ReservationSessionFacetTest is Test {
     }
 
     function test_markSessionStarted_rejectsAttestation_afterGraceBoundary() public {
-        vm.warp(uint256(startedAt) + 1 days + 1);
+        vm.warp(uint256(reservationEnd) + 1 days + 1);
         ReservationSessionFacet.SessionStartedInput memory input =
             _input(provider, PROVIDER_PK, nonce, "guac-session-too-late");
 

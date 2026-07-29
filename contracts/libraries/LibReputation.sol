@@ -9,7 +9,10 @@ import {LibAppStorage, AppStorage, LabReputation} from "./LibAppStorage.sol";
 library LibReputation {
     int32 internal constant MIN_SCORE = -10_000;
     int32 internal constant MAX_SCORE = 10_000;
-    int32 internal constant CANCELLATION_PENALTY = -1;
+    int32 internal constant OWNER_CANCELLATION_PENALTY = -1;
+    int32 internal constant PROVIDER_EARLY_CANCELLATION_PENALTY = -1;
+    int32 internal constant PROVIDER_LATE_CANCELLATION_PENALTY = -2;
+    int32 internal constant PROVIDER_SERVICE_FAILURE_PENALTY = -3;
     int32 internal constant COMPLETION_REWARD = 1;
 
     event LabReputationAdjusted(uint256 indexed labId, int32 delta, int32 newScore, uint32 totalEvents, string reason);
@@ -19,24 +22,37 @@ library LibReputation {
     function recordOwnerCancellation(
         uint256 labId
     ) internal {
-        _recordCancellation(labId, "OWNER_CANCEL");
+        _recordCancellation(labId, OWNER_CANCELLATION_PENALTY, "OWNER_CANCEL");
     }
 
     function recordProviderCancellation(
+        uint256 labId,
+        uint32 reservationStart
+    ) internal {
+        uint256 notice = reservationStart > block.timestamp ? uint256(reservationStart) - block.timestamp : 0;
+        if (notice >= 1 days) {
+            _recordCancellation(labId, PROVIDER_EARLY_CANCELLATION_PENALTY, "PROVIDER_CANCEL_EARLY");
+        } else {
+            _recordCancellation(labId, PROVIDER_LATE_CANCELLATION_PENALTY, "PROVIDER_CANCEL_LATE");
+        }
+    }
+
+    function recordProviderServiceFailure(
         uint256 labId
     ) internal {
-        _recordCancellation(labId, "PROVIDER_CANCEL");
+        _recordCancellation(labId, PROVIDER_SERVICE_FAILURE_PENALTY, "PROVIDER_SERVICE_FAILURE");
     }
 
     function _recordCancellation(
         uint256 labId,
+        int32 penalty,
         string memory reason
     ) private {
         AppStorage storage s = LibAppStorage.diamondStorage();
         LabReputation storage rep = s.labReputation[labId];
         rep.ownerCancellations += 1;
-        int32 newScore = _applyDelta(rep, CANCELLATION_PENALTY);
-        emit LabReputationAdjusted(labId, CANCELLATION_PENALTY, newScore, rep.totalEvents, reason);
+        int32 newScore = _applyDelta(rep, penalty);
+        emit LabReputationAdjusted(labId, penalty, newScore, rep.totalEvents, reason);
     }
 
     function recordCompletion(

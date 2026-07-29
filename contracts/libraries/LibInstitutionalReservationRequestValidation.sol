@@ -7,19 +7,7 @@ import {LibERC721Storage} from "./LibERC721Storage.sol";
 import {LibTracking} from "./LibTracking.sol";
 import {LibReservationCancellation} from "./LibReservationCancellation.sol";
 import {LibReservationConfig} from "./LibReservationConfig.sol";
-import {LibReputation} from "./LibReputation.sol";
-import {LibProviderReceivable} from "./LibProviderReceivable.sol";
-import {LibHeap} from "./LibHeap.sol";
-import {LibReservationIndexCleanup} from "./LibReservationIndexCleanup.sol";
-
-interface IInstitutionalTreasuryFacetValidation {
-    function refundToInstitutionalTreasuryForReservation(
-        address provider,
-        bytes32 pucHash,
-        bytes32 reservationKey,
-        uint256 amount
-    ) external;
-}
+import {LibInstitutionalReservationSettlement} from "./LibInstitutionalReservationSettlement.sol";
 
 // Slither reports a library as missing inheritance even though Solidity libraries
 // cannot inherit interfaces. The validation facet implements IInstValidation.
@@ -33,8 +21,6 @@ library LibInstitutionalReservationRequestValidation {
     error MaxReservationsReached();
 
     uint8 internal constant _PENDING = 0;
-    uint8 internal constant _CONFIRMED = 1;
-    uint8 internal constant _ACCESS_AUTHORIZED = 2;
     uint8 internal constant _SETTLED = 3;
     uint8 internal constant _CANCELLED = 4;
 
@@ -105,11 +91,9 @@ library LibInstitutionalReservationRequestValidation {
             bytes32 key = userReservations.at(i);
             Reservation storage reservation = s.reservations[key];
 
-            if (
-                reservation.end < currentTime
-                    && (reservation.status == _CONFIRMED || reservation.status == _ACCESS_AUTHORIZED)
-            ) {
-                _simpleFinalizeReservation(s, key, reservation, labId);
+            if (LibInstitutionalReservationSettlement.finalizeExpiredReservation(
+                    s, key, reservation, labId, currentTime
+                )) {
                 len = userReservations.length();
                 unchecked {
                     ++processed;
@@ -136,42 +120,6 @@ library LibInstitutionalReservationRequestValidation {
         }
 
         return processed;
-    }
-
-    function _simpleFinalizeReservation(
-        AppStorage storage s,
-        bytes32 key,
-        Reservation storage reservation,
-        uint256 labId
-    ) private {
-        uint8 previousStatus = reservation.status;
-        bool sessionStartedRecorded = s.reservationSessionStartedRecorded[key];
-
-        LibHeap.removePayoutCandidates(s, labId, key);
-        if (sessionStartedRecorded) {
-            if (reservation.providerShare > 0) {
-                LibProviderReceivable.accrueReceivable(labId, reservation.providerShare, key);
-                LibProviderReceivable.updateAccruedTimestamp(labId, block.timestamp);
-            }
-        } else if (reservation.price > 0) {
-            IInstitutionalTreasuryFacetValidation(address(this))
-                .refundToInstitutionalTreasuryForReservation(
-                    reservation.payerInstitution, s.reservationPucHash[key], key, reservation.price
-                );
-        }
-
-        reservation.status = _SETTLED;
-        if (previousStatus == _ACCESS_AUTHORIZED && sessionStartedRecorded) {
-            LibReputation.recordCompletion(labId);
-        }
-        if (previousStatus == _CONFIRMED || previousStatus == _ACCESS_AUTHORIZED || previousStatus == _PENDING) {
-            if (s.labActiveReservationCount[labId] > 0) s.labActiveReservationCount[labId]--;
-            if (s.providerActiveReservationCount[reservation.labProvider] > 0) {
-                s.providerActiveReservationCount[reservation.labProvider]--;
-            }
-        }
-        LibReservationIndexCleanup.removeFinalizedReservationIndexes(s, key, reservation);
-        if (s.totalReservationsCount > 0) s.totalReservationsCount--;
     }
 
     function _getReservationKey(

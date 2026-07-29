@@ -83,7 +83,7 @@ contract ProviderSettlementFacet is ReentrancyGuardTransient {
         s = LibAppStorage.diamondStorage();
     }
 
-    /// @notice Processes eligible reservations and queues receivable accrued by this batch for a lab
+    /// @notice Finalizes economically expired reservations and queues receivable accrued by this batch for a lab
     function requestProviderPayout(
         uint256 _labId,
         uint256 maxBatch
@@ -452,12 +452,12 @@ contract ProviderSettlementFacet is ReentrancyGuardTransient {
         uint256 accruedBefore = s.providerReceivableAccrued[_labId];
 
         while (processed < maxBatch) {
-            bytes32 key = _popEligiblePayoutCandidate(s, _labId, currentTime);
+            bytes32 key = _popExpiredReservationCandidate(s, _labId, currentTime);
             if (key == bytes32(0)) {
                 break;
             }
             Reservation storage reservation = s.reservations[key];
-            if (_finalizeReservationForPayout(s, key, reservation, _labId)) {
+            if (_finalizeReservationFromPayoutHeap(s, key, reservation, _labId)) {
                 unchecked {
                     ++processed;
                 }
@@ -637,8 +637,9 @@ contract ProviderSettlementFacet is ReentrancyGuardTransient {
         revert("Invalid state");
     }
 
-    /// @dev Pops the first eligible reservation from the heap if its end <= cutoff
-    function _popEligiblePayoutCandidate(
+    /// @dev Pops the first economically expired reservation from the heap if its end is before the cutoff.
+    ///      Attested sessions and no-shows are both returned for the shared finalizer.
+    function _popExpiredReservationCandidate(
         AppStorage storage s,
         uint256 labId,
         uint256 currentTime
@@ -675,9 +676,12 @@ contract ProviderSettlementFacet is ReentrancyGuardTransient {
             _removeHeapRoot(s, heap);
             if (
                 isCurrent
-                    && LibInstitutionalReservationSettlement.isProviderPayoutEligible(
-                        s, root.key, reservation, labId, currentTime
-                    )
+                    && (LibInstitutionalReservationSettlement.isProviderPayoutEligible(
+                            s, root.key, reservation, labId, currentTime
+                        )
+                        || LibInstitutionalReservationSettlement.isEconomicallyExpired(
+                            s, reservation, root.key, currentTime
+                        ))
             ) {
                 return root.key;
             }
@@ -793,14 +797,18 @@ contract ProviderSettlementFacet is ReentrancyGuardTransient {
     }
 
     /// @dev Delegates finalization to the shared institutional settlement path.
-    function _finalizeReservationForPayout(
+    function _finalizeReservationFromPayoutHeap(
         AppStorage storage s,
         bytes32 key,
         Reservation storage reservation,
         uint256 labId
     ) internal returns (bool) {
-        return LibInstitutionalReservationSettlement.finalizeProviderPayoutReservation(
-            s, key, reservation, labId, block.timestamp
-        );
+        uint256 currentTime = block.timestamp;
+        if (LibInstitutionalReservationSettlement.isProviderPayoutEligible(s, key, reservation, labId, currentTime)) {
+            return LibInstitutionalReservationSettlement.finalizeProviderPayoutReservation(
+                s, key, reservation, labId, currentTime
+            );
+        }
+        return LibInstitutionalReservationSettlement.finalizeExpiredReservation(s, key, reservation, labId, currentTime);
     }
 }

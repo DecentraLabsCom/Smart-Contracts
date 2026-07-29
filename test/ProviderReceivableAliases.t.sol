@@ -288,26 +288,43 @@ contract ProviderReceivableAliasesTest is Test {
         assertEq(eligibleCount, 0);
     }
 
-    function test_requestProviderPayout_rejects_confirmed_expired_reservation_without_session_started() public {
+    function test_requestProviderPayout_finalizes_confirmed_no_show_without_session_started() public {
         bytes32 reservationKey = keccak256("confirmed-expired");
         harness.setExpiredPayoutReservation(reservationKey, LAB_ID, CONFIRMED, FIVE_CREDITS_U96, 999);
 
         vm.prank(PROVIDER);
-        vm.expectRevert("No settleable reservations");
         harness.requestProviderPayout(LAB_ID, 10);
+
+        assertEq(harness.getReservationStatus(reservationKey), SETTLED);
+        assertEq(harness.lastRefundAmount(), 37_500_000);
+        assertEq(harness.reservationIndexCount(LAB_ID), 0);
+        assertEq(harness.totalReservations(), 0);
+
+        (uint256 accruedReceivable, uint256 settlementQueued,,,,,) = _getLifecycleWithoutTimestamp();
+        assertEq(accruedReceivable, 0);
+        assertEq(settlementQueued, 7_500_000);
 
         (int32 score, uint32 totalEvents,) = harness.getLabReputation(LAB_ID);
         assertEq(score, int32(0));
         assertEq(totalEvents, uint32(0));
     }
 
-    function test_requestProviderPayout_rejects_accessAuthorized_reservation_without_session_started() public {
+    function test_requestProviderPayout_finalizes_accessAuthorized_no_show_after_attestation_grace() public {
         bytes32 reservationKey = keccak256("access-authorized-no-session");
         harness.setExpiredPayoutReservation(reservationKey, LAB_ID, ACCESS_AUTHORIZED, FIVE_CREDITS_U96, 999);
 
+        vm.warp(999 + 1 days + 1);
         vm.prank(PROVIDER);
-        vm.expectRevert("No settleable reservations");
         harness.requestProviderPayout(LAB_ID, 10);
+
+        assertEq(harness.getReservationStatus(reservationKey), SETTLED);
+        assertEq(harness.lastRefundAmount(), 37_500_000);
+        assertEq(harness.reservationIndexCount(LAB_ID), 0);
+        assertEq(harness.totalReservations(), 0);
+
+        (uint256 accruedReceivable, uint256 settlementQueued,,,,,) = _getLifecycleWithoutTimestamp();
+        assertEq(accruedReceivable, 0);
+        assertEq(settlementQueued, 7_500_000);
 
         (int32 score, uint32 totalEvents,) = harness.getLabReputation(LAB_ID);
         assertEq(score, int32(0));
@@ -419,12 +436,9 @@ contract ProviderReceivableAliasesTest is Test {
 
         (uint256 accruedReceivable, uint256 settlementQueued,,,,,) = _getLifecycleWithoutTimestamp();
         assertEq(accruedReceivable, 0);
-        assertEq(settlementQueued, FIVE_CREDITS);
-        assertEq(harness.getReservationStatus(unattestedKey), ACCESS_AUTHORIZED);
-        assertEq(harness.getReservationStatus(attestedKey), SETTLED);
-
-        assertEq(harness.releaseInstitutionalReservation(unattestedKey, LAB_ID), 1);
+        assertEq(settlementQueued, FIVE_CREDITS + 7_500_000);
         assertEq(harness.getReservationStatus(unattestedKey), SETTLED);
+        assertEq(harness.getReservationStatus(attestedKey), SETTLED);
         assertEq(harness.lastRefundAmount(), 37_500_000);
     }
 

@@ -51,13 +51,16 @@ function saveLatest(latest) {
   fs.writeFileSync(LATEST_FILE, `${JSON.stringify(latest, null, 2)}\n`);
 }
 
-function forgeCreate(target, libraries = {}, nonce = undefined) {
+function forgeCreate(target, libraries = {}, nonce = undefined, options = {}) {
   const args = ["create", target, "--rpc-url", requireEnv("RPC_URL"), "--private-key", requireEnv("PRIVATE_KEY"), "--broadcast"];
   if (nonce !== undefined) {
     args.push("--nonce", String(nonce));
   }
   for (const [lib, address] of Object.entries(libraries)) {
     args.push("--libraries", `${lib}:${address}`);
+  }
+  if (options.optimizerRuns !== undefined) {
+    args.push("--optimizer-runs", String(options.optimizerRuns));
   }
   let out;
   try {
@@ -70,7 +73,7 @@ function forgeCreate(target, libraries = {}, nonce = undefined) {
   return match[1];
 }
 
-function forgeVerify(address, target, libraries = {}) {
+function forgeVerify(address, target, libraries = {}, options = {}) {
   if (!VERIFY) return;
   const apiKey = requireEnv("ETHERSCAN_API_KEY");
   const args = [
@@ -89,6 +92,9 @@ function forgeVerify(address, target, libraries = {}) {
   const libArgs = Object.entries(libraries).map(([lib, addr]) => `${lib}:${addr}`);
   if (libArgs.length > 0) {
     args.push("--libraries", libArgs.join(","));
+  }
+  if (options.optimizerRuns !== undefined) {
+    args.push("--optimizer-runs", String(options.optimizerRuns));
   }
   try {
     console.log(`Verifying ${target} at ${address}...`);
@@ -192,7 +198,7 @@ async function main() {
     if (EXECUTE) {
       console.log(`Deploying ${lib.name}...`);
       deployedLibraries[lib.name] = forgeCreate(lib.target, lib.links, nextNonce++);
-      forgeVerify(deployedLibraries[lib.name], lib.target, lib.links);
+      forgeVerify(deployedLibraries[lib.name], lib.target, lib.links, lib);
     } else {
       deployedLibraries[lib.name] = latest.libraries?.[lib.name] || ethers.ZeroAddress;
       forgeVerify(deployedLibraries[lib.name], lib.target, lib.links);
@@ -234,6 +240,13 @@ async function main() {
       },
     },
     {
+      name: "InstitutionalReservationCancellationFacet",
+      target:
+        "contracts/facets/reservation/institutional/InstitutionalReservationCancellationFacet.sol:InstitutionalReservationCancellationFacet",
+      artifact: "out/InstitutionalReservationCancellationFacet.sol/InstitutionalReservationCancellationFacet.json",
+      links: {},
+    },
+    {
       name: "InstitutionalReservationFacet",
       target: "contracts/facets/reservation/institutional/InstitutionalReservationFacet.sol:InstitutionalReservationFacet",
       artifact: "out/InstitutionalReservationFacet.sol/InstitutionalReservationFacet.json",
@@ -261,6 +274,13 @@ async function main() {
       links: {},
     },
     {
+      name: "ReservationIntentFacet",
+      target: "contracts/facets/reservation/ReservationIntentFacet.sol:ReservationIntentFacet",
+      artifact: "out/ReservationIntentFacet.sol/ReservationIntentFacet.json",
+      links: {},
+      optimizerRuns: 1,
+    },
+    {
       name: "ReservationStatsFacet",
       target: "contracts/facets/reservation/ReservationStatsFacet.sol:ReservationStatsFacet",
       artifact: "out/ReservationStatsFacet.sol/ReservationStatsFacet.json",
@@ -279,8 +299,8 @@ async function main() {
   for (const facet of facetPlan) {
     if (EXECUTE) {
       console.log(`Deploying ${facet.name}...`);
-      deployedFacets[facet.name] = forgeCreate(facet.target, facet.links, nextNonce++);
-      forgeVerify(deployedFacets[facet.name], facet.target, facet.links);
+      deployedFacets[facet.name] = forgeCreate(facet.target, facet.links, nextNonce++, facet);
+      forgeVerify(deployedFacets[facet.name], facet.target, facet.links, facet);
     } else {
       deployedFacets[facet.name] = latest.facets?.[facet.name] || ethers.ZeroAddress;
       forgeVerify(deployedFacets[facet.name], facet.target, facet.links);

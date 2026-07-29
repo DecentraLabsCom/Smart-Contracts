@@ -36,6 +36,12 @@ contract InstitutionProvisioningHarness is InstitutionFacet {
         bytes32 hash = keccak256(bytes(organization));
         return _s().organizationBackendUrls[hash];
     }
+
+    function authorizedBackend(
+        address institution
+    ) external view returns (address) {
+        return _s().institutionalBackends[institution];
+    }
 }
 
 contract ProviderProvisioningHarness is ProviderFacet {
@@ -76,12 +82,16 @@ contract InstitutionProvisioningTest is Test {
         harness.seedAdmin(ADMIN);
         address institution = address(0xCAFE);
 
+        vm.expectEmit(true, true, false, true);
+        emit InstitutionFacet.BackendAuthorized(institution, institution);
+
         vm.prank(ADMIN);
         harness.provisionInstitution(institution, "Example.EDU", "https://auth.example.com");
 
         assertTrue(harness.hasInstitutionRole(institution));
         assertEq(harness.registeredWallet("example.edu"), institution);
         assertEq(harness.registeredBackend("example.edu"), "https://auth.example.com");
+        assertEq(harness.authorizedBackend(institution), institution);
     }
 
     function test_consumer_provisioning_rolls_back_role_when_organization_conflicts() public {

@@ -167,4 +167,5 @@ contract LabQueryFacet {
     ) external view exists(_labId) returns (uint8) {
         return _s().labs[_labId].resourceType;
     }
+
 }

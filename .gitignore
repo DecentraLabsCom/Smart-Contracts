@@ -43,3 +43,4 @@ scripts/*
 !scripts/verify-facet-selectors.js
 !scripts/prepare-align-sepolia.ps1
 !scripts/simulate-contract-surface-upgrade.cjs
+!scripts/migrate-consumer-backends.mjs

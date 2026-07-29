@@ -455,6 +455,7 @@ contract ConfirmHarness is InstitutionalReservationConfirmationFacet {
         AppStorage storage s = LibAppStorage.diamondStorage();
         s.labs[labId].resourceType = resourceType;
     }
+
 }
 
 contract ConfirmQueryHarness is ConfirmHarness, InstitutionalReservationQueryFacet {}

@@ -18,6 +18,10 @@ contract InstitutionFacet is InternalAccessControl {
     /// @notice Emitted whenever the INSTITUTION_ROLE is revoked
     event InstitutionRoleRevoked(address indexed institution);
 
+    /// @notice Emitted when provisioning establishes the institution wallet as
+    /// the default executor for institutional operations.
+    event BackendAuthorized(address indexed institution, address indexed backend);
+
     modifier onlyDefaultAdmin() {
         _onlyDefaultAdmin();
         _;
@@ -46,8 +50,9 @@ contract InstitutionFacet is InternalAccessControl {
         emit InstitutionRoleGranted(institution, keccak256(bytes(normalized)));
     }
 
-    /// @notice Grants the institution role, registers the organization, and optionally stores
-    ///         its backend URL in one transaction.
+    /// @notice Grants the institution role, registers the organization, stores
+    ///         its backend URL, and initializes a missing backend executor in
+    ///         one transaction.
     /// @dev This is the atomic onboarding primitive used by consumer registration and by
     ///      reconciliation of a provider that already exists on-chain.
     function provisionInstitution(
@@ -73,6 +78,14 @@ contract InstitutionFacet is InternalAccessControl {
 
         if (bytes(backendUrl).length > 0) {
             LibInstitutionalOrg.setOrganizationBackend(s, institution, normalized, backendUrl);
+        }
+
+        // Consumer-only institutions do not pass through _addProvider, which
+        // normally establishes this authorization. Preserve an explicitly
+        // delegated backend and initialize only the missing authorization.
+        if (s.institutionalBackends[institution] == address(0)) {
+            s.institutionalBackends[institution] = institution;
+            emit BackendAuthorized(institution, institution);
         }
 
         emit InstitutionRoleGranted(institution, organizationHash);

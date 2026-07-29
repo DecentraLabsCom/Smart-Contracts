@@ -45,7 +45,7 @@ Use one of the atomic onboarding operations when possible:
 | Operation | Result |
 | --- | --- |
 | `provisionProvider` | Creates the provider, grants institution capability, and registers or updates its organization record in one transaction. |
-| `provisionInstitution` | Grants `INSTITUTION_ROLE` if needed, registers an organization, and can store its backend URL. |
+| `provisionInstitution` | Grants `INSTITUTION_ROLE` if needed, registers an organization, stores its backend URL, and initializes the institution wallet as executor when no backend is authorized. |
 | `grantInstitutionRole` | Grants the role and registers an organization without the optional URL. |
 
 Organization strings are normalized before hashing. An organization can belong
@@ -53,6 +53,16 @@ to only one institution wallet, and the registry's URL is configuration for
 off-chain routing. It does **not** authorize an EVM address. Transactional
 delegation is stored separately by `authorizeBackend`, `revokeBackend` and the
 admin recovery operation; inspect `getAuthorizedBackend` for the active address.
+When `provisionInstitution` is used for consumer onboarding, the missing
+delegation is initialized to the institution wallet in the same transaction.
+An already configured external backend is preserved; replacing it still
+requires explicit backend authorization and proof outside this primitive.
+For deployments created before this invariant, run
+`npm run migrate:consumer-backends` for a read-only inventory and repeat with
+`-- --broadcast` after reviewing the candidates.
+The provisioning change itself requires deploying the updated
+`InstitutionFacet` and replacing its Diamond selector before issuing new
+pairings; the migration repairs already registered consumers independently.
 
 The registry is an ownership/routing claim, not an identity proof. Validate
 SAML/eduGAIN or equivalent federation evidence off-chain before treating an

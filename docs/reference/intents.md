@@ -18,6 +18,17 @@ stateDiagram-v2
     EXPIRED --> [*]
 ```
 
+The numeric lifecycle values are contractual and must be consumed exactly as
+defined by the Solidity enum:
+
+| Value | State |
+| ---: | --- |
+| `0` | `None` |
+| `1` | `Pending` |
+| `2` | `Executed` |
+| `3` | `Cancelled` |
+| `4` | `Expired` |
+
 ## Registration and signature binding
 
 `IntentRegistryFacet` accepts registration only from the default admin and

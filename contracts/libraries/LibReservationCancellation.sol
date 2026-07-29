@@ -85,7 +85,6 @@ library LibReservationCancellation {
         uint96 providerFee,
         bytes32 reservationKey
     ) internal {
-        AppStorage storage s = LibAppStorage.diamondStorage();
         if (providerFee > 0) {
             LibProviderReceivable.accrueReceivable(labId, providerFee, reservationKey);
             LibProviderReceivable.updateAccruedTimestamp(labId, block.timestamp);
@@ -109,6 +108,7 @@ library LibReservationCancellation {
         bool wasActive = _isActiveReservationStatus(reservation.status);
         if (reservation.status == _CONFIRMED || reservation.status == _ACCESS_AUTHORIZED) {
             _removeReservationFromCalendar(s, reservation.labId, reservation.start);
+            s.activeConcurrentReservationKeysByLab[reservation.labId].remove(reservationKey);
         }
 
         if (wasActive) {

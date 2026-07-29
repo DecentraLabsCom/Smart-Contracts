@@ -256,4 +256,26 @@ contract InstitutionalReservationQueryFacet {
     ) external view returns (uint256 count) {
         return _s().labActiveReservationCount[labId];
     }
+
+    /// @notice Counts confirmed/access-authorized reservations overlapping a window.
+    /// @dev Provider backends use this read together with maxConcurrentUsers from
+    ///      lab metadata when deciding whether to confirm an FMU reservation.
+    function getConcurrentReservationCount(
+        uint256 labId,
+        uint32 start,
+        uint32 end
+    ) external view returns (uint256 count) {
+        require(start < end, "Invalid time range");
+        EnumerableSet.Bytes32Set storage active = _s().activeConcurrentReservationKeysByLab[labId];
+        uint256 length = active.length();
+        for (uint256 i; i < length;) {
+            Reservation storage reservation = _s().reservations[active.at(i)];
+            if (reservation.start < end && start < reservation.end) {
+                count++;
+            }
+            unchecked {
+                ++i;
+            }
+        }
+    }
 }

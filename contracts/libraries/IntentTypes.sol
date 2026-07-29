@@ -33,7 +33,7 @@ struct ReservationIntentPayload {
     uint32 start;
     uint32 end;
     uint96 price; // total reservation price in LAB base units (per-second price * duration)
-    bytes32 reservationKey; // precalculated key if available (labId + start)
+    bytes32 reservationKey; // precalculated key: keccak256(labId, start, pucHash)
 }
 
 /// @notice Payload used for lab actions and booking cancellations

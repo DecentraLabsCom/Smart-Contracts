@@ -29,6 +29,7 @@ interface IInstitutionalTreasuryFacetConfirmLib {
 
 library LibInstitutionalReservationConfirmation {
     using EnumerableSet for EnumerableSet.AddressSet;
+    using EnumerableSet for EnumerableSet.Bytes32Set;
     using RivalIntervalTreeLibrary for Tree;
 
     error InstitutionNotRegistered();
@@ -123,6 +124,7 @@ library LibInstitutionalReservationConfirmation {
         if (s.labs[r.labId].resourceType == 0) {
             s.calendars[r.labId].insert(r.start, r.end);
         }
+        s.activeConcurrentReservationKeysByLab[r.labId].add(key);
         r.status = _CONFIRMED;
         _incrementActiveReservationCounters(s, r);
         s.activeReservationCountByTokenAndUser[r.labId][trackingKey]++;

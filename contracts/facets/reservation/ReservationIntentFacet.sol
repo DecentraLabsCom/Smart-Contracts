@@ -106,10 +106,11 @@ contract ReservationIntentFacet {
 
     function _getReservationKey(
         uint256 labId,
-        uint32 start
+        uint32 start,
+        bytes32 pucHash
     ) internal pure returns (bytes32) {
         // forge-lint: disable-next-line(asm-keccak256)
-        return keccak256(abi.encodePacked(labId, start));
+        return keccak256(abi.encodePacked(labId, start, pucHash));
     }
 
     function _consumeReservationIntent(
@@ -169,7 +170,7 @@ contract ReservationIntentFacet {
     ) external exists(payload.labId) {
         AppStorage storage s = _s();
         address institution = _institutionFromIntentOrganization(s, payload.schacHomeOrganization);
-        bytes32 expectedKey = _getReservationKey(payload.labId, payload.start);
+        bytes32 expectedKey = _getReservationKey(payload.labId, payload.start, payload.pucHash);
         require(payload.reservationKey == expectedKey, "RESERVATION_KEY_MISMATCH");
         uint96 expectedPrice = _reservationPrice(s, institution, payload.labId, payload.start, payload.end);
         require(payload.price == expectedPrice, "LAB_PRICE_MISMATCH");
@@ -198,7 +199,7 @@ contract ReservationIntentFacet {
         require(
             _institutionFromIntentOrganization(s, payload.schacHomeOrganization) == institution, "INSTITUTION_MISMATCH"
         );
-        bytes32 expectedKey = _getReservationKey(payload.labId, payload.start);
+        bytes32 expectedKey = _getReservationKey(payload.labId, payload.start, payload.pucHash);
         require(payload.reservationKey == expectedKey, "RESERVATION_KEY_MISMATCH");
         uint96 expectedPrice = _reservationPrice(s, institution, payload.labId, payload.start, payload.end);
         require(payload.price == expectedPrice, "LAB_PRICE_MISMATCH");

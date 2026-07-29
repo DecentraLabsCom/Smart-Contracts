@@ -318,6 +318,9 @@ struct AppStorage {
     // remain stable for already deployed contracts.
     mapping(bytes32 claimId => ProviderSettlementClaim claim) providerSettlementClaims;
     mapping(bytes32 paymentReferenceHash => bool used) providerSettlementPaymentReferenceUsed;
+
+    // FMU concurrency index.
+    mapping(uint256 labId => EnumerableSet.Bytes32Set) activeConcurrentReservationKeysByLab;
 }
 
 /// @notice Provider participation status within the limited service network

@@ -11,14 +11,14 @@ import "../contracts/libraries/LibAppStorage.sol";
 ///         allowing overlapping reservations, while regular labs (resourceType=0) still
 ///         revert on overlapping ranges.
 contract FmuResourceTypeTest is BaseTest {
-    ConfirmHarness public harness;
+    ConfirmQueryHarness public harness;
 
     uint8 internal constant _PENDING = 0;
     uint8 internal constant _CONFIRMED = 1;
 
     function setUp() public override {
         super.setUp();
-        harness = new ConfirmHarness();
+        harness = new ConfirmQueryHarness();
     }
 
     /// @notice FMU lab (resourceType=1): two overlapping reservations should both confirm
@@ -28,14 +28,16 @@ contract FmuResourceTypeTest is BaseTest {
         uint32 start1 = 10_000;
         uint32 start2 = 10_100; // overlaps with first (both have 1h duration in harness)
 
-        bytes32 key1 = keccak256(abi.encodePacked(labId, start1));
-        bytes32 key2 = keccak256(abi.encodePacked(labId, start2));
+        string memory puc1 = "alice@inst";
+        string memory puc2 = "bob@inst";
+        bytes32 key1 = _reservationKey(labId, start1, puc1);
+        bytes32 key2 = _reservationKey(labId, start2, puc2);
 
         // set lab as FMU
         harness.setLabResourceType(labId, 1);
 
         // set up first reservation
-        harness.setReservation(key1, user1, inst, 50, _PENDING, labId, start1, "alice@inst");
+        harness.setReservation(key1, user1, inst, 50, _PENDING, labId, start1, puc1);
         harness.setOwner(labId, provider);
         harness.setInstitutionRole(inst);
         harness.setBackend(inst, address(0x0));
@@ -44,16 +46,18 @@ contract FmuResourceTypeTest is BaseTest {
 
         // confirm first
         vm.prank(provider);
-        harness.confirmInstitutionalReservationRequestWithPucHash(inst, key1, keccak256(bytes("alice@inst")));
+        harness.confirmInstitutionalReservationRequestWithPucHash(inst, key1, keccak256(bytes(puc1)));
         assertEq(harness.getReservationStatus(key1), _CONFIRMED);
 
         // set up second overlapping reservation
-        harness.setReservation(key2, address(0xBBBB), inst, 50, _PENDING, labId, start2, "bob@inst");
+        harness.setReservation(key2, address(0xBBBB), inst, 50, _PENDING, labId, start2, puc2);
 
         // confirm second — should NOT revert because FMU bypasses calendar insert
         vm.prank(provider);
-        harness.confirmInstitutionalReservationRequestWithPucHash(inst, key2, keccak256(bytes("bob@inst")));
+        harness.confirmInstitutionalReservationRequestWithPucHash(inst, key2, keccak256(bytes(puc2)));
         assertEq(harness.getReservationStatus(key2), _CONFIRMED);
+        assertEq(harness.getConcurrentReservationCount(labId, start1, start1 + 3600), 2);
+        assertEq(harness.getConcurrentReservationCount(labId, start2 + 3600, start2 + 7200), 0);
     }
 
     /// @notice Regular lab (resourceType=0): overlapping reservations should revert
@@ -138,15 +142,51 @@ contract FmuResourceTypeTest is BaseTest {
         // Three overlapping reservations
         for (uint256 i = 0; i < 3; i++) {
             uint32 start = baseStart + uint32(i) * step;
-            bytes32 key = keccak256(abi.encodePacked(labId, start));
             address renter = address(uint160(0xCC00 + i));
             string memory puc = string(abi.encodePacked("user", vm.toString(i), "@inst"));
+            bytes32 key = _reservationKey(labId, start, puc);
 
             harness.setReservation(key, renter, inst, 50, _PENDING, labId, start, puc);
 
             vm.prank(provider);
-            harness.confirmInstitutionalReservationRequestWithPucHash(inst, key, keccak256(bytes(puc)));
-            assertEq(harness.getReservationStatus(key), _CONFIRMED);
+            {
+                harness.confirmInstitutionalReservationRequestWithPucHash(inst, key, keccak256(bytes(puc)));
+                assertEq(harness.getReservationStatus(key), _CONFIRMED);
+            }
         }
+    }
+
+    function test_fmu_same_start_uses_distinct_user_keys() public {
+        address inst = address(0x2222);
+        uint256 labId = 46;
+        uint32 start = 60_000;
+        string memory puc1 = "same-start-a@inst";
+        string memory puc2 = "same-start-b@inst";
+        bytes32 key1 = _reservationKey(labId, start, puc1);
+        bytes32 key2 = _reservationKey(labId, start, puc2);
+
+        harness.setLabResourceType(labId, 1);
+        harness.setOwner(labId, provider);
+        harness.setInstitutionRole(inst);
+        harness.setTokenStatus(labId, true);
+        harness.setProviderActive(provider);
+        harness.setReservation(key1, user1, inst, 50, _PENDING, labId, start, puc1);
+        harness.setReservation(key2, address(0xBBBB), inst, 50, _PENDING, labId, start, puc2);
+
+        assertTrue(key1 != key2);
+        vm.prank(provider);
+        harness.confirmInstitutionalReservationRequestWithPucHash(inst, key1, keccak256(bytes(puc1)));
+        vm.prank(provider);
+        harness.confirmInstitutionalReservationRequestWithPucHash(inst, key2, keccak256(bytes(puc2)));
+        assertEq(harness.getReservationStatus(key1), _CONFIRMED);
+        assertEq(harness.getReservationStatus(key2), _CONFIRMED);
+    }
+
+    function _reservationKey(
+        uint256 labId,
+        uint32 start,
+        string memory puc
+    ) private pure returns (bytes32) {
+        return keccak256(abi.encodePacked(labId, start, keccak256(bytes(puc))));
     }
 }

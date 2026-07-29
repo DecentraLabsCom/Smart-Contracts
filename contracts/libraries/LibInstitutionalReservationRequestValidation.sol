@@ -51,7 +51,7 @@ library LibInstitutionalReservationRequestValidation {
         }
         if (start >= end || start <= block.timestamp + _RESERVATION_MARGIN) revert();
 
-        key = _getReservationKey(labId, start);
+        key = _getReservationKey(labId, start, pucHash);
         trackingKey = LibTracking.trackingKeyFromInstitutionHash(provider, pucHash);
 
         uint256 count = s.activeReservationCountByTokenAndUser[labId][trackingKey];
@@ -124,8 +124,9 @@ library LibInstitutionalReservationRequestValidation {
 
     function _getReservationKey(
         uint256 labId,
-        uint32 time
+        uint32 time,
+        bytes32 pucHash
     ) private pure returns (bytes32) {
-        return keccak256(abi.encodePacked(labId, time));
+        return keccak256(abi.encodePacked(labId, time, pucHash));
     }
 }

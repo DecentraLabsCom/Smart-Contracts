@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 pragma solidity ^0.8.33;
 
+import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import {AppStorage, Reservation} from "./LibAppStorage.sol";
 import {LibHeap} from "./LibHeap.sol";
 import {LibProviderReceivable} from "./LibProviderReceivable.sol";
@@ -24,6 +25,8 @@ interface IInstitutionalTreasuryFacetSettlement {
 ///      same finalizer so deadline, refund/receivable, reputation, counters,
 ///      heap and index transitions cannot diverge.
 library LibInstitutionalReservationSettlement {
+    using EnumerableSet for EnumerableSet.Bytes32Set;
+
     uint8 internal constant _CONFIRMED = 1;
     uint8 internal constant _ACCESS_AUTHORIZED = 2;
     uint8 internal constant _SETTLED = 3;
@@ -75,6 +78,7 @@ library LibInstitutionalReservationSettlement {
         bool sessionStartedRecorded = s.reservationSessionStartedRecorded[key];
 
         LibHeap.removePayoutCandidates(s, labId, key);
+        s.activeConcurrentReservationKeysByLab[labId].remove(key);
         if (sessionStartedRecorded) {
             if (reservation.providerShare > 0) {
                 LibProviderReceivable.accrueReceivable(labId, reservation.providerShare, key);

@@ -3,6 +3,7 @@ pragma solidity ^0.8.33;
 
 import "../contracts/facets/reservation/institutional/InstitutionalReservationCancellationFacet.sol";
 import "../contracts/facets/reservation/institutional/InstitutionalReservationConfirmationFacet.sol";
+import "../contracts/facets/reservation/institutional/InstitutionalReservationQueryFacet.sol";
 import "../contracts/facets/reservation/ReservationDenialFacet.sol";
 import "../contracts/libraries/LibAppStorage.sol";
 import "../contracts/libraries/LibERC721Storage.sol";
@@ -73,8 +74,6 @@ contract InstReservationHarness is InstitutionalReservationCancellationFacet {
         uint256 rsAligned = block.timestamp - (block.timestamp % d);
         r.requestPeriodStart = uint64(rsAligned);
         r.requestPeriodDuration = uint64(d);
-
-        // reservation index sets are not required by these unit tests and are omitted in the harness
     }
 
     function setReservationAccounting(
@@ -343,8 +342,6 @@ contract ConfirmHarness is InstitutionalReservationConfirmationFacet {
         uint256 rsAligned = block.timestamp - (block.timestamp % d);
         r.requestPeriodStart = uint64(rsAligned);
         r.requestPeriodDuration = uint64(d);
-
-        // reservation index sets are not required by these unit tests and are omitted in the harness
     }
 
     function setReservationWithEnd(
@@ -459,6 +456,8 @@ contract ConfirmHarness is InstitutionalReservationConfirmationFacet {
         s.labs[labId].resourceType = resourceType;
     }
 }
+
+contract ConfirmQueryHarness is ConfirmHarness, InstitutionalReservationQueryFacet {}
 
 contract LabAdminResourceTypeHarness {
     mapping(uint256 => address) public owners;

@@ -171,7 +171,7 @@ contract ReservationIntentHarness is ReservationIntentFacet {
         uint32
     ) external view returns (address owner, bytes32 key, address trackingKey) {
         owner = LibERC721Storage.ownerOf(labId);
-        key = keccak256(abi.encodePacked(labId, start));
+        key = keccak256(abi.encodePacked(labId, start, pucHash));
         trackingKey = LibTracking.trackingKeyFromInstitutionHash(institution, pucHash);
     }
 
@@ -375,7 +375,7 @@ contract ReservationIntentFacetTest is Test {
         uint256 labId = 44;
         uint32 start = uint32(block.timestamp + 1 hours);
         uint32 end = start + 1800;
-        bytes32 reservationKey = keccak256(abi.encodePacked(labId, start));
+        bytes32 reservationKey = keccak256(abi.encodePacked(labId, start, keccak256(bytes(PUC))));
         bytes32 requestId = keccak256("direct-booking-own-lab");
         ReservationIntentPayload memory payload = ReservationIntentPayload({
             executor: institution,
@@ -403,7 +403,7 @@ contract ReservationIntentFacetTest is Test {
         uint256 labId = 45;
         uint32 start = uint32(block.timestamp + 1 hours);
         uint32 end = start + 1800;
-        bytes32 reservationKey = keccak256(abi.encodePacked(labId, start));
+        bytes32 reservationKey = keccak256(abi.encodePacked(labId, start, keccak256(bytes(PUC))));
         bytes32 requestId = keccak256("direct-booking-owner-backend");
         ReservationIntentPayload memory payload = ReservationIntentPayload({
             executor: institutionBackend,
@@ -432,7 +432,7 @@ contract ReservationIntentFacetTest is Test {
     function test_directBookingWithIntent_rejectsUnrelatedExecutor() public {
         uint256 labId = 47;
         uint32 start = uint32(block.timestamp + 1 hours);
-        bytes32 reservationKey = keccak256(abi.encodePacked(labId, start));
+        bytes32 reservationKey = keccak256(abi.encodePacked(labId, start, keccak256(bytes(PUC))));
         bytes32 requestId = keccak256("direct-booking-unrelated-executor");
         address unrelatedExecutor = address(0xD00D);
         ReservationIntentPayload memory payload = ReservationIntentPayload({
@@ -459,7 +459,7 @@ contract ReservationIntentFacetTest is Test {
         uint256 labId = 46;
         uint32 start = uint32(block.timestamp + 1 hours);
         uint32 end = start + 1800;
-        bytes32 reservationKey = keccak256(abi.encodePacked(labId, start));
+        bytes32 reservationKey = keccak256(abi.encodePacked(labId, start, keccak256(bytes(PUC))));
         bytes32 requestId = keccak256("reservation-request-institution-backend");
         ReservationIntentPayload memory payload = ReservationIntentPayload({
             executor: institutionBackend,

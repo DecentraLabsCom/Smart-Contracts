@@ -284,6 +284,7 @@
         "getInstitutionalUserReservationCount(address,bytes32)",
         "getLabActiveReservationCount(uint256)",
         "getLabReservationCount(uint256)",
+        "getConcurrentReservationCount(uint256,uint32,uint32)",
         "getReservationOfTokenByIndex(uint256,uint256)",
         "getReservationPucHash(bytes32)",
         "getReservationsOfToken(uint256)",

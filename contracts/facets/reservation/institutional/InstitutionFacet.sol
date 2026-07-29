@@ -34,25 +34,6 @@ contract InstitutionFacet is InternalAccessControl {
         require(hasRole(DEFAULT_ADMIN_ROLE, msg.sender), "Only admin");
     }
 
-    /// @notice Grants the INSTITUTION_ROLE to `institution` and registers its schacHomeOrganization
-    /// @param institution Wallet that will manage the institutional treasury and backend
-    /// @param organization schacHomeOrganization string (will be normalized to lowercase)
-    function grantInstitutionRole(
-        address institution,
-        string calldata organization
-    ) external onlyDefaultAdmin {
-        AppStorage storage s = _s();
-        require(institution != address(0), "Invalid institution");
-
-        string memory normalized = LibInstitutionalOrg.normalizeOrganization(organization);
-        if (!s.roleMembers[INSTITUTION_ROLE].contains(institution)) {
-            _grantRole(INSTITUTION_ROLE, institution);
-        }
-
-        LibInstitutionalOrg.registerOrganization(s, institution, normalized);
-        emit InstitutionRoleGranted(institution, keccak256(bytes(normalized)));
-    }
-
     /// @notice Grants the institution role, registers the organization, stores
     ///         its backend URL, and initializes a missing backend executor in
     ///         one transaction.

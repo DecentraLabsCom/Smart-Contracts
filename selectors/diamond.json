@@ -86,7 +86,6 @@
       "functions": [
         "getAllInstitutions()",
         "getInstitutionsPaginated(uint256,uint256)",
-        "grantInstitutionRole(address,string)",
         "provisionInstitution(address,string,string)",
         "revokeInstitutionRole(address,string)"
       ]
@@ -363,6 +362,7 @@
     "grantRole(bytes32,address)",
     "revokeRole(bytes32,address)",
     "renounceRole(bytes32,address)",
+    "grantInstitutionRole(address,string)",
     "getLabProviders()",
     "setLabOwnerPucHash(uint256,bytes32)"
   ]

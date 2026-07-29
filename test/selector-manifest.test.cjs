@@ -37,6 +37,7 @@ test("unsupported wallet, credit, migration, and generic role functions are forb
     "grantRole(bytes32,address)",
     "revokeRole(bytes32,address)",
     "renounceRole(bytes32,address)",
+    "grantInstitutionRole(address,string)",
     "getLabProviders()",
     "setLabOwnerPucHash(uint256,bytes32)",
   ];

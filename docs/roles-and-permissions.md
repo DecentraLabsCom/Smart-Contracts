@@ -46,7 +46,14 @@ Use one of the atomic onboarding operations when possible:
 | --- | --- |
 | `provisionProvider` | Creates the provider, grants institution capability, and registers or updates its organization record in one transaction. |
 | `provisionInstitution` | Grants `INSTITUTION_ROLE` if needed, registers an organization, stores its backend URL, and initializes the institution wallet as executor when no backend is authorized. |
-| `grantInstitutionRole` | Grants the role and registers an organization without the optional URL. |
+
+The former `grantInstitutionRole` partial onboarding selector is intentionally
+not part of the production Diamond surface. Callers must use
+`provisionInstitution`, which establishes the minimum backend authorization
+postcondition atomically.
+Existing deployments also require a reviewed `diamondCut` that removes the
+legacy selector; changing the source manifest and ABI does not alter live
+Diamond routing by itself.
 
 Organization strings are normalized before hashing. An organization can belong
 to only one institution wallet, and the registry's URL is configuration for

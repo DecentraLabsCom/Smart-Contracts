@@ -2480,24 +2480,6 @@
   },
   {
     "type": "function",
-    "name": "grantInstitutionRole",
-    "inputs": [
-      {
-        "name": "institution",
-        "type": "address",
-        "internalType": "address"
-      },
-      {
-        "name": "organization",
-        "type": "string",
-        "internalType": "string"
-      }
-    ],
-    "outputs": [],
-    "stateMutability": "nonpayable"
-  },
-  {
-    "type": "function",
     "name": "provisionInstitution",
     "inputs": [
       {

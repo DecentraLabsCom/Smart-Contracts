@@ -13,6 +13,12 @@ contract InstitutionalReservationRequestFacet {
     error UnknownInstitution();
     error UnauthorizedInstitution();
 
+    /// @notice Creates a pending institutional reservation request directly.
+    /// @dev This selector is an institution-authorized administrative path. It
+    ///      validates only the institution/backend caller and reservation
+    ///      rules; it does not consume an intent and cannot verify WebAuthn.
+    ///      The current Marketplace DIRECT_BOOKING flow does not call this
+    ///      function; it calls institutionalDirectBookingWithIntent instead.
     function institutionalReservationRequest(
         address ip,
         bytes32 pucHash,

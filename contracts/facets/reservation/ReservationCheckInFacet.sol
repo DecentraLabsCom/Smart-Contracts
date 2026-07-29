@@ -38,6 +38,11 @@ contract ReservationCheckInFacet {
         }
     }
 
+    /// @notice Administrative access authorization for an in-window booking.
+    /// @dev This is an emergency/operator override. It requires only
+    ///      DEFAULT_ADMIN_ROLE and therefore does not prove an institutional
+    ///      signature or WebAuthn consent. The normal consumer flow uses
+    ///      checkInReservationWithSignature.
     function checkInReservation(
         bytes32 reservationKey
     ) external onlyDefaultAdminRole {

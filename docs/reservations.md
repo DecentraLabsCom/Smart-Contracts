@@ -54,12 +54,23 @@ institution's treasury and captures the current spending-period context; a
 failed treasury spend cancels the request. A same-institution own-lab intent
 can atomically request and confirm through the direct-booking path. The current
 lab owner or its authorized backend may execute that path, while the owner
-remains the payer/provider identity. It is a separate payer-authorized flow.
+remains the payer/provider identity. It is a separate payer-authorized flow
+implemented by `institutionalDirectBookingWithIntent`, not by
+`institutionalReservationRequest`.
+
+The separate `institutionalReservationRequest` selector is a direct
+institution/backend request path retained in the Diamond selector allowlist. It is not
+called by the current Marketplace or canonical backend flow, does not consume
+an intent and does not verify WebAuthn. Treat it as an institution/backend
+trust-boundary surface until a reviewed Diamond upgrade removes it.
 
 Confirmation inserts an exclusive (`resourceType = 0`) range into the interval
 calendar, queues the reservation for later settlement, and stores the provider
 share. A concurrent FMU resource (`resourceType = 1`) uses the same lifecycle
-without the exclusive-calendar conflict path.
+without the exclusive-calendar conflict path, but counts active overlapping
+reservations against the lab's on-chain `maxConcurrentReservations` before the
+treasury call. The count and confirmation are one atomic contract transition;
+the read-only occupancy query is not an authorization primitive.
 
 ## Finalization and queries
 

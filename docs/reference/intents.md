@@ -54,6 +54,12 @@ Reservation payloads bind organization text, PUC hash, optional assertion hash,
 lab, range, expected total price and reservation key. The contract resolves the
 organization to its registered institution and authorizes that institution or
 its backend as executor; the backend is never substituted for the payer.
+Action `11` is implemented by
+`institutionalDirectBookingWithIntent`. It is not an alias for the separate
+`institutionalReservationRequest` selector, which is a direct institution/
+backend request path without intent or WebAuthn verification. WebAuthn is
+verified by the institutional backend before intent execution; it is not
+verified by `LibIntent` or by the Diamond.
 Action payloads bind the
 same identity context plus the lab administration or cancellation fields. The
 reservation intent facet independently recalculates the reservation key and

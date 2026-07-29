@@ -160,6 +160,22 @@ contract ReservationSessionFacetTest is Test {
         harness.markSessionStarted(input);
     }
 
+    function test_markSessionStarted_requiresTheCurrentLabOwner() public {
+        harness.setOwner(LAB_ID, otherSigner);
+
+        ReservationSessionFacet.SessionStartedInput memory formerOwnerInput =
+            _input(provider, PROVIDER_PK, nonce, "guac-session-former-owner");
+        vm.expectRevert("Signer not provider");
+        harness.markSessionStarted(formerOwnerInput);
+
+        ReservationSessionFacet.SessionStartedInput memory currentOwnerInput =
+            _input(otherSigner, OTHER_PK, nonce, "guac-session-current-owner");
+        harness.markSessionStarted(currentOwnerInput);
+
+        ReservationSession memory session = harness.getReservationSessionStarted(reservationKey);
+        assertEq(session.signer, otherSigner);
+    }
+
     function test_markSessionStarted_rejectsNonceReplay() public {
         ReservationSessionFacet.SessionStartedInput memory input =
             _input(provider, PROVIDER_PK, nonce, "guac-session-1");

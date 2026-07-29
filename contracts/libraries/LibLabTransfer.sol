@@ -8,13 +8,8 @@ library LibLabTransfer {
     using EnumerableSet for EnumerableSet.Bytes32Set;
 
     event LabUnlisted(uint256 indexed tokenId, address indexed owner);
-    event ReservationProviderUpdated(
-        bytes32 indexed reservationKey, uint256 indexed labId, address indexed oldProvider, address newProvider
-    );
-
-    uint8 internal constant _PENDING = 0;
-    uint8 internal constant _CONFIRMED = 1;
-    uint8 internal constant _ACCESS_AUTHORIZED = 2;
+    uint8 internal constant _SETTLED = 3;
+    uint8 internal constant _CANCELLED = 4;
 
     function handleListingOnTransfer(
         address from,
@@ -31,9 +26,7 @@ library LibLabTransfer {
         emit LabUnlisted(tokenId, from);
     }
 
-    function migrateReservationsOnTransfer(
-        address from,
-        address to,
+    function validateNoActiveReservationsOnTransfer(
         uint256 tokenId,
         uint256 maxCleanup
     ) external {
@@ -47,20 +40,8 @@ library LibLabTransfer {
 
             uint8 status = s.reservations[key].status;
 
-            if (status == _PENDING) {
-                revert("Pending reservations block transfer");
-            }
-
-            if (status == _CONFIRMED || status == _ACCESS_AUTHORIZED) {
-                s.reservations[key].labProvider = to;
-                s.reservations[key].collectorInstitution = s.institutionalBackends[to] != address(0) ? to : address(0);
-
-                if (s.providerActiveReservationCount[from] > 0) {
-                    s.providerActiveReservationCount[from]--;
-                }
-                s.providerActiveReservationCount[to]++;
-
-                emit ReservationProviderUpdated(key, tokenId, from, to);
+            if (status != _SETTLED && status != _CANCELLED) {
+                revert("Non-terminal reservations block transfer");
             }
 
             unchecked {

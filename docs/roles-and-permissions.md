@@ -57,6 +57,9 @@ When `provisionInstitution` is used for consumer onboarding, the missing
 delegation is initialized to the institution wallet in the same transaction.
 An already configured external backend is preserved; replacing it still
 requires explicit backend authorization and proof outside this primitive.
+Revoking the last registered organization also clears the transactional backend
+delegation and emits `BackendRevoked`; a later provisioning starts with a fresh
+institution-wallet backend unless an external backend is explicitly authorized.
 For deployments created before this invariant, run
 `npm run migrate:consumer-backends` for a read-only inventory and repeat with
 `-- --broadcast` after reviewing the candidates.

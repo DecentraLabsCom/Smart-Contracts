@@ -22,6 +22,9 @@ contract InstitutionFacet is InternalAccessControl {
     /// the default executor for institutional operations.
     event BackendAuthorized(address indexed institution, address indexed backend);
 
+    /// @notice Emitted when the last organization revokes an institution backend.
+    event BackendRevoked(address indexed institution, address indexed backend);
+
     modifier onlyDefaultAdmin() {
         _onlyDefaultAdmin();
         _;
@@ -105,8 +108,14 @@ contract InstitutionFacet is InternalAccessControl {
         LibInstitutionalOrg.unregisterOrganization(s, institution, normalized);
 
         if (s.institutionSchacHomeOrganizations[institution].length() == 0) {
+            address previousBackend = s.institutionalBackends[institution];
             _revokeRole(INSTITUTION_ROLE, institution);
             emit InstitutionRoleRevoked(institution);
+
+            delete s.institutionalBackends[institution];
+            if (previousBackend != address(0)) {
+                emit BackendRevoked(institution, previousBackend);
+            }
         }
     }
 

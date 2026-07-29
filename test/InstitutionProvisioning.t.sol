@@ -42,6 +42,13 @@ contract InstitutionProvisioningHarness is InstitutionFacet {
     ) external view returns (address) {
         return _s().institutionalBackends[institution];
     }
+
+    function setAuthorizedBackend(
+        address institution,
+        address backend
+    ) external {
+        _s().institutionalBackends[institution] = backend;
+    }
 }
 
 contract ProviderProvisioningHarness is ProviderFacet {
@@ -108,6 +115,62 @@ contract InstitutionProvisioningTest is Test {
         harness.provisionInstitution(second, "example.edu", "https://second.example.com");
 
         assertFalse(harness.hasInstitutionRole(second));
+    }
+
+    function test_revokeLastOrganization_clearsBackend_and_reprovisionRequiresFreshAuthorization() public {
+        InstitutionProvisioningHarness harness = new InstitutionProvisioningHarness();
+        harness.seedAdmin(ADMIN);
+        address institution = address(0xCAFE);
+        address oldBackend = address(0xD00D);
+
+        vm.prank(ADMIN);
+        harness.provisionInstitution(institution, "example.edu", "https://auth.example.com");
+        harness.setAuthorizedBackend(institution, oldBackend);
+
+        vm.recordLogs();
+        vm.prank(ADMIN);
+        harness.revokeInstitutionRole(institution, "example.edu");
+
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+        bytes32 backendRevokedTopic = keccak256("BackendRevoked(address,address)");
+        bool backendRevoked;
+        for (uint256 i; i < logs.length; i++) {
+            if (logs[i].topics.length == 3 && logs[i].topics[0] == backendRevokedTopic) {
+                assertEq(address(uint160(uint256(logs[i].topics[1]))), institution);
+                assertEq(address(uint160(uint256(logs[i].topics[2]))), oldBackend);
+                backendRevoked = true;
+            }
+        }
+        assertTrue(backendRevoked);
+
+        assertFalse(harness.hasInstitutionRole(institution));
+        assertEq(harness.authorizedBackend(institution), address(0));
+
+        vm.prank(ADMIN);
+        harness.provisionInstitution(institution, "example.edu", "https://auth.example.com");
+
+        assertTrue(harness.hasInstitutionRole(institution));
+        assertEq(harness.authorizedBackend(institution), institution);
+        assertTrue(harness.authorizedBackend(institution) != oldBackend);
+    }
+
+    function test_revokeOrganization_preservesBackend_whileAnotherOrganizationRemains() public {
+        InstitutionProvisioningHarness harness = new InstitutionProvisioningHarness();
+        harness.seedAdmin(ADMIN);
+        address institution = address(0xCAFE);
+        address backend = address(0xD00D);
+
+        vm.startPrank(ADMIN);
+        harness.provisionInstitution(institution, "first.example.edu", "");
+        harness.provisionInstitution(institution, "second.example.edu", "");
+        vm.stopPrank();
+        harness.setAuthorizedBackend(institution, backend);
+
+        vm.prank(ADMIN);
+        harness.revokeInstitutionRole(institution, "first.example.edu");
+
+        assertTrue(harness.hasInstitutionRole(institution));
+        assertEq(harness.authorizedBackend(institution), backend);
     }
 
     function test_provider_provisioning_rolls_back_provider_when_organization_conflicts() public {

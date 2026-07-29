@@ -31,7 +31,7 @@ using EnumerableSet for EnumerableSet.AddressSet;
 contract LabFacet is ERC721Upgradeable, ReservableToken, ILabFacetMint {
     using LibAccessControlEnumerable for AppStorage;
 
-    /// @dev Maximum number of reservation indices to clean up during NFT transfer
+    /// @dev Maximum number of reservation indices to inspect during NFT transfer
     /// @notice Higher values reduce memory leaks but increase gas cost
     uint256 private constant _MAX_CLEANUP_PER_TRANSFER = 100;
 
@@ -62,15 +62,6 @@ contract LabFacet is ERC721Upgradeable, ReservableToken, ILabFacetMint {
     /// @dev Emitted when a lab is deleted.
     /// @param _labId The unique identifier of the lab.
     event LabDeleted(uint256 indexed _labId);
-
-    /// @dev Emitted when a lab is transferred and its provider changes
-    /// @param reservationKey The unique identifier of the affected reservation
-    /// @param labId The unique identifier of the lab
-    /// @param oldProvider The previous provider address
-    /// @param newProvider The new provider address
-    event ReservationProviderUpdated(
-        bytes32 indexed reservationKey, uint256 indexed labId, address indexed oldProvider, address newProvider
-    );
 
     /// @notice Intent lifecycle event for lab operations
     event LabIntentProcessed(
@@ -172,7 +163,7 @@ contract LabFacet is ERC721Upgradeable, ReservableToken, ILabFacetMint {
     }
 
     /// @dev Internal hook executed on transfers/mints/burns to enforce provider/stake rules
-    ///      and migrate reservation bookkeeping on ownership changes.
+    ///      and prevent active reservations from changing provider mid-lifecycle.
     function _update(
         address to,
         uint256 tokenId,
@@ -191,7 +182,7 @@ contract LabFacet is ERC721Upgradeable, ReservableToken, ILabFacetMint {
         if (from != address(0) && to != address(0)) {
             require(!LibProviderReceivable.hasUnsettledReceivable(tokenId), "Lab has unsettled receivables");
             LibLabTransfer.handleListingOnTransfer(from, to, tokenId);
-            LibLabTransfer.migrateReservationsOnTransfer(from, to, tokenId, _MAX_CLEANUP_PER_TRANSFER);
+            LibLabTransfer.validateNoActiveReservationsOnTransfer(tokenId, _MAX_CLEANUP_PER_TRANSFER);
         }
 
         return super._update(to, tokenId, auth);

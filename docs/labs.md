@@ -56,10 +56,11 @@ while the lab has active reservations or an unsettled receivable position; it
 unlists the lab, stops intake, burns the token and removes it from the active
 catalog only once those obligations are clear.
 
-An ERC-721 transfer unlists the lab. Pending reservations prevent transfer;
-confirmed and access-authorized records migrate their provider association to
-the recipient within the transfer safeguards. Treat a transfer as an
-operational handover, not as a way to erase active obligations.
+An ERC-721 transfer unlists the lab. Any non-terminal reservation (`PENDING`,
+`CONFIRMED` or `ACCESS_AUTHORIZED`) prevents transfer. Reservations are never
+reassigned to a new provider, so the current owner, Gateway and contractual
+responsibilities remain fixed for every active booking. Treat a transfer as an
+operational handover only after all reservation obligations are terminal.
 
 ## Capacity model
 

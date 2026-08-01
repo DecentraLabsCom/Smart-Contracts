@@ -1,5 +1,5 @@
 {
-    "filter_paths": "contracts/facets/test/|lib/",
+    "filter_paths": "contracts/facets/test/|contracts/test/|lib/",
     "detectors_to_exclude": [
         "naming-convention",
         "solc-version",

@@ -130,7 +130,7 @@ contract ServiceCreditFacet {
     function compactCreditLots(
         address account
     ) external onlyDefaultAdminRole returns (uint256 previousLength, uint256 compactedLength) {
-        return LibCreditLedger.compactCreditLots(account);
+        (previousLength, compactedLength) = LibCreditLedger.compactCreditLots(account);
     }
 
     /// @notice Expire a specific lot and deduct remaining balance

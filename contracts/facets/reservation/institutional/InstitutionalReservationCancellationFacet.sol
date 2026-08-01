@@ -109,6 +109,8 @@ contract InstitutionalReservationCancellationFacet is ReentrancyGuardTransient {
         price = reservation.price;
         cancellationCutoff = reservation.start;
         policyVersion = CANCELLATION_POLICY_VERSION;
+        // Cancellation eligibility is intentionally evaluated against chain time.
+        // slither-disable-next-line timestamp
         cancellable = reservationStatus == 1 && block.timestamp < cancellationCutoff;
 
         if (reservationStatus == 1 && s.labs[reservation.labId].resourceType == 0) {

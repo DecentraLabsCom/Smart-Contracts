@@ -1,6 +1,6 @@
 {
   "network": "sepolia",
-  "timestamp": "2026-07-29T13:16:07+02:00",
+  "timestamp": "2026-08-01T10:09:36.649Z",
   "chainId": 11155111,
   "contracts": {
     "Diamond": "0x1170d2D322Ff2cCeb20e6E79D2b3D2dfABFe6372",
@@ -9,11 +9,11 @@
   },
   "libraries": {
     "RivalIntervalTreeLibrary": "0x7be46FFf0566EC750a437a9a167bc2A3f753A536",
-    "LibLabTransfer": "0x6f36b976B5DC159391B322C34eABC6083524391F",
-    "LibReservationConfirmation": "0x7946Fe4118228E9c044Bc9c0c32a69fF9cc6364C",
-    "LibInstitutionalReservationConfirmation": "0x7186A1165ac41953ebf198699dcC83f182C47358",
-    "LibInstitutionalReservationRequestValidation": "0x4376B97128500364547465e3B3D8262b68132A59",
-    "LibInstitutionalReservationRelease": "0xfEB944d1790744d5FEf16247BA94fd920214179E"
+    "LibLabTransfer": "0xa70282ACC4c128383d3Ad4edF4a8582E877ec892",
+    "LibReservationConfirmation": "0x6a3Ae1f27bb67b2A1a55F8B1D80251fA594e70d9",
+    "LibInstitutionalReservationConfirmation": "0x558576d034510fd9D2be0F157691669Dc3124fDc",
+    "LibInstitutionalReservationRequestValidation": "0x0b93BC72f0A42C0916532d7aB1D46cD28d95b050",
+    "LibInstitutionalReservationRelease": "0x781A394af8d25c9115d97479146698Cf3acC70A8"
   },
   "facets": {
     "DiamondLoupeFacet": "0x6C1457c6Cf48B389Bc10f59B069779d672aa9a71",
@@ -22,27 +22,28 @@
     "ProviderFacet": "0x72bd1E548126857529b3fd4A94E26f2AA296D26c",
     "ServiceCreditFacet": "0xD6535D6Dd914e08DE9dCC9e40F4F180783ec3061",
     "IntentRegistryFacet": "0xd4355fF5d9bFd4B8D0100128465dA5f4Fdc7ABcf",
-    "InstitutionFacet": "0xf579DE34fe86487edE8542EBCbad5DdE7be9c018",
+    "InstitutionFacet": "0x76Ed5B8069FFFB49Ad25d621C1cF15BA9e0DB9E8",
     "InstitutionalOrgRegistryFacet": "0x461Ee020C3007Dff92Cb05a75F10A06D13fc551A",
     "InstitutionalTreasuryFacet": "0x506237e3B067eb07878321b7Ab91341a1Afd489E",
-    "LabFacet": "0x2205C094bFB603D88826A9D738Dd9765eF8a6596",
+    "LabFacet": "0xCC8648B4Cb2eE16A9967eFeBaEc0d9Bd3281e17E",
     "LabAdminFacet": "0x57bF7A61982f76E3Cdb5eA2a4Ad21E057553042e",
     "LabIntentFacet": "0x2Eb927eBAe78ab4ce15aEbE69f435b2A77B514c5",
     "LabQueryFacet": "0x61311Be0496e82A3f330D0F527fb78a7A0D2aA5A",
     "LabReputationFacet": "0xe0684F4a63f41cFb8E81B3fC574b8931b937015f",
-    "ProviderSettlementFacet": "0x81D0CF12Ec82e18C0fAD6a992d807388aAa426Ad",
-    "InstitutionalReservationRequestValidationFacet": "0x045505CcA870D58a6afEF2FA51D8A00fecffEaa2",
+    "ProviderSettlementFacet": "0xB966a926825A465e03eb8daa0A736601338a4979",
+    "InstitutionalReservationRequestValidationFacet": "0x3ccB30c8Dce752Cf37Afc0f68eE395CD0707Ea82",
     "InstitutionalReservationRequestCreationFacet": "0x1F21186a6B2257CDb6De51D4B6b0Aaea03dFE491",
-    "InstitutionalReservationRequestFacet": "0x4b2A8c4F4261181c43911d86f2bB087c3a8F294d",
-    "InstitutionalReservationConfirmationFacet": "0xd2fB50C130397b27dc6706d0D29704ceDBC77D5c",
-    "InstitutionalReservationCancellationFacet": "0xfb9c1643ca79fCD5cc622c51479b2AB4005D50c0",
-    "InstitutionalReservationQueryFacet": "0x4eA2D8355504260dd05b1e261fb47C3a04BC9B80",
-    "InstitutionalReservationFacet": "0x8d877c3626829c50e93c92C9F0B0703F7DF3Dede",
+    "InstitutionalReservationRequestFacet": "0x8323b211cD41E56707dE8E6454b3C45feAA824bC",
+    "InstitutionalReservationConfirmationFacet": "0x40038B6042f1df3Feb544bc11Efc28CDb6Ea88E9",
+    "InstitutionalReservationCancellationFacet": "0xfE206F3478103b739371457a07332DaB40CAACD8",
+    "InstitutionalReservationQueryFacet": "0xF13e4E2328fcd9F7fF4EB60ED837dBb930074119",
+    "InstitutionalReservationFacet": "0x23bEf0FE40a1831C1d168a67974061CF46CE6e30",
     "ReservationCheckInFacet": "0x227c20727d09BFd9Ebe10420Fdfa32e56760F3Ff",
     "ReservationSessionFacet": "0x10aF1EDb1ac173aD1e78C53F6714Ef9182bA4ca8",
     "ReservationStatsFacet": "0x1EaC0c2898705685Fe90022A6A6b394831f66C19",
-    "ReservationDenialFacet": "0x2bB197b69b7865C089cbe5275ca50B31B7bb1614",
-    "ReservationIntentFacet": "0x3Ac27a1F09f12b3fcD001993ac1dbbb3CCFd6ee0"
+    "ReservationDenialFacet": "0xbe6ca030561B994810A985E47f4Fa6Cfe0C55E14",
+    "ReservationIntentFacet": "0xDe9C246175016fb67f7c63c01de8414AF8C1c989",
+    "CheckInUpgradeAt": "2026-08-01T10:09:36.647Z"
   },
   "deployer": "0x183f062b6a8c39b9a9e71898741acf8f25e11561",
   "configuration": {
@@ -52,6 +53,8 @@
     "diamondName": "DecentraLabs",
     "diamondSymbol": "dLAB",
     "deploymentModel": "credit-ledger",
-    "accountingBuckets": ["providerReceivable"]
+    "accountingBuckets": [
+      "providerReceivable"
+    ]
   }
 }

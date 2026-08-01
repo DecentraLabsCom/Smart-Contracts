@@ -15,7 +15,15 @@ const VERIFY = process.argv.includes("--verify") || VERIFY_ONLY;
 
 const ACTION_ADD = 0;
 const ACTION_REPLACE = 1;
+const ACTION_REMOVE = 2;
 const ZERO = ethers.ZeroAddress.toLowerCase();
+
+const RETIRED_SELECTORS = [
+  {
+    signature: "grantInstitutionRole(address,string)",
+    reason: "retired partial institution onboarding selector",
+  },
+];
 
 const DIAMOND_CUT_ABI = [
   "function diamondCut((address facetAddress,uint8 action,bytes4[] functionSelectors)[] _diamondCut,address _init,bytes _calldata)",
@@ -214,6 +222,12 @@ async function main() {
       links: { "contracts/libraries/LibLabTransfer.sol:LibLabTransfer": deployedLibraries.LibLabTransfer },
     },
     {
+      name: "InstitutionFacet",
+      target: "contracts/facets/reservation/institutional/InstitutionFacet.sol:InstitutionFacet",
+      artifact: "out/InstitutionFacet.sol/InstitutionFacet.json",
+      links: {},
+    },
+    {
       name: "ProviderSettlementFacet",
       target: "contracts/facets/reservation/ProviderSettlementFacet.sol:ProviderSettlementFacet",
       artifact: "out/ProviderSettlementFacet.sol/ProviderSettlementFacet.json",
@@ -256,22 +270,17 @@ async function main() {
       },
     },
     {
+      name: "InstitutionalReservationRequestFacet",
+      target:
+        "contracts/facets/reservation/institutional/InstitutionalReservationRequestFacet.sol:InstitutionalReservationRequestFacet",
+      artifact: "out/InstitutionalReservationRequestFacet.sol/InstitutionalReservationRequestFacet.json",
+      links: {},
+    },
+    {
       name: "ReservationDenialFacet",
       target: "contracts/facets/reservation/ReservationDenialFacet.sol:ReservationDenialFacet",
       artifact: "out/ReservationDenialFacet.sol/ReservationDenialFacet.json",
       links: { "contracts/libraries/LibReservationConfirmation.sol:LibReservationConfirmation": deployedLibraries.LibReservationConfirmation },
-    },
-    {
-      name: "ReservationCheckInFacet",
-      target: "contracts/facets/reservation/ReservationCheckInFacet.sol:ReservationCheckInFacet",
-      artifact: "out/ReservationCheckInFacet.sol/ReservationCheckInFacet.json",
-      links: {},
-    },
-    {
-      name: "ReservationSessionFacet",
-      target: "contracts/facets/reservation/ReservationSessionFacet.sol:ReservationSessionFacet",
-      artifact: "out/ReservationSessionFacet.sol/ReservationSessionFacet.json",
-      links: {},
     },
     {
       name: "ReservationIntentFacet",
@@ -279,12 +288,6 @@ async function main() {
       artifact: "out/ReservationIntentFacet.sol/ReservationIntentFacet.json",
       links: {},
       optimizerRuns: 1,
-    },
-    {
-      name: "ReservationStatsFacet",
-      target: "contracts/facets/reservation/ReservationStatsFacet.sol:ReservationStatsFacet",
-      artifact: "out/ReservationStatsFacet.sol/ReservationStatsFacet.json",
-      links: {},
     },
     {
       name: "InstitutionalReservationQueryFacet",
@@ -337,10 +340,23 @@ async function main() {
     }
   }
 
+  for (const retired of RETIRED_SELECTORS) {
+    const selector = ethers.id(retired.signature).slice(0, 10).toLowerCase();
+    const route = (await routedFacet(selector)).toLowerCase();
+    if (route === ZERO) {
+      console.log(`Retired selector already absent: ${selector} ${retired.signature}`);
+      continue;
+    }
+    if (route === diamondAddress.toLowerCase()) {
+      throw new Error(`Cannot remove immutable selector ${selector} ${retired.signature}`);
+    }
+    addCut(cutsByKey, ethers.ZeroAddress, ACTION_REMOVE, selector, `${retired.signature} (${retired.reason})`);
+  }
+
   const cuts = [...cutsByKey.values()].filter((entry) => entry.functionSelectors.length > 0);
   if (EXECUTE) {
     for (const cut of cuts) {
-      if (cut.facetAddress.toLowerCase() === ZERO) {
+      if (cut.action !== ACTION_REMOVE && cut.facetAddress.toLowerCase() === ZERO) {
         throw new Error(`Refusing to execute diamondCut with zero facet address for selectors: ${cut.signatures.join(", ")}`);
       }
     }
@@ -355,6 +371,13 @@ async function main() {
   }
 
   if (cuts.length > 0 && EXECUTE) {
+    const calldata = diamond.interface.encodeFunctionData("diamondCut", [
+      cuts.map(({ facetAddress, action, functionSelectors }) => ({ facetAddress, action, functionSelectors })),
+      ethers.ZeroAddress,
+      "0x",
+    ]);
+    await provider.call({ to: diamondAddress, from: wallet.address, data: calldata });
+    console.log("Exact diamondCut simulation successful; broadcasting transaction.");
     const tx = await diamond.diamondCut(cuts, ethers.ZeroAddress, "0x", { nonce: nextNonce++ });
     console.log(`diamondCut tx: ${tx.hash}`);
     const receipt = await tx.wait();
@@ -382,6 +405,16 @@ async function main() {
     latest.facets.CheckInUpgradeAt = new Date().toISOString();
     saveLatest(latest);
     console.log(`Updated ${LATEST_FILE}`);
+
+    const resumePath = "deployments/sepolia-resume.json";
+    const resume = JSON.parse(fs.readFileSync(resumePath, "utf8").replace(/^\uFEFF/, ""));
+    resume.updated = new Date().toISOString();
+    resume.base = resume.base || {};
+    for (const lib of libraries) resume.base[lib.name] = deployedLibraries[lib.name];
+    resume.facets = resume.facets || {};
+    for (const facet of facetPlan) resume.facets[facet.target] = deployedFacets[facet.name];
+    fs.writeFileSync(resumePath, `${JSON.stringify(resume, null, 2)}\n`);
+    console.log(`Updated ${resumePath}`);
   }
 }
 

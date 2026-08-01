@@ -113,7 +113,10 @@ data, source expiry and allocations, rather than an off-chain estimate.
 Provider revenue is a receivable, not a token payout. On successful finalization
 with SessionStarted evidence, the reservation's cached provider share is added
 to the lab's accrued receivable. `requestProviderPayout` processes a bounded
-batch of eligible records and moves accrued value into the settlement queue.
+batch of eligible records and moves the entire accrued bucket into the
+settlement queue. This also queues receivables that a previous permissionless
+release, cap cleanup or reconciliation already accrued after removing the
+reservation from the payout heap.
 
 All reservation finalization routes use the same economic transition: the
 permissionless release, the per-user cap cleanup and provider payout share the
@@ -147,3 +150,11 @@ Use `getLabProviderReceivableLifecycle` for aggregate amounts and
 `getProviderSettlementClaim` for the audit record. Claim and financial
 transitions are restricted to the current provider/authorized backend, a
 configured settlement operator, or the default admin as defined by the facet.
+
+For the payout preview, `getLabProviderReceivable` returns four separate
+values: provider payout from attested sessions, the potential provider fee
+from finalizable physical-lab no-shows, the count of access-authorized
+reservations still inside the SessionStarted grace period, and the already
+outstanding receivable. The grace count is not included in the payout amount;
+the three monetary values are the actionable preview. The paginated variant
+returns the same categories per heap chunk.

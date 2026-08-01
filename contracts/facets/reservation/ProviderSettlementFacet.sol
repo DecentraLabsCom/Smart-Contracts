@@ -14,6 +14,7 @@ import {LibAccessControlEnumerable} from "../../libraries/LibAccessControlEnumer
 import {LibERC721Storage} from "../../libraries/LibERC721Storage.sol";
 import {LibProviderReceivable, SETTLEMENT_OPERATOR_ROLE} from "../../libraries/LibProviderReceivable.sol";
 import {LibInstitutionalReservationSettlement} from "../../libraries/LibInstitutionalReservationSettlement.sol";
+import {LibRevenue} from "../../libraries/LibRevenue.sol";
 
 /// @title ProviderSettlementFacet
 /// @author
@@ -43,7 +44,7 @@ contract ProviderSettlementFacet is ReentrancyGuardTransient {
     uint8 internal constant _CLAIM_APPROVED = 2;
     uint8 internal constant _CLAIM_PAID = 3;
 
-    /// @notice Emitted when a provider payout request queues newly accrued provider receivable for settlement
+    /// @notice Emitted when a provider payout request queues the lab's accrued provider receivable for settlement
     event ProviderPayoutRequested(
         address indexed provider, uint256 indexed labId, uint256 amount, uint256 reservationsProcessed
     );
@@ -83,7 +84,7 @@ contract ProviderSettlementFacet is ReentrancyGuardTransient {
         s = LibAppStorage.diamondStorage();
     }
 
-    /// @notice Finalizes economically expired reservations and queues receivable accrued by this batch for a lab
+    /// @notice Finalizes economically expired reservations and queues all accrued receivable for a lab
     function requestProviderPayout(
         uint256 _labId,
         uint256 maxBatch
@@ -91,27 +92,37 @@ contract ProviderSettlementFacet is ReentrancyGuardTransient {
         _requestProviderPayout(_labId, maxBatch);
     }
 
-    /// @notice Returns the provider receivable currently accrued or immediately settleable for a lab
+    /// @notice Previews all provider receivables affected by the next payout request.
+    /// @dev The fourth value includes all currently outstanding receivable lifecycle
+    ///      buckets. Pending grace reservations are intentionally a count, not a
+    ///      receivable amount, because they cannot be finalized by payout yet.
     function getLabProviderReceivable(
         uint256 _labId
-    ) external view returns (uint256 providerReceivable, uint256 totalReceivable, uint256 eligibleReservationCount) {
+    )
+        external
+        view
+        returns (
+            uint256 attestedSessionPayout,
+            uint256 potentialNoShowFee,
+            uint256 pendingGraceReservationCount,
+            uint256 accruedReceivable
+        )
+    {
         AppStorage storage s = _s();
 
-        providerReceivable = _outstandingProviderReceivable(s, _labId);
-        eligibleReservationCount = 0;
+        accruedReceivable = _outstandingProviderReceivable(s, _labId);
 
         uint256 currentTime = block.timestamp;
         PayoutCandidate[] storage heap = s.payoutHeaps[_labId];
         uint256 heapLength = heap.length;
 
         if (heapLength > 0) {
-            (uint256 pendingProviderReceivable, uint256 pendingClosures) =
-                _accumulateEligiblePayoutFromHeap(s, heap, heapLength, 0, currentTime, _labId);
-            providerReceivable += pendingProviderReceivable;
-            eligibleReservationCount = pendingClosures;
+            (uint256 pendingAttestedSessionPayout, uint256 pendingNoShowFee, uint256 pendingGraceReservations) =
+                _accumulatePayoutPreviewFromHeap(s, heap, heapLength, 0, currentTime, _labId);
+            attestedSessionPayout += pendingAttestedSessionPayout;
+            potentialNoShowFee += pendingNoShowFee;
+            pendingGraceReservationCount = pendingGraceReservations;
         }
-
-        totalReceivable = providerReceivable;
     }
 
     /// @notice Bounded/paginated variant of getLabProviderReceivable to avoid large eth_call executions.
@@ -123,9 +134,10 @@ contract ProviderSettlementFacet is ReentrancyGuardTransient {
     /// @param _labId The lab to query
     /// @param offset Heap index offset to start scanning from
     /// @param limit Max heap entries to scan in this call (1-1000)
-    /// @return providerReceivableChunk Provider receivable found in this chunk (+fixed onchain buckets if offset==0)
-    /// @return totalReceivableChunk Sum of provider receivable outputs
-    /// @return eligibleReservationCountChunk Number of closeable reservations found in this chunk
+    /// @return attestedSessionPayoutChunk Provider payout from attested sessions in this chunk
+    /// @return potentialNoShowFeeChunk Provider fee from finalizable no-shows in this chunk
+    /// @return pendingGraceReservationCountChunk Access-authorized reservations still in attestation grace
+    /// @return accruedReceivableChunk Existing outstanding receivable (+only when offset==0)
     /// @return nextOffset Offset to use in next page call
     /// @return hasMore True when more heap entries remain after this chunk
     function getLabProviderReceivablePaginated(
@@ -136,9 +148,10 @@ contract ProviderSettlementFacet is ReentrancyGuardTransient {
         external
         view
         returns (
-            uint256 providerReceivableChunk,
-            uint256 totalReceivableChunk,
-            uint256 eligibleReservationCountChunk,
+            uint256 attestedSessionPayoutChunk,
+            uint256 potentialNoShowFeeChunk,
+            uint256 pendingGraceReservationCountChunk,
+            uint256 accruedReceivableChunk,
             uint256 nextOffset,
             bool hasMore
         )
@@ -147,15 +160,21 @@ contract ProviderSettlementFacet is ReentrancyGuardTransient {
 
         AppStorage storage s = _s();
         if (offset == 0) {
-            providerReceivableChunk = _outstandingProviderReceivable(s, _labId);
+            accruedReceivableChunk = _outstandingProviderReceivable(s, _labId);
         }
 
         PayoutCandidate[] storage heap = s.payoutHeaps[_labId];
         uint256 heapLength = heap.length;
         if (offset >= heapLength) {
             nextOffset = heapLength;
-            totalReceivableChunk = providerReceivableChunk;
-            return (providerReceivableChunk, totalReceivableChunk, eligibleReservationCountChunk, nextOffset, false);
+            return (
+                attestedSessionPayoutChunk,
+                potentialNoShowFeeChunk,
+                pendingGraceReservationCountChunk,
+                accruedReceivableChunk,
+                nextOffset,
+                false
+            );
         }
 
         uint256 end = offset + limit;
@@ -170,15 +189,11 @@ contract ProviderSettlementFacet is ReentrancyGuardTransient {
             // slither-disable-next-line timestamp
             if (candidate.end < currentTime) {
                 Reservation storage reservation = s.reservations[candidate.key];
-                if (
-                    (reservation.end == 0 || reservation.end == candidate.end)
-                        && LibInstitutionalReservationSettlement.isProviderPayoutEligible(
-                            s, candidate.key, reservation, _labId, currentTime
-                        )
-                ) {
-                    providerReceivableChunk += reservation.providerShare;
-                    eligibleReservationCountChunk++;
-                }
+                (uint256 attestedSessionPayout, uint256 potentialNoShowFee, uint256 pendingGraceReservations) =
+                    _previewPayoutCandidate(s, candidate, reservation, _labId, currentTime);
+                attestedSessionPayoutChunk += attestedSessionPayout;
+                potentialNoShowFeeChunk += potentialNoShowFee;
+                pendingGraceReservationCountChunk += pendingGraceReservations;
             }
             unchecked {
                 ++i;
@@ -187,7 +202,6 @@ contract ProviderSettlementFacet is ReentrancyGuardTransient {
 
         nextOffset = end;
         hasMore = end < heapLength;
-        totalReceivableChunk = providerReceivableChunk;
     }
 
     /// @notice Returns explicit provider receivable lifecycle buckets for a lab.
@@ -382,48 +396,87 @@ contract ProviderSettlementFacet is ReentrancyGuardTransient {
     ///      `heap` must be a strict min-heap ordered by `end` for all active nodes.
     ///      Under that invariant, if `node.end > currentTime`, all descendants are also ineligible.
     ///      Any heap rebuild, compaction, or update path must preserve this ordering assumption.
-    function _accumulateEligiblePayoutFromHeap(
+    function _accumulatePayoutPreviewFromHeap(
         AppStorage storage s,
         PayoutCandidate[] storage heap,
         uint256 heapLength,
         uint256 nodeIndex,
         uint256 currentTime,
         uint256 labId
-    ) internal view returns (uint256 providerPayout, uint256 pendingClosures) {
+    )
+        internal
+        view
+        returns (uint256 attestedSessionPayout, uint256 potentialNoShowFee, uint256 pendingGraceReservationCount)
+    {
         if (nodeIndex >= heapLength) {
-            return (0, 0);
+            return (0, 0, 0);
         }
 
         PayoutCandidate storage candidate = heap[nodeIndex];
         // Settlement eligibility is intentionally evaluated against chain time.
         // slither-disable-next-line timestamp
         if (candidate.end >= currentTime) {
-            return (0, 0);
+            return (0, 0, 0);
         }
 
         Reservation storage reservation = s.reservations[candidate.key];
-        if (LibInstitutionalReservationSettlement.isProviderPayoutEligible(
-                s, candidate.key, reservation, labId, currentTime
-            )) {
-            providerPayout = reservation.providerShare;
-            pendingClosures = 1;
-        }
+        (attestedSessionPayout, potentialNoShowFee, pendingGraceReservationCount) =
+            _previewPayoutCandidate(s, candidate, reservation, labId, currentTime);
 
         uint256 left = nodeIndex * 2 + 1;
         if (left < heapLength) {
-            (uint256 leftPayout, uint256 leftClosures) =
-                _accumulateEligiblePayoutFromHeap(s, heap, heapLength, left, currentTime, labId);
-            providerPayout += leftPayout;
-            pendingClosures += leftClosures;
+            (uint256 leftAttestedSessionPayout, uint256 leftPotentialNoShowFee, uint256 leftPendingGraceReservations) =
+                _accumulatePayoutPreviewFromHeap(s, heap, heapLength, left, currentTime, labId);
+            attestedSessionPayout += leftAttestedSessionPayout;
+            potentialNoShowFee += leftPotentialNoShowFee;
+            pendingGraceReservationCount += leftPendingGraceReservations;
         }
 
         uint256 right = left + 1;
         if (right < heapLength) {
-            (uint256 rightPayout, uint256 rightClosures) =
-                _accumulateEligiblePayoutFromHeap(s, heap, heapLength, right, currentTime, labId);
-            providerPayout += rightPayout;
-            pendingClosures += rightClosures;
+            (
+                uint256 rightAttestedSessionPayout,
+                uint256 rightPotentialNoShowFee,
+                uint256 rightPendingGraceReservations
+            ) = _accumulatePayoutPreviewFromHeap(s, heap, heapLength, right, currentTime, labId);
+            attestedSessionPayout += rightAttestedSessionPayout;
+            potentialNoShowFee += rightPotentialNoShowFee;
+            pendingGraceReservationCount += rightPendingGraceReservations;
         }
+    }
+
+    function _previewPayoutCandidate(
+        AppStorage storage s,
+        PayoutCandidate storage candidate,
+        Reservation storage reservation,
+        uint256 labId,
+        uint256 currentTime
+    )
+        internal
+        view
+        returns (uint256 attestedSessionPayout, uint256 potentialNoShowFee, uint256 pendingGraceReservationCount)
+    {
+        if (
+            reservation.labId != labId || (reservation.end != 0 && reservation.end != candidate.end)
+                || (reservation.status != _CONFIRMED && reservation.status != _ACCESS_AUTHORIZED)
+        ) {
+            return (0, 0, 0);
+        }
+
+        if (s.reservationSessionStartedRecorded[candidate.key]) {
+            return (reservation.providerShare, 0, 0);
+        }
+
+        if (!LibInstitutionalReservationSettlement.isEconomicallyExpired(s, reservation, candidate.key, currentTime)) {
+            return (0, 0, 1);
+        }
+
+        if (s.labs[labId].resourceType != 0) {
+            return (0, 0, 0);
+        }
+
+        (uint96 providerFee,) = LibRevenue.computeNoShowSettlement(reservation.price);
+        return (0, providerFee, 0);
     }
 
     // -------------------------------------------------------------------------
@@ -449,8 +502,6 @@ contract ProviderSettlementFacet is ReentrancyGuardTransient {
 
         uint256 processed = 0;
         uint256 currentTime = block.timestamp;
-        uint256 accruedBefore = s.providerReceivableAccrued[_labId];
-
         while (processed < maxBatch) {
             bytes32 key = _popExpiredReservationCandidate(s, _labId, currentTime);
             if (key == bytes32(0)) {
@@ -464,8 +515,10 @@ contract ProviderSettlementFacet is ReentrancyGuardTransient {
             }
         }
 
-        uint256 accruedAfter = s.providerReceivableAccrued[_labId];
-        uint256 providerPayout = accruedAfter - accruedBefore;
+        // A prior finalizer may have already removed the reservation from the heap while
+        // leaving its legitimate provider receivable in ACCRUED. Queue the whole bucket
+        // so provider collection does not depend on this call having finalized a row.
+        uint256 providerPayout = s.providerReceivableAccrued[_labId];
         if (providerPayout == 0 && processed == 0) revert("No settleable reservations");
 
         if (providerPayout > 0) {

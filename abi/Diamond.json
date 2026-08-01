@@ -5968,17 +5968,22 @@
     ],
     "outputs": [
       {
-        "name": "providerReceivable",
+        "name": "attestedSessionPayout",
         "type": "uint256",
         "internalType": "uint256"
       },
       {
-        "name": "totalReceivable",
+        "name": "potentialNoShowFee",
         "type": "uint256",
         "internalType": "uint256"
       },
       {
-        "name": "eligibleReservationCount",
+        "name": "pendingGraceReservationCount",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "accruedReceivable",
         "type": "uint256",
         "internalType": "uint256"
       }
@@ -6061,17 +6066,22 @@
     ],
     "outputs": [
       {
-        "name": "providerReceivableChunk",
+        "name": "attestedSessionPayoutChunk",
         "type": "uint256",
         "internalType": "uint256"
       },
       {
-        "name": "totalReceivableChunk",
+        "name": "potentialNoShowFeeChunk",
         "type": "uint256",
         "internalType": "uint256"
       },
       {
-        "name": "eligibleReservationCountChunk",
+        "name": "pendingGraceReservationCountChunk",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "accruedReceivableChunk",
         "type": "uint256",
         "internalType": "uint256"
       },

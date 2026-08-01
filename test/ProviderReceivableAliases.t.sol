@@ -95,6 +95,7 @@ contract ProviderReceivableHarness is ERC721, ProviderSettlementFacet {
         s.reservationPucHash[reservationKey] = pucHash;
         s.payoutHeaps[labId].push(PayoutCandidate({end: end, key: reservationKey}));
         s.payoutHeapContains[reservationKey] = true;
+        s.payoutHeapIndexPlusOne[reservationKey] = s.payoutHeaps[labId].length;
         s.reservationKeysByToken[labId].add(reservationKey);
         address trackingIndex = LibTracking.trackingKeyFromInstitutionHash(institution, pucHash);
         s.reservationKeysByTokenAndUser[labId][trackingIndex].add(reservationKey);
@@ -206,15 +207,44 @@ contract ProviderReceivableAliasesTest is Test {
     function test_getLabProviderReceivable_exposes_pending_provider_bucket() public {
         harness.setPendingProviderPayout(LAB_ID, FIVE_CREDITS);
 
-        (uint256 providerReceivable, uint256 totalReceivable, uint256 eligibleCount) =
-            harness.getLabProviderReceivable(LAB_ID);
+        (
+            uint256 attestedSessionPayout,
+            uint256 potentialNoShowFee,
+            uint256 pendingGraceReservationCount,
+            uint256 accruedReceivable
+        ) = harness.getLabProviderReceivable(LAB_ID);
 
-        assertEq(providerReceivable, FIVE_CREDITS);
-        assertEq(totalReceivable, FIVE_CREDITS);
-        assertEq(eligibleCount, 0);
+        assertEq(attestedSessionPayout, 0);
+        assertEq(potentialNoShowFee, 0);
+        assertEq(pendingGraceReservationCount, 0);
+        assertEq(accruedReceivable, FIVE_CREDITS);
     }
 
-    function test_requestProviderPayout_queues_only_newly_accrued_receivable() public {
+    function test_getLabProviderReceivable_separates_attested_noShow_grace_and_accrued() public {
+        bytes32 attestedKey = keccak256("preview-attested");
+        bytes32 noShowKey = keccak256("preview-no-show");
+        bytes32 graceKey = keccak256("preview-grace");
+
+        harness.setExpiredPayoutReservation(attestedKey, LAB_ID, ACCESS_AUTHORIZED, FIVE_CREDITS_U96, 997);
+        harness.markSessionStartedForTest(attestedKey);
+        harness.setExpiredPayoutReservation(noShowKey, LAB_ID, CONFIRMED, FIVE_CREDITS_U96, 998);
+        harness.setExpiredPayoutReservation(graceKey, LAB_ID, ACCESS_AUTHORIZED, FIVE_CREDITS_U96, 999);
+        harness.setPendingProviderPayout(LAB_ID, TWELVE_CREDITS);
+
+        (
+            uint256 attestedSessionPayout,
+            uint256 potentialNoShowFee,
+            uint256 pendingGraceReservationCount,
+            uint256 previewAccruedReceivable
+        ) = harness.getLabProviderReceivable(LAB_ID);
+
+        assertEq(attestedSessionPayout, FIVE_CREDITS);
+        assertEq(potentialNoShowFee, 7_500_000);
+        assertEq(pendingGraceReservationCount, 1);
+        assertEq(previewAccruedReceivable, TWELVE_CREDITS);
+    }
+
+    function test_requestProviderPayout_queues_entire_accrued_bucket() public {
         harness.setPendingProviderPayout(LAB_ID, TWELVE_CREDITS);
 
         bytes32 reservationKey = keccak256("newly-accrued-with-existing-balance");
@@ -224,9 +254,16 @@ contract ProviderReceivableAliasesTest is Test {
         vm.prank(PROVIDER);
         harness.requestProviderPayout(LAB_ID, 10);
 
-        (uint256 providerReceivable, uint256 totalReceivable,) = harness.getLabProviderReceivable(LAB_ID);
-        assertEq(providerReceivable, TWELVE_CREDITS + FIVE_CREDITS);
-        assertEq(totalReceivable, TWELVE_CREDITS + FIVE_CREDITS);
+        (
+            uint256 attestedSessionPayout,
+            uint256 potentialNoShowFee,
+            uint256 pendingGraceReservationCount,
+            uint256 previewAccruedReceivable
+        ) = harness.getLabProviderReceivable(LAB_ID);
+        assertEq(attestedSessionPayout, 0);
+        assertEq(potentialNoShowFee, 0);
+        assertEq(pendingGraceReservationCount, 0);
+        assertEq(previewAccruedReceivable, TWELVE_CREDITS + FIVE_CREDITS);
 
         (
             uint256 accruedReceivable,
@@ -238,13 +275,36 @@ contract ProviderReceivableAliasesTest is Test {
             uint256 disputedReceivable
         ) = _getLifecycleWithoutTimestamp();
 
-        assertEq(accruedReceivable, TWELVE_CREDITS);
-        assertEq(settlementQueued, FIVE_CREDITS);
+        assertEq(accruedReceivable, 0);
+        assertEq(settlementQueued, TWELVE_CREDITS + FIVE_CREDITS);
         assertEq(invoicedReceivable, 0);
         assertEq(approvedReceivable, 0);
         assertEq(paidReceivable, 0);
         assertEq(reversedReceivable, 0);
         assertEq(disputedReceivable, 0);
+    }
+
+    function test_requestProviderPayout_queues_permissionless_accrual_removed_from_heap() public {
+        bytes32 reservationKey = keccak256("permissionless-accrual");
+        harness.setExpiredPayoutReservation(reservationKey, LAB_ID, ACCESS_AUTHORIZED, FIVE_CREDITS_U96, 999);
+        harness.markSessionStartedForTest(reservationKey);
+
+        vm.prank(address(0xBEEF));
+        uint256 processed = harness.releaseInstitutionalReservation(reservationKey, LAB_ID);
+
+        assertEq(processed, 1);
+        assertEq(harness.payoutHeapLength(LAB_ID), 0);
+
+        (uint256 accruedReceivable, uint256 settlementQueued,,,,,) = _getLifecycleWithoutTimestamp();
+        assertEq(accruedReceivable, FIVE_CREDITS);
+        assertEq(settlementQueued, 0);
+
+        vm.prank(PROVIDER);
+        harness.requestProviderPayout(LAB_ID, 10);
+
+        (accruedReceivable, settlementQueued,,,,,) = _getLifecycleWithoutTimestamp();
+        assertEq(accruedReceivable, 0);
+        assertEq(settlementQueued, FIVE_CREDITS);
     }
 
     function test_requestProviderPayout_allows_authorized_backend() public {
@@ -280,12 +340,57 @@ contract ProviderReceivableAliasesTest is Test {
         bytes32 reservationKey = keccak256("access-authorized-without-session");
         harness.setExpiredPayoutReservation(reservationKey, LAB_ID, ACCESS_AUTHORIZED, FIVE_CREDITS_U96, 999);
 
-        (uint256 providerReceivable, uint256 totalReceivable, uint256 eligibleCount) =
-            harness.getLabProviderReceivable(LAB_ID);
+        (
+            uint256 attestedSessionPayout,
+            uint256 potentialNoShowFee,
+            uint256 pendingGraceReservationCount,
+            uint256 accruedReceivable
+        ) = harness.getLabProviderReceivable(LAB_ID);
 
-        assertEq(providerReceivable, 0);
-        assertEq(totalReceivable, 0);
-        assertEq(eligibleCount, 0);
+        assertEq(attestedSessionPayout, 0);
+        assertEq(potentialNoShowFee, 0);
+        assertEq(pendingGraceReservationCount, 1);
+        assertEq(accruedReceivable, 0);
+    }
+
+    function test_getLabProviderReceivable_exposes_confirmed_noShow_fee() public {
+        bytes32 reservationKey = keccak256("preview-confirmed-no-show");
+        harness.setExpiredPayoutReservation(reservationKey, LAB_ID, CONFIRMED, FIVE_CREDITS_U96, 999);
+
+        (
+            uint256 attestedSessionPayout,
+            uint256 potentialNoShowFee,
+            uint256 pendingGraceReservationCount,
+            uint256 previewAccruedReceivable
+        ) = harness.getLabProviderReceivable(LAB_ID);
+
+        assertEq(attestedSessionPayout, 0);
+        assertEq(potentialNoShowFee, 7_500_000);
+        assertEq(pendingGraceReservationCount, 0);
+        assertEq(previewAccruedReceivable, 0);
+    }
+
+    function test_getLabProviderReceivablePaginated_uses_same_preview_categories() public {
+        bytes32 noShowKey = keccak256("preview-paginated-no-show");
+        bytes32 graceKey = keccak256("preview-paginated-grace");
+        harness.setExpiredPayoutReservation(noShowKey, LAB_ID, CONFIRMED, FIVE_CREDITS_U96, 998);
+        harness.setExpiredPayoutReservation(graceKey, LAB_ID, ACCESS_AUTHORIZED, FIVE_CREDITS_U96, 999);
+
+        (
+            uint256 attestedSessionPayout,
+            uint256 potentialNoShowFee,
+            uint256 pendingGraceReservationCount,
+            uint256 accruedReceivable,
+            uint256 nextOffset,
+            bool hasMore
+        ) = harness.getLabProviderReceivablePaginated(LAB_ID, 0, 10);
+
+        assertEq(attestedSessionPayout, 0);
+        assertEq(potentialNoShowFee, 7_500_000);
+        assertEq(pendingGraceReservationCount, 1);
+        assertEq(accruedReceivable, 0);
+        assertEq(nextOffset, 2);
+        assertFalse(hasMore);
     }
 
     function test_requestProviderPayout_finalizes_confirmed_no_show_without_session_started() public {
@@ -464,9 +569,16 @@ contract ProviderReceivableAliasesTest is Test {
         harness.setProviderReceivableBucket(LAB_ID, 5, NINETEEN_CREDITS);
         harness.setProviderReceivableBucket(LAB_ID, 6, TWENTY_THREE_CREDITS);
 
-        (uint256 providerReceivable, uint256 totalReceivable,) = harness.getLabProviderReceivable(LAB_ID);
-        assertEq(providerReceivable, 530_000_000);
-        assertEq(totalReceivable, 530_000_000);
+        (
+            uint256 attestedSessionPayout,
+            uint256 potentialNoShowFee,
+            uint256 pendingGraceReservationCount,
+            uint256 previewAccruedReceivable
+        ) = harness.getLabProviderReceivable(LAB_ID);
+        assertEq(attestedSessionPayout, 0);
+        assertEq(potentialNoShowFee, 0);
+        assertEq(pendingGraceReservationCount, 0);
+        assertEq(previewAccruedReceivable, 530_000_000);
     }
 
     function test_transitionProviderReceivableState_moves_between_lifecycle_buckets() public {
@@ -493,9 +605,16 @@ contract ProviderReceivableAliasesTest is Test {
         assertEq(reversedReceivable, 0);
         assertEq(disputedReceivable, 0);
 
-        (uint256 providerReceivable, uint256 totalReceivable,) = harness.getLabProviderReceivable(LAB_ID);
-        assertEq(providerReceivable, TWELVE_CREDITS);
-        assertEq(totalReceivable, TWELVE_CREDITS);
+        (
+            uint256 attestedSessionPayout,
+            uint256 potentialNoShowFee,
+            uint256 pendingGraceReservationCount,
+            uint256 previewAccruedReceivable
+        ) = harness.getLabProviderReceivable(LAB_ID);
+        assertEq(attestedSessionPayout, 0);
+        assertEq(potentialNoShowFee, 0);
+        assertEq(pendingGraceReservationCount, 0);
+        assertEq(previewAccruedReceivable, TWELVE_CREDITS);
     }
 
     function test_transitionProviderReceivableState_reverts_for_invalid_transition() public {

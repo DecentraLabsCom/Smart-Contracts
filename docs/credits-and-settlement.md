@@ -149,6 +149,13 @@ stateDiagram-v2
     QUEUED --> INVOICED: submitProviderSettlementClaim
     INVOICED --> APPROVED: approveProviderSettlementClaim
     APPROVED --> PAID: recordProviderSettlementClaimPayment
+    QUEUED --> DISPUTED: disputeSettlementBatch
+    QUEUED --> REVERSED: reverseSettlementBatch
+    INVOICED --> DISPUTED: disputeSettlementClaim
+    APPROVED --> DISPUTED: disputeSettlementClaim
+    INVOICED --> REVERSED: reverseSettlementClaim
+    APPROVED --> REVERSED: reverseSettlementClaim
+    DISPUTED --> REVERSED: reverseSettlementBatch/Claim
 ```
 
 The receivable read exposes `ACCRUED`, `QUEUED`, `INVOICED`, `APPROVED`, `PAID`,
@@ -173,15 +180,21 @@ Approval requires a non-zero, previously unused external reference. Payment
 requires a non-zero, previously unused payment reference plus an attestation
 hash, then moves the claim from `APPROVED` to `PAID`.
 
+Disputing or reversing a settlement batch or claim is object-bound and
+terminal for the affected object: it clears the batch remainder, moves the
+exact amount between aggregate buckets, records the resolution reference,
+actor and timestamp, and prevents later submit, approve or pay operations.
+Any dispute resolution must be an explicit, separately audited transition.
+
 Use `getLabProviderReceivableLifecycle` for aggregate amounts and
 `getProviderSettlementClaim` for the audit record. Claim and financial
 transitions are restricted to the current provider/authorized backend, a
 configured settlement operator, or the default admin as defined by the facet.
-The generic `transitionProviderReceivableState` selector is recovery-only for
-the claim lifecycle: it cannot create `INVOICED`, `APPROVED` or `PAID` balance
-states. Ordinary settlement must use the claim selectors; generic recovery may
-move an existing non-accrued bucket to `DISPUTED` or `REVERSED` with its
-non-zero audit reference. Accrued value must first pass through
+The generic `transitionProviderReceivableState` selector is fail-closed for
+settlement invalidation: it cannot move any bucket to `DISPUTED` or `REVERSED`.
+Object-bound dispute and reversal must use the four settlement batch/claim
+selectors, which update the object, aggregate bucket and resolution audit
+fields atomically. Accrued value must first pass through
 `requestProviderPayout`, which creates its canonical batch.
 
 For the payout preview, `getLabProviderReceivable` returns four separate

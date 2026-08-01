@@ -46,9 +46,13 @@ contract ProviderSettlementFacet is ReentrancyGuardTransient {
     uint8 internal constant _CLAIM_SUBMITTED = 1;
     uint8 internal constant _CLAIM_APPROVED = 2;
     uint8 internal constant _CLAIM_PAID = 3;
+    uint8 internal constant _CLAIM_DISPUTED = 4;
+    uint8 internal constant _CLAIM_REVERSED = 5;
 
     uint8 internal constant _BATCH_QUEUED = 1;
     uint8 internal constant _BATCH_CLAIMED = 2;
+    uint8 internal constant _BATCH_DISPUTED = 3;
+    uint8 internal constant _BATCH_REVERSED = 4;
 
     /// @notice Emitted when a provider payout request queues the lab's accrued provider receivable for settlement
     event ProviderPayoutRequested(
@@ -95,6 +99,29 @@ contract ProviderSettlementFacet is ReentrancyGuardTransient {
         bytes32 indexed paymentReferenceHash,
         bytes32 paymentAttestationHash,
         address indexed actor
+    );
+
+    event ProviderSettlementBatchInvalidated(
+        bytes32 indexed batchId,
+        uint256 indexed labId,
+        uint256 amount,
+        uint8 fromStatus,
+        uint8 toStatus,
+        bytes32 referenceHash,
+        address indexed actor,
+        uint64 timestamp
+    );
+
+    event ProviderSettlementClaimInvalidated(
+        bytes32 indexed claimId,
+        bytes32 indexed batchId,
+        uint256 indexed labId,
+        uint256 amount,
+        uint8 fromStatus,
+        uint8 toStatus,
+        bytes32 referenceHash,
+        address actor,
+        uint64 timestamp
     );
 
     /// @dev Returns the AppStorage struct from the diamond storage slot.
@@ -286,6 +313,14 @@ contract ProviderSettlementFacet is ReentrancyGuardTransient {
         );
     }
 
+    /// @notice Returns the audit data for a batch dispute or reversal.
+    function getProviderSettlementBatchResolution(
+        bytes32 batchId
+    ) external view returns (bytes32 referenceHash, address actor, uint64 timestamp) {
+        ProviderSettlementBatch storage batch = _s().providerSettlementBatches[batchId];
+        return (batch.resolutionReferenceHash, batch.resolutionActor, batch.resolutionAt);
+    }
+
     /// @notice Creates a claim for a bounded amount already queued for settlement.
     /// @dev The batch is the canonical reservation scope. Claims consume one
     ///      complete batch so a partial amount cannot be paired with an
@@ -308,7 +343,7 @@ contract ProviderSettlementFacet is ReentrancyGuardTransient {
         ProviderSettlementBatch storage batch = s.providerSettlementBatches[batchId];
         require(batch.createdAt != 0, "Settlement batch not found");
         require(batch.labId == labId, "Settlement batch lab mismatch");
-        require(batch.status == _BATCH_QUEUED, "Settlement batch already claimed");
+        require(batch.status == _BATCH_QUEUED, "Settlement batch not claimable");
         require(batch.remainingAmount == amount, "Claim amount must match batch remaining amount");
         require(s.providerSettlementClaims[claimId].submittedBy == address(0), "Claim already exists");
         require(!s.providerSettlementInvoiceReferenceUsed[invoiceReferenceHash], "Invoice reference already used");
@@ -350,6 +385,7 @@ contract ProviderSettlementFacet is ReentrancyGuardTransient {
         AppStorage storage s = _s();
         ProviderSettlementClaim storage claim = s.providerSettlementClaims[claimId];
         require(claim.status == _CLAIM_SUBMITTED, "Claim is not submitted");
+        require(s.providerSettlementBatches[claim.batchId].status == _BATCH_CLAIMED, "Settlement batch invalidated");
         require(!s.providerSettlementApprovalReferenceUsed[approvalReferenceHash], "Approval reference already used");
         _requireSettlementOperatorForFinancialTransition(s);
 
@@ -384,6 +420,7 @@ contract ProviderSettlementFacet is ReentrancyGuardTransient {
         AppStorage storage s = _s();
         ProviderSettlementClaim storage claim = s.providerSettlementClaims[claimId];
         require(claim.status == _CLAIM_APPROVED, "Claim is not approved");
+        require(s.providerSettlementBatches[claim.batchId].status == _BATCH_CLAIMED, "Settlement batch invalidated");
         require(!s.providerSettlementPaymentReferenceUsed[paymentReferenceHash], "Payment reference already used");
         _requireSettlementOperatorForFinancialTransition(s);
 
@@ -454,8 +491,51 @@ contract ProviderSettlementFacet is ReentrancyGuardTransient {
         return _s().providerSettlementClaims[claimId].approvalReferenceHash;
     }
 
+    /// @notice Returns the audit data for a claim dispute or reversal.
+    function getProviderSettlementClaimResolution(
+        bytes32 claimId
+    ) external view returns (bytes32 referenceHash, address actor, uint64 timestamp) {
+        ProviderSettlementClaim storage claim = _s().providerSettlementClaims[claimId];
+        return (claim.resolutionReferenceHash, claim.resolutionActor, claim.resolutionAt);
+    }
+
+    /// @notice Disputes one queued settlement batch and invalidates its claim scope.
+    /// @dev A disputed batch cannot be claimed. Resolution to REVERSED must use
+    ///      reverseSettlementBatch with a new audit reference.
+    function disputeSettlementBatch(
+        bytes32 batchId,
+        bytes32 referenceHash
+    ) external nonReentrant {
+        _invalidateSettlementBatch(batchId, _BATCH_DISPUTED, referenceHash);
+    }
+
+    /// @notice Reverses one queued or previously disputed settlement batch.
+    function reverseSettlementBatch(
+        bytes32 batchId,
+        bytes32 referenceHash
+    ) external nonReentrant {
+        _invalidateSettlementBatch(batchId, _BATCH_REVERSED, referenceHash);
+    }
+
+    /// @notice Disputes one submitted or approved settlement claim.
+    function disputeSettlementClaim(
+        bytes32 claimId,
+        bytes32 referenceHash
+    ) external nonReentrant {
+        _invalidateSettlementClaim(claimId, _CLAIM_DISPUTED, referenceHash);
+    }
+
+    /// @notice Reverses one submitted, approved, or disputed settlement claim.
+    function reverseSettlementClaim(
+        bytes32 claimId,
+        bytes32 referenceHash
+    ) external nonReentrant {
+        _invalidateSettlementClaim(claimId, _CLAIM_REVERSED, referenceHash);
+    }
+
     /// @notice Moves provider receivable amount between explicit lifecycle buckets.
-    /// @dev Writable only by the lab owner, its configured backend, or protocol admin.
+    /// @dev Retained as a fail-closed selector for stale integrations. Object-bound
+    ///      dispute and reversal must use the settlement batch/claim selectors.
     function transitionProviderReceivableState(
         uint256 _labId,
         uint8 fromState,
@@ -482,17 +562,135 @@ contract ProviderSettlementFacet is ReentrancyGuardTransient {
             revert("Claim required");
         }
 
-        require(_isValidReceivableTransition(fromState, toState), "Invalid transition");
         if (toState == _RECEIVABLE_REVERSED || toState == _RECEIVABLE_DISPUTED) {
             _requireSettlementOperatorForFinancialTransition(s);
-        } else {
-            _requireSettlementOperator(s, _labId);
+            revert("Use settlement object");
         }
 
-        _decreaseReceivableBucket(s, _labId, fromState, amount);
-        _increaseReceivableBucket(s, _labId, toState, amount);
+        revert("Invalid transition");
+    }
 
-        emit ProviderReceivableLifecycleTransition(msg.sender, _labId, fromState, toState, amount, referenceHash);
+    function _invalidateSettlementBatch(
+        bytes32 batchId,
+        uint8 targetStatus,
+        bytes32 referenceHash
+    ) internal {
+        require(referenceHash != bytes32(0), "Reference required");
+
+        AppStorage storage s = _s();
+        ProviderSettlementBatch storage batch = s.providerSettlementBatches[batchId];
+        require(batch.createdAt != 0, "Settlement batch not found");
+
+        uint8 fromStatus = batch.status;
+        uint8 fromBucket;
+        if (targetStatus == _BATCH_DISPUTED) {
+            require(fromStatus == _BATCH_QUEUED, "Batch is not queued");
+            fromBucket = _RECEIVABLE_QUEUED;
+        } else {
+            require(targetStatus == _BATCH_REVERSED, "Invalid batch resolution");
+            require(fromStatus == _BATCH_QUEUED || fromStatus == _BATCH_DISPUTED, "Batch cannot be reversed");
+            fromBucket = fromStatus == _BATCH_DISPUTED ? _RECEIVABLE_DISPUTED : _RECEIVABLE_QUEUED;
+        }
+
+        _requireSettlementOperatorForFinancialTransition(s);
+        require(!s.providerSettlementResolutionReferenceUsed[referenceHash], "Resolution reference already used");
+        s.providerSettlementResolutionReferenceUsed[referenceHash] = true;
+
+        uint256 amount = batch.totalAmount;
+        _decreaseReceivableBucket(s, batch.labId, fromBucket, amount);
+        _increaseReceivableBucket(
+            s, batch.labId, targetStatus == _BATCH_DISPUTED ? _RECEIVABLE_DISPUTED : _RECEIVABLE_REVERSED, amount
+        );
+
+        uint64 timestamp = uint64(block.timestamp);
+        batch.remainingAmount = 0;
+        batch.status = targetStatus;
+        batch.resolutionReferenceHash = referenceHash;
+        batch.resolutionActor = msg.sender;
+        batch.resolutionAt = timestamp;
+
+        emit ProviderReceivableLifecycleTransition(
+            msg.sender,
+            batch.labId,
+            fromBucket,
+            targetStatus == _BATCH_DISPUTED ? _RECEIVABLE_DISPUTED : _RECEIVABLE_REVERSED,
+            amount,
+            referenceHash
+        );
+        emit ProviderSettlementBatchInvalidated(
+            batchId, batch.labId, amount, fromStatus, targetStatus, referenceHash, msg.sender, timestamp
+        );
+    }
+
+    function _invalidateSettlementClaim(
+        bytes32 claimId,
+        uint8 targetStatus,
+        bytes32 referenceHash
+    ) internal {
+        require(referenceHash != bytes32(0), "Reference required");
+
+        AppStorage storage s = _s();
+        ProviderSettlementClaim storage claim = s.providerSettlementClaims[claimId];
+        require(claim.submittedBy != address(0), "Settlement claim not found");
+
+        uint8 fromBucket;
+        if (claim.status == _CLAIM_SUBMITTED) {
+            fromBucket = _RECEIVABLE_INVOICED;
+        } else if (claim.status == _CLAIM_APPROVED) {
+            fromBucket = _RECEIVABLE_APPROVED;
+        } else if (claim.status == _CLAIM_DISPUTED) {
+            require(targetStatus == _CLAIM_REVERSED, "Claim already disputed");
+            fromBucket = _RECEIVABLE_DISPUTED;
+        } else {
+            revert("Claim cannot be invalidated");
+        }
+
+        if (targetStatus == _CLAIM_DISPUTED) {
+            require(claim.status == _CLAIM_SUBMITTED || claim.status == _CLAIM_APPROVED, "Claim cannot be disputed");
+        } else {
+            require(targetStatus == _CLAIM_REVERSED, "Invalid claim resolution");
+        }
+
+        ProviderSettlementBatch storage batch = s.providerSettlementBatches[claim.batchId];
+        require(
+            batch.status == (claim.status == _CLAIM_DISPUTED ? _BATCH_DISPUTED : _BATCH_CLAIMED),
+            "Settlement batch invalidated"
+        );
+
+        _requireSettlementOperatorForFinancialTransition(s);
+        require(!s.providerSettlementResolutionReferenceUsed[referenceHash], "Resolution reference already used");
+        s.providerSettlementResolutionReferenceUsed[referenceHash] = true;
+
+        uint8 toBucket = targetStatus == _CLAIM_DISPUTED ? _RECEIVABLE_DISPUTED : _RECEIVABLE_REVERSED;
+        _decreaseReceivableBucket(s, claim.labId, fromBucket, claim.amount);
+        _increaseReceivableBucket(s, claim.labId, toBucket, claim.amount);
+
+        uint8 fromStatus = claim.status;
+        uint64 timestamp = uint64(block.timestamp);
+        claim.status = targetStatus;
+        claim.resolutionReferenceHash = referenceHash;
+        claim.resolutionActor = msg.sender;
+        claim.resolutionAt = timestamp;
+        batch.status = targetStatus == _CLAIM_DISPUTED ? _BATCH_DISPUTED : _BATCH_REVERSED;
+        batch.resolutionReferenceHash = referenceHash;
+        batch.resolutionActor = msg.sender;
+        batch.resolutionAt = timestamp;
+
+        emit ProviderReceivableLifecycleTransition(
+            msg.sender, claim.labId, fromBucket, toBucket, claim.amount, referenceHash
+        );
+        emit ProviderSettlementClaimInvalidated(
+            claimId,
+            claim.batchId,
+            claim.labId,
+            claim.amount,
+            fromStatus,
+            targetStatus,
+            referenceHash,
+            msg.sender,
+            timestamp
+        );
+        emit ProviderSettlementScopeReferenced(claim.batchId, claim.labId, claim.amount, batch.scopeRoot, claimId);
     }
 
     /// @dev Traverses payout heap with pruning under a strict invariant:
@@ -713,33 +911,6 @@ contract ProviderSettlementFacet is ReentrancyGuardTransient {
         uint8 state
     ) internal pure returns (bool) {
         return state >= _RECEIVABLE_ACCRUED && state <= _RECEIVABLE_DISPUTED;
-    }
-
-    function _isValidReceivableTransition(
-        uint8 fromState,
-        uint8 toState
-    ) internal pure returns (bool) {
-        if (fromState == toState || fromState == _RECEIVABLE_PAID || fromState == _RECEIVABLE_REVERSED) {
-            return false;
-        }
-
-        if (fromState == _RECEIVABLE_ACCRUED) {
-            return toState == _RECEIVABLE_QUEUED || toState == _RECEIVABLE_DISPUTED || toState == _RECEIVABLE_REVERSED;
-        }
-        if (fromState == _RECEIVABLE_QUEUED) {
-            return toState == _RECEIVABLE_DISPUTED || toState == _RECEIVABLE_REVERSED;
-        }
-        if (fromState == _RECEIVABLE_INVOICED) {
-            return toState == _RECEIVABLE_DISPUTED || toState == _RECEIVABLE_REVERSED;
-        }
-        if (fromState == _RECEIVABLE_APPROVED) {
-            return toState == _RECEIVABLE_DISPUTED || toState == _RECEIVABLE_REVERSED;
-        }
-        if (fromState == _RECEIVABLE_DISPUTED) {
-            return toState == _RECEIVABLE_REVERSED;
-        }
-
-        return false;
     }
 
     function _bucketAmount(

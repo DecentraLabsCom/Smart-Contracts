@@ -17,6 +17,7 @@ import {LibERC721StorageTestHelper} from "./LibERC721StorageTestHelper.sol";
 import {LibInstitutionalReservationRelease} from "../contracts/libraries/LibInstitutionalReservationRelease.sol";
 import {LibProviderReceivable} from "../contracts/libraries/LibProviderReceivable.sol";
 import {LibTracking} from "../contracts/libraries/LibTracking.sol";
+import {LibCreditLedger} from "../contracts/libraries/LibCreditLedger.sol";
 
 contract ProviderReceivableHarness is ERC721, ProviderSettlementFacet {
     using LibAccessControlEnumerable for AppStorage;
@@ -24,6 +25,7 @@ contract ProviderReceivableHarness is ERC721, ProviderSettlementFacet {
     using EnumerableSet for EnumerableSet.Bytes32Set;
 
     uint256 public lastRefundAmount;
+    bool public ledgerRefundEnabled;
 
     constructor() ERC721("Labs", "LAB") {}
 
@@ -83,6 +85,37 @@ contract ProviderReceivableHarness is ERC721, ProviderSettlementFacet {
         s.institutionalBackends[institution] = backend;
     }
 
+    function setLabResourceType(
+        uint256 labId,
+        uint8 resourceType
+    ) external {
+        LibAppStorage.diamondStorage().labs[labId].resourceType = resourceType;
+    }
+
+    function enableLedgerRefund() external {
+        ledgerRefundEnabled = true;
+    }
+
+    function seedCreditReservationAtLotLimit(
+        bytes32 reservationKey,
+        uint256 sourceAmount,
+        uint256 capturedAmount
+    ) external {
+        address account = LibAppStorage.diamondStorage().reservations[reservationKey].payerInstitution;
+        bytes32 sourceFundingOrder = keccak256(abi.encode("payout-source", reservationKey));
+        LibCreditLedger.mintCredits(account, sourceAmount, sourceFundingOrder, sourceAmount, 0);
+        for (uint256 i = 1; i < 128; ++i) {
+            LibCreditLedger.mintCredits(account, 1, bytes32(i), 0, 0);
+        }
+        LibCreditLedger.debitCredits(account, capturedAmount, reservationKey);
+    }
+
+    function creditLotCount(
+        address account
+    ) external view returns (uint256) {
+        return LibCreditLedger.lotCount(account);
+    }
+
     function setExpiredPayoutReservation(
         bytes32 reservationKey,
         uint256 labId,
@@ -130,12 +163,15 @@ contract ProviderReceivableHarness is ERC721, ProviderSettlementFacet {
     }
 
     function refundToInstitutionalTreasuryForReservation(
-        address,
+        address institution,
         bytes32,
-        bytes32,
+        bytes32 reservationKey,
         uint256 amount
     ) external {
         lastRefundAmount = amount;
+        if (ledgerRefundEnabled) {
+            LibCreditLedger.cancelCredits(institution, amount, reservationKey);
+        }
     }
 
     function markSessionStartedForTest(
@@ -470,6 +506,35 @@ contract ProviderReceivableAliasesTest is Test {
         assertEq(totalEvents, uint32(0));
     }
 
+    function test_requestProviderPayout_no_show_at_lot_limit_restores_refund() public {
+        bytes32 reservationKey = keccak256("confirmed-expired-lot-limit");
+        harness.setExpiredPayoutReservation(reservationKey, LAB_ID, CONFIRMED, FIVE_CREDITS_U96, 999);
+        harness.enableLedgerRefund();
+        harness.seedCreditReservationAtLotLimit(reservationKey, FIVE_CREDITS * 2, FIVE_CREDITS);
+
+        vm.prank(PROVIDER);
+        harness.requestProviderPayout(LAB_ID, 10);
+
+        assertEq(harness.getReservationStatus(reservationKey), SETTLED);
+        assertEq(harness.lastRefundAmount(), 37_500_000);
+        assertEq(harness.creditLotCount(PROVIDER), 128);
+    }
+
+    function test_requestProviderPayout_fmu_at_lot_limit_restores_full_refund() public {
+        bytes32 reservationKey = keccak256("fmu-expired-lot-limit");
+        harness.setLabResourceType(LAB_ID, 1);
+        harness.setExpiredPayoutReservation(reservationKey, LAB_ID, CONFIRMED, FIVE_CREDITS_U96, 999);
+        harness.enableLedgerRefund();
+        harness.seedCreditReservationAtLotLimit(reservationKey, FIVE_CREDITS * 2, FIVE_CREDITS);
+
+        vm.prank(PROVIDER);
+        harness.requestProviderPayout(LAB_ID, 10);
+
+        assertEq(harness.getReservationStatus(reservationKey), SETTLED);
+        assertEq(harness.lastRefundAmount(), FIVE_CREDITS);
+        assertEq(harness.creditLotCount(PROVIDER), 128);
+    }
+
     function test_requestProviderPayout_finalizes_accessAuthorized_no_show_after_attestation_grace() public {
         bytes32 reservationKey = keccak256("access-authorized-no-session");
         harness.setExpiredPayoutReservation(reservationKey, LAB_ID, ACCESS_AUTHORIZED, FIVE_CREDITS_U96, 999);
@@ -640,39 +705,11 @@ contract ProviderReceivableAliasesTest is Test {
         assertEq(previewAccruedReceivable, 530_000_000);
     }
 
-    function test_transitionProviderReceivableState_moves_between_lifecycle_buckets() public {
+    function test_transitionProviderReceivableState_rejects_object_bound_invalidations() public {
         harness.setProviderReceivableBucket(LAB_ID, 2, TWELVE_CREDITS);
 
+        vm.expectRevert("Use settlement object");
         harness.transitionProviderReceivableState(LAB_ID, 2, 7, FIVE_CREDITS, bytes32("dispute-001"));
-
-        (
-            uint256 accruedReceivable,
-            uint256 settlementQueued,
-            uint256 invoicedReceivable,
-            uint256 approvedReceivable,
-            uint256 paidReceivable,
-            uint256 reversedReceivable,
-            uint256 disputedReceivable
-        ) = _getLifecycleWithoutTimestamp();
-
-        assertEq(accruedReceivable, 0);
-        assertEq(settlementQueued, SEVEN_CREDITS);
-        assertEq(invoicedReceivable, 0);
-        assertEq(approvedReceivable, 0);
-        assertEq(paidReceivable, 0);
-        assertEq(reversedReceivable, 0);
-        assertEq(disputedReceivable, FIVE_CREDITS);
-
-        (
-            uint256 attestedSessionPayout,
-            uint256 potentialNoShowFee,
-            uint256 pendingGraceReservationCount,
-            uint256 previewAccruedReceivable
-        ) = harness.getLabProviderReceivable(LAB_ID);
-        assertEq(attestedSessionPayout, 0);
-        assertEq(potentialNoShowFee, 0);
-        assertEq(pendingGraceReservationCount, 0);
-        assertEq(previewAccruedReceivable, TWELVE_CREDITS);
     }
 
     function test_transitionProviderReceivableState_reverts_without_claim_for_paid_state() public {
@@ -846,9 +883,73 @@ contract ProviderReceivableAliasesTest is Test {
         assertEq(status, 2);
 
         vm.prank(PROVIDER);
-        vm.expectRevert("Settlement batch already claimed");
+        vm.expectRevert("Settlement batch not claimable");
         harness.submitProviderSettlementClaim(
             keccak256("claim-batch-twice"), LAB_ID, FIVE_CREDITS, batchId, keccak256("invoice-batch-twice")
+        );
+    }
+
+    function test_reversed_batch_cannot_be_claimed_after_new_batch_is_queued() public {
+        bytes32 batchA = _queueBatch(FIVE_CREDITS, keccak256("reversal-batch-a"));
+
+        harness.reverseSettlementBatch(batchA, keccak256("batch-reversal-001"));
+
+        (,, uint256 remainingAmount,,,, uint8 status) = harness.getProviderSettlementBatch(batchA);
+        assertEq(remainingAmount, 0);
+        assertEq(status, 4);
+
+        bytes32 batchB = _queueBatch(FIVE_CREDITS, keccak256("reversal-batch-b"));
+        assertTrue(batchB != batchA);
+
+        vm.prank(PROVIDER);
+        vm.expectRevert("Settlement batch not claimable");
+        harness.submitProviderSettlementClaim(
+            keccak256("reversal-batch-old-claim"), LAB_ID, FIVE_CREDITS, batchA, keccak256("reversal-batch-old-invoice")
+        );
+    }
+
+    function test_disputed_submitted_claim_cannot_be_approved_after_new_claim() public {
+        bytes32 batchA = _queueBatch(FIVE_CREDITS, keccak256("dispute-claim-batch-a"));
+        bytes32 claimA = keccak256("dispute-claim-a");
+
+        vm.prank(PROVIDER);
+        harness.submitProviderSettlementClaim(
+            claimA, LAB_ID, FIVE_CREDITS, batchA, keccak256("dispute-claim-invoice-a")
+        );
+        harness.disputeSettlementClaim(claimA, keccak256("claim-dispute-001"));
+
+        bytes32 batchB = _queueBatch(FIVE_CREDITS, keccak256("dispute-claim-batch-b"));
+        vm.prank(PROVIDER);
+        harness.submitProviderSettlementClaim(
+            keccak256("dispute-claim-b"), LAB_ID, FIVE_CREDITS, batchB, keccak256("dispute-claim-invoice-b")
+        );
+
+        vm.expectRevert("Claim is not submitted");
+        harness.approveProviderSettlementClaim(claimA, keccak256("dispute-claim-approval-old"));
+    }
+
+    function test_reversed_approved_claim_cannot_be_paid_after_new_claim_is_approved() public {
+        bytes32 batchA = _queueBatch(FIVE_CREDITS, keccak256("reverse-approved-batch-a"));
+        bytes32 claimA = keccak256("reverse-approved-claim-a");
+
+        vm.prank(PROVIDER);
+        harness.submitProviderSettlementClaim(
+            claimA, LAB_ID, FIVE_CREDITS, batchA, keccak256("reverse-approved-invoice-a")
+        );
+        harness.approveProviderSettlementClaim(claimA, keccak256("reverse-approved-ref-a"));
+        harness.reverseSettlementClaim(claimA, keccak256("reverse-approved-reversal-001"));
+
+        bytes32 batchB = _queueBatch(FIVE_CREDITS, keccak256("reverse-approved-batch-b"));
+        bytes32 claimB = keccak256("reverse-approved-claim-b");
+        vm.prank(PROVIDER);
+        harness.submitProviderSettlementClaim(
+            claimB, LAB_ID, FIVE_CREDITS, batchB, keccak256("reverse-approved-invoice-b")
+        );
+        harness.approveProviderSettlementClaim(claimB, keccak256("reverse-approved-ref-b"));
+
+        vm.expectRevert("Claim is not approved");
+        harness.recordProviderSettlementClaimPayment(
+            claimA, keccak256("reverse-approved-payment-old"), keccak256("reverse-approved-attestation-old")
         );
     }
 

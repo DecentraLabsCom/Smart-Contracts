@@ -238,9 +238,15 @@
         "getProviderSettlementBatch(bytes32)",
         "getProviderSettlementClaim(bytes32)",
         "getProviderSettlementClaimApprovalReferenceHash(bytes32)",
+        "getProviderSettlementBatchResolution(bytes32)",
+        "getProviderSettlementClaimResolution(bytes32)",
         "submitProviderSettlementClaim(bytes32,uint256,uint256,bytes32,bytes32)",
         "approveProviderSettlementClaim(bytes32,bytes32)",
         "recordProviderSettlementClaimPayment(bytes32,bytes32,bytes32)",
+        "disputeSettlementBatch(bytes32,bytes32)",
+        "reverseSettlementBatch(bytes32,bytes32)",
+        "disputeSettlementClaim(bytes32,bytes32)",
+        "reverseSettlementClaim(bytes32,bytes32)",
         "requestProviderPayout(uint256,uint256)",
         "transitionProviderReceivableState(uint256,uint8,uint8,uint256,bytes32)"
       ]

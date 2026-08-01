@@ -286,17 +286,13 @@ contract ProviderReceivableHardeningTest is Test {
     //  7. SETTLEMENT_OPERATOR_ROLE grants access
     // =====================================================================
 
-    function test_settlementOperatorRole_allows_transition() public {
+    function test_settlementOperatorRole_cannot_use_generic_invalidation() public {
         h.setReceivableBucket(LAB, 2, TEN_CREDITS);
         h.grantSettlementOperatorRole(SETTLER);
 
         vm.prank(SETTLER);
+        vm.expectRevert("Use settlement object");
         h.transitionProviderReceivableState(LAB, 2, 7, FIVE_CREDITS, bytes32("dispute-001"));
-
-        (, uint256 queued, uint256 invoiced,,,, uint256 disputed,) = h.getLabProviderReceivableLifecycle(LAB);
-        assertEq(queued, FIVE_CREDITS);
-        assertEq(invoiced, 0);
-        assertEq(disputed, FIVE_CREDITS);
     }
 
     function test_settlementOperatorRole_unauthorized_blocked() public {

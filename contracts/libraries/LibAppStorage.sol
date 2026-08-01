@@ -131,6 +131,9 @@ struct ProviderSettlementClaim {
     uint64 paidAt;
     uint8 status;
     bytes32 approvalReferenceHash;
+    bytes32 resolutionReferenceHash;
+    address resolutionActor;
+    uint64 resolutionAt;
 }
 
 /// @notice Canonical provider receivable batch created when accrued value is
@@ -143,6 +146,9 @@ struct ProviderSettlementBatch {
     uint64 createdAt;
     uint64 claimedAt;
     uint8 status;
+    bytes32 resolutionReferenceHash;
+    address resolutionActor;
+    uint64 resolutionAt;
 }
 
 struct RecentReservationBuffer {
@@ -339,6 +345,7 @@ struct AppStorage {
     // Settlement reference indexes
     mapping(bytes32 invoiceReferenceHash => bool used) providerSettlementInvoiceReferenceUsed;
     mapping(bytes32 approvalReferenceHash => bool used) providerSettlementApprovalReferenceUsed;
+    mapping(bytes32 resolutionReferenceHash => bool used) providerSettlementResolutionReferenceUsed;
 
     // Reservation generation identity. The public reservation key continues
     // to identify the currently occupied slot, while every accepted request

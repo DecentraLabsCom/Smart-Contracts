@@ -575,6 +575,8 @@ contract ProviderSettlementFacet is ReentrancyGuardTransient {
         uint8 targetStatus,
         bytes32 referenceHash
     ) internal {
+        // Resolution timestamps are audit fields; authorization is state-based.
+        // slither-disable-start timestamp
         require(referenceHash != bytes32(0), "Reference required");
 
         AppStorage storage s = _s();
@@ -620,6 +622,7 @@ contract ProviderSettlementFacet is ReentrancyGuardTransient {
         emit ProviderSettlementBatchInvalidated(
             batchId, batch.labId, amount, fromStatus, targetStatus, referenceHash, msg.sender, timestamp
         );
+        // slither-disable-end timestamp
     }
 
     function _invalidateSettlementClaim(
@@ -627,13 +630,15 @@ contract ProviderSettlementFacet is ReentrancyGuardTransient {
         uint8 targetStatus,
         bytes32 referenceHash
     ) internal {
+        // Resolution timestamps are audit fields; authorization is state-based.
+        // slither-disable-start timestamp
         require(referenceHash != bytes32(0), "Reference required");
 
         AppStorage storage s = _s();
         ProviderSettlementClaim storage claim = s.providerSettlementClaims[claimId];
         require(claim.submittedBy != address(0), "Settlement claim not found");
 
-        uint8 fromBucket;
+        uint8 fromBucket = _RECEIVABLE_INVOICED;
         if (claim.status == _CLAIM_SUBMITTED) {
             fromBucket = _RECEIVABLE_INVOICED;
         } else if (claim.status == _CLAIM_APPROVED) {
@@ -691,6 +696,7 @@ contract ProviderSettlementFacet is ReentrancyGuardTransient {
             timestamp
         );
         emit ProviderSettlementScopeReferenced(claim.batchId, claim.labId, claim.amount, batch.scopeRoot, claimId);
+        // slither-disable-end timestamp
     }
 
     /// @dev Traverses payout heap with pruning under a strict invariant:
@@ -761,6 +767,10 @@ contract ProviderSettlementFacet is ReentrancyGuardTransient {
             reservation.labId != labId || (reservation.end != 0 && reservation.end != candidate.end)
                 || (reservation.status != _CONFIRMED && reservation.status != _ACCESS_AUTHORIZED)
         ) {
+            return (0, 0, 0);
+        }
+
+        if (s.emergencyCheckInReviews[candidate.key].settlementExcluded) {
             return (0, 0, 0);
         }
 

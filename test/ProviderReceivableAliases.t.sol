@@ -596,8 +596,7 @@ contract ProviderReceivableAliasesTest is Test {
     function test_transitionProviderReceivableState_moves_between_lifecycle_buckets() public {
         harness.setProviderReceivableBucket(LAB_ID, 2, TWELVE_CREDITS);
 
-        vm.prank(PROVIDER);
-        harness.transitionProviderReceivableState(LAB_ID, 2, 3, FIVE_CREDITS, bytes32("invoice-001"));
+        harness.transitionProviderReceivableState(LAB_ID, 2, 7, FIVE_CREDITS, bytes32("dispute-001"));
 
         (
             uint256 accruedReceivable,
@@ -611,11 +610,11 @@ contract ProviderReceivableAliasesTest is Test {
 
         assertEq(accruedReceivable, 0);
         assertEq(settlementQueued, SEVEN_CREDITS);
-        assertEq(invoicedReceivable, FIVE_CREDITS);
+        assertEq(invoicedReceivable, 0);
         assertEq(approvedReceivable, 0);
         assertEq(paidReceivable, 0);
         assertEq(reversedReceivable, 0);
-        assertEq(disputedReceivable, 0);
+        assertEq(disputedReceivable, FIVE_CREDITS);
 
         (
             uint256 attestedSessionPayout,
@@ -629,11 +628,10 @@ contract ProviderReceivableAliasesTest is Test {
         assertEq(previewAccruedReceivable, TWELVE_CREDITS);
     }
 
-    function test_transitionProviderReceivableState_reverts_for_invalid_transition() public {
+    function test_transitionProviderReceivableState_reverts_without_claim_for_paid_state() public {
         harness.setProviderReceivableBucket(LAB_ID, 2, TEN_CREDITS);
 
-        vm.prank(PROVIDER);
-        vm.expectRevert("Invalid transition");
+        vm.expectRevert("Claim required");
         harness.transitionProviderReceivableState(LAB_ID, 2, 5, ONE_CREDIT, bytes32("bad"));
     }
 
@@ -692,6 +690,56 @@ contract ProviderReceivableAliasesTest is Test {
         assertGt(submittedAt, 0);
         assertGe(approvedAt, submittedAt);
         assertGe(paidAt, approvedAt);
+    }
+
+    function test_provider_claim_rejects_reused_invoice_and_approval_references() public {
+        bytes32 firstClaim = keccak256("claim-reference-001");
+        bytes32 secondClaim = keccak256("claim-reference-002");
+        bytes32 firstInvoice = keccak256("invoice-reference-001");
+        bytes32 secondInvoice = keccak256("invoice-reference-002");
+        bytes32 approval = keccak256("approval-reference-001");
+        harness.setProviderReceivableBucket(LAB_ID, 2, TEN_CREDITS);
+
+        vm.prank(PROVIDER);
+        harness.submitProviderSettlementClaim(
+            firstClaim, LAB_ID, FIVE_CREDITS, keccak256("reservations-001"), firstInvoice
+        );
+
+        vm.prank(PROVIDER);
+        vm.expectRevert("Invoice reference already used");
+        harness.submitProviderSettlementClaim(
+            secondClaim, LAB_ID, ONE_CREDIT, keccak256("reservations-002"), firstInvoice
+        );
+
+        vm.prank(PROVIDER);
+        harness.submitProviderSettlementClaim(
+            secondClaim, LAB_ID, ONE_CREDIT, keccak256("reservations-002"), secondInvoice
+        );
+
+        vm.prank(address(this));
+        harness.approveProviderSettlementClaim(firstClaim, approval);
+
+        vm.prank(address(this));
+        vm.expectRevert("Approval reference already used");
+        harness.approveProviderSettlementClaim(secondClaim, approval);
+    }
+
+    function test_transitionProviderReceivableState_requires_claim_for_ordinary_financial_states() public {
+        harness.setProviderReceivableBucket(LAB_ID, 2, ONE_CREDIT);
+        vm.expectRevert("Claim required");
+        harness.transitionProviderReceivableState(LAB_ID, 2, 3, ONE_CREDIT, bytes32("invoice-001"));
+
+        harness.setProviderReceivableBucket(LAB_ID, 3, ONE_CREDIT);
+        vm.expectRevert("Claim required");
+        harness.transitionProviderReceivableState(LAB_ID, 3, 4, ONE_CREDIT, bytes32("approval-001"));
+
+        harness.setProviderReceivableBucket(LAB_ID, 4, ONE_CREDIT);
+        vm.expectRevert("Claim required");
+        harness.transitionProviderReceivableState(LAB_ID, 4, 5, ONE_CREDIT, bytes32("payment-001"));
+
+        harness.setProviderReceivableBucket(LAB_ID, 7, ONE_CREDIT);
+        vm.expectRevert("Claim required");
+        harness.transitionProviderReceivableState(LAB_ID, 7, 4, ONE_CREDIT, bytes32("approval-002"));
     }
 
     function test_transitionProviderReceivableState_reverts_for_unauthorized_caller() public {

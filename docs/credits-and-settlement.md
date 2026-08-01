@@ -65,6 +65,14 @@ with the default-admin role. Institutional booking uses the treasury path from
 the reservation facets; clients should not substitute an arbitrary ledger call
 for reservation confirmation.
 
+The ledger bounds new state growth to 128 physical lots per account. Before an
+append at that bound, spent/zero lots are removed and compatible lots are
+merged when their funding order, expiry and remaining EUR-per-credit basis
+match. `compactCreditLots(account)` is available for explicit maintenance of
+legacy accounts. A capture can create at most 64 source allocations for one
+reservation; a larger legacy refund must use `cancelCreditsBatch`, which
+processes at most 32 allocations and returns a cursor for the next call.
+
 ## Reservation allocations and refunds
 
 When a reservation consumes credits, the contract persists a
@@ -106,7 +114,10 @@ request does not carry this penalty.
 
 Always call `previewInstitutionalBookingCancellation` before presenting a
 confirmation screen. It returns the actual current fee, refund, spending-period
-data, source expiry and allocations, rather than an off-chain estimate.
+data and source expiry, rather than an off-chain estimate. The preview is a
+bounded summary and intentionally returns an empty `allocations` array; query
+the provenance with `getCreditReservationAllocations` in pages (use
+`offset=0, limit=0` when only the allocation count is needed).
 
 ## Provider receivable and claim lifecycle
 
@@ -142,14 +153,21 @@ The receivable read exposes `ACCRUED`, `QUEUED`, `INVOICED`, `APPROVED`, `PAID`,
 `REVERSED` and `DISPUTED` buckets. A settlement claim has a unique non-zero
 `claimId`, a lab, amount, reservation-scope hash and invoice-reference hash.
 Submitting it atomically moves the claimed amount from `QUEUED` to `INVOICED`.
-Approval requires an external reference. Payment requires a non-zero,
-previously unused payment reference plus an attestation hash, then moves the
-claim from `APPROVED` to `PAID`.
+Approval requires a non-zero, previously unused external reference. Invoice
+references are also unique at the contract boundary, so SQL uniqueness cannot
+create a second claim with the same financial identity. Payment requires a
+non-zero, previously unused payment reference plus an attestation hash, then
+moves the claim from `APPROVED` to `PAID`.
 
 Use `getLabProviderReceivableLifecycle` for aggregate amounts and
 `getProviderSettlementClaim` for the audit record. Claim and financial
 transitions are restricted to the current provider/authorized backend, a
 configured settlement operator, or the default admin as defined by the facet.
+The generic `transitionProviderReceivableState` selector is recovery-only for
+the claim lifecycle: it cannot create `INVOICED`, `APPROVED` or `PAID` balance
+states. Ordinary settlement must use the claim selectors; generic recovery may
+move an existing bucket to `DISPUTED` or `REVERSED` with its non-zero audit
+reference.
 
 For the payout preview, `getLabProviderReceivable` returns four separate
 values: provider payout from attested sessions, the potential provider fee

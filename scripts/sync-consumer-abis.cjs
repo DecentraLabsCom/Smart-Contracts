@@ -9,6 +9,7 @@ const source = path.join(rootDir, "abi", "Diamond.json");
 const targets = [
   path.resolve(rootDir, "..", "Marketplace", "src", "contracts", "diamondAbi.json"),
   path.resolve(rootDir, "..", "Lab Gateway", "blockchain-services", "abi", "Diamond.json"),
+  path.resolve(rootDir, "..", "Blockchain-Services", "abi", "Diamond.json"),
 ];
 const checkOnly = process.argv.includes("--check-consumers");
 

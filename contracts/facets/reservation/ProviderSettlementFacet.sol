@@ -15,6 +15,7 @@ import {LibERC721Storage} from "../../libraries/LibERC721Storage.sol";
 import {LibProviderReceivable, SETTLEMENT_OPERATOR_ROLE} from "../../libraries/LibProviderReceivable.sol";
 import {LibInstitutionalReservationSettlement} from "../../libraries/LibInstitutionalReservationSettlement.sol";
 import {LibRevenue} from "../../libraries/LibRevenue.sol";
+import {LibReservationIdentity} from "../../libraries/LibReservationIdentity.sol";
 
 /// @title ProviderSettlementFacet
 /// @author
@@ -188,7 +189,8 @@ contract ProviderSettlementFacet is ReentrancyGuardTransient {
             // Settlement eligibility is intentionally evaluated against chain time.
             // slither-disable-next-line timestamp
             if (candidate.end < currentTime) {
-                Reservation storage reservation = s.reservations[candidate.key];
+                Reservation storage reservation =
+                    s.reservations[LibReservationIdentity.reservationKeyForId(s, candidate.key)];
                 (uint256 attestedSessionPayout, uint256 potentialNoShowFee, uint256 pendingGraceReservations) =
                     _previewPayoutCandidate(s, candidate, reservation, _labId, currentTime);
                 attestedSessionPayoutChunk += attestedSessionPayout;
@@ -249,6 +251,7 @@ contract ProviderSettlementFacet is ReentrancyGuardTransient {
 
         AppStorage storage s = _s();
         require(s.providerSettlementClaims[claimId].submittedBy == address(0), "Claim already exists");
+        require(!s.providerSettlementInvoiceReferenceUsed[invoiceReferenceHash], "Invoice reference already used");
         _requireSettlementOperator(s, labId);
         require(s.providerSettlementQueue[labId] >= amount, "Insufficient queued receivable");
 
@@ -260,6 +263,7 @@ contract ProviderSettlementFacet is ReentrancyGuardTransient {
         claim.submittedBy = msg.sender;
         claim.submittedAt = uint64(block.timestamp);
         claim.status = _CLAIM_SUBMITTED;
+        s.providerSettlementInvoiceReferenceUsed[invoiceReferenceHash] = true;
 
         _decreaseReceivableBucket(s, labId, _RECEIVABLE_QUEUED, amount);
         _increaseReceivableBucket(s, labId, _RECEIVABLE_INVOICED, amount);
@@ -280,8 +284,11 @@ contract ProviderSettlementFacet is ReentrancyGuardTransient {
         AppStorage storage s = _s();
         ProviderSettlementClaim storage claim = s.providerSettlementClaims[claimId];
         require(claim.status == _CLAIM_SUBMITTED, "Claim is not submitted");
+        require(!s.providerSettlementApprovalReferenceUsed[approvalReferenceHash], "Approval reference already used");
         _requireSettlementOperatorForFinancialTransition(s);
 
+        s.providerSettlementApprovalReferenceUsed[approvalReferenceHash] = true;
+        claim.approvalReferenceHash = approvalReferenceHash;
         claim.approvedBy = msg.sender;
         claim.approvedAt = uint64(block.timestamp);
         claim.status = _CLAIM_APPROVED;
@@ -362,6 +369,15 @@ contract ProviderSettlementFacet is ReentrancyGuardTransient {
         );
     }
 
+    /// @notice Returns the approval reference retained with a claim.
+    /// @dev Kept as a separate getter so the original audit getter ABI remains
+    ///      compatible with already generated clients.
+    function getProviderSettlementClaimApprovalReferenceHash(
+        bytes32 claimId
+    ) external view returns (bytes32) {
+        return _s().providerSettlementClaims[claimId].approvalReferenceHash;
+    }
+
     /// @notice Moves provider receivable amount between explicit lifecycle buckets.
     /// @dev Writable only by the lab owner, its configured backend, or protocol admin.
     function transitionProviderReceivableState(
@@ -376,11 +392,18 @@ contract ProviderSettlementFacet is ReentrancyGuardTransient {
 
         AppStorage storage s = _s();
         require(_isSupportedReceivableState(fromState) && _isSupportedReceivableState(toState), "Invalid state");
+
+        if (toState == _RECEIVABLE_INVOICED || toState == _RECEIVABLE_APPROVED || toState == _RECEIVABLE_PAID) {
+            if (toState == _RECEIVABLE_APPROVED || toState == _RECEIVABLE_PAID) {
+                _requireSettlementOperatorForFinancialTransition(s);
+            } else {
+                _requireSettlementOperator(s, _labId);
+            }
+            revert("Claim required");
+        }
+
         require(_isValidReceivableTransition(fromState, toState), "Invalid transition");
-        if (
-            toState == _RECEIVABLE_APPROVED || toState == _RECEIVABLE_PAID || toState == _RECEIVABLE_REVERSED
-                || toState == _RECEIVABLE_DISPUTED
-        ) {
+        if (toState == _RECEIVABLE_REVERSED || toState == _RECEIVABLE_DISPUTED) {
             _requireSettlementOperatorForFinancialTransition(s);
         } else {
             _requireSettlementOperator(s, _labId);
@@ -419,7 +442,7 @@ contract ProviderSettlementFacet is ReentrancyGuardTransient {
             return (0, 0, 0);
         }
 
-        Reservation storage reservation = s.reservations[candidate.key];
+        Reservation storage reservation = s.reservations[LibReservationIdentity.reservationKeyForId(s, candidate.key)];
         (attestedSessionPayout, potentialNoShowFee, pendingGraceReservationCount) =
             _previewPayoutCandidate(s, candidate, reservation, labId, currentTime);
 
@@ -584,17 +607,16 @@ contract ProviderSettlementFacet is ReentrancyGuardTransient {
             return toState == _RECEIVABLE_QUEUED || toState == _RECEIVABLE_DISPUTED || toState == _RECEIVABLE_REVERSED;
         }
         if (fromState == _RECEIVABLE_QUEUED) {
-            return toState == _RECEIVABLE_INVOICED || toState == _RECEIVABLE_APPROVED || toState == _RECEIVABLE_DISPUTED
-                || toState == _RECEIVABLE_REVERSED;
+            return toState == _RECEIVABLE_DISPUTED || toState == _RECEIVABLE_REVERSED;
         }
         if (fromState == _RECEIVABLE_INVOICED) {
-            return toState == _RECEIVABLE_APPROVED || toState == _RECEIVABLE_DISPUTED || toState == _RECEIVABLE_REVERSED;
+            return toState == _RECEIVABLE_DISPUTED || toState == _RECEIVABLE_REVERSED;
         }
         if (fromState == _RECEIVABLE_APPROVED) {
-            return toState == _RECEIVABLE_PAID || toState == _RECEIVABLE_DISPUTED || toState == _RECEIVABLE_REVERSED;
+            return toState == _RECEIVABLE_DISPUTED || toState == _RECEIVABLE_REVERSED;
         }
         if (fromState == _RECEIVABLE_DISPUTED) {
-            return toState == _RECEIVABLE_INVOICED || toState == _RECEIVABLE_APPROVED || toState == _RECEIVABLE_REVERSED;
+            return toState == _RECEIVABLE_REVERSED;
         }
 
         return false;
@@ -715,12 +737,13 @@ contract ProviderSettlementFacet is ReentrancyGuardTransient {
             if (root.end >= currentTime) {
                 return bytes32(0);
             }
-            Reservation storage reservation = s.reservations[root.key];
+            bytes32 reservationKey = LibReservationIdentity.reservationKeyForId(s, root.key);
+            Reservation storage reservation = s.reservations[reservationKey];
             bool isCurrent = reservation.labId == labId && (reservation.end == 0 || reservation.end == root.end);
             if (
                 isCurrent && reservation.status == _ACCESS_AUTHORIZED && !s.reservationSessionStartedRecorded[root.key]
                     && !LibInstitutionalReservationSettlement.isEconomicallyExpired(
-                        s, reservation, root.key, currentTime
+                        s, reservation, reservationKey, currentTime
                     )
             ) {
                 return bytes32(0);
@@ -730,13 +753,13 @@ contract ProviderSettlementFacet is ReentrancyGuardTransient {
             if (
                 isCurrent
                     && (LibInstitutionalReservationSettlement.isProviderPayoutEligible(
-                            s, root.key, reservation, labId, currentTime
+                            s, reservationKey, reservation, labId, currentTime
                         )
                         || LibInstitutionalReservationSettlement.isEconomicallyExpired(
-                            s, reservation, root.key, currentTime
+                            s, reservation, reservationKey, currentTime
                         ))
             ) {
-                return root.key;
+                return reservationKey;
             }
             if (invalidCount > 0) {
                 s.payoutHeapInvalidCount[labId]--;
@@ -811,19 +834,20 @@ contract ProviderSettlementFacet is ReentrancyGuardTransient {
         uint256 writeIndex = 0;
 
         for (uint256 readIndex = 0; readIndex < originalLength; readIndex++) {
-            bytes32 key = heap[readIndex].key;
+            bytes32 reservationId = heap[readIndex].key;
+            bytes32 key = LibReservationIdentity.reservationKeyForId(s, reservationId);
             Reservation storage reservation = s.reservations[key];
 
             if (_isCurrentPayoutCandidate(reservation, heap[readIndex], labId)) {
                 if (writeIndex != readIndex) {
                     heap[writeIndex] = heap[readIndex];
                 }
-                s.payoutHeapContains[key] = true;
-                s.payoutHeapIndexPlusOne[key] = writeIndex + 1;
+                s.payoutHeapContains[reservationId] = true;
+                s.payoutHeapIndexPlusOne[reservationId] = writeIndex + 1;
                 writeIndex++;
             } else {
-                s.payoutHeapContains[key] = false;
-                s.payoutHeapIndexPlusOne[key] = 0;
+                s.payoutHeapContains[reservationId] = false;
+                s.payoutHeapIndexPlusOne[reservationId] = 0;
             }
         }
 

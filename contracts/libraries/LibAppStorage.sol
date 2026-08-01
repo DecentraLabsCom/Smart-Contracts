@@ -110,6 +110,7 @@ struct ReservationSession {
 
 struct PayoutCandidate {
     uint32 end;
+    // Reservation generation id. Legacy entries use the pre-generation key.
     bytes32 key;
 }
 
@@ -129,15 +130,18 @@ struct ProviderSettlementClaim {
     uint64 approvedAt;
     uint64 paidAt;
     uint8 status;
+    bytes32 approvalReferenceHash;
 }
 
 struct RecentReservationBuffer {
+    // Reservation generation ids. Legacy entries use the pre-generation key.
     bytes32[50] keys;
     uint32[50] starts;
     uint8 size;
 }
 
 struct PastReservationBuffer {
+    // Reservation generation ids. Legacy entries use the pre-generation key.
     bytes32[50] keys;
     uint32[50] ends;
     uint8 size;
@@ -145,6 +149,7 @@ struct PastReservationBuffer {
 
 struct UserActiveReservation {
     uint32 start;
+    // Reservation generation id. Legacy entries use the pre-generation key.
     bytes32 key;
 }
 
@@ -199,8 +204,6 @@ struct InstitutionalUserSpending {
 
 /// @dev Shared application state for the diamond. Members are grouped by
 ///      domain so related state can be reviewed and evolved together.
-///      Once a deployment is live, preserve this order when upgrading it and
-///      append new state at the end of the struct.
 /// @custom:storage-layout This struct defines the storage layout for the diamond contract
 struct AppStorage {
     // Access control
@@ -236,7 +239,7 @@ struct AppStorage {
     mapping(bytes32 => bool) activeReservationHeapContains;
     mapping(uint256 => uint256) labActiveReservationCount;
     mapping(address => uint256) providerActiveReservationCount;
-    mapping(bytes32 reservationKey => bytes32 pucHash) reservationPucHash;
+    mapping(bytes32 reservationId => bytes32 pucHash) reservationPucHash;
 
     // Provider settlement and payout processing
     mapping(uint256 => PayoutCandidate[]) payoutHeaps;
@@ -283,8 +286,8 @@ struct AppStorage {
     mapping(address account => CreditMovement[]) creditMovements;
 
     // Provider/gateway session-start attestations
-    mapping(bytes32 reservationKey => ReservationSession session) reservationSessionStarted;
-    mapping(bytes32 reservationKey => bool recorded) reservationSessionStartedRecorded;
+    mapping(bytes32 reservationId => ReservationSession session) reservationSessionStarted;
+    mapping(bytes32 reservationId => bool recorded) reservationSessionStartedRecorded;
     mapping(bytes32 nonce => bool used) sessionStartedNonceUsed;
     mapping(bytes32 observationKey => bool used) sessionStartedObservationUsed;
 
@@ -294,11 +297,11 @@ struct AppStorage {
 
     // Spending period captured when a reservation charge is recorded. The value
     // is periodStart + 1 so zero remains the unset value for legacy reservations.
-    mapping(bytes32 reservationKey => uint256 periodStartPlusOne) institutionalReservationPeriodStartPlusOne;
+    mapping(bytes32 reservationId => uint256 periodStartPlusOne) institutionalReservationPeriodStartPlusOne;
 
     // Payout heap index. Zero means the candidate is not indexed (including legacy
     // entries); indexed entries store their zero-based array index plus one.
-    mapping(bytes32 reservationKey => uint256 indexPlusOne) payoutHeapIndexPlusOne;
+    mapping(bytes32 reservationId => uint256 indexPlusOne) payoutHeapIndexPlusOne;
 
     // Remaining EUR gross basis per lot. Kept separately so the existing CreditLot
     // layout remains stable while sequential consumption can preserve exact
@@ -306,7 +309,7 @@ struct AppStorage {
     mapping(uint256 lotId => uint256 remainingEurGrossAmount) creditLotRemainingEurGrossAmount;
 
     // Immutable source allocations recorded when a reservation consumes credits.
-    mapping(address account => mapping(bytes32 reservationRef => CreditReservationAllocation[]))
+    mapping(address account => mapping(bytes32 reservationId => CreditReservationAllocation[]))
         creditReservationAllocations;
 
     // Independent stop-selling switch. It defaults to false so legacy listed
@@ -314,13 +317,29 @@ struct AppStorage {
     // new intake; tokenStatus remains the public listing state.
     mapping(uint256 labId => bool) labReservationIntakeStopped;
 
-    // Individual settlement claims. Appended so existing Diamond storage slots
-    // remain stable for already deployed contracts.
+    // Individual settlement claims.
     mapping(bytes32 claimId => ProviderSettlementClaim claim) providerSettlementClaims;
     mapping(bytes32 paymentReferenceHash => bool used) providerSettlementPaymentReferenceUsed;
 
     // FMU concurrency index.
     mapping(uint256 labId => EnumerableSet.Bytes32Set) activeConcurrentReservationKeysByLab;
+
+    // Settlement reference indexes
+    mapping(bytes32 invoiceReferenceHash => bool used) providerSettlementInvoiceReferenceUsed;
+    mapping(bytes32 approvalReferenceHash => bool used) providerSettlementApprovalReferenceUsed;
+
+    // Reservation generation identity. The public reservation key continues
+    // to identify the currently occupied slot, while every accepted request
+    // receives a unique immutable id for economic and historical sidecars.
+    uint256 reservationIdNext;
+    mapping(bytes32 slotKey => bytes32 reservationId) reservationIdByKey;
+    mapping(bytes32 reservationId => bytes32 slotKey) reservationKeyById;
+    mapping(bytes32 reservationId => Reservation) reservationHistoryById;
+
+    // Cursor used by batched refunds for legacy reservations whose allocation
+    // list predates the allocation cap.
+    mapping(address account => mapping(bytes32 reservationRef => uint256 allocationIndex))
+        creditReservationRefundCursor;
 }
 
 /// @notice Provider participation status within the limited service network

@@ -559,6 +559,25 @@ contract ProviderReceivableAliasesTest is Test {
         assertEq(harness.lastRefundAmount(), 37_500_000);
     }
 
+    function test_requestProviderPayout_skips_unattested_grace_root_for_attested_candidate() public {
+        bytes32 unattestedKey = keccak256("unattested-root-skip");
+        bytes32 attestedKey = keccak256("attested-next-skip");
+        harness.setExpiredPayoutReservation(unattestedKey, LAB_ID, ACCESS_AUTHORIZED, FIVE_CREDITS_U96, 998);
+        harness.setExpiredPayoutReservation(attestedKey, LAB_ID, ACCESS_AUTHORIZED, FIVE_CREDITS_U96, 999);
+        harness.markSessionStartedForTest(attestedKey);
+
+        vm.warp(1000);
+        vm.prank(PROVIDER);
+        harness.requestProviderPayout(LAB_ID, 10);
+
+        (uint256 accruedReceivable, uint256 settlementQueued,,,,,) = _getLifecycleWithoutTimestamp();
+        assertEq(accruedReceivable, 0);
+        assertEq(settlementQueued, FIVE_CREDITS);
+        assertEq(harness.getReservationStatus(unattestedKey), ACCESS_AUTHORIZED);
+        assertEq(harness.getReservationStatus(attestedKey), SETTLED);
+        assertEq(harness.payoutHeapLength(LAB_ID), 1);
+    }
+
     function test_requestProviderPayout_rejects_settled_reservation() public {
         bytes32 reservationKey = keccak256("settled-status");
         harness.setExpiredPayoutReservation(reservationKey, LAB_ID, SETTLED, FIVE_CREDITS_U96, 999);

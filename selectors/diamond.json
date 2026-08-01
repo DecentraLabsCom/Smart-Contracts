@@ -308,7 +308,9 @@
       "name": "ReservationCheckInFacet",
       "target": "contracts/facets/reservation/ReservationCheckInFacet.sol:ReservationCheckInFacet",
       "functions": [
-        "checkInReservation(bytes32)",
+        "emergencyCheckIn(bytes32,uint8)",
+        "getEmergencyCheckInReview(bytes32)",
+        "reviewEmergencyCheckIn(bytes32)",
         "checkInReservationWithSignature(bytes32,address,bytes32,uint64,bytes)"
       ]
     },
@@ -379,6 +381,7 @@
     "grantInstitutionRole(address,string)",
     "getLabProviders()",
     "setLabOwnerPucHash(uint256,bytes32)",
-    "institutionalReservationRequest(address,bytes32,uint256,uint32,uint32)"
+    "institutionalReservationRequest(address,bytes32,uint256,uint32,uint32)",
+    "checkInReservation(bytes32)"
   ]
 }

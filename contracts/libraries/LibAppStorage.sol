@@ -108,6 +108,18 @@ struct ReservationSession {
     bytes32 clientProofHash;
 }
 
+/// @notice Audit record for an emergency access authorization.
+/// @dev Emergency check-ins remain excluded from provider settlement until an
+///      explicit governance review releases the reservation.
+struct EmergencyCheckInReview {
+    bool settlementExcluded;
+    uint8 reasonCode;
+    address executor;
+    uint64 checkedInAt;
+    address reviewer;
+    uint64 reviewedAt;
+}
+
 struct PayoutCandidate {
     uint32 end;
     // Reservation generation id. Legacy entries use the pre-generation key.
@@ -371,6 +383,10 @@ struct AppStorage {
     uint256 providerSettlementBatchNextNonce;
     mapping(bytes32 batchId => ProviderSettlementBatch batch) providerSettlementBatches;
     mapping(uint256 labId => bytes32 batchId) providerSettlementLatestBatchId;
+
+    // Emergency check-ins require governance review before they can affect
+    // provider settlement. Keyed by immutable reservation generation.
+    mapping(bytes32 reservationId => EmergencyCheckInReview review) emergencyCheckInReviews;
 }
 
 /// @notice Provider participation status within the limited service network

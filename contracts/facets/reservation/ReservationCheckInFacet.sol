@@ -2,8 +2,8 @@
 pragma solidity ^0.8.31;
 
 import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
-import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
-import {LibAppStorage, AppStorage, Reservation} from "../../libraries/LibAppStorage.sol";
+import {AppStorage, EmergencyCheckInReview, LibAppStorage, Reservation} from "../../libraries/LibAppStorage.sol";
+import {LibDiamond} from "../../libraries/LibDiamond.sol";
 import {LibReservationIdentity} from "../../libraries/LibReservationIdentity.sol";
 
 /// @title ReservationCheckInFacet
@@ -11,8 +11,6 @@ import {LibReservationIdentity} from "../../libraries/LibReservationIdentity.sol
 /// @dev _ACCESS_AUTHORIZED means AccessAuthorized, not proof that the remote session started.
 ///      For external labs, the provider backend still issues the technical JWT/ticket separately.
 contract ReservationCheckInFacet {
-    using EnumerableSet for EnumerableSet.AddressSet;
-
     uint8 internal constant _CONFIRMED = 1;
     uint8 internal constant _ACCESS_AUTHORIZED = 2;
 
@@ -30,37 +28,115 @@ contract ReservationCheckInFacet {
         bytes32 indexed reservationId, bytes32 indexed reservationKey, uint256 indexed labId, address checker
     );
 
-    modifier onlyDefaultAdminRole() {
-        _onlyDefaultAdminRole();
-        _;
-    }
+    /// @notice Emitted for the governed emergency access-authorization path.
+    event EmergencyCheckIn(
+        bytes32 indexed reservationId,
+        bytes32 indexed reservationKey,
+        uint256 indexed labId,
+        uint8 reasonCode,
+        address executor,
+        uint64 timestamp
+    );
 
-    function _onlyDefaultAdminRole() internal view {
-        AppStorage storage s = LibAppStorage.diamondStorage();
-        if (!s.roleMembers[s.DEFAULT_ADMIN_ROLE].contains(msg.sender)) {
-            revert("Only default admin");
-        }
-    }
+    /// @notice Operational alert emitted whenever emergency authorization puts
+    /// a reservation on settlement hold.
+    event EmergencyCheckInSettlementReviewRequired(
+        bytes32 indexed reservationId,
+        bytes32 indexed reservationKey,
+        uint256 indexed labId,
+        uint8 reasonCode,
+        address executor,
+        uint64 timestamp
+    );
 
-    /// @notice Administrative access authorization for an in-window booking.
-    /// @dev This is an emergency/operator override. It requires only
-    ///      DEFAULT_ADMIN_ROLE and therefore does not prove an institutional
-    ///      signature or WebAuthn consent. The normal consumer flow uses
-    ///      checkInReservationWithSignature.
-    function checkInReservation(
-        bytes32 reservationKey
-    ) external onlyDefaultAdminRole {
+    /// @notice Emitted when governance explicitly releases an emergency check-in.
+    event EmergencyCheckInSettlementReviewed(
+        bytes32 indexed reservationId,
+        bytes32 indexed reservationKey,
+        uint256 indexed labId,
+        address reviewer,
+        uint64 timestamp
+    );
+
+    /// @notice Governed emergency access authorization for an in-window booking.
+    /// @dev The Diamond owner must be a contract controlled by a multisig or
+    ///      timelock. Emergency authorization is never emitted as a normal
+    ///      check-in event and cannot enter settlement until reviewed.
+    function emergencyCheckIn(
+        bytes32 reservationKey,
+        uint8 reasonCode
+    ) external {
+        _onlyEmergencyAuthority();
+        if (reasonCode == 0) revert("Emergency reason required");
+
         AppStorage storage s = LibAppStorage.diamondStorage();
         Reservation storage reservation = s.reservations[reservationKey];
         _validateReservationWindow(reservation);
+
+        bytes32 reservationId = LibReservationIdentity.currentReservationId(s, reservationKey);
         reservation.status = _ACCESS_AUTHORIZED;
         LibReservationIdentity.snapshotCurrentReservation(s, reservationKey);
-        emit ReservationCheckedIn(reservationKey, reservation.labId, msg.sender);
-        emit ReservationCheckedInByGeneration(
-            LibReservationIdentity.currentReservationId(s, reservationKey),
-            reservationKey,
-            reservation.labId,
-            msg.sender
+        uint64 timestamp = uint64(block.timestamp);
+        s.emergencyCheckInReviews[reservationId] = EmergencyCheckInReview({
+            settlementExcluded: true,
+            reasonCode: reasonCode,
+            executor: msg.sender,
+            checkedInAt: timestamp,
+            reviewer: address(0),
+            reviewedAt: 0
+        });
+
+        emit EmergencyCheckIn(reservationId, reservationKey, reservation.labId, reasonCode, msg.sender, timestamp);
+        emit EmergencyCheckInSettlementReviewRequired(
+            reservationId, reservationKey, reservation.labId, reasonCode, msg.sender, timestamp
+        );
+    }
+
+    /// @notice Releases an emergency check-in from its settlement hold after review.
+    /// @dev The same multisig/timelock authority must explicitly approve the release.
+    function reviewEmergencyCheckIn(
+        bytes32 reservationKey
+    ) external {
+        _onlyEmergencyAuthority();
+
+        AppStorage storage s = LibAppStorage.diamondStorage();
+        bytes32 reservationId = LibReservationIdentity.currentReservationId(s, reservationKey);
+        EmergencyCheckInReview storage review = s.emergencyCheckInReviews[reservationId];
+        if (!review.settlementExcluded) revert("Emergency review not pending");
+
+        review.settlementExcluded = false;
+        review.reviewer = msg.sender;
+        review.reviewedAt = uint64(block.timestamp);
+        emit EmergencyCheckInSettlementReviewed(
+            reservationId, reservationKey, s.reservations[reservationKey].labId, msg.sender, review.reviewedAt
+        );
+    }
+
+    /// @notice Returns the governance review state for the current reservation generation.
+    function getEmergencyCheckInReview(
+        bytes32 reservationKey
+    )
+        external
+        view
+        returns (
+            bool settlementExcluded,
+            uint8 reasonCode,
+            address executor,
+            uint64 checkedInAt,
+            address reviewer,
+            uint64 reviewedAt
+        )
+    {
+        AppStorage storage s = LibAppStorage.diamondStorage();
+        EmergencyCheckInReview storage review =
+            s.emergencyCheckInReviews[LibReservationIdentity.currentReservationId(s, reservationKey)];
+        return (
+            review.settlementExcluded,
+            review.reasonCode,
+            review.executor,
+            review.checkedInAt,
+            review.reviewer,
+            review.reviewedAt
         );
     }
 
@@ -107,6 +183,17 @@ contract ReservationCheckInFacet {
         // Check-in is intentionally bounded by chain time.
         // slither-disable-next-line timestamp
         if (nowTs < reservation.start || nowTs > reservation.end) revert("Outside reservation window");
+    }
+
+    function _onlyEmergencyAuthority() private view {
+        if (msg.sender != LibDiamond.contractOwner()) revert("Emergency authority required");
+
+        uint256 codeSize;
+        address sender = msg.sender;
+        assembly {
+            codeSize := extcodesize(sender)
+        }
+        if (codeSize == 0) revert("Emergency authority must be multisig or timelock");
     }
 
     function _validateTimestamp(

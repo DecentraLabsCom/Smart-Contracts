@@ -104,6 +104,7 @@ library LibHeap {
             if (
                 isCurrent && candidate.end < currentTime && reservation.status == _ACCESS_AUTHORIZED
                     && !s.reservationSessionStartedRecorded[candidate.key]
+                    && !s.emergencyCheckInReviews[candidate.key].settlementExcluded
                     && LibReservationConfig.isWithinSessionAttestationGrace(reservation.end, currentTime)
             ) {
                 pendingGraceEncountered = true;
@@ -151,6 +152,7 @@ library LibHeap {
         if (candidate.end >= currentTime) return false;
         if (reservation.status == _CONFIRMED) return true;
         if (reservation.status != _ACCESS_AUTHORIZED) return false;
+        if (s.emergencyCheckInReviews[candidate.key].settlementExcluded) return false;
         if (s.reservationSessionStartedRecorded[candidate.key]) return true;
         return !LibReservationConfig.isWithinSessionAttestationGrace(reservation.end, currentTime);
     }

@@ -42,6 +42,9 @@ library LibInstitutionalReservationSettlement {
         uint256 currentTime
     ) internal view returns (bool) {
         bytes32 reservationId = LibReservationIdentity.currentReservationId(s, key);
+        if (s.emergencyCheckInReviews[reservationId].settlementExcluded) {
+            return false;
+        }
         if (reservation.status == _CONFIRMED) {
             return reservation.end < currentTime;
         }
@@ -66,6 +69,7 @@ library LibInstitutionalReservationSettlement {
     ) internal view returns (bool) {
         bytes32 reservationId = LibReservationIdentity.currentReservationId(s, key);
         return reservation.labId == labId && reservation.status == _ACCESS_AUTHORIZED
+            && !s.emergencyCheckInReviews[reservationId].settlementExcluded
             && s.reservationSessionStartedRecorded[reservationId] && reservation.end < currentTime;
     }
 

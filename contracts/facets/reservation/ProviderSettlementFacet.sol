@@ -1036,10 +1036,10 @@ contract ProviderSettlementFacet is ReentrancyGuardTransient {
         uint256 labId
     ) internal returns (bool) {
         uint256 currentTime = block.timestamp;
-        if (LibInstitutionalReservationSettlement.isProviderPayoutEligible(s, key, reservation, labId, currentTime)) {
-            return LibInstitutionalReservationSettlement.finalizeProviderPayoutReservation(
+        if (LibInstitutionalReservationSettlement.finalizeProviderPayoutReservation(
                 s, key, reservation, labId, currentTime
-            );
+            )) {
+            return true;
         }
         return LibInstitutionalReservationSettlement.finalizeExpiredReservation(s, key, reservation, labId, currentTime);
     }

@@ -57,6 +57,27 @@ network's `*-latest.json` snapshot after a successful deployment.
    preserve the exact output artifact.
 6. Update Marketplace and backend ABI/address configuration together.
 
+For the retired direct institutional reservation route, the intended cut is a
+single removal of selector `0xc2cfb850`, the selector for
+`institutionalReservationRequest(address,bytes32,uint256,uint32,uint32)`.
+After the manifest and ABI changes, inspect and simulate the targeted cut:
+
+```powershell
+node scripts/remove-institutional-reservation-selector.cjs --simulate
+```
+
+Review that the helper targets only `0xc2cfb850`, then broadcast it with the
+Diamond owner:
+
+```powershell
+node scripts/remove-institutional-reservation-selector.cjs --broadcast
+```
+
+Do not use a broad selector-reconciliation cut to remove this route when other
+pending upgrades are present. Do not deploy the backend release or replace the
+pinned deployment manifest until the targeted cut is mined and the loupe
+confirms that the selector maps to the zero address.
+
 Reservation authorization is implemented in the linked
 `LibInstitutionalReservationConfirmation` and `LibReservationConfirmation`
 libraries as well as their facets. If either library or its facet changes,

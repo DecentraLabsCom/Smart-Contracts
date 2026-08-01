@@ -265,11 +265,6 @@
       ]
     },
     {
-      "name": "InstitutionalReservationRequestFacet",
-      "target": "contracts/facets/reservation/institutional/InstitutionalReservationRequestFacet.sol:InstitutionalReservationRequestFacet",
-      "functions": ["institutionalReservationRequest(address,bytes32,uint256,uint32,uint32)"]
-    },
-    {
       "name": "InstitutionalReservationConfirmationFacet",
       "target": "contracts/facets/reservation/institutional/InstitutionalReservationConfirmationFacet.sol:InstitutionalReservationConfirmationFacet",
       "functions": ["confirmInstitutionalReservationRequestWithPucHash(address,bytes32,bytes32)"]
@@ -383,6 +378,7 @@
     "renounceRole(bytes32,address)",
     "grantInstitutionRole(address,string)",
     "getLabProviders()",
-    "setLabOwnerPucHash(uint256,bytes32)"
+    "setLabOwnerPucHash(uint256,bytes32)",
+    "institutionalReservationRequest(address,bytes32,uint256,uint32,uint32)"
   ]
 }

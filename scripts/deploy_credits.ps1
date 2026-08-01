@@ -408,7 +408,6 @@ $facetPlan = @(
     # Institutional reservations
     @{ Target = "contracts/facets/reservation/institutional/InstitutionalReservationRequestValidationFacet.sol:InstitutionalReservationRequestValidationFacet"; NeedsLib = $true; Libs = $libLinksInstValidation },
     @{ Target = "contracts/facets/reservation/institutional/InstitutionalReservationRequestCreationFacet.sol:InstitutionalReservationRequestCreationFacet"; NeedsLib = $true; Libs = $libLinksReservation },
-    @{ Target = "contracts/facets/reservation/institutional/InstitutionalReservationRequestFacet.sol:InstitutionalReservationRequestFacet"; NeedsLib = $false },
     @{ Target = "contracts/facets/reservation/institutional/InstitutionalReservationConfirmationFacet.sol:InstitutionalReservationConfirmationFacet"; NeedsLib = $true; Libs = $libLinksInstConfirm },
     @{ Target = "contracts/facets/reservation/institutional/InstitutionalReservationCancellationFacet.sol:InstitutionalReservationCancellationFacet"; NeedsLib = $true; Libs = $libLinksReservation },
     @{ Target = "contracts/facets/reservation/institutional/InstitutionalReservationQueryFacet.sol:InstitutionalReservationQueryFacet"; NeedsLib = $true; Libs = $libLinksReservation },
@@ -668,7 +667,6 @@ $deployment = [ordered]@{
         ProviderSettlementFacet = $resumeState.facets["contracts/facets/reservation/ProviderSettlementFacet.sol:ProviderSettlementFacet"]
         InstitutionalReservationRequestValidationFacet = $resumeState.facets["contracts/facets/reservation/institutional/InstitutionalReservationRequestValidationFacet.sol:InstitutionalReservationRequestValidationFacet"]
         InstitutionalReservationRequestCreationFacet = $resumeState.facets["contracts/facets/reservation/institutional/InstitutionalReservationRequestCreationFacet.sol:InstitutionalReservationRequestCreationFacet"]
-        InstitutionalReservationRequestFacet = $resumeState.facets["contracts/facets/reservation/institutional/InstitutionalReservationRequestFacet.sol:InstitutionalReservationRequestFacet"]
         InstitutionalReservationConfirmationFacet = $resumeState.facets["contracts/facets/reservation/institutional/InstitutionalReservationConfirmationFacet.sol:InstitutionalReservationConfirmationFacet"]
         InstitutionalReservationCancellationFacet = $resumeState.facets["contracts/facets/reservation/institutional/InstitutionalReservationCancellationFacet.sol:InstitutionalReservationCancellationFacet"]
         InstitutionalReservationQueryFacet = $resumeState.facets["contracts/facets/reservation/institutional/InstitutionalReservationQueryFacet.sol:InstitutionalReservationQueryFacet"]

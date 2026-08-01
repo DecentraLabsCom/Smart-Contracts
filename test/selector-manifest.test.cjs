@@ -43,6 +43,8 @@ test("unsupported wallet, credit, migration, and generic role functions are forb
     "grantInstitutionRole(address,string)",
     "getLabProviders()",
     "setLabOwnerPucHash(uint256,bytes32)",
+    "institutionalReservationRequest(address,bytes32,uint256,uint32,uint32)",
+    "checkInReservation(bytes32)",
   ];
 
   for (const signature of expectedForbidden) {

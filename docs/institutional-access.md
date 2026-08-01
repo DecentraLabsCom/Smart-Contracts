@@ -12,7 +12,7 @@ sequenceDiagram
     participant D as Diamond
     participant G as Provider gateway
     I->>D: Confirmed reservation
-    I->>D: checkInReservation or signed check-in
+    I->>D: emergencyCheckIn or signed check-in
     D-->>I: ACCESS_AUTHORIZED
     G->>G: Open off-chain session
     G->>D: markSessionStarted(provider signature)
@@ -27,8 +27,8 @@ the evidence.
 ## Check-in: authorization
 
 `ReservationCheckInFacet` moves a reservation from `CONFIRMED` to
-`ACCESS_AUTHORIZED` only inside its reservation window. The default admin can
-make the direct call. The signature path accepts an EIP-712 check-in signed by:
+`ACCESS_AUTHORIZED` only inside its reservation window. The normal signature
+path accepts an EIP-712 check-in signed by:
 
 - the renter for a non-institutional record; or
 - the payer institution or its authorized backend for an institutional record.
@@ -36,6 +36,14 @@ make the direct call. The signature path accepts an EIP-712 check-in signed by:
 The signature binds signer, reservation key, PUC hash, chain ID and Diamond
 address. Its timestamp must not be in the future or more than five minutes old.
 The gateway still performs the technical access flow independently.
+
+The exceptional `emergencyCheckIn(bytes32,uint8)` selector is not a default-admin
+operation. It is callable only by the Diamond owner when that owner is a contract
+address, so production governance must be an approved multisig or timelock. A
+non-zero reason code is mandatory. The operation emits `EmergencyCheckIn` and
+`EmergencyCheckInSettlementReviewRequired`; it does not emit the normal
+`ReservationCheckedIn` events. The reservation generation is excluded from all
+provider settlement paths until governance calls `reviewEmergencyCheckIn`.
 
 ### Trust boundary and WebAuthn
 
@@ -53,33 +61,25 @@ The reservation selectors must not be conflated:
 | --- | --- | --- |
 | `institutionalDirectBookingWithIntent` | Active `DIRECT_BOOKING` path for an institution-owned lab; atomically requests and confirms | Requires a pending action-11 intent; WebAuthn remains an off-chain backend gate |
 | `institutionalReservationRequestWithIntent` | Active `REQUEST_BOOKING` path for an external lab | Requires a pending action-8 intent; WebAuthn remains an off-chain backend gate |
-| `institutionalReservationRequest` | Direct institution/backend request selector retained in the Diamond allowlist | Requires only institution/backend caller authorization; no intent or WebAuthn |
 
 The current Marketplace and canonical `Lab Gateway/blockchain-services` code
-call the two `*WithIntent` selectors. A repository-wide audit found no active
-caller for `institutionalReservationRequest`; because the selector remains in
-the current Diamond selector allowlist and ABI and may have external callers,
-it must be treated as an available administrative surface until explicitly
-removed through a reviewed Diamond upgrade and ABI/deployment migration.
+call the two `*WithIntent` selectors. The former direct selector had no active
+caller and has been removed from the production selector manifest and ABI. A
+reviewed Diamond upgrade is still required for already deployed instances.
 
 The Marketplace registers the intent and creates the backend authorization
 session before the user completes WebAuthn. That ordering is intentional for
 latency and does not make the intent a proof of WebAuthn. If the backend or its
-wallet is compromised, it can use its institution/backend authority, including
-the direct selector above, without a user's WebAuthn assertion. The current
-threat model therefore treats that backend and wallet as the institution's
-trusted authority and relies on key custody, least privilege, audit and
-segregation of duties. A stronger threat model would require a separate
-attestor or second authorization signature, restrict/remove the direct
-selector, and turn the admin check-in path into an explicitly governed
-emergency operation.
+wallet is compromised, it can use its institution/backend authority without a
+user's WebAuthn assertion. The current threat model therefore treats that
+backend and wallet as the institution's trusted authority and relies on key
+custody, least privilege, audit and segregation of duties. A stronger threat
+model would require a separate attestor or second authorization signature;
+removing the unused direct reservation route does not change that trust
+assumption for the intent paths.
 
-`checkInReservation` is likewise an administrative override: it requires only
-`DEFAULT_ADMIN_ROLE`, has no institutional signature input and is not the
-normal consumer check-in route. Operators must keep that role separate from
-institutional wallets and record its use. The current contract does not add a
-timelock or a dedicated emergency event; those are hardening options if admin
-compromise is in scope.
+There is no default-admin check-in override. Emergency access is intentionally a
+separate governed surface with an explicit audit event and a settlement hold.
 
 ## SessionStarted: proof
 

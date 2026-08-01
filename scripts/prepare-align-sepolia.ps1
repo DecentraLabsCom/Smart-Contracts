@@ -119,7 +119,6 @@ $linkedFacets = @(
     "contracts/facets/reservation/ProviderSettlementFacet.sol:ProviderSettlementFacet",
     "contracts/facets/reservation/ReservationDenialFacet.sol:ReservationDenialFacet",
     "contracts/facets/reservation/institutional/InstitutionalReservationConfirmationFacet.sol:InstitutionalReservationConfirmationFacet",
-    "contracts/facets/reservation/institutional/InstitutionalReservationRequestFacet.sol:InstitutionalReservationRequestFacet",
     "contracts/facets/reservation/institutional/InstitutionalReservationRequestValidationFacet.sol:InstitutionalReservationRequestValidationFacet",
     "contracts/facets/reservation/institutional/InstitutionalReservationRequestCreationFacet.sol:InstitutionalReservationRequestCreationFacet",
     "contracts/facets/reservation/institutional/InstitutionalReservationCancellationFacet.sol:InstitutionalReservationCancellationFacet",

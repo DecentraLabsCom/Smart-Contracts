@@ -2,100 +2,10 @@
 pragma solidity ^0.8.33;
 
 import {Test} from "forge-std/Test.sol";
-import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
-
-import {
-    InstitutionalReservationRequestCreationFacet
-} from "../contracts/facets/reservation/institutional/InstitutionalReservationRequestCreationFacet.sol";
-import {
-    InstitutionalReservationRequestValidationFacet
-} from "../contracts/facets/reservation/institutional/InstitutionalReservationRequestValidationFacet.sol";
-import {LibInstitutionalReservation} from "../contracts/libraries/LibInstitutionalReservation.sol";
 import {ReservationDenialFacet} from "../contracts/facets/reservation/ReservationDenialFacet.sol";
-import {
-    AppStorage,
-    LabBase,
-    LibAppStorage,
-    Reservation,
-    INSTITUTION_ROLE,
-    ProviderNetworkStatus
-} from "../contracts/libraries/LibAppStorage.sol";
-import {LibERC721Storage} from "../contracts/libraries/LibERC721Storage.sol";
+import {AppStorage, LibAppStorage, Reservation} from "../contracts/libraries/LibAppStorage.sol";
 import {LibERC721StorageTestHelper} from "./LibERC721StorageTestHelper.sol";
 import {ConfirmHarness, InstReservationHarness} from "./Harnesses.sol";
-
-contract InstitutionalRequestGasHarness is
-    InstitutionalReservationRequestCreationFacet,
-    InstitutionalReservationRequestValidationFacet
-{
-    using EnumerableSet for EnumerableSet.AddressSet;
-
-    mapping(uint256 => address) public owners;
-
-    function ownerOf(
-        uint256 tokenId
-    ) external view returns (address) {
-        return owners[tokenId];
-    }
-
-    function seedInstitution(
-        address institution,
-        address backend
-    ) external {
-        AppStorage storage s = LibAppStorage.diamondStorage();
-        s.roleMembers[INSTITUTION_ROLE].add(institution);
-        s.institutionalBackends[institution] = backend;
-    }
-
-    function seedProvider(
-        address provider
-    ) external {
-        AppStorage storage s = LibAppStorage.diamondStorage();
-        s.providerNetworkStatus[provider] = ProviderNetworkStatus.ACTIVE;
-    }
-
-    function seedLab(
-        uint256 labId,
-        address provider,
-        uint96 pricePerSecond
-    ) external {
-        AppStorage storage s = LibAppStorage.diamondStorage();
-        owners[labId] = provider;
-        LibERC721StorageTestHelper.setOwnerForTest(labId, provider);
-        s.tokenStatus[labId] = true;
-        s.labs[labId] = LabBase({
-            uri: "uri",
-            price: pricePerSecond,
-            accessURI: "access-uri",
-            accessKey: "access-key",
-            createdAt: uint32(block.timestamp),
-            resourceType: 0
-        });
-    }
-
-    function institutionalReservationRequest(
-        address institution,
-        bytes32 pucHash,
-        uint256 labId,
-        uint32 start,
-        uint32 end
-    ) external {
-        AppStorage storage s = LibAppStorage.diamondStorage();
-        if (!s.roleMembers[INSTITUTION_ROLE].contains(institution)) revert("UnknownInstitution");
-        address backend = s.institutionalBackends[institution];
-        if (!(msg.sender == institution || (backend != address(0) && msg.sender == backend))) {
-            revert("UnauthorizedInstitution");
-        }
-        if (owners[labId] == address(0)) revert("TokenNotFound");
-        LibInstitutionalReservation.requestReservation(institution, pucHash, labId, start, end);
-    }
-
-    function checkInstitutionalTreasuryAvailability(
-        address,
-        bytes32,
-        uint256
-    ) external pure {}
-}
 
 contract InstitutionalDenialGasHarness is ReservationDenialFacet {
     mapping(uint256 => address) public owners;
@@ -148,7 +58,6 @@ contract InstitutionalDenialGasHarness is ReservationDenialFacet {
 }
 
 contract GasInstitutionalReservationsTest is Test {
-    InstitutionalRequestGasHarness requestHarness;
     ConfirmHarness confirmHarness;
     InstitutionalDenialGasHarness denialHarness;
     InstReservationHarness cancellationHarness;
@@ -163,11 +72,6 @@ contract GasInstitutionalReservationsTest is Test {
     uint8 internal constant _CONFIRMED = 1;
 
     function setUp() public {
-        requestHarness = new InstitutionalRequestGasHarness();
-        requestHarness.seedInstitution(institution, institutionBackend);
-        requestHarness.seedProvider(provider);
-        requestHarness.seedLab(labId, provider, pricePerSecond);
-
         confirmHarness = new ConfirmHarness();
         confirmHarness.setInstitutionRole(institution);
         confirmHarness.setBackend(institution, institutionBackend);
@@ -193,13 +97,6 @@ contract GasInstitutionalReservationsTest is Test {
         uint32 start
     ) internal view returns (bytes32) {
         return keccak256(abi.encodePacked(labId, start));
-    }
-
-    function testGas_InstitutionalReservationRequest() public {
-        (uint32 start, uint32 end) = _requestWindow(3600);
-
-        vm.prank(institutionBackend);
-        requestHarness.institutionalReservationRequest(institution, keccak256(bytes("alice@inst")), labId, start, end);
     }
 
     function testGas_ConfirmInstitutionalReservationRequestWithPucHash() public {

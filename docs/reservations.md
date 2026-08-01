@@ -58,14 +58,18 @@ failed treasury spend cancels the request. A same-institution own-lab intent
 can atomically request and confirm through the direct-booking path. The current
 lab owner or its authorized backend may execute that path, while the owner
 remains the payer/provider identity. It is a separate payer-authorized flow
-implemented by `institutionalDirectBookingWithIntent`, not by
-`institutionalReservationRequest`.
+implemented by `institutionalDirectBookingWithIntent`, not by a direct
+administrative selector.
 
-The separate `institutionalReservationRequest` selector is a direct
-institution/backend request path retained in the Diamond selector allowlist. It is not
-called by the current Marketplace or canonical backend flow, does not consume
-an intent and does not verify WebAuthn. Treat it as an institution/backend
-trust-boundary surface until a reviewed Diamond upgrade removes it.
+There is no direct institution/backend reservation selector in the production
+surface. External requests use `institutionalReservationRequestWithIntent` and
+own-lab bookings use `institutionalDirectBookingWithIntent`; both consume the
+corresponding intent before creating state. WebAuthn remains an off-chain
+backend control and is not verified by the Diamond.
+
+Existing deployments require a reviewed `diamondCut` that removes the retired
+selector. Updating the source manifest and ABI does not change live Diamond
+routing by itself.
 
 Confirmation inserts an exclusive (`resourceType = 0`) range into the interval
 calendar, queues the reservation for later settlement, and stores the provider

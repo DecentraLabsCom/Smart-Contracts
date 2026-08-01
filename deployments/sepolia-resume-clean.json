@@ -32,7 +32,6 @@
                    "ProviderSettlementFacet":  "0x0B9a9B39BfB16A68Ac4d108FD24F98a2f85Ec6eE",
                    "InstitutionalReservationRequestValidationFacet":  "0xd8AF1d4447BAf893c1f9135c82142526613799F4",
                    "InstitutionalReservationRequestCreationFacet":  "0xD82206c912b2b61E1a5A02ED90Ddf2220cC94C21",
-                   "InstitutionalReservationRequestFacet":  "0xF8cfe9C559269Dc3c1a62f404d8126F9df7fE31A",
                    "InstitutionalReservationConfirmationFacet":  "0xba7De82dad6B967A2a11Ef6d5C1D1B0a9227E5A9",
                    "InstitutionalReservationCancellationFacet":  "0xf2D6F987f4990f7bd8BD8C4369431E365EaD73A4",
                    "InstitutionalReservationQueryFacet":  "0x3e17c8C0E20351adef0c51413ae159e91F03d882",

@@ -284,6 +284,18 @@ contract ProviderReceivableAliasesTest is Test {
         assertEq(disputedReceivable, 0);
     }
 
+    function test_requestProviderPayout_queues_accrued_bucket_when_heap_is_empty() public {
+        harness.setPendingProviderPayout(LAB_ID, TWELVE_CREDITS);
+        assertEq(harness.payoutHeapLength(LAB_ID), 0);
+
+        vm.prank(PROVIDER);
+        harness.requestProviderPayout(LAB_ID, 10);
+
+        (uint256 accruedReceivable, uint256 settlementQueued,,,,,) = _getLifecycleWithoutTimestamp();
+        assertEq(accruedReceivable, 0);
+        assertEq(settlementQueued, TWELVE_CREDITS);
+    }
+
     function test_requestProviderPayout_queues_permissionless_accrual_removed_from_heap() public {
         bytes32 reservationKey = keccak256("permissionless-accrual");
         harness.setExpiredPayoutReservation(reservationKey, LAB_ID, ACCESS_AUTHORIZED, FIVE_CREDITS_U96, 999);

@@ -1,4 +1,5 @@
 const assert = require("node:assert/strict");
+const fs = require("node:fs");
 const path = require("node:path");
 const test = require("node:test");
 
@@ -6,8 +7,10 @@ const {
   buildPublicAbi,
   canonicalType,
   loadSelectorManifest,
+  signatureFor,
   validateSelectorManifest,
 } = require("../scripts/selector-manifest.cjs");
+const {id} = require("ethers");
 
 const rootDir = path.resolve(__dirname, "..");
 
@@ -59,4 +62,33 @@ test("the generated public ABI contains only allowlisted functions", () => {
   const allowed = new Set(manifest.facets.flatMap((facet) => facet.functions));
 
   assert.deepEqual(functions, allowed);
+});
+
+test("expected, facet-artifact, and Diamond-facing selectors agree", () => {
+  const manifest = loadSelectorManifest(rootDir);
+  const result = validateSelectorManifest(rootDir, manifest);
+  const publicBySignature = new Map(
+    buildPublicAbi(rootDir, manifest)
+      .filter((entry) => entry.type === "function")
+      .map((entry) => [signatureFor(entry), entry]),
+  );
+  const diamondAbi = JSON.parse(fs.readFileSync(path.join(rootDir, "abi", "Diamond.json"), "utf8"));
+  const diamondBySignature = new Map(
+    diamondAbi
+      .filter((entry) => entry.type === "function")
+      .map((entry) => [signatureFor(entry), entry]),
+  );
+
+  for (const facet of manifest.facets) {
+    for (const signature of facet.functions) {
+      const publicEntry = publicBySignature.get(signature);
+      const diamondEntry = diamondBySignature.get(signature);
+      assert.ok(publicEntry, `${signature} must be present in the generated Diamond ABI`);
+      assert.ok(diamondEntry, `${signature} must be present in the checked-in Diamond ABI`);
+      const selector = id(signature).slice(0, 10).toLowerCase();
+      assert.equal(id(signatureFor(publicEntry)).slice(0, 10).toLowerCase(), selector);
+      assert.equal(id(signatureFor(diamondEntry)).slice(0, 10).toLowerCase(), selector);
+      assert.equal(result.allowedSelectors.get(selector), signature);
+    }
+  }
 });

@@ -419,7 +419,8 @@ $facetPlan = @(
     @{ Target = "contracts/facets/reservation/ReservationSessionFacet.sol:ReservationSessionFacet"; NeedsLib = $false },
     @{ Target = "contracts/facets/reservation/ReservationStatsFacet.sol:ReservationStatsFacet"; NeedsLib = $false },
     @{ Target = "contracts/facets/reservation/ReservationDenialFacet.sol:ReservationDenialFacet"; NeedsLib = $true; Libs = $libLinksReservationConfirm },
-    @{ Target = "contracts/facets/reservation/ReservationIntentFacet.sol:ReservationIntentFacet"; NeedsLib = $false }
+    @{ Target = "contracts/facets/reservation/ReservationIntentFacet.sol:ReservationIntentFacet"; NeedsLib = $false },
+    @{ Target = "contracts/facets/reservation/ReservationIntentCancellationFacet.sol:ReservationIntentCancellationFacet"; NeedsLib = $false }
 )
 
 $facetCuts = @()

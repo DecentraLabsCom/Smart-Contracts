@@ -8245,156 +8245,6 @@
   },
   {
     "type": "function",
-    "name": "cancelInstitutionalBookingWithIntent",
-    "inputs": [
-      {
-        "name": "requestId",
-        "type": "bytes32",
-        "internalType": "bytes32"
-      },
-      {
-        "name": "payload",
-        "type": "tuple",
-        "internalType": "struct ActionIntentPayload",
-        "components": [
-          {
-            "name": "executor",
-            "type": "address",
-            "internalType": "address"
-          },
-          {
-            "name": "schacHomeOrganization",
-            "type": "string",
-            "internalType": "string"
-          },
-          {
-            "name": "pucHash",
-            "type": "bytes32",
-            "internalType": "bytes32"
-          },
-          {
-            "name": "assertionHash",
-            "type": "bytes32",
-            "internalType": "bytes32"
-          },
-          {
-            "name": "labId",
-            "type": "uint256",
-            "internalType": "uint256"
-          },
-          {
-            "name": "reservationKey",
-            "type": "bytes32",
-            "internalType": "bytes32"
-          },
-          {
-            "name": "uri",
-            "type": "string",
-            "internalType": "string"
-          },
-          {
-            "name": "price",
-            "type": "uint96",
-            "internalType": "uint96"
-          },
-          {
-            "name": "maxBatch",
-            "type": "uint96",
-            "internalType": "uint96"
-          },
-          {
-            "name": "accessURI",
-            "type": "string",
-            "internalType": "string"
-          },
-          {
-            "name": "accessKey",
-            "type": "string",
-            "internalType": "string"
-          },
-          {
-            "name": "tokenURI",
-            "type": "string",
-            "internalType": "string"
-          },
-          {
-            "name": "resourceType",
-            "type": "uint8",
-            "internalType": "uint8"
-          }
-        ]
-      }
-    ],
-    "outputs": [],
-    "stateMutability": "nonpayable"
-  },
-  {
-    "type": "function",
-    "name": "cancelInstitutionalReservationRequestWithIntent",
-    "inputs": [
-      {
-        "name": "requestId",
-        "type": "bytes32",
-        "internalType": "bytes32"
-      },
-      {
-        "name": "payload",
-        "type": "tuple",
-        "internalType": "struct ReservationIntentPayload",
-        "components": [
-          {
-            "name": "executor",
-            "type": "address",
-            "internalType": "address"
-          },
-          {
-            "name": "schacHomeOrganization",
-            "type": "string",
-            "internalType": "string"
-          },
-          {
-            "name": "pucHash",
-            "type": "bytes32",
-            "internalType": "bytes32"
-          },
-          {
-            "name": "assertionHash",
-            "type": "bytes32",
-            "internalType": "bytes32"
-          },
-          {
-            "name": "labId",
-            "type": "uint256",
-            "internalType": "uint256"
-          },
-          {
-            "name": "start",
-            "type": "uint32",
-            "internalType": "uint32"
-          },
-          {
-            "name": "end",
-            "type": "uint32",
-            "internalType": "uint32"
-          },
-          {
-            "name": "price",
-            "type": "uint96",
-            "internalType": "uint96"
-          },
-          {
-            "name": "reservationKey",
-            "type": "bytes32",
-            "internalType": "bytes32"
-          }
-        ]
-      }
-    ],
-    "outputs": [],
-    "stateMutability": "nonpayable"
-  },
-  {
-    "type": "function",
     "name": "institutionalDirectBookingWithIntent",
     "inputs": [
       {
@@ -8808,11 +8658,6 @@
   },
   {
     "type": "error",
-    "name": "IntentInstitutionBackendRequired",
-    "inputs": []
-  },
-  {
-    "type": "error",
     "name": "IntentLabDoesNotExist",
     "inputs": []
   },
@@ -8828,17 +8673,187 @@
   },
   {
     "type": "error",
-    "name": "IntentUnknownReservation",
-    "inputs": []
-  },
-  {
-    "type": "error",
     "name": "PayerMismatch",
     "inputs": []
   },
   {
     "type": "error",
     "name": "PucMissing",
+    "inputs": []
+  },
+  {
+    "type": "function",
+    "name": "cancelInstitutionalBookingWithIntent",
+    "inputs": [
+      {
+        "name": "requestId",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      },
+      {
+        "name": "payload",
+        "type": "tuple",
+        "internalType": "struct ActionIntentPayload",
+        "components": [
+          {
+            "name": "executor",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "schacHomeOrganization",
+            "type": "string",
+            "internalType": "string"
+          },
+          {
+            "name": "pucHash",
+            "type": "bytes32",
+            "internalType": "bytes32"
+          },
+          {
+            "name": "assertionHash",
+            "type": "bytes32",
+            "internalType": "bytes32"
+          },
+          {
+            "name": "labId",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "reservationKey",
+            "type": "bytes32",
+            "internalType": "bytes32"
+          },
+          {
+            "name": "uri",
+            "type": "string",
+            "internalType": "string"
+          },
+          {
+            "name": "price",
+            "type": "uint96",
+            "internalType": "uint96"
+          },
+          {
+            "name": "maxBatch",
+            "type": "uint96",
+            "internalType": "uint96"
+          },
+          {
+            "name": "accessURI",
+            "type": "string",
+            "internalType": "string"
+          },
+          {
+            "name": "accessKey",
+            "type": "string",
+            "internalType": "string"
+          },
+          {
+            "name": "tokenURI",
+            "type": "string",
+            "internalType": "string"
+          },
+          {
+            "name": "resourceType",
+            "type": "uint8",
+            "internalType": "uint8"
+          }
+        ]
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "cancelInstitutionalReservationRequestWithIntent",
+    "inputs": [
+      {
+        "name": "requestId",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      },
+      {
+        "name": "payload",
+        "type": "tuple",
+        "internalType": "struct ReservationIntentPayload",
+        "components": [
+          {
+            "name": "executor",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "schacHomeOrganization",
+            "type": "string",
+            "internalType": "string"
+          },
+          {
+            "name": "pucHash",
+            "type": "bytes32",
+            "internalType": "bytes32"
+          },
+          {
+            "name": "assertionHash",
+            "type": "bytes32",
+            "internalType": "bytes32"
+          },
+          {
+            "name": "labId",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "start",
+            "type": "uint32",
+            "internalType": "uint32"
+          },
+          {
+            "name": "end",
+            "type": "uint32",
+            "internalType": "uint32"
+          },
+          {
+            "name": "price",
+            "type": "uint96",
+            "internalType": "uint96"
+          },
+          {
+            "name": "reservationKey",
+            "type": "bytes32",
+            "internalType": "bytes32"
+          }
+        ]
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "error",
+    "name": "IntentCancellationExecutorMustBeCaller",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "IntentCancellationInstitutionBackendRequired",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "IntentCancellationNotAuthorizedInstitution",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "IntentCancellationUnknownInstitution",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "IntentCancellationUnknownReservation",
     "inputs": []
   },
   {

@@ -152,4 +152,48 @@ contract InstitutionalReservationCancellationMoreTest is BaseTest {
         vm.expectRevert(bytes("refund failed"));
         revHarness.cancelBookingWrapper(inst, keccak256(bytes(puc)), key);
     }
+
+    function test_cancelBooking_at_lot_limit_restores_consumer_refund() public {
+        address inst = address(0xC001);
+        address backend = address(0xB001);
+        uint256 labId = 17;
+        uint32 start = uint32(block.timestamp + 3600);
+        bytes32 key = keccak256("consumer-lot-limit");
+        string memory puc = "consumer@inst";
+        uint96 price = 10_000_000;
+
+        harness.setBackend(inst, backend);
+        harness.setReservation(key, user1, inst, price, _CONFIRMED, labId, start, puc);
+        harness.enableLedgerRefund();
+        harness.seedCreditReservationAtLotLimit(inst, key, keccak256("consumer-source"), uint256(price) * 2, price);
+
+        vm.prank(backend);
+        harness.cancelBookingWrapper(inst, keccak256(bytes(puc)), key);
+
+        assertEq(harness.getReservationStatus(key), _CANCELLED);
+        assertEq(harness.creditLotCount(inst), 128);
+        assertEq(harness.lastRefundAmount(), 9_000_000);
+    }
+
+    function test_providerCancellation_at_lot_limit_restores_full_refund() public {
+        address inst = address(0xC002);
+        address provider = address(0xB002);
+        uint256 labId = 18;
+        uint32 start = uint32(block.timestamp + 3600);
+        bytes32 key = keccak256("provider-lot-limit");
+        string memory puc = "provider@inst";
+        uint96 price = 10_000_000;
+
+        harness.setLabOwner(labId, provider);
+        harness.setReservation(key, user1, inst, price, _CONFIRMED, labId, start, puc);
+        harness.enableLedgerRefund();
+        harness.seedCreditReservationAtLotLimit(inst, key, keccak256("provider-source"), uint256(price) * 2, price);
+
+        vm.prank(provider);
+        harness.cancelConfirmedBookingByProviderWrapper(key, 7);
+
+        assertEq(harness.getReservationStatus(key), _CANCELLED);
+        assertEq(harness.creditLotCount(inst), 128);
+        assertEq(harness.lastRefundAmount(), price);
+    }
 }

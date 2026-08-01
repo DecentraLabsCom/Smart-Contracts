@@ -12,6 +12,7 @@ import "../contracts/libraries/LibInstitutionalReservation.sol";
 import "../contracts/libraries/LibInstitutionalReservationRelease.sol";
 import "../contracts/libraries/LibTracking.sol";
 import "../contracts/libraries/LibLabAdmin.sol";
+import "../contracts/libraries/LibCreditLedger.sol";
 
 contract InstReservationHarness is InstitutionalReservationCancellationFacet {
     using EnumerableSet for EnumerableSet.Bytes32Set;
@@ -192,6 +193,31 @@ contract InstReservationHarness is InstitutionalReservationCancellationFacet {
     bytes32 public reentrantReservationKey;
     bool public reentrancyEnabled;
     bool public reentrancyTriggered;
+    bool public ledgerRefundEnabled;
+
+    function enableLedgerRefund() external {
+        ledgerRefundEnabled = true;
+    }
+
+    function seedCreditReservationAtLotLimit(
+        address account,
+        bytes32 reservationKey,
+        bytes32 sourceFundingOrder,
+        uint256 sourceAmount,
+        uint256 capturedAmount
+    ) external {
+        LibCreditLedger.mintCredits(account, sourceAmount, sourceFundingOrder, sourceAmount, 0);
+        for (uint256 i = 1; i < 128; ++i) {
+            LibCreditLedger.mintCredits(account, 1, bytes32(i), 0, 0);
+        }
+        LibCreditLedger.debitCredits(account, capturedAmount, reservationKey);
+    }
+
+    function creditLotCount(
+        address account
+    ) external view returns (uint256) {
+        return LibCreditLedger.lotCount(account);
+    }
 
     function configureReentrancy(
         bytes32 reservationKey
@@ -211,6 +237,10 @@ contract InstReservationHarness is InstitutionalReservationCancellationFacet {
         lastRefundPucHash = pucHash;
         lastRefundReservationKey = reservationKey;
         lastRefundAmount = amount;
+
+        if (ledgerRefundEnabled) {
+            LibCreditLedger.cancelCredits(provider, amount, reservationKey);
+        }
 
         if (reentrancyEnabled && !reentrancyTriggered) {
             reentrancyTriggered = true;

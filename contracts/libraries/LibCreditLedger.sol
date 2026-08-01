@@ -196,7 +196,18 @@ library LibCreditLedger {
 
                 allocation.refundedAmount += refundAmount;
                 allocation.refundedEurGrossAmount += refundEur;
-                _appendLot(s, account, refundAmount, allocation.fundingOrderId, refundEur, allocation.expiresAt);
+                // Preserve the existing append-shaped ledger while there is room.
+                // At the physical bound, restore into a compatible source lot before
+                // asking _appendLot to allocate another vector position.
+                bool restored;
+                if (s.creditLots[account].length >= MAX_ACTIVE_CREDIT_LOTS) {
+                    restored = _restoreRefundToExistingLot(
+                        s, account, refundAmount, allocation.fundingOrderId, refundEur, allocation.expiresAt
+                    );
+                }
+                if (!restored) {
+                    _appendLot(s, account, refundAmount, allocation.fundingOrderId, refundEur, allocation.expiresAt);
+                }
                 s.serviceCreditBalance[account] += refundAmount;
                 remainingToRefund -= refundAmount;
                 refundedAmount += refundAmount;
@@ -486,6 +497,61 @@ library LibCreditLedger {
         }
 
         lotId = _appendLotUnchecked(s, account, creditAmount, fundingOrderId, eurGrossAmount, expiresAt);
+    }
+
+    /// @dev Restore a refund into an existing compatible lot before allocating a
+    ///      new physical lot slot. Source allocations retain enough provenance to
+    ///      identify a compatible lot even though they intentionally do not retain
+    ///      a physical array index.
+    function _restoreRefundToExistingLot(
+        AppStorage storage s,
+        address account,
+        uint256 refundAmount,
+        bytes32 fundingOrderId,
+        uint256 refundEurGrossAmount,
+        uint48 expiresAt
+    ) private returns (bool restored) {
+        CreditLot[] storage lots = s.creditLots[account];
+        for (uint256 i; i < lots.length;) {
+            CreditLot storage lot = lots[i];
+            uint256 lotEurGrossAmount = _remainingEurGrossAmount(s, lot);
+            if (_lotCanMergeRefund(
+                    lot, lotEurGrossAmount, refundAmount, fundingOrderId, refundEurGrossAmount, expiresAt
+                )) {
+                lot.remaining += refundAmount;
+                lot.creditAmount += refundAmount;
+                lot.eurGrossAmount += refundEurGrossAmount;
+                s.creditLotRemainingEurGrossAmount[lot.lotId] = lotEurGrossAmount + refundEurGrossAmount;
+                return true;
+            }
+            unchecked {
+                ++i;
+            }
+        }
+    }
+
+    function _lotCanMergeRefund(
+        CreditLot storage lot,
+        uint256 lotEurGrossAmount,
+        uint256 refundAmount,
+        bytes32 fundingOrderId,
+        uint256 refundEurGrossAmount,
+        uint48 expiresAt
+    ) private view returns (bool) {
+        if (
+            lot.expired || lot.remaining == 0 || lot.fundingOrderId != fundingOrderId || lot.expiresAt != expiresAt
+                || (lot.expiresAt != 0 && lot.expiresAt <= block.timestamp)
+        ) {
+            return false;
+        }
+        if (lotEurGrossAmount == 0 || refundEurGrossAmount == 0) {
+            return lotEurGrossAmount == refundEurGrossAmount;
+        }
+
+        uint256 gcdLot = _gcd(lotEurGrossAmount, lot.remaining);
+        uint256 gcdRefund = _gcd(refundEurGrossAmount, refundAmount);
+        return lotEurGrossAmount / gcdLot == refundEurGrossAmount / gcdRefund
+            && lot.remaining / gcdLot == refundAmount / gcdRefund;
     }
 
     function _appendLotUnchecked(

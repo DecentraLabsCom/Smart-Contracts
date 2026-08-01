@@ -311,6 +311,33 @@ contract CreditLedgerTest is BaseTest {
         assertEq(lots[1].eurGrossAmount, 190);
     }
 
+    function test_cancel_refund_at_active_lot_bound_restores_into_source_lot() public {
+        bytes32 reservationRef = keccak256("RES-LOT-LIMIT");
+        bytes32 sourceFundingOrder = keccak256("SOURCE-FUNDING");
+
+        vm.startPrank(admin);
+        creditFacet.mintCredits(alice, 2, sourceFundingOrder, 20, 0);
+        for (uint256 i = 1; i < 128; ++i) {
+            creditFacet.mintCredits(alice, 1, bytes32(i), 0, 0);
+        }
+
+        creditFacet.lockCredits(alice, 1, reservationRef);
+        creditFacet.captureLockedCredits(alice, 1, reservationRef);
+        creditFacet.cancelCredits(alice, 1, reservationRef);
+        vm.stopPrank();
+
+        (CreditLot[] memory lots, uint256 total) = creditFacet.getCreditLots(alice, 0, 50);
+        assertEq(total, 128);
+        assertEq(lots.length, 50);
+        assertEq(lots[0].lotId, 0);
+        assertEq(lots[0].fundingOrderId, sourceFundingOrder);
+        assertEq(lots[0].creditAmount, 3);
+        assertEq(lots[0].remaining, 2);
+        assertEq(lots[0].eurGrossAmount, 30);
+        assertEq(creditFacet.totalBalanceOf(alice), 129);
+        assertEq(creditFacet.availableBalanceOf(alice), 129);
+    }
+
     function test_cancel_refund_reconstructs_multi_lot_provenance_and_partial_refund() public {
         bytes32 reservationRef = keccak256("RES-MULTI-LOT");
 

@@ -284,11 +284,12 @@ contract ProviderReceivableHardeningTest is Test {
         h.grantSettlementOperatorRole(SETTLER);
 
         vm.prank(SETTLER);
-        h.transitionProviderReceivableState(LAB, 2, 3, FIVE_CREDITS, bytes32("inv-001"));
+        h.transitionProviderReceivableState(LAB, 2, 7, FIVE_CREDITS, bytes32("dispute-001"));
 
-        (, uint256 queued, uint256 invoiced,,,,,) = h.getLabProviderReceivableLifecycle(LAB);
+        (, uint256 queued, uint256 invoiced,,,, uint256 disputed,) = h.getLabProviderReceivableLifecycle(LAB);
         assertEq(queued, FIVE_CREDITS);
-        assertEq(invoiced, FIVE_CREDITS);
+        assertEq(invoiced, 0);
+        assertEq(disputed, FIVE_CREDITS);
     }
 
     function test_settlementOperatorRole_unauthorized_blocked() public {
@@ -296,6 +297,6 @@ contract ProviderReceivableHardeningTest is Test {
 
         vm.prank(NOBODY);
         vm.expectRevert("Not authorized");
-        h.transitionProviderReceivableState(LAB, 2, 3, ONE_CREDIT, bytes32("bad"));
+        h.transitionProviderReceivableState(LAB, 2, 7, ONE_CREDIT, bytes32("bad"));
     }
 }

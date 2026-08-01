@@ -3,6 +3,7 @@ pragma solidity ^0.8.31;
 
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import {AppStorage, Reservation, INSTITUTION_ROLE, LibAppStorage} from "../../../libraries/LibAppStorage.sol";
+import {LibReservationIdentity} from "../../../libraries/LibReservationIdentity.sol";
 
 /// @title InstitutionalReservationQueryFacet
 /// @author
@@ -173,10 +174,30 @@ contract InstitutionalReservationQueryFacet {
         return _s().reservations[_reservationKey];
     }
 
+    /// @notice Resolve the immutable generation currently occupying a slot.
+    function getReservationId(
+        bytes32 _reservationKey
+    ) external view returns (bytes32 reservationId) {
+        return LibReservationIdentity.currentReservationId(_s(), _reservationKey);
+    }
+
+    /// @notice Read the immutable historical snapshot for a reservation generation.
+    /// @dev Legacy records without a snapshot fall back to their current record.
+    function getReservationById(
+        bytes32 _reservationId
+    ) external view returns (Reservation memory reservation) {
+        AppStorage storage s = _s();
+        reservation = s.reservationHistoryById[_reservationId];
+        if (reservation.renter == address(0)) {
+            reservation = s.reservations[LibReservationIdentity.reservationKeyForId(s, _reservationId)];
+        }
+    }
+
     function getReservationPucHash(
         bytes32 _reservationKey
     ) external view returns (bytes32) {
-        return _s().reservationPucHash[_reservationKey];
+        AppStorage storage s = _s();
+        return s.reservationPucHash[LibReservationIdentity.currentReservationId(s, _reservationKey)];
     }
 
     /// @notice Get the total reservations count for a lab
@@ -266,10 +287,12 @@ contract InstitutionalReservationQueryFacet {
         uint32 end
     ) external view returns (uint256 count) {
         require(start < end, "Invalid time range");
-        EnumerableSet.Bytes32Set storage active = _s().activeConcurrentReservationKeysByLab[labId];
+        AppStorage storage s = _s();
+        EnumerableSet.Bytes32Set storage active = s.activeConcurrentReservationKeysByLab[labId];
         uint256 length = active.length();
         for (uint256 i; i < length;) {
-            Reservation storage reservation = _s().reservations[active.at(i)];
+            Reservation storage reservation =
+                s.reservations[LibReservationIdentity.reservationKeyForId(s, active.at(i))];
             if (reservation.start < end && start < reservation.end) {
                 count++;
             }

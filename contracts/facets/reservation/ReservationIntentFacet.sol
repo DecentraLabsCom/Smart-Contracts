@@ -9,6 +9,7 @@ import {LibInstitutionalOrg} from "../../libraries/LibInstitutionalOrg.sol";
 import {LibInstitutionalReservation} from "../../libraries/LibInstitutionalReservation.sol";
 import {LibERC721Storage} from "../../libraries/LibERC721Storage.sol";
 import {LibInstitutionalReservationConfirmation} from "../../libraries/LibInstitutionalReservationConfirmation.sol";
+import {LibReservationIdentity} from "../../libraries/LibReservationIdentity.sol";
 
 // Custom errors for gas-efficient reverts (Solidity 0.8.26+)
 error IntentUnknownInstitution();
@@ -37,6 +38,9 @@ contract ReservationIntentFacet {
         address institution,
         bool success,
         string reason
+    );
+    event ReservationIntentGenerationProcessed(
+        bytes32 indexed requestId, bytes32 indexed reservationId, bytes32 indexed reservationKey
     );
 
     function _s() internal pure returns (AppStorage storage s) {
@@ -138,7 +142,7 @@ contract ReservationIntentFacet {
         bytes32 reservationKey,
         bytes32 pucHash
     ) internal view returns (bool) {
-        bytes32 storedHash = s.reservationPucHash[reservationKey];
+        bytes32 storedHash = s.reservationPucHash[LibReservationIdentity.currentReservationId(s, reservationKey)];
         return storedHash != bytes32(0) && storedHash == pucHash;
     }
 
@@ -182,6 +186,9 @@ contract ReservationIntentFacet {
         emit ReservationIntentProcessed(
             requestId, payload.reservationKey, "RESERVATION_REQUEST", payload.pucHash, institution, true, ""
         );
+        emit ReservationIntentGenerationProcessed(
+            requestId, LibReservationIdentity.currentReservationId(s, payload.reservationKey), payload.reservationKey
+        );
     }
 
     /// @notice Atomic request + confirm for own-lab bookings (same institution is both payer and provider)
@@ -213,6 +220,9 @@ contract ReservationIntentFacet {
         );
         emit ReservationIntentProcessed(
             requestId, payload.reservationKey, "DIRECT_BOOKING", payload.pucHash, institution, true, ""
+        );
+        emit ReservationIntentGenerationProcessed(
+            requestId, LibReservationIdentity.currentReservationId(s, payload.reservationKey), payload.reservationKey
         );
     }
 
@@ -246,6 +256,9 @@ contract ReservationIntentFacet {
             true,
             ""
         );
+        emit ReservationIntentGenerationProcessed(
+            requestId, LibReservationIdentity.currentReservationId(s, payload.reservationKey), payload.reservationKey
+        );
     }
 
     /// @notice Cancels a confirmed booking via intent
@@ -271,6 +284,9 @@ contract ReservationIntentFacet {
         require(cancelledLabId == reservation.labId, "RESERVATION_LAB_ID_MISMATCH");
         emit ReservationIntentProcessed(
             requestId, payload.reservationKey, "CANCEL_BOOKING", payload.pucHash, reservation.payerInstitution, true, ""
+        );
+        emit ReservationIntentGenerationProcessed(
+            requestId, LibReservationIdentity.currentReservationId(s, payload.reservationKey), payload.reservationKey
         );
     }
 }

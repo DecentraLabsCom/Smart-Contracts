@@ -9,6 +9,7 @@ import {
     CreditMovementKind,
     CreditReservationAllocation
 } from "./LibAppStorage.sol";
+import {LibReservationIdentity} from "./LibReservationIdentity.sol";
 
 /// @title LibCreditLedger
 /// @notice Lot-based credit ledger with lock/capture/release semantics for MiCA 4.3.d compliance
@@ -16,6 +17,10 @@ import {
 ///      Lot consumption follows FIFO order (oldest non-expired lot first).
 ///      Available balance is the unexpired lot-backed balance minus locked credits.
 library LibCreditLedger {
+    uint256 internal constant MAX_ACTIVE_CREDIT_LOTS = 128;
+    uint256 internal constant MAX_RESERVATION_ALLOCATIONS = 64;
+    uint256 internal constant MAX_REFUND_ALLOCATIONS_PER_BATCH = 32;
+
     error ZeroAccount();
     error ZeroAmount();
     error InsufficientAvailableCredits();
@@ -27,6 +32,9 @@ library LibCreditLedger {
     error UnbackedCreditBalance();
     error NoReservationAllocation();
     error RefundExceedsReservationAllocation();
+    error CreditLotLimitExceeded();
+    error ReservationAllocationLimitExceeded();
+    error InvalidRefundBatchSize();
 
     /// @notice Available (unlocked) credits for an account
     function availableBalanceOf(
@@ -83,6 +91,7 @@ library LibCreditLedger {
         if (amount == 0) revert ZeroAmount();
 
         AppStorage storage s = LibAppStorage.diamondStorage();
+        reservationRef = LibReservationIdentity.resolveReservationRef(s, reservationRef);
 
         uint256 available = availableBalanceOf(account);
         if (available < amount) revert InsufficientAvailableCredits();
@@ -108,6 +117,7 @@ library LibCreditLedger {
         if (amount == 0) revert ZeroAmount();
 
         AppStorage storage s = LibAppStorage.diamondStorage();
+        reservationRef = LibReservationIdentity.resolveReservationRef(s, reservationRef);
 
         if (s.creditLockedBalance[account] < amount) revert InsufficientLockedCredits();
 
@@ -129,6 +139,7 @@ library LibCreditLedger {
         if (amount == 0) revert ZeroAmount();
 
         AppStorage storage s = LibAppStorage.diamondStorage();
+        reservationRef = LibReservationIdentity.resolveReservationRef(s, reservationRef);
 
         if (s.creditLockedBalance[account] < amount) revert InsufficientLockedCredits();
 
@@ -143,17 +154,37 @@ library LibCreditLedger {
         uint256 amount,
         bytes32 reservationRef
     ) internal {
+        (,, bool complete) = cancelCreditsBatch(account, amount, reservationRef, type(uint256).max);
+        if (!complete) revert RefundExceedsReservationAllocation();
+    }
+
+    /// @notice Refund credits using a bounded number of source allocations.
+    /// @dev The cursor is persisted only when the requested amount still has
+    ///      refundable allocations remaining. Legacy reservations can therefore
+    ///      be recovered in several transactions without copying or scanning
+    ///      their complete allocation list in one transaction.
+    function cancelCreditsBatch(
+        address account,
+        uint256 amount,
+        bytes32 reservationRef,
+        uint256 maxAllocations
+    ) internal returns (uint256 refundedAmount, uint256 nextCursor, bool complete) {
         if (account == address(0)) revert ZeroAccount();
         if (amount == 0) revert ZeroAmount();
+        if (maxAllocations == 0) revert InvalidRefundBatchSize();
+        if (maxAllocations != type(uint256).max && maxAllocations > MAX_REFUND_ALLOCATIONS_PER_BATCH) {
+            revert InvalidRefundBatchSize();
+        }
 
         AppStorage storage s = LibAppStorage.diamondStorage();
-
-        s.serviceCreditBalance[account] += amount;
+        reservationRef = LibReservationIdentity.resolveReservationRef(s, reservationRef);
 
         CreditReservationAllocation[] storage allocations = s.creditReservationAllocations[account][reservationRef];
         if (allocations.length == 0) revert NoReservationAllocation();
         uint256 remainingToRefund = amount;
-        for (uint256 i; i < allocations.length && remainingToRefund > 0;) {
+        uint256 i = s.creditReservationRefundCursor[account][reservationRef];
+        uint256 processed;
+        for (; i < allocations.length && remainingToRefund > 0 && processed < maxAllocations;) {
             CreditReservationAllocation storage allocation = allocations[i];
             uint256 refundableAmount = allocation.amount - allocation.refundedAmount;
             if (refundableAmount > 0) {
@@ -166,17 +197,30 @@ library LibCreditLedger {
                 allocation.refundedAmount += refundAmount;
                 allocation.refundedEurGrossAmount += refundEur;
                 _appendLot(s, account, refundAmount, allocation.fundingOrderId, refundEur, allocation.expiresAt);
+                s.serviceCreditBalance[account] += refundAmount;
                 remainingToRefund -= refundAmount;
+                refundedAmount += refundAmount;
             }
             unchecked {
                 ++i;
+                ++processed;
             }
         }
 
-        if (remainingToRefund != 0) revert RefundExceedsReservationAllocation();
+        if (remainingToRefund != 0) {
+            if (i >= allocations.length) revert RefundExceedsReservationAllocation();
+            s.creditReservationRefundCursor[account][reservationRef] = i;
+            if (refundedAmount > 0) {
+                _recordMovement(s, account, CreditMovementKind.CANCEL, refundedAmount, reservationRef);
+            }
+            return (refundedAmount, i, false);
+        }
+
+        delete s.creditReservationRefundCursor[account][reservationRef];
         delete s.creditReservationExpiry[account][reservationRef];
 
-        _recordMovement(s, account, CreditMovementKind.CANCEL, amount, reservationRef);
+        _recordMovement(s, account, CreditMovementKind.CANCEL, refundedAmount, reservationRef);
+        return (refundedAmount, i, true);
     }
 
     /// @notice Debit available credits for an identified reservation.
@@ -192,6 +236,7 @@ library LibCreditLedger {
         if (amount == 0) revert ZeroAmount();
 
         AppStorage storage s = LibAppStorage.diamondStorage();
+        reservationRef = LibReservationIdentity.resolveReservationRef(s, reservationRef);
         uint256 available = availableBalanceOf(account);
         if (available < amount) revert InsufficientAvailableCredits();
 
@@ -307,7 +352,9 @@ library LibCreditLedger {
         address account,
         bytes32 reservationRef
     ) internal view returns (uint256) {
-        return LibAppStorage.diamondStorage().creditReservationAllocations[account][reservationRef].length;
+        AppStorage storage s = LibAppStorage.diamondStorage();
+        reservationRef = LibReservationIdentity.resolveReservationRef(s, reservationRef);
+        return s.creditReservationAllocations[account][reservationRef].length;
     }
 
     /// @notice Get one source-lot allocation recorded for a reservation.
@@ -316,7 +363,25 @@ library LibCreditLedger {
         bytes32 reservationRef,
         uint256 index
     ) internal view returns (CreditReservationAllocation memory) {
-        return LibAppStorage.diamondStorage().creditReservationAllocations[account][reservationRef][index];
+        AppStorage storage s = LibAppStorage.diamondStorage();
+        reservationRef = LibReservationIdentity.resolveReservationRef(s, reservationRef);
+        return s.creditReservationAllocations[account][reservationRef][index];
+    }
+
+    /// @notice Remove spent/expired lots and merge compatible active lots.
+    /// @dev Merging is safe because source-lot allocations retain the original
+    ///      funding provenance. The physical lot array is deliberately bounded
+    ///      by the append path; this function is also exposed for maintenance
+    ///      of legacy accounts created before the bound existed.
+    function compactCreditLots(
+        address account
+    ) internal returns (uint256 previousLength, uint256 compactedLength) {
+        if (account == address(0)) revert ZeroAccount();
+
+        AppStorage storage s = LibAppStorage.diamondStorage();
+        previousLength = s.creditLots[account].length;
+        _compactLots(s, account);
+        compactedLength = s.creditLots[account].length;
     }
 
     /// @dev Consume `amount` credits from lots FIFO (oldest first, skip expired)
@@ -331,6 +396,17 @@ library LibCreditLedger {
         uint256 remaining = amount;
         uint256 len = lots.length;
         uint256 cursor = s.creditLotCursor[account];
+
+        if (recordAllocation) {
+            CreditReservationAllocation[] storage allocations = s.creditReservationAllocations[account][reservationRef];
+            uint256 requiredAllocations = _sourceLotCountForAmount(lots, cursor, amount);
+            if (
+                allocations.length > MAX_RESERVATION_ALLOCATIONS
+                    || requiredAllocations > MAX_RESERVATION_ALLOCATIONS - allocations.length
+            ) {
+                revert ReservationAllocationLimitExceeded();
+            }
+        }
 
         for (uint256 i = cursor; i < len && remaining > 0;) {
             CreditLot storage lot = lots[i];
@@ -377,6 +453,24 @@ library LibCreditLedger {
         s.creditLotCursor[account] = _nextActiveLotIndex(lots, cursor, len);
     }
 
+    function _sourceLotCountForAmount(
+        CreditLot[] storage lots,
+        uint256 cursor,
+        uint256 amount
+    ) private view returns (uint256 count) {
+        uint256 remaining = amount;
+        for (uint256 i = cursor; i < lots.length && remaining > 0;) {
+            CreditLot storage lot = lots[i];
+            if (!lot.expired && lot.remaining > 0 && (lot.expiresAt == 0 || lot.expiresAt > block.timestamp)) {
+                remaining -= lot.remaining < remaining ? lot.remaining : remaining;
+                ++count;
+            }
+            unchecked {
+                ++i;
+            }
+        }
+    }
+
     function _appendLot(
         AppStorage storage s,
         address account,
@@ -385,6 +479,25 @@ library LibCreditLedger {
         uint256 eurGrossAmount,
         uint48 expiresAt
     ) private returns (uint256 lotId) {
+        CreditLot[] storage lots = s.creditLots[account];
+        if (lots.length >= MAX_ACTIVE_CREDIT_LOTS) {
+            _compactLots(s, account);
+            if (lots.length >= MAX_ACTIVE_CREDIT_LOTS) revert CreditLotLimitExceeded();
+        }
+
+        lotId = _appendLotUnchecked(s, account, creditAmount, fundingOrderId, eurGrossAmount, expiresAt);
+    }
+
+    function _appendLotUnchecked(
+        AppStorage storage s,
+        address account,
+        uint256 creditAmount,
+        bytes32 fundingOrderId,
+        uint256 eurGrossAmount,
+        uint48 expiresAt
+    ) private returns (uint256 lotId) {
+        if (s.creditLots[account].length >= MAX_ACTIVE_CREDIT_LOTS) revert CreditLotLimitExceeded();
+
         lotId = s.creditLotNextId++;
         s.creditLots[account].push(
             CreditLot({
@@ -399,6 +512,139 @@ library LibCreditLedger {
             })
         );
         s.creditLotRemainingEurGrossAmount[lotId] = eurGrossAmount;
+    }
+
+    function _compactLots(
+        AppStorage storage s,
+        address account
+    ) private {
+        CreditLot[] storage lots = s.creditLots[account];
+        uint256 writeIndex;
+        uint256 totalBalance = s.serviceCreditBalance[account];
+        uint256 lockedBalance = s.creditLockedBalance[account];
+        uint256 availableBalance = totalBalance >= lockedBalance ? totalBalance - lockedBalance : 0;
+
+        for (uint256 i; i < lots.length;) {
+            CreditLot storage lot = lots[i];
+            uint256 remaining = lot.remaining;
+            bool expired = lot.expired || (lot.expiresAt != 0 && lot.expiresAt <= block.timestamp);
+
+            if (remaining == 0) {
+                unchecked {
+                    ++i;
+                }
+                continue;
+            }
+
+            if (expired && availableBalance >= remaining) {
+                availableBalance -= remaining;
+                totalBalance -= remaining;
+                s.serviceCreditBalance[account] = totalBalance;
+                _recordMovement(s, account, CreditMovementKind.EXPIRE, remaining, lot.fundingOrderId);
+                unchecked {
+                    ++i;
+                }
+                continue;
+            }
+
+            if (writeIndex != i) lots[writeIndex] = lots[i];
+            uint256 eurRemaining = s.creditLotRemainingEurGrossAmount[lots[writeIndex].lotId];
+            if (eurRemaining == 0 && lots[writeIndex].eurGrossAmount > 0) {
+                eurRemaining = lots[writeIndex].eurGrossAmount;
+            }
+            s.creditLotRemainingEurGrossAmount[lots[writeIndex].lotId] = eurRemaining;
+            unchecked {
+                ++writeIndex;
+                ++i;
+            }
+        }
+
+        while (lots.length > writeIndex) lots.pop();
+        s.serviceCreditBalance[account] = totalBalance;
+
+        for (uint256 i; i < lots.length;) {
+            CreditLot storage baseLot = lots[i];
+            uint256 baseEur = _remainingEurGrossAmount(s, baseLot);
+            uint256 j = i + 1;
+            while (j < lots.length) {
+                CreditLot storage candidate = lots[j];
+                if (_lotsCanMerge(baseLot, baseEur, candidate, _remainingEurGrossAmount(s, candidate))) {
+                    baseLot.remaining += candidate.remaining;
+                    baseLot.creditAmount += candidate.creditAmount;
+                    baseLot.eurGrossAmount += candidate.eurGrossAmount;
+                    baseEur += _remainingEurGrossAmount(s, candidate);
+                    s.creditLotRemainingEurGrossAmount[baseLot.lotId] = baseEur;
+                    if (candidate.issuedAt < baseLot.issuedAt) baseLot.issuedAt = candidate.issuedAt;
+                    _removeLotAt(s, account, j);
+                } else {
+                    unchecked {
+                        ++j;
+                    }
+                }
+            }
+            unchecked {
+                ++i;
+            }
+        }
+
+        s.creditLotCursor[account] = 0;
+    }
+
+    function _removeLotAt(
+        AppStorage storage s,
+        address account,
+        uint256 index
+    ) private {
+        CreditLot[] storage lots = s.creditLots[account];
+        uint256 len = lots.length;
+        for (uint256 i = index; i + 1 < len;) {
+            lots[i] = lots[i + 1];
+            uint256 eurRemaining = s.creditLotRemainingEurGrossAmount[lots[i].lotId];
+            if (eurRemaining == 0 && lots[i].eurGrossAmount > 0) eurRemaining = lots[i].eurGrossAmount;
+            s.creditLotRemainingEurGrossAmount[lots[i].lotId] = eurRemaining;
+            unchecked {
+                ++i;
+            }
+        }
+        lots.pop();
+    }
+
+    function _remainingEurGrossAmount(
+        AppStorage storage s,
+        CreditLot storage lot
+    ) private view returns (uint256 eurRemaining) {
+        eurRemaining = s.creditLotRemainingEurGrossAmount[lot.lotId];
+        if (eurRemaining == 0 && lot.eurGrossAmount > 0) eurRemaining = lot.eurGrossAmount;
+    }
+
+    function _lotsCanMerge(
+        CreditLot storage a,
+        uint256 eurA,
+        CreditLot storage b,
+        uint256 eurB
+    ) private view returns (bool) {
+        if (a.expired || b.expired || a.fundingOrderId != b.fundingOrderId || a.expiresAt != b.expiresAt) {
+            return false;
+        }
+        if (a.remaining == 0 || b.remaining == 0) return false;
+        if (a.expiresAt != 0 && a.expiresAt <= block.timestamp) return false;
+        if (eurA == 0 || eurB == 0) return eurA == eurB;
+
+        uint256 gcdA = _gcd(eurA, a.remaining);
+        uint256 gcdB = _gcd(eurB, b.remaining);
+        return eurA / gcdA == eurB / gcdB && a.remaining / gcdA == b.remaining / gcdB;
+    }
+
+    function _gcd(
+        uint256 a,
+        uint256 b
+    ) private pure returns (uint256) {
+        while (b != 0) {
+            uint256 remainder = a % b;
+            a = b;
+            b = remainder;
+        }
+        return a;
     }
 
     function _advanceLotCursor(

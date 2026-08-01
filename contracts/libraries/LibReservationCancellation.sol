@@ -12,6 +12,7 @@ import {
     UserActiveReservation
 } from "./LibAppStorage.sol";
 import {LibTracking} from "./LibTracking.sol";
+import {LibReservationIdentity} from "./LibReservationIdentity.sol";
 import {RivalIntervalTreeLibrary, Tree} from "./RivalIntervalTreeLibrary.sol";
 
 library LibReservationCancellation {
@@ -32,7 +33,8 @@ library LibReservationCancellation {
     ) internal {
         AppStorage storage s = LibAppStorage.diamondStorage();
         Reservation storage reservation = s.reservations[reservationKey];
-        bytes32 storedHash = s.reservationPucHash[reservationKey];
+        bytes32 reservationId = LibReservationIdentity.currentReservationId(s, reservationKey);
+        bytes32 storedHash = s.reservationPucHash[reservationId];
         bool isInstitutional = storedHash != bytes32(0);
         address trackingKey = isInstitutional
             ? LibTracking.trackingKeyFromInstitutionHash(reservation.renter, storedHash)
@@ -105,10 +107,11 @@ library LibReservationCancellation {
         bytes32 reservationKey,
         Reservation storage reservation
     ) private {
+        bytes32 reservationId = LibReservationIdentity.currentReservationId(s, reservationKey);
         bool wasActive = _isActiveReservationStatus(reservation.status);
         if (reservation.status == _CONFIRMED || reservation.status == _ACCESS_AUTHORIZED) {
             _removeReservationFromCalendar(s, reservation.labId, reservation.start);
-            s.activeConcurrentReservationKeysByLab[reservation.labId].remove(reservationKey);
+            s.activeConcurrentReservationKeysByLab[reservation.labId].remove(reservationId);
         }
 
         if (wasActive) {
@@ -116,6 +119,7 @@ library LibReservationCancellation {
         }
 
         reservation.status = _CANCELLED;
+        LibReservationIdentity.snapshotCurrentReservation(s, reservationKey);
 
         LibHeap.removePayoutCandidates(s, reservation.labId, reservationKey);
 
@@ -134,7 +138,13 @@ library LibReservationCancellation {
         if (user == address(0)) {
             return;
         }
-        _recordPast(s, reservation.labId, user, reservationKey, uint32(block.timestamp));
+        _recordPast(
+            s,
+            reservation.labId,
+            user,
+            LibReservationIdentity.currentReservationId(s, reservationKey),
+            uint32(block.timestamp)
+        );
     }
 
     function _recordPast(
@@ -210,14 +220,15 @@ library LibReservationCancellation {
         Reservation storage reservation,
         bytes32 reservationKey
     ) private {
-        bytes32 storedHash = s.reservationPucHash[reservationKey];
+        bytes32 reservationId = LibReservationIdentity.currentReservationId(s, reservationKey);
+        bytes32 storedHash = s.reservationPucHash[reservationId];
         if (storedHash == bytes32(0)) {
             return;
         }
         address trackingKey = LibTracking.trackingKeyFromInstitutionHash(reservation.renter, storedHash);
-        _invalidateActiveReservationEntry(s, labId, trackingKey, reservationKey);
-        if (s.activeReservationHeapContains[reservationKey]) {
-            s.activeReservationHeapContains[reservationKey] = false;
+        _invalidateActiveReservationEntry(s, labId, trackingKey, reservationId);
+        if (s.activeReservationHeapContains[reservationId]) {
+            s.activeReservationHeapContains[reservationId] = false;
         }
     }
 
@@ -225,17 +236,17 @@ library LibReservationCancellation {
         AppStorage storage s,
         uint256 labId,
         address trackingKey,
-        bytes32 reservationKey
+        bytes32 reservationId
     ) private {
         if (trackingKey == address(0)) {
             return;
         }
-        if (!s.activeReservationHeapContains[reservationKey]) {
+        if (!s.activeReservationHeapContains[reservationId]) {
             return;
         }
-        s.activeReservationHeapContains[reservationKey] = false;
+        s.activeReservationHeapContains[reservationId] = false;
         UserActiveReservation[] storage heap = s.activeReservationHeaps[labId][trackingKey];
-        if (heap.length > 0 && heap[0].key == reservationKey) {
+        if (heap.length > 0 && heap[0].key == reservationId) {
             _removeActiveReservationRoot(heap);
         }
     }

@@ -3,9 +3,12 @@ pragma solidity ^0.8.33;
 
 import {AppStorage, Reservation, PayoutCandidate} from "./LibAppStorage.sol";
 import {LibReservationConfig} from "./LibReservationConfig.sol";
+import {LibReservationIdentity} from "./LibReservationIdentity.sol";
 
 /// @title LibHeap - Payout candidate heap operations
 /// @dev Library to manage min-heap operations for reservation payout scheduling
+///      Heap entries store reservation generation ids; legacy entries fall back
+///      to the historical public reservation key.
 library LibHeap {
     uint256 internal constant MAX_COMPACTION_SIZE = 500;
 
@@ -20,10 +23,11 @@ library LibHeap {
         uint32 end
     ) internal {
         PayoutCandidate[] storage heap = s.payoutHeaps[labId];
-        if (s.payoutHeapContains[key]) return;
-        heap.push(PayoutCandidate({end: end, key: key}));
-        s.payoutHeapContains[key] = true;
-        s.payoutHeapIndexPlusOne[key] = heap.length;
+        bytes32 reservationId = LibReservationIdentity.resolveReservationRef(s, key);
+        if (s.payoutHeapContains[reservationId]) return;
+        heap.push(PayoutCandidate({end: end, key: reservationId}));
+        s.payoutHeapContains[reservationId] = true;
+        s.payoutHeapIndexPlusOne[reservationId] = heap.length;
         _heapifyUp(s, heap, heap.length - 1);
     }
 
@@ -36,21 +40,22 @@ library LibHeap {
         bytes32 key
     ) internal {
         PayoutCandidate[] storage heap = s.payoutHeaps[labId];
-        uint256 indexPlusOne = s.payoutHeapIndexPlusOne[key];
+        bytes32 reservationId = LibReservationIdentity.resolveReservationRef(s, key);
+        uint256 indexPlusOne = s.payoutHeapIndexPlusOne[reservationId];
 
         if (indexPlusOne == 0) {
-            if (s.payoutHeapContains[key]) {
-                s.payoutHeapContains[key] = false;
+            if (s.payoutHeapContains[reservationId]) {
+                s.payoutHeapContains[reservationId] = false;
                 s.payoutHeapInvalidCount[labId]++;
             }
             return;
         }
 
         uint256 index = indexPlusOne - 1;
-        if (index >= heap.length || heap[index].key != key) {
-            s.payoutHeapIndexPlusOne[key] = 0;
-            if (s.payoutHeapContains[key]) {
-                s.payoutHeapContains[key] = false;
+        if (index >= heap.length || heap[index].key != reservationId) {
+            s.payoutHeapIndexPlusOne[reservationId] = 0;
+            if (s.payoutHeapContains[reservationId]) {
+                s.payoutHeapContains[reservationId] = false;
                 s.payoutHeapInvalidCount[labId]++;
             }
             return;
@@ -77,7 +82,8 @@ library LibHeap {
             PayoutCandidate memory root = heap[0];
             if (root.end > currentTime) return bytes32(0);
 
-            Reservation storage reservation = s.reservations[root.key];
+            bytes32 reservationKey = LibReservationIdentity.reservationKeyForId(s, root.key);
+            Reservation storage reservation = s.reservations[reservationKey];
             bool isCurrent = reservation.labId == labId && (reservation.end == 0 || reservation.end == root.end);
             if (
                 isCurrent && reservation.status == _ACCESS_AUTHORIZED && !s.reservationSessionStartedRecorded[root.key]
@@ -88,7 +94,7 @@ library LibHeap {
 
             _removeHeapRoot(s, heap);
             if (isCurrent && (reservation.status == _CONFIRMED || reservation.status == _ACCESS_AUTHORIZED)) {
-                return root.key;
+                return reservationKey;
             }
 
             if (invalidCount > 0) {
@@ -203,17 +209,18 @@ library LibHeap {
 
         uint256 writeIndex;
         for (uint256 readIndex; readIndex < originalLength; readIndex++) {
-            bytes32 key = heap[readIndex].key;
+            bytes32 reservationId = heap[readIndex].key;
+            bytes32 key = LibReservationIdentity.reservationKeyForId(s, reservationId);
             Reservation storage reservation = s.reservations[key];
 
             if (_isCurrentPayoutCandidate(reservation, heap[readIndex], labId)) {
                 if (writeIndex != readIndex) heap[writeIndex] = heap[readIndex];
-                s.payoutHeapContains[key] = true;
-                s.payoutHeapIndexPlusOne[key] = writeIndex + 1;
+                s.payoutHeapContains[reservationId] = true;
+                s.payoutHeapIndexPlusOne[reservationId] = writeIndex + 1;
                 writeIndex++;
             } else {
-                s.payoutHeapContains[key] = false;
-                s.payoutHeapIndexPlusOne[key] = 0;
+                s.payoutHeapContains[reservationId] = false;
+                s.payoutHeapIndexPlusOne[reservationId] = 0;
             }
         }
 

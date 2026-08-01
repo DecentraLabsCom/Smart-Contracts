@@ -13,6 +13,7 @@ import {IInstitutionalTreasuryFacetConfirmLib} from "../../../libraries/LibInsti
 import {IInstitutionalTreasuryFacetLight} from "./InstitutionalReservationRequestCreationFacet.sol";
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import {ReentrancyGuardTransient} from "@openzeppelin/contracts/utils/ReentrancyGuardTransient.sol";
+import {LibReservationIdentity} from "../../../libraries/LibReservationIdentity.sol";
 
 /// @title InstitutionalTreasuryFacet Contract
 /// @author Luis de la Torre Cubillo
@@ -52,6 +53,14 @@ contract InstitutionalTreasuryFacet is
     event InstitutionalTreasuryRefunded(
         address indexed institution,
         bytes32 indexed reservationKey,
+        bytes32 indexed pucHash,
+        uint256 amount,
+        uint256 remainingSpent,
+        uint256 periodStart
+    );
+    event InstitutionalTreasuryRefundedByGeneration(
+        address indexed institution,
+        bytes32 indexed reservationId,
         bytes32 indexed pucHash,
         uint256 amount,
         uint256 remainingSpent,
@@ -378,6 +387,7 @@ contract InstitutionalTreasuryFacet is
     ) external override onlyAuthorizedBackendOrInternal(institution) {
         AppStorage storage s = LibAppStorage.diamondStorage();
         _requireInstitution(institution);
+        bytes32 reservationId = LibReservationIdentity.currentReservationId(s, reservationKey);
 
         if (amount == 0) return;
         require(_availableTreasuryBalance(institution) >= amount, "Insufficient treasury balance");
@@ -387,10 +397,10 @@ contract InstitutionalTreasuryFacet is
         uint256 newSpent = spending.amount + amount;
         require(newSpent <= _getSpendingLimit(institution), "User spending limit exceeded for period");
 
-        _spendTreasuryBalance(institution, amount, reservationKey);
+        _spendTreasuryBalance(institution, amount, reservationId);
         spending.amount = newSpent;
         spending.totalHistoricalSpent += amount;
-        s.institutionalReservationPeriodStartPlusOne[reservationKey] = periodStart + 1;
+        s.institutionalReservationPeriodStartPlusOne[reservationId] = periodStart + 1;
 
         emit InstitutionalUserSpent(institution, pucHash, amount, newSpent, periodStart);
     }
@@ -413,6 +423,7 @@ contract InstitutionalTreasuryFacet is
 
         AppStorage storage s = LibAppStorage.diamondStorage();
         _requireInstitution(institution);
+        bytes32 reservationId = LibReservationIdentity.currentReservationId(s, reservationKey);
 
         // Allow zero-price refunds (free labs) - nothing to refund
         if (amount == 0) return;
@@ -423,7 +434,7 @@ contract InstitutionalTreasuryFacet is
         // This allows refunds for bookings made in previous periods
         require(spending.totalHistoricalSpent >= amount, "Refund exceeds total spent amount");
 
-        LibCreditLedger.cancelCredits(institution, amount, reservationKey);
+        LibCreditLedger.cancelCredits(institution, amount, reservationId);
 
         // Always decrement totalHistoricalSpent (tracks all-time spending)
         spending.totalHistoricalSpent -= amount;
@@ -433,7 +444,7 @@ contract InstitutionalTreasuryFacet is
         // Reservation markers use the same deterministic period boundary derived from chain time.
         // slither-disable-next-line timestamp,incorrect-equality
         bool reservationWasSpentInCurrentPeriod =
-            s.institutionalReservationPeriodStartPlusOne[reservationKey] == currentPeriodStart + 1;
+            s.institutionalReservationPeriodStartPlusOne[reservationId] == currentPeriodStart + 1;
 
         // A refund from a previous period restores treasury credits but must not
         // reduce the current period's spend or revive its allowance.
@@ -445,6 +456,9 @@ contract InstitutionalTreasuryFacet is
         emit InstitutionalUserSpent(institution, pucHash, 0, spending.amount, currentPeriodStart);
         emit InstitutionalTreasuryRefunded(
             institution, reservationKey, pucHash, amount, spending.amount, currentPeriodStart
+        );
+        emit InstitutionalTreasuryRefundedByGeneration(
+            institution, reservationId, pucHash, amount, spending.amount, currentPeriodStart
         );
     }
 

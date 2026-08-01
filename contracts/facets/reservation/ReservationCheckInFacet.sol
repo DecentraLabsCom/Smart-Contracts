@@ -4,6 +4,7 @@ pragma solidity ^0.8.31;
 import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import {LibAppStorage, AppStorage, Reservation} from "../../libraries/LibAppStorage.sol";
+import {LibReservationIdentity} from "../../libraries/LibReservationIdentity.sol";
 
 /// @title ReservationCheckInFacet
 /// @notice Records payer-side on-chain access authorization by moving confirmed reservations to _ACCESS_AUTHORIZED.
@@ -25,6 +26,9 @@ contract ReservationCheckInFacet {
     uint256 internal constant MAX_CHECKIN_DELAY = 5 minutes;
 
     event ReservationCheckedIn(bytes32 indexed reservationKey, uint256 indexed labId, address indexed checker);
+    event ReservationCheckedInByGeneration(
+        bytes32 indexed reservationId, bytes32 indexed reservationKey, uint256 indexed labId, address checker
+    );
 
     modifier onlyDefaultAdminRole() {
         _onlyDefaultAdminRole();
@@ -50,7 +54,14 @@ contract ReservationCheckInFacet {
         Reservation storage reservation = s.reservations[reservationKey];
         _validateReservationWindow(reservation);
         reservation.status = _ACCESS_AUTHORIZED;
+        LibReservationIdentity.snapshotCurrentReservation(s, reservationKey);
         emit ReservationCheckedIn(reservationKey, reservation.labId, msg.sender);
+        emit ReservationCheckedInByGeneration(
+            LibReservationIdentity.currentReservationId(s, reservationKey),
+            reservationKey,
+            reservation.labId,
+            msg.sender
+        );
     }
 
     function checkInReservationWithSignature(
@@ -76,7 +87,14 @@ contract ReservationCheckInFacet {
         _validateSigner(s, reservation, signer, expectedPucHash);
 
         reservation.status = _ACCESS_AUTHORIZED;
+        LibReservationIdentity.snapshotCurrentReservation(s, reservationKey);
         emit ReservationCheckedIn(reservationKey, reservation.labId, msg.sender);
+        emit ReservationCheckedInByGeneration(
+            LibReservationIdentity.currentReservationId(s, reservationKey),
+            reservationKey,
+            reservation.labId,
+            msg.sender
+        );
     }
 
     function _validateReservationWindow(
@@ -125,7 +143,7 @@ contract ReservationCheckInFacet {
         bytes32 reservationKey,
         Reservation storage
     ) private view returns (bytes32) {
-        return s.reservationPucHash[reservationKey];
+        return s.reservationPucHash[LibReservationIdentity.currentReservationId(s, reservationKey)];
     }
 
     function _hashCheckIn(

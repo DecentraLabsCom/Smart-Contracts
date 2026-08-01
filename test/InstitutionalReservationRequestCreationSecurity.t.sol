@@ -2,13 +2,17 @@
 pragma solidity ^0.8.33;
 
 import {Test} from "forge-std/Test.sol";
+import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import {
     InstitutionalReservationRequestCreationFacet
 } from "../contracts/facets/reservation/institutional/InstitutionalReservationRequestCreationFacet.sol";
 import {AppStorage, LibAppStorage} from "../contracts/libraries/LibAppStorage.sol";
 import {LibReservationConfig} from "../contracts/libraries/LibReservationConfig.sol";
+import {LibReservationIdentity} from "../contracts/libraries/LibReservationIdentity.sol";
 
 contract InstitutionalReservationRequestCreationSecurityHarness is InstitutionalReservationRequestCreationFacet {
+    using EnumerableSet for EnumerableSet.Bytes32Set;
+
     function seedBackend(
         address institution,
         address backend
@@ -48,6 +52,28 @@ contract InstitutionalReservationRequestCreationSecurityHarness is Institutional
     ) external view returns (uint8) {
         AppStorage storage s = LibAppStorage.diamondStorage();
         return s.recentReservationsByToken[labId].size;
+    }
+
+    function cancelForTest(
+        bytes32 reservationKey
+    ) external {
+        AppStorage storage s = LibAppStorage.diamondStorage();
+        uint256 labId = s.reservations[reservationKey].labId;
+        s.reservations[reservationKey].status = 4;
+        s.reservationKeysByToken[labId].remove(reservationKey);
+        LibReservationIdentity.snapshotCurrentReservation(s, reservationKey);
+    }
+
+    function reservationId(
+        bytes32 reservationKey
+    ) external view returns (bytes32) {
+        return LibReservationIdentity.currentReservationId(LibAppStorage.diamondStorage(), reservationKey);
+    }
+
+    function historicalStatus(
+        bytes32 reservationIdValue
+    ) external view returns (uint8) {
+        return LibAppStorage.diamondStorage().reservationHistoryById[reservationIdValue].status;
     }
 }
 
@@ -100,6 +126,20 @@ contract InstitutionalReservationRequestCreationSecurityTest is Test {
 
         vm.expectRevert();
         harness.createAsDiamondSelf(_input(reservationKey));
+    }
+
+    function test_reusedTerminalSlot_getsNewGenerationAndPreservesHistory() public {
+        bytes32 reservationKey = keccak256("self-create-reused-slot");
+
+        harness.createAsDiamondSelf(_input(reservationKey));
+        bytes32 firstReservationId = harness.reservationId(reservationKey);
+        harness.cancelForTest(reservationKey);
+
+        harness.createAsDiamondSelf(_input(reservationKey));
+        bytes32 secondReservationId = harness.reservationId(reservationKey);
+
+        assertTrue(firstReservationId != secondReservationId);
+        assertEq(harness.historicalStatus(firstReservationId), 4);
     }
 
     function test_recordRecentInstReservation_allows_diamond_self_call() public {

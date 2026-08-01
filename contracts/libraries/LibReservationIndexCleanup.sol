@@ -4,6 +4,7 @@ pragma solidity ^0.8.31;
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import {AppStorage, Reservation, Tree} from "./LibAppStorage.sol";
 import {LibTracking} from "./LibTracking.sol";
+import {LibReservationIdentity} from "./LibReservationIdentity.sol";
 import {RivalIntervalTreeLibrary} from "./RivalIntervalTreeLibrary.sol";
 
 /// @title LibReservationIndexCleanup
@@ -32,7 +33,7 @@ library LibReservationIndexCleanup {
         _removeReservationKey(s.renters[reservation.renter], key);
         _removeUserReservationIndex(s, labId, reservation.renter, key);
 
-        bytes32 pucHash = s.reservationPucHash[key];
+        bytes32 pucHash = s.reservationPucHash[LibReservationIdentity.currentReservationId(s, key)];
         if (pucHash != bytes32(0)) {
             address trackingKey = LibTracking.trackingKeyFromInstitutionHash(reservation.payerInstitution, pucHash);
             _removeUserReservationIndex(s, labId, trackingKey, key);

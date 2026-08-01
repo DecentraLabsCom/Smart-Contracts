@@ -112,6 +112,27 @@ contract ServiceCreditFacet {
         emit CreditsCancelled(account, amount, reservationRef);
     }
 
+    /// @notice Refund a bounded batch of source allocations.
+    /// @dev Use the returned cursor to continue a legacy reservation whose
+    ///      allocation list is larger than one transaction can process.
+    function cancelCreditsBatch(
+        address account,
+        uint256 amount,
+        bytes32 reservationRef,
+        uint256 maxAllocations
+    ) external onlyDefaultAdminRole returns (uint256 refundedAmount, uint256 nextCursor, bool complete) {
+        (refundedAmount, nextCursor, complete) =
+            LibCreditLedger.cancelCreditsBatch(account, amount, reservationRef, maxAllocations);
+        if (refundedAmount > 0) emit CreditsCancelled(account, refundedAmount, reservationRef);
+    }
+
+    /// @notice Compact an account's spent/expired lots and merge compatible lots.
+    function compactCreditLots(
+        address account
+    ) external onlyDefaultAdminRole returns (uint256 previousLength, uint256 compactedLength) {
+        return LibCreditLedger.compactCreditLots(account);
+    }
+
     /// @notice Expire a specific lot and deduct remaining balance
     /// @param account The account owning the lot
     /// @param lotIndex Index in the account's creditLots array

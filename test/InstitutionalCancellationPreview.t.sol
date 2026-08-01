@@ -47,9 +47,9 @@ contract InstitutionalCancellationPreviewTest is Test {
         assertEq(periodStart, 1_890_000_000);
         assertEq(periodEnd, 1_890_000_000 + 120 days);
         assertEq(sourceExpiry, 1_905_000_000);
-        assertEq(allocations.length, 1);
-        assertEq(allocations[0].fundingOrderId, keccak256("funding-order"));
-        assertEq(allocations[0].amount, 100_000_000);
+        // Provenance is queried through getCreditReservationAllocations in
+        // bounded pages; the preview itself is summary-only.
+        assertEq(allocations.length, 0);
         assertEq(policyVersion, 2);
     }
 

@@ -8,6 +8,7 @@ import {LibERC721Storage} from "./LibERC721Storage.sol";
 import {LibReputation} from "./LibReputation.sol";
 import {LibReservationConfig} from "./LibReservationConfig.sol";
 import {LibReservationDenyReason} from "./LibReservationDenyReason.sol";
+import {LibReservationIdentity} from "./LibReservationIdentity.sol";
 
 interface IInstValidation {
     function validateInstRequest(
@@ -165,7 +166,9 @@ library LibInstitutionalReservation {
         bool serviceFailure = reasonCode == LibReservationDenyReason.PROVIDER_SERVICE_FAILURE;
         if (serviceFailure) {
             if (reservation.status != _CONFIRMED && reservation.status != _ACCESS_AUTHORIZED) revert InvalidStatus();
-            if (s.reservationSessionStartedRecorded[reservationKey]) revert InvalidStatus();
+            if (s.reservationSessionStartedRecorded[LibReservationIdentity.currentReservationId(s, reservationKey)]) {
+                revert InvalidStatus();
+            }
             if (!LibReservationConfig.isWithinSessionAttestationGrace(reservation.end, block.timestamp)) {
                 revert InvalidStatus();
             }
@@ -183,7 +186,7 @@ library LibInstitutionalReservation {
 
         labId = reservation.labId;
         payerInstitution = reservation.payerInstitution;
-        pucHash = s.reservationPucHash[reservationKey];
+        pucHash = s.reservationPucHash[LibReservationIdentity.currentReservationId(s, reservationKey)];
         if (pucHash == bytes32(0)) revert PucMismatch();
         refundAmount = reservation.price;
 
@@ -203,7 +206,7 @@ library LibInstitutionalReservation {
         bytes32 reservationKey,
         bytes32 pucHash
     ) internal view returns (bool) {
-        bytes32 storedHash = s.reservationPucHash[reservationKey];
+        bytes32 storedHash = s.reservationPucHash[LibReservationIdentity.currentReservationId(s, reservationKey)];
         return storedHash != bytes32(0) && storedHash == pucHash;
     }
 }

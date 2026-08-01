@@ -17,6 +17,7 @@ import {LibRevenue} from "./LibRevenue.sol";
 import {LibHeap} from "./LibHeap.sol";
 import {LibReservationCancellation} from "./LibReservationCancellation.sol";
 import {LibReservationDenyReason} from "./LibReservationDenyReason.sol";
+import {LibReservationIdentity} from "./LibReservationIdentity.sol";
 
 interface IInstitutionalTreasuryFacetConfirmLib {
     function spendFromInstitutionalTreasuryForReservation(
@@ -44,6 +45,12 @@ library LibInstitutionalReservationConfirmation {
 
     event ReservationConfirmed(bytes32 indexed reservationKey, uint256 indexed tokenId);
     event ReservationRequestDenied(bytes32 indexed reservationKey, uint256 indexed tokenId, uint8 reason);
+    event ReservationConfirmedByGeneration(
+        bytes32 indexed reservationId, bytes32 indexed reservationKey, uint256 indexed tokenId
+    );
+    event ReservationRequestDeniedByGeneration(
+        bytes32 indexed reservationId, bytes32 indexed reservationKey, uint256 indexed tokenId, uint8 reason
+    );
 
     function confirmInstitutionalReservationRequestWithPucHash(
         address institution,
@@ -75,7 +82,8 @@ library LibInstitutionalReservationConfirmation {
         Reservation storage r = s.reservations[key];
         if (r.payerInstitution != institution) revert PayerMismatch();
 
-        bytes32 storedHash = s.reservationPucHash[key];
+        bytes32 reservationId = LibReservationIdentity.currentReservationId(s, key);
+        bytes32 storedHash = s.reservationPucHash[reservationId];
         if (storedHash == bytes32(0)) revert PucMissing();
         if (storedHash != pucHash) revert PucMismatch();
 
@@ -86,6 +94,9 @@ library LibInstitutionalReservationConfirmation {
         if (!_providerCanFulfill(s, labProvider, r.labId)) {
             LibReservationCancellation.cancelReservation(key);
             emit ReservationRequestDenied(key, r.labId, LibReservationDenyReason.PROVIDER_NOT_ELIGIBLE);
+            emit ReservationRequestDeniedByGeneration(
+                reservationId, key, r.labId, LibReservationDenyReason.PROVIDER_NOT_ELIGIBLE
+            );
             return;
         }
 
@@ -97,6 +108,9 @@ library LibInstitutionalReservationConfirmation {
         if (block.timestamp >= r.requestPeriodStart + d) {
             LibReservationCancellation.cancelReservation(key);
             emit ReservationRequestDenied(key, r.labId, LibReservationDenyReason.REQUEST_EXPIRED);
+            emit ReservationRequestDeniedByGeneration(
+                reservationId, key, r.labId, LibReservationDenyReason.REQUEST_EXPIRED
+            );
             return;
         }
 
@@ -111,6 +125,9 @@ library LibInstitutionalReservationConfirmation {
         } catch {
             LibReservationCancellation.cancelReservation(key);
             emit ReservationRequestDenied(key, r.labId, LibReservationDenyReason.TREASURY_SPEND_FAILED);
+            emit ReservationRequestDeniedByGeneration(
+                reservationId, key, r.labId, LibReservationDenyReason.TREASURY_SPEND_FAILED
+            );
         }
     }
 
@@ -120,12 +137,14 @@ library LibInstitutionalReservationConfirmation {
         bytes32 key,
         address trackingKey
     ) private {
+        bytes32 reservationId = LibReservationIdentity.currentReservationId(s, key);
         _setReservationSplit(r);
         if (s.labs[r.labId].resourceType == 0) {
             s.calendars[r.labId].insert(r.start, r.end);
         }
-        s.activeConcurrentReservationKeysByLab[r.labId].add(key);
+        s.activeConcurrentReservationKeysByLab[r.labId].add(reservationId);
         r.status = _CONFIRMED;
+        LibReservationIdentity.snapshotCurrentReservation(s, key);
         _incrementActiveReservationCounters(s, r);
         s.activeReservationCountByTokenAndUser[r.labId][trackingKey]++;
         _enqueuePayoutCandidate(s, r.labId, key, r.end);
@@ -136,6 +155,7 @@ library LibInstitutionalReservationConfirmation {
         }
 
         emit ReservationConfirmed(key, r.labId);
+        emit ReservationConfirmedByGeneration(reservationId, key, r.labId);
     }
 
     function _providerCanFulfill(
@@ -177,7 +197,7 @@ library LibInstitutionalReservationConfirmation {
         Reservation storage reservation,
         bytes32 reservationKey
     ) private {
-        bytes32 storedHash = s.reservationPucHash[reservationKey];
+        bytes32 storedHash = s.reservationPucHash[LibReservationIdentity.currentReservationId(s, reservationKey)];
         if (storedHash == bytes32(0)) return;
         address trackingKey = LibTracking.trackingKeyFromInstitutionHash(reservation.renter, storedHash);
         _enqueueActiveReservation(s, labId, trackingKey, reservationKey, reservation.start);
@@ -190,10 +210,11 @@ library LibInstitutionalReservationConfirmation {
         bytes32 reservationKey,
         uint32 start
     ) private {
-        if (trackingKey == address(0) || s.activeReservationHeapContains[reservationKey]) return;
+        bytes32 reservationId = LibReservationIdentity.currentReservationId(s, reservationKey);
+        if (trackingKey == address(0) || s.activeReservationHeapContains[reservationId]) return;
         UserActiveReservation[] storage heap = s.activeReservationHeaps[labId][trackingKey];
-        heap.push(UserActiveReservation({start: start, key: reservationKey}));
-        s.activeReservationHeapContains[reservationKey] = true;
+        heap.push(UserActiveReservation({start: start, key: reservationId}));
+        s.activeReservationHeapContains[reservationId] = true;
         _activeHeapifyUp(heap, heap.length - 1);
     }
 

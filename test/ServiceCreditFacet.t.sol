@@ -76,4 +76,76 @@ contract ServiceCreditFacetTest is BaseTest {
         harness.ledgerAdjustCredits(user1, -int256(30_000), bytes32("overdraw-locked"));
         vm.stopPrank();
     }
+
+    function test_compactCreditLots_merges_compatible_lots() public {
+        bytes32 fundingOrder = keccak256("compatible-funding");
+
+        vm.startPrank(owner);
+        harness.mintCredits(user1, 100, fundingOrder, 95, 0);
+        harness.mintCredits(user1, 200, fundingOrder, 190, 0);
+        (uint256 previousLength, uint256 compactedLength) = harness.compactCreditLots(user1);
+        vm.stopPrank();
+
+        assertEq(previousLength, 2);
+        assertEq(compactedLength, 1);
+        assertEq(harness.totalBalanceOf(user1), 300);
+
+        (CreditLot[] memory lots, uint256 total) = harness.getCreditLots(user1, 0, 10);
+        assertEq(total, 1);
+        assertEq(lots[0].remaining, 300);
+        assertEq(lots[0].eurGrossAmount, 285);
+    }
+
+    function test_mintCredits_reverts_after_active_lot_bound() public {
+        vm.startPrank(owner);
+        for (uint256 i; i < 128; ++i) {
+            harness.mintCredits(user1, 1, bytes32(i + 1), 0, 0);
+        }
+
+        vm.expectRevert(LibCreditLedger.CreditLotLimitExceeded.selector);
+        harness.mintCredits(user1, 1, bytes32(uint256(129)), 0, 0);
+        vm.stopPrank();
+    }
+
+    function test_captureLockedCredits_reverts_before_creating_too_many_allocations() public {
+        vm.startPrank(owner);
+        for (uint256 i; i < 65; ++i) {
+            harness.mintCredits(user1, 1, bytes32(i + 1), 0, 0);
+        }
+        bytes32 reservationRef = keccak256("allocation-cap");
+        harness.lockCredits(user1, 65, reservationRef);
+
+        vm.expectRevert(LibCreditLedger.ReservationAllocationLimitExceeded.selector);
+        harness.captureLockedCredits(user1, 65, reservationRef);
+        vm.stopPrank();
+
+        assertEq(harness.lockedBalanceOf(user1), 65);
+        assertEq(harness.totalBalanceOf(user1), 65);
+    }
+
+    function test_cancelCreditsBatch_persists_cursor_for_large_legacy_refund() public {
+        bytes32 reservationRef = keccak256("batched-refund");
+
+        vm.startPrank(owner);
+        for (uint256 i; i < 64; ++i) {
+            harness.mintCredits(user1, 1, bytes32(i + 1), 0, 0);
+        }
+        harness.lockCredits(user1, 64, reservationRef);
+        harness.captureLockedCredits(user1, 64, reservationRef);
+
+        (uint256 firstRefund, uint256 cursor, bool complete) = harness.cancelCreditsBatch(user1, 64, reservationRef, 32);
+        assertEq(firstRefund, 32);
+        assertEq(cursor, 32);
+        assertFalse(complete);
+        assertEq(harness.totalBalanceOf(user1), 32);
+
+        (uint256 secondRefund, uint256 finalCursor, bool finished) =
+            harness.cancelCreditsBatch(user1, 32, reservationRef, 32);
+        vm.stopPrank();
+
+        assertEq(secondRefund, 32);
+        assertEq(finalCursor, 64);
+        assertTrue(finished);
+        assertEq(harness.totalBalanceOf(user1), 64);
+    }
 }

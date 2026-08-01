@@ -9,6 +9,7 @@ import {LibReputation} from "./LibReputation.sol";
 import {LibRevenue} from "./LibRevenue.sol";
 import {LibReservationConfig} from "./LibReservationConfig.sol";
 import {LibReservationIndexCleanup} from "./LibReservationIndexCleanup.sol";
+import {LibReservationIdentity} from "./LibReservationIdentity.sol";
 
 interface IInstitutionalTreasuryFacetSettlement {
     function refundToInstitutionalTreasuryForReservation(
@@ -40,6 +41,7 @@ library LibInstitutionalReservationSettlement {
         bytes32 key,
         uint256 currentTime
     ) internal view returns (bool) {
+        bytes32 reservationId = LibReservationIdentity.currentReservationId(s, key);
         if (reservation.status == _CONFIRMED) {
             return reservation.end < currentTime;
         }
@@ -47,7 +49,7 @@ library LibInstitutionalReservationSettlement {
             return false;
         }
 
-        if (s.reservationSessionStartedRecorded[key]) {
+        if (s.reservationSessionStartedRecorded[reservationId]) {
             return reservation.end < currentTime;
         }
 
@@ -62,8 +64,9 @@ library LibInstitutionalReservationSettlement {
         uint256 labId,
         uint256 currentTime
     ) internal view returns (bool) {
+        bytes32 reservationId = LibReservationIdentity.currentReservationId(s, key);
         return reservation.labId == labId && reservation.status == _ACCESS_AUTHORIZED
-            && s.reservationSessionStartedRecorded[key] && reservation.end < currentTime;
+            && s.reservationSessionStartedRecorded[reservationId] && reservation.end < currentTime;
     }
 
     /// @dev Applies the complete refund/receivable and lifecycle transition.
@@ -74,11 +77,12 @@ library LibInstitutionalReservationSettlement {
         Reservation storage reservation,
         uint256 labId
     ) private {
+        bytes32 reservationId = LibReservationIdentity.currentReservationId(s, key);
         uint8 previousStatus = reservation.status;
-        bool sessionStartedRecorded = s.reservationSessionStartedRecorded[key];
+        bool sessionStartedRecorded = s.reservationSessionStartedRecorded[reservationId];
 
         LibHeap.removePayoutCandidates(s, labId, key);
-        s.activeConcurrentReservationKeysByLab[labId].remove(key);
+        s.activeConcurrentReservationKeysByLab[labId].remove(reservationId);
         if (sessionStartedRecorded) {
             if (reservation.providerShare > 0) {
                 LibProviderReceivable.accrueReceivable(labId, reservation.providerShare, key);
@@ -97,12 +101,13 @@ library LibInstitutionalReservationSettlement {
             if (refundAmount > 0) {
                 IInstitutionalTreasuryFacetSettlement(address(this))
                     .refundToInstitutionalTreasuryForReservation(
-                        reservation.payerInstitution, s.reservationPucHash[key], key, refundAmount
+                        reservation.payerInstitution, s.reservationPucHash[reservationId], key, refundAmount
                     );
             }
         }
 
         reservation.status = _SETTLED;
+        LibReservationIdentity.snapshotCurrentReservation(s, key);
         if (previousStatus == _ACCESS_AUTHORIZED && sessionStartedRecorded) {
             LibReputation.recordCompletion(labId);
         }

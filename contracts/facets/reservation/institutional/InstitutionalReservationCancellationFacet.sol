@@ -12,6 +12,7 @@ import {
 } from "../../../libraries/LibAppStorage.sol";
 import {LibInstitutionalReservation} from "../../../libraries/LibInstitutionalReservation.sol";
 import {LibRevenue} from "../../../libraries/LibRevenue.sol";
+import {LibReservationIdentity} from "../../../libraries/LibReservationIdentity.sol";
 
 /// @title InstitutionalReservationCancellationFacet
 /// @author Luis de la Torre Cubillo, Juan Luis Ramos Villalón
@@ -32,6 +33,9 @@ contract InstitutionalReservationCancellationFacet is ReentrancyGuardTransient {
         bytes32 pucHash,
         uint96 refundAmount,
         uint8 reasonCode
+    );
+    event ReservationCancellationByGeneration(
+        bytes32 indexed reservationId, bytes32 indexed reservationKey, uint256 indexed tokenId, uint8 reasonCode
     );
 
     modifier onlyInstitution(
@@ -98,6 +102,7 @@ contract InstitutionalReservationCancellationFacet is ReentrancyGuardTransient {
     {
         AppStorage storage s = _s();
         Reservation storage reservation = s.reservations[reservationKey];
+        bytes32 reservationId = LibReservationIdentity.currentReservationId(s, reservationKey);
 
         reservationStatus = reservation.status;
         refundDestination = reservation.payerInstitution;
@@ -117,7 +122,7 @@ contract InstitutionalReservationCancellationFacet is ReentrancyGuardTransient {
             refundAmount = 0;
         }
 
-        uint256 periodStartPlusOne = s.institutionalReservationPeriodStartPlusOne[reservationKey];
+        uint256 periodStartPlusOne = s.institutionalReservationPeriodStartPlusOne[reservationId];
         if (periodStartPlusOne != 0) {
             spendingPeriodStart = periodStartPlusOne - 1;
             uint256 duration = s.institutionalSpendingPeriod[reservation.payerInstitution];
@@ -125,16 +130,12 @@ contract InstitutionalReservationCancellationFacet is ReentrancyGuardTransient {
             spendingPeriodEnd = spendingPeriodStart + duration;
         }
 
-        sourceCreditExpiry = s.creditReservationExpiry[reservation.payerInstitution][reservationKey];
-        CreditReservationAllocation[] storage storedAllocations =
-            s.creditReservationAllocations[reservation.payerInstitution][reservationKey];
-        allocations = new CreditReservationAllocation[](storedAllocations.length);
-        for (uint256 i; i < storedAllocations.length;) {
-            allocations[i] = storedAllocations[i];
-            unchecked {
-                ++i;
-            }
-        }
+        sourceCreditExpiry = s.creditReservationExpiry[reservation.payerInstitution][reservationId];
+        // The preview is intentionally a bounded summary. Source-lot
+        // provenance remains available through the paginated credit-ledger
+        // getter, so a reservation with many allocations cannot make one
+        // eth_call copy an unbounded array into memory.
+        allocations = new CreditReservationAllocation[](0);
     }
 
     /// @notice Cancel a confirmed booking because the provider cannot honor it.
@@ -153,6 +154,9 @@ contract InstitutionalReservationCancellationFacet is ReentrancyGuardTransient {
         emit BookingCanceledByProvider(
             reservationKey, labId, payerInstitution, provider, pucHash, refundAmount, reasonCode
         );
+        emit ReservationCancellationByGeneration(
+            LibReservationIdentity.currentReservationId(_s(), reservationKey), reservationKey, labId, reasonCode
+        );
     }
 
     function _cancelInstitutionalReservationRequest(
@@ -163,6 +167,9 @@ contract InstitutionalReservationCancellationFacet is ReentrancyGuardTransient {
         uint256 labId =
             LibInstitutionalReservation.cancelReservationRequest(institutionalProvider, pucHash, _reservationKey);
         emit ReservationRequestCanceled(_reservationKey, labId);
+        emit ReservationCancellationByGeneration(
+            LibReservationIdentity.currentReservationId(_s(), _reservationKey), _reservationKey, labId, 0
+        );
     }
 
     // The reservation library completes the Diamond state transition before this audit event.
@@ -174,5 +181,8 @@ contract InstitutionalReservationCancellationFacet is ReentrancyGuardTransient {
     ) internal {
         uint256 labId = LibInstitutionalReservation.cancelBooking(institutionalProvider, pucHash, _reservationKey);
         emit BookingCanceled(_reservationKey, labId);
+        emit ReservationCancellationByGeneration(
+            LibReservationIdentity.currentReservationId(_s(), _reservationKey), _reservationKey, labId, 0
+        );
     }
 }

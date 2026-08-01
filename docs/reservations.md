@@ -9,9 +9,12 @@ them.
 
 A reservation stores lab, renter/tracking identity, payer and collector
 institutions, price, provider share, timestamps and lifecycle status. For
-institutional paths the reservation key is derived from `labId` and `start`;
-the PUC hash is stored separately and a derived tracking key indexes the
-institutional user without exposing the raw identifier.
+institutional paths the public reservation key is derived from `labId`, `start`
+and the PUC hash. It identifies the currently occupied slot. Every accepted
+request also receives a unique immutable `reservationId`; credit allocations,
+expiry, spending-period markers, sessions, payout heaps and historical
+snapshots use that generation id so a cancelled slot can be reused safely.
+Use `getReservationId` and `getReservationById` for generation-aware reads.
 
 ## Lifecycle
 
@@ -121,6 +124,9 @@ explicit atomic exception because the payer and provider are the same
 institution.
 
 `previewInstitutionalBookingCancellation` returns the contract's current
-calculation before a transaction: status, eligibility, refund destination,
-fees, cutoff, period data, source-credit expiry, allocations and policy
-version. Use this read for confirmation UI rather than duplicating fee logic.
+summary before a transaction: status, eligibility, refund destination, fees,
+cutoff, period data, source-credit expiry and policy version. Its allocations
+array is intentionally empty so the read remains bounded. Query source-lot
+provenance with `getCreditReservationAllocations` using pagination; use
+`offset=0, limit=0` for the count only. Use the preview for confirmation UI
+rather than duplicating fee logic.

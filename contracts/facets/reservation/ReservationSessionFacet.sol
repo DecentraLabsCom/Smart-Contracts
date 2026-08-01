@@ -5,6 +5,7 @@ import {SignatureChecker} from "@openzeppelin/contracts/utils/cryptography/Signa
 import {AppStorage, LibAppStorage, Reservation, ReservationSession} from "../../libraries/LibAppStorage.sol";
 import {LibERC721Storage} from "../../libraries/LibERC721Storage.sol";
 import {LibReservationConfig} from "../../libraries/LibReservationConfig.sol";
+import {LibReservationIdentity} from "../../libraries/LibReservationIdentity.sol";
 
 /// @title ReservationSessionFacet
 /// @notice Records provider-signed proof that the lab session actually started after payer access authorization.
@@ -46,12 +47,16 @@ contract ReservationSessionFacet {
         bytes32 credentialHash,
         bytes32 clientProofHash
     );
+    event ReservationSessionStartedByGeneration(
+        bytes32 indexed reservationId, bytes32 indexed reservationKey, uint256 indexed labId, address signer
+    );
 
     function markSessionStarted(
         SessionStartedInput calldata input
     ) external {
         AppStorage storage s = LibAppStorage.diamondStorage();
         Reservation storage reservation = s.reservations[input.reservationKey];
+        bytes32 reservationId = LibReservationIdentity.currentReservationId(s, input.reservationKey);
 
         _validateReservation(s, reservation, input);
 
@@ -61,7 +66,7 @@ contract ReservationSessionFacet {
         bytes32 observationKey =
             keccak256(abi.encode(block.chainid, address(this), gatewayIdHash, sessionIdHash, accessTypeHash));
 
-        if (s.reservationSessionStartedRecorded[input.reservationKey]) revert("Session already started");
+        if (s.reservationSessionStartedRecorded[reservationId]) revert("Session already started");
         if (s.sessionStartedNonceUsed[input.nonce]) revert("Nonce already used");
         if (s.sessionStartedObservationUsed[observationKey]) revert("Session already used");
 
@@ -70,7 +75,7 @@ contract ReservationSessionFacet {
             revert("Signature mismatch");
         }
 
-        s.reservationSessionStarted[input.reservationKey] = ReservationSession({
+        s.reservationSessionStarted[reservationId] = ReservationSession({
             signer: input.signer,
             gatewayIdHash: gatewayIdHash,
             sessionIdHash: sessionIdHash,
@@ -80,7 +85,7 @@ contract ReservationSessionFacet {
             credentialHash: input.credentialHash,
             clientProofHash: input.clientProofHash
         });
-        s.reservationSessionStartedRecorded[input.reservationKey] = true;
+        s.reservationSessionStartedRecorded[reservationId] = true;
         s.sessionStartedNonceUsed[input.nonce] = true;
         s.sessionStartedObservationUsed[observationKey] = true;
 
@@ -96,18 +101,21 @@ contract ReservationSessionFacet {
             input.credentialHash,
             input.clientProofHash
         );
+        emit ReservationSessionStartedByGeneration(reservationId, input.reservationKey, reservation.labId, input.signer);
     }
 
     function getReservationSessionStarted(
         bytes32 reservationKey
     ) external view returns (ReservationSession memory) {
-        return LibAppStorage.diamondStorage().reservationSessionStarted[reservationKey];
+        AppStorage storage s = LibAppStorage.diamondStorage();
+        return s.reservationSessionStarted[LibReservationIdentity.currentReservationId(s, reservationKey)];
     }
 
     function hasReservationSessionStarted(
         bytes32 reservationKey
     ) external view returns (bool) {
-        return LibAppStorage.diamondStorage().reservationSessionStartedRecorded[reservationKey];
+        AppStorage storage s = LibAppStorage.diamondStorage();
+        return s.reservationSessionStartedRecorded[LibReservationIdentity.currentReservationId(s, reservationKey)];
     }
 
     function _validateReservation(
@@ -129,7 +137,10 @@ contract ReservationSessionFacet {
         if (keccak256(bytes(input.labId)) != keccak256(bytes(_uintToString(reservation.labId)))) {
             revert("LabId mismatch");
         }
-        if (input.pucHash != s.reservationPucHash[input.reservationKey]) revert("Puc hash mismatch");
+        if (input.pucHash != s.reservationPucHash[LibReservationIdentity.currentReservationId(s, input.reservationKey)])
+        {
+            revert("Puc hash mismatch");
+        }
 
         address provider = LibERC721Storage.ownerOf(reservation.labId);
         if (input.signer != provider) revert("Signer not provider");

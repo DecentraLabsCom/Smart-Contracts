@@ -4,6 +4,7 @@ pragma solidity ^0.8.31;
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import {AppStorage, LibAppStorage, RecentReservationBuffer, Reservation} from "../../../libraries/LibAppStorage.sol";
 import {LibReservationConfig} from "../../../libraries/LibReservationConfig.sol";
+import {LibReservationIdentity} from "../../../libraries/LibReservationIdentity.sol";
 
 interface IInstitutionalTreasuryFacetLight {
     function checkInstitutionalTreasuryAvailability(
@@ -27,6 +28,9 @@ contract InstitutionalReservationRequestCreationFacet {
 
     event ReservationRequested(
         address indexed renter, uint256 indexed tokenId, uint256 start, uint256 end, bytes32 indexed reservationKey
+    );
+    event ReservationGenerationCreated(
+        bytes32 indexed reservationId, bytes32 indexed reservationKey, uint256 indexed tokenId
     );
 
     modifier onlyDiamondSelfCall() {
@@ -69,12 +73,19 @@ contract InstitutionalReservationRequestCreationFacet {
             IInstitutionalTreasuryFacetLight(address(this)).checkInstitutionalTreasuryAvailability(i.p, i.u, pr);
         }
 
+        // Preserve the terminal record of a pre-generation reservation before
+        // the reusable slot key is pointed at the new generation.
+        if (existing.renter != address(0)) {
+            LibReservationIdentity.snapshotCurrentReservation(s, i.k);
+        }
+
         // forge-lint: disable-next-line(unsafe-typecast)
         uint64 rs = uint64(block.timestamp);
         // forge-lint: disable-next-line(unsafe-typecast)
         uint64 period = uint64(LibReservationConfig.PENDING_REQUEST_TTL);
 
         require(s.reservationKeysByToken[i.l].add(i.k), "Reservation index mismatch");
+        bytes32 reservationId = LibReservationIdentity.createReservationId(s, i.k);
         Reservation storage r = s.reservations[i.k];
         r.labId = i.l;
         r.renter = i.p;
@@ -88,7 +99,8 @@ contract InstitutionalReservationRequestCreationFacet {
         r.payerInstitution = i.p;
         r.collectorInstitution = hc != address(0) ? i.o : address(0);
         r.providerShare = 0;
-        s.reservationPucHash[i.k] = i.u;
+        s.reservationPucHash[reservationId] = i.u;
+        LibReservationIdentity.snapshotCurrentReservation(s, i.k);
 
         s.totalReservationsCount++;
         _addReservationIndex(s.renters[i.p], i.k);
@@ -96,6 +108,7 @@ contract InstitutionalReservationRequestCreationFacet {
         _addReservationIndex(s.reservationKeysByTokenAndUser[i.l][i.t], i.k);
 
         emit ReservationRequested(i.p, i.l, i.s, i.e, i.k);
+        emit ReservationGenerationCreated(reservationId, i.k, i.l);
     }
 
     function recordRecentInstReservation(
@@ -124,9 +137,10 @@ contract InstitutionalReservationRequestCreationFacet {
         bytes32 reservationKey,
         uint32 startTime
     ) private {
-        _insertRecent(s.recentReservationsByToken[labId], reservationKey, startTime, _TOKEN_BUFFER_CAP);
+        bytes32 reservationId = LibReservationIdentity.currentReservationId(s, reservationKey);
+        _insertRecent(s.recentReservationsByToken[labId], reservationId, startTime, _TOKEN_BUFFER_CAP);
         _insertRecent(
-            s.recentReservationsByTokenAndUser[labId][userTrackingKey], reservationKey, startTime, _USER_BUFFER_CAP
+            s.recentReservationsByTokenAndUser[labId][userTrackingKey], reservationId, startTime, _USER_BUFFER_CAP
         );
     }
 

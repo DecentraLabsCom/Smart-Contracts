@@ -23,7 +23,8 @@ contract LibHeapHarness {
         uint256 currentTime
     ) external returns (bytes32) {
         AppStorage storage s = _s();
-        return LibHeap.popEligiblePayoutCandidate(s, labId, currentTime);
+        (bytes32 key,,) = LibHeap.popEligiblePayoutCandidate(s, labId, currentTime);
+        return key;
     }
 
     function removePayoutCandidates(

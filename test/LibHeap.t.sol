@@ -78,6 +78,29 @@ contract LibHeapTest is BaseTest {
         assertEq(harness.heapLength(labId), 0);
     }
 
+    function test_boundedGraceScan_cursor_reaches_later_settleable_candidate() public {
+        uint256 labId = 6;
+        for (uint256 i; i < 256; i++) {
+            bytes32 pendingKey = keccak256(abi.encodePacked("grace-pending", i));
+            harness.setReservation(pendingKey, labId, 2); // ACCESS_AUTHORIZED
+            harness.setReservationEnd(pendingKey, 900);
+            harness.enqueueViaLib(labId, pendingKey, 900);
+        }
+
+        bytes32 settleableKey = keccak256("settleable-after-grace-prefix");
+        harness.setReservation(settleableKey, labId, 2); // ACCESS_AUTHORIZED
+        harness.setReservationEnd(settleableKey, 999);
+        harness.setSessionStarted(settleableKey);
+        harness.enqueueViaLib(labId, settleableKey, 999);
+
+        vm.warp(1000);
+        assertEq(harness.popEligible(labId, block.timestamp), bytes32(0));
+        assertEq(harness.heapLength(labId), 257);
+
+        assertEq(harness.popEligible(labId, block.timestamp), settleableKey);
+        assertEq(harness.heapLength(labId), 256);
+    }
+
     function test_removePayoutCandidate_updatesIndexes_afterMiddleRemoval() public {
         uint256 labId = 5;
         bytes32 first = keccak256("first");

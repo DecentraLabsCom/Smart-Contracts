@@ -340,6 +340,11 @@ struct AppStorage {
     // list predates the allocation cap.
     mapping(address account => mapping(bytes32 reservationRef => uint256 allocationIndex))
         creditReservationRefundCursor;
+
+    // Cursor for bounded payout-heap scans. It advances across grace-pending
+    // entries so later settleable candidates cannot be starved by a fixed scan
+    // prefix.
+    mapping(uint256 labId => uint256 heapScanIndex) payoutHeapScanCursor;
 }
 
 /// @notice Provider participation status within the limited service network

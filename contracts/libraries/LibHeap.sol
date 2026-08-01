@@ -11,6 +11,7 @@ import {LibReservationIdentity} from "./LibReservationIdentity.sol";
 ///      to the historical public reservation key.
 library LibHeap {
     uint256 internal constant MAX_COMPACTION_SIZE = 500;
+    uint256 internal constant MAX_PAYOUT_HEAP_SCAN = 256;
 
     // Reservation statuses (must match ReservableToken)
     uint8 internal constant _CONFIRMED = 1;
@@ -64,11 +65,15 @@ library LibHeap {
         _removeAt(s, heap, index);
     }
 
+    /// @notice Finds and removes one settleable payout candidate.
+    /// @dev Grace-pending candidates remain in the heap while a bounded scan
+    ///      advances through them. The cursor persists across calls so a fixed
+    ///      scan window cannot permanently starve a later attested candidate.
     function popEligiblePayoutCandidate(
         AppStorage storage s,
         uint256 labId,
         uint256 currentTime
-    ) internal returns (bytes32) {
+    ) internal returns (bytes32 reservationKey, bool pendingGraceEncountered, bool scanLimitReached) {
         PayoutCandidate[] storage heap = s.payoutHeaps[labId];
         uint256 heapSize = heap.length;
         uint256 invalidCount = s.payoutHeapInvalidCount[labId];
@@ -76,34 +81,78 @@ library LibHeap {
             _compactHeap(s, labId);
             heapSize = heap.length;
             invalidCount = s.payoutHeapInvalidCount[labId];
+            s.payoutHeapScanCursor[labId] = 0;
         }
 
-        while (heapSize > 0) {
-            PayoutCandidate memory root = heap[0];
-            if (root.end > currentTime) return bytes32(0);
+        if (heapSize == 0) {
+            s.payoutHeapScanCursor[labId] = 0;
+            return (bytes32(0), false, false);
+        }
 
-            bytes32 reservationKey = LibReservationIdentity.reservationKeyForId(s, root.key);
-            Reservation storage reservation = s.reservations[reservationKey];
-            bool isCurrent = reservation.labId == labId && (reservation.end == 0 || reservation.end == root.end);
+        uint256 scanIndex = s.payoutHeapScanCursor[labId];
+        if (scanIndex >= heapSize) scanIndex = 0;
+
+        uint256 scanned;
+        while (heap.length > 0 && scanned < MAX_PAYOUT_HEAP_SCAN) {
+            if (scanIndex >= heap.length) scanIndex = 0;
+
+            PayoutCandidate storage candidate = heap[scanIndex];
+            bytes32 candidateReservationKey = LibReservationIdentity.reservationKeyForId(s, candidate.key);
+            Reservation storage reservation = s.reservations[candidateReservationKey];
+            bool isCurrent = reservation.labId == labId && (reservation.end == 0 || reservation.end == candidate.end);
+
             if (
-                isCurrent && reservation.status == _ACCESS_AUTHORIZED && !s.reservationSessionStartedRecorded[root.key]
+                isCurrent && candidate.end < currentTime && reservation.status == _ACCESS_AUTHORIZED
+                    && !s.reservationSessionStartedRecorded[candidate.key]
                     && LibReservationConfig.isWithinSessionAttestationGrace(reservation.end, currentTime)
             ) {
-                return bytes32(0);
+                pendingGraceEncountered = true;
             }
 
-            _removeHeapRoot(s, heap);
-            if (isCurrent && (reservation.status == _CONFIRMED || reservation.status == _ACCESS_AUTHORIZED)) {
-                return reservationKey;
+            if (isCurrent && _isPayoutCandidateEligible(s, reservation, candidate, currentTime)) {
+                _removeAt(s, heap, scanIndex);
+                if (scanIndex >= heap.length) scanIndex = 0;
+                s.payoutHeapScanCursor[labId] = scanIndex;
+                return (candidateReservationKey, pendingGraceEncountered, false);
             }
 
-            if (invalidCount > 0) {
-                s.payoutHeapInvalidCount[labId]--;
-                invalidCount--;
+            if (!isCurrent || (reservation.status != _CONFIRMED && reservation.status != _ACCESS_AUTHORIZED)) {
+                _removeAt(s, heap, scanIndex);
+                if (invalidCount > 0) {
+                    s.payoutHeapInvalidCount[labId]--;
+                    invalidCount--;
+                }
+                unchecked {
+                    ++scanned;
+                }
+                continue;
             }
-            heapSize--;
+
+            unchecked {
+                ++scanned;
+            }
+            unchecked {
+                ++scanIndex;
+            }
         }
-        return bytes32(0);
+
+        if (scanIndex >= heap.length) scanIndex = 0;
+        s.payoutHeapScanCursor[labId] = scanIndex;
+        scanLimitReached = scanned >= MAX_PAYOUT_HEAP_SCAN;
+        return (bytes32(0), pendingGraceEncountered, scanLimitReached);
+    }
+
+    function _isPayoutCandidateEligible(
+        AppStorage storage s,
+        Reservation storage reservation,
+        PayoutCandidate storage candidate,
+        uint256 currentTime
+    ) private view returns (bool) {
+        if (candidate.end >= currentTime) return false;
+        if (reservation.status == _CONFIRMED) return true;
+        if (reservation.status != _ACCESS_AUTHORIZED) return false;
+        if (s.reservationSessionStartedRecorded[candidate.key]) return true;
+        return !LibReservationConfig.isWithinSessionAttestationGrace(reservation.end, currentTime);
     }
 
     function _heapifyUp(

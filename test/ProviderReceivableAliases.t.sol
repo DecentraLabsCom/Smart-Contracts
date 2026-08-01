@@ -15,6 +15,7 @@ import {
 import {LibAccessControlEnumerable} from "../contracts/libraries/LibAccessControlEnumerable.sol";
 import {LibERC721StorageTestHelper} from "./LibERC721StorageTestHelper.sol";
 import {LibInstitutionalReservationRelease} from "../contracts/libraries/LibInstitutionalReservationRelease.sol";
+import {LibProviderReceivable} from "../contracts/libraries/LibProviderReceivable.sol";
 import {LibTracking} from "../contracts/libraries/LibTracking.sol";
 
 contract ProviderReceivableHarness is ERC721, ProviderSettlementFacet {
@@ -45,6 +46,7 @@ contract ProviderReceivableHarness is ERC721, ProviderSettlementFacet {
     ) external {
         AppStorage storage s = LibAppStorage.diamondStorage();
         s.providerReceivableAccrued[labId] = amount;
+        s.providerReceivableAccruedScopeRoot[labId] = keccak256(abi.encode("test-pending-scope", labId, amount));
     }
 
     function setProviderReceivableBucket(
@@ -53,7 +55,10 @@ contract ProviderReceivableHarness is ERC721, ProviderSettlementFacet {
         uint256 amount
     ) external {
         AppStorage storage s = LibAppStorage.diamondStorage();
-        if (state == 1) s.providerReceivableAccrued[labId] = amount;
+        if (state == 1) {
+            s.providerReceivableAccrued[labId] = amount;
+            s.providerReceivableAccruedScopeRoot[labId] = keccak256(abi.encode("test-pending-scope", labId, amount));
+        }
         else if (state == 2) s.providerSettlementQueue[labId] = amount;
         else if (state == 3) s.providerReceivableInvoiced[labId] = amount;
         else if (state == 4) s.providerReceivableApproved[labId] = amount;
@@ -131,6 +136,14 @@ contract ProviderReceivableHarness is ERC721, ProviderSettlementFacet {
     ) external {
         AppStorage storage s = LibAppStorage.diamondStorage();
         s.reservationSessionStartedRecorded[reservationKey] = true;
+    }
+
+    function accrueProviderReceivableForTest(
+        uint256 labId,
+        uint256 amount,
+        bytes32 reservationId
+    ) external {
+        LibProviderReceivable.accrueReceivable(labId, amount, reservationId);
     }
 
     function getReservationStatus(
@@ -532,7 +545,7 @@ contract ProviderReceivableAliasesTest is Test {
         assertEq(harness.payoutHeapLength(LAB_ID), 1);
     }
 
-    function test_requestProviderPayout_waits_for_unattested_attestation_grace() public {
+    function test_requestProviderPayout_skips_unattested_attestation_grace_root() public {
         bytes32 unattestedKey = keccak256("unattested-root");
         bytes32 attestedKey = keccak256("attested-next");
         harness.setExpiredPayoutReservation(unattestedKey, LAB_ID, ACCESS_AUTHORIZED, FIVE_CREDITS_U96, 998);
@@ -540,42 +553,26 @@ contract ProviderReceivableAliasesTest is Test {
         harness.markSessionStartedForTest(attestedKey);
 
         vm.prank(PROVIDER);
-        vm.expectRevert("No settleable reservations");
-        harness.requestProviderPayout(LAB_ID, 10);
-
-        assertEq(harness.payoutHeapLength(LAB_ID), 2);
-        assertEq(harness.getReservationStatus(unattestedKey), ACCESS_AUTHORIZED);
-        assertEq(harness.getReservationStatus(attestedKey), ACCESS_AUTHORIZED);
-
-        vm.warp(999 + 1 days + 1);
-        vm.prank(PROVIDER);
-        harness.requestProviderPayout(LAB_ID, 10);
-
-        (uint256 accruedReceivable, uint256 settlementQueued,,,,,) = _getLifecycleWithoutTimestamp();
-        assertEq(accruedReceivable, 0);
-        assertEq(settlementQueued, FIVE_CREDITS + 7_500_000);
-        assertEq(harness.getReservationStatus(unattestedKey), SETTLED);
-        assertEq(harness.getReservationStatus(attestedKey), SETTLED);
-        assertEq(harness.lastRefundAmount(), 37_500_000);
-    }
-
-    function test_requestProviderPayout_skips_unattested_grace_root_for_attested_candidate() public {
-        bytes32 unattestedKey = keccak256("unattested-root-skip");
-        bytes32 attestedKey = keccak256("attested-next-skip");
-        harness.setExpiredPayoutReservation(unattestedKey, LAB_ID, ACCESS_AUTHORIZED, FIVE_CREDITS_U96, 998);
-        harness.setExpiredPayoutReservation(attestedKey, LAB_ID, ACCESS_AUTHORIZED, FIVE_CREDITS_U96, 999);
-        harness.markSessionStartedForTest(attestedKey);
-
-        vm.warp(1000);
-        vm.prank(PROVIDER);
         harness.requestProviderPayout(LAB_ID, 10);
 
         (uint256 accruedReceivable, uint256 settlementQueued,,,,,) = _getLifecycleWithoutTimestamp();
         assertEq(accruedReceivable, 0);
         assertEq(settlementQueued, FIVE_CREDITS);
+        assertEq(harness.payoutHeapLength(LAB_ID), 1);
         assertEq(harness.getReservationStatus(unattestedKey), ACCESS_AUTHORIZED);
         assertEq(harness.getReservationStatus(attestedKey), SETTLED);
-        assertEq(harness.payoutHeapLength(LAB_ID), 1);
+        assertEq(harness.lastRefundAmount(), 0);
+
+        vm.warp(999 + 1 days + 1);
+        vm.prank(PROVIDER);
+        harness.requestProviderPayout(LAB_ID, 10);
+
+        (accruedReceivable, settlementQueued,,,,,) = _getLifecycleWithoutTimestamp();
+        assertEq(accruedReceivable, 0);
+        assertEq(settlementQueued, FIVE_CREDITS + 7_500_000);
+        assertEq(harness.getReservationStatus(unattestedKey), SETTLED);
+        assertEq(harness.getReservationStatus(attestedKey), SETTLED);
+        assertEq(harness.lastRefundAmount(), 37_500_000);
     }
 
     function test_requestProviderPayout_rejects_settled_reservation() public {
@@ -664,15 +661,14 @@ contract ProviderReceivableAliasesTest is Test {
 
     function test_provider_claim_requires_reservation_scope_and_payment_attestation() public {
         bytes32 claimId = keccak256("claim-001");
-        bytes32 reservationHash = keccak256("reservations-001");
+        bytes32 batchId = _queueBatch(FIVE_CREDITS, keccak256("reservation-source-001"));
         bytes32 invoiceHash = keccak256("invoice-001");
         bytes32 paymentRef = keccak256("payment-001");
         bytes32 attestation = keccak256("attestation-001");
         address settler = address(this);
-        harness.setProviderReceivableBucket(LAB_ID, 2, FIVE_CREDITS);
 
         vm.prank(PROVIDER);
-        harness.submitProviderSettlementClaim(claimId, LAB_ID, FIVE_CREDITS, reservationHash, invoiceHash);
+        harness.submitProviderSettlementClaim(claimId, LAB_ID, FIVE_CREDITS, batchId, invoiceHash);
 
         vm.prank(settler);
         harness.approveProviderSettlementClaim(claimId, keccak256("approval-001"));
@@ -684,7 +680,7 @@ contract ProviderReceivableAliasesTest is Test {
             uint256 labId,
             uint256 amount,
             uint8 status,
-            bytes32 storedReservationHash,
+            bytes32 storedBatchId,
             bytes32 storedInvoiceHash,
             bytes32 storedPaymentRef,
             bytes32 storedAttestation,
@@ -699,7 +695,7 @@ contract ProviderReceivableAliasesTest is Test {
         assertEq(labId, LAB_ID);
         assertEq(amount, FIVE_CREDITS);
         assertEq(status, 3);
-        assertEq(storedReservationHash, reservationHash);
+        assertEq(storedBatchId, batchId);
         assertEq(storedInvoiceHash, invoiceHash);
         assertEq(storedPaymentRef, paymentRef);
         assertEq(storedAttestation, attestation);
@@ -717,22 +713,24 @@ contract ProviderReceivableAliasesTest is Test {
         bytes32 firstInvoice = keccak256("invoice-reference-001");
         bytes32 secondInvoice = keccak256("invoice-reference-002");
         bytes32 approval = keccak256("approval-reference-001");
-        harness.setProviderReceivableBucket(LAB_ID, 2, TEN_CREDITS);
+        bytes32 firstBatch = _queueBatch(FIVE_CREDITS, keccak256("reservation-source-002"));
 
         vm.prank(PROVIDER);
         harness.submitProviderSettlementClaim(
-            firstClaim, LAB_ID, FIVE_CREDITS, keccak256("reservations-001"), firstInvoice
+            firstClaim, LAB_ID, FIVE_CREDITS, firstBatch, firstInvoice
         );
+
+        bytes32 secondBatch = _queueBatch(ONE_CREDIT, keccak256("reservation-source-003"));
 
         vm.prank(PROVIDER);
         vm.expectRevert("Invoice reference already used");
         harness.submitProviderSettlementClaim(
-            secondClaim, LAB_ID, ONE_CREDIT, keccak256("reservations-002"), firstInvoice
+            secondClaim, LAB_ID, ONE_CREDIT, secondBatch, firstInvoice
         );
 
         vm.prank(PROVIDER);
         harness.submitProviderSettlementClaim(
-            secondClaim, LAB_ID, ONE_CREDIT, keccak256("reservations-002"), secondInvoice
+            secondClaim, LAB_ID, ONE_CREDIT, secondBatch, secondInvoice
         );
 
         vm.prank(address(this));
@@ -741,6 +739,78 @@ contract ProviderReceivableAliasesTest is Test {
         vm.prank(address(this));
         vm.expectRevert("Approval reference already used");
         harness.approveProviderSettlementClaim(secondClaim, approval);
+    }
+
+    function test_provider_claim_requires_existing_batch() public {
+        _queueBatch(FIVE_CREDITS, keccak256("reservation-source-004"));
+
+        vm.prank(PROVIDER);
+        vm.expectRevert("Settlement batch not found");
+        harness.submitProviderSettlementClaim(
+            keccak256("claim-unknown-batch"),
+            LAB_ID,
+            FIVE_CREDITS,
+            keccak256("unknown-batch"),
+            keccak256("invoice-unknown-batch")
+        );
+    }
+
+    function test_provider_claim_requires_matching_batch_lab_and_amount() public {
+        bytes32 batchId = _queueBatch(FIVE_CREDITS, keccak256("reservation-source-005"));
+
+        vm.expectRevert("Settlement batch lab mismatch");
+        harness.submitProviderSettlementClaim(
+            keccak256("claim-wrong-lab"),
+            LAB_ID + 1,
+            FIVE_CREDITS,
+            batchId,
+            keccak256("invoice-wrong-lab")
+        );
+
+        vm.prank(PROVIDER);
+        vm.expectRevert("Claim amount must match batch remaining amount");
+        harness.submitProviderSettlementClaim(
+            keccak256("claim-partial-batch"),
+            LAB_ID,
+            ONE_CREDIT,
+            batchId,
+            keccak256("invoice-partial-batch")
+        );
+    }
+
+    function test_provider_claim_consumes_batch_scope_once() public {
+        bytes32 batchId = _queueBatch(FIVE_CREDITS, keccak256("reservation-source-006"));
+        (uint256 labId, uint256 totalAmount, uint256 remainingAmount, bytes32 scopeRoot, uint8 status,,) =
+            harness.getProviderSettlementBatch(batchId);
+
+        assertEq(labId, LAB_ID);
+        assertEq(totalAmount, FIVE_CREDITS);
+        assertEq(remainingAmount, FIVE_CREDITS);
+        assertTrue(scopeRoot != bytes32(0));
+        assertEq(status, 1);
+
+        vm.prank(PROVIDER);
+        harness.submitProviderSettlementClaim(
+            keccak256("claim-batch-once"),
+            LAB_ID,
+            FIVE_CREDITS,
+            batchId,
+            keccak256("invoice-batch-once")
+        );
+
+        (,, remainingAmount,, status,,) = harness.getProviderSettlementBatch(batchId);
+        assertEq(remainingAmount, 0);
+        assertEq(status, 2);
+
+        vm.prank(PROVIDER);
+        vm.expectRevert("Settlement batch already claimed");
+        harness.submitProviderSettlementClaim(
+            keccak256("claim-batch-twice"),
+            LAB_ID,
+            FIVE_CREDITS,
+            batchId,
+            keccak256("invoice-batch-twice")
+        );
     }
 
     function test_transitionProviderReceivableState_requires_claim_for_ordinary_financial_states() public {
@@ -802,6 +872,16 @@ contract ProviderReceivableAliasesTest is Test {
             ignoredLastAccruedAt
         ) = harness.getLabProviderReceivableLifecycle(LAB_ID);
         ignoredLastAccruedAt;
+    }
+
+    function _queueBatch(
+        uint256 amount,
+        bytes32 reservationId
+    ) internal returns (bytes32 batchId) {
+        harness.accrueProviderReceivableForTest(LAB_ID, amount, reservationId);
+        vm.prank(PROVIDER);
+        harness.requestProviderPayout(LAB_ID, 10);
+        batchId = harness.getLatestProviderSettlementBatch(LAB_ID);
     }
 
     function _measurePayoutGas(

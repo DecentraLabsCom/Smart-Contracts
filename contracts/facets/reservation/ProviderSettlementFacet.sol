@@ -15,6 +15,7 @@ import {LibERC721Storage} from "../../libraries/LibERC721Storage.sol";
 import {LibProviderReceivable, SETTLEMENT_OPERATOR_ROLE} from "../../libraries/LibProviderReceivable.sol";
 import {LibInstitutionalReservationSettlement} from "../../libraries/LibInstitutionalReservationSettlement.sol";
 import {LibRevenue} from "../../libraries/LibRevenue.sol";
+import {LibHeap} from "../../libraries/LibHeap.sol";
 import {LibReservationIdentity} from "../../libraries/LibReservationIdentity.sol";
 
 /// @title ProviderSettlementFacet
@@ -525,11 +526,15 @@ contract ProviderSettlementFacet is ReentrancyGuardTransient {
 
         uint256 processed = 0;
         uint256 currentTime = block.timestamp;
+        bool pendingGraceEncountered;
         while (processed < maxBatch) {
-            bytes32 key = _popExpiredReservationCandidate(s, _labId, currentTime);
+            (bytes32 key, bool pendingGrace, bool scanLimitReached) =
+                _popExpiredReservationCandidate(s, _labId, currentTime);
             if (key == bytes32(0)) {
+                pendingGraceEncountered = pendingGraceEncountered || (pendingGrace && scanLimitReached);
                 break;
             }
+            pendingGraceEncountered = pendingGraceEncountered || pendingGrace;
             Reservation storage reservation = s.reservations[key];
             if (_finalizeReservationFromPayoutHeap(s, key, reservation, _labId)) {
                 unchecked {
@@ -542,7 +547,11 @@ contract ProviderSettlementFacet is ReentrancyGuardTransient {
         // leaving its legitimate provider receivable in ACCRUED. Queue the whole bucket
         // so provider collection does not depend on this call having finalized a row.
         uint256 providerPayout = s.providerReceivableAccrued[_labId];
-        if (providerPayout == 0 && processed == 0) revert("No settleable reservations");
+        if (providerPayout == 0 && processed == 0) {
+            if (!pendingGraceEncountered) revert("No settleable reservations");
+            emit ProviderPayoutRequested(labOwner, _labId, 0, 0);
+            return;
+        }
 
         if (providerPayout > 0) {
             _decreaseReceivableBucket(s, _labId, _RECEIVABLE_ACCRUED, providerPayout);
@@ -712,165 +721,14 @@ contract ProviderSettlementFacet is ReentrancyGuardTransient {
         revert("Invalid state");
     }
 
-    /// @dev Pops the first economically expired reservation from the heap if its end is before the cutoff.
-    ///      Attested sessions and no-shows are both returned for the shared finalizer.
+    /// @dev Finds one economically expired reservation without allowing a
+    ///      grace-pending candidate to block later attested sessions.
     function _popExpiredReservationCandidate(
         AppStorage storage s,
         uint256 labId,
         uint256 currentTime
-    ) internal returns (bytes32) {
-        PayoutCandidate[] storage heap = s.payoutHeaps[labId];
-
-        // Lazy cleanup optimization: if >20% of heap is invalid entries, rebuild heap
-        uint256 heapSize = heap.length;
-        uint256 invalidCount = s.payoutHeapInvalidCount[labId];
-        if (heapSize > 0 && invalidCount > heapSize / 5) {
-            _compactHeap(s, labId);
-            heapSize = heap.length;
-            invalidCount = s.payoutHeapInvalidCount[labId];
-        }
-
-        while (heapSize > 0) {
-            PayoutCandidate memory root = heap[0];
-            // Settlement eligibility is intentionally evaluated against chain time.
-            // slither-disable-next-line timestamp
-            if (root.end >= currentTime) {
-                return bytes32(0);
-            }
-            bytes32 reservationKey = LibReservationIdentity.reservationKeyForId(s, root.key);
-            Reservation storage reservation = s.reservations[reservationKey];
-            bool isCurrent = reservation.labId == labId && (reservation.end == 0 || reservation.end == root.end);
-            if (
-                isCurrent && reservation.status == _ACCESS_AUTHORIZED && !s.reservationSessionStartedRecorded[root.key]
-                    && !LibInstitutionalReservationSettlement.isEconomicallyExpired(
-                        s, reservation, reservationKey, currentTime
-                    )
-            ) {
-                return bytes32(0);
-            }
-
-            _removeHeapRoot(s, heap);
-            if (
-                isCurrent
-                    && (LibInstitutionalReservationSettlement.isProviderPayoutEligible(
-                            s, reservationKey, reservation, labId, currentTime
-                        )
-                        || LibInstitutionalReservationSettlement.isEconomicallyExpired(
-                            s, reservation, reservationKey, currentTime
-                        ))
-            ) {
-                return reservationKey;
-            }
-            if (invalidCount > 0) {
-                s.payoutHeapInvalidCount[labId]--;
-                invalidCount--;
-            }
-            heapSize--;
-        }
-        return bytes32(0);
-    }
-
-    function _removeHeapRoot(
-        AppStorage storage s,
-        PayoutCandidate[] storage heap
-    ) internal {
-        uint256 lastIndex = heap.length - 1;
-        bytes32 removedKey = heap[0].key;
-        s.payoutHeapIndexPlusOne[removedKey] = 0;
-        s.payoutHeapContains[removedKey] = false;
-        if (lastIndex == 0) {
-            heap.pop();
-            return;
-        }
-        bytes32 movedKey = heap[lastIndex].key;
-        heap[0] = heap[lastIndex];
-        heap.pop();
-        s.payoutHeapIndexPlusOne[movedKey] = 1;
-        _heapifyDown(s, heap, 0);
-    }
-
-    function _heapifyDown(
-        AppStorage storage s,
-        PayoutCandidate[] storage heap,
-        uint256 index
-    ) internal {
-        uint256 length = heap.length;
-        while (true) {
-            uint256 left = index * 2 + 1;
-            if (left >= length) {
-                break;
-            }
-            uint256 right = left + 1;
-            uint256 smallest = left;
-            if (right < length && heap[right].end < heap[left].end) {
-                smallest = right;
-            }
-            if (heap[index].end <= heap[smallest].end) {
-                break;
-            }
-            bytes32 currentKey = heap[index].key;
-            bytes32 smallestKey = heap[smallest].key;
-            PayoutCandidate memory temp = heap[index];
-            heap[index] = heap[smallest];
-            heap[smallest] = temp;
-            s.payoutHeapIndexPlusOne[currentKey] = smallest + 1;
-            s.payoutHeapIndexPlusOne[smallestKey] = index + 1;
-            index = smallest;
-        }
-    }
-
-    /// @dev Compacts the heap by removing all invalid entries in one pass.
-    ///      This is O(n) for the compaction + heap rebuild and is triggered lazily
-    ///      when invalid density is high, with a size guard (_MAX_COMPACTION_SIZE).
-    function _compactHeap(
-        AppStorage storage s,
-        uint256 labId
-    ) internal {
-        PayoutCandidate[] storage heap = s.payoutHeaps[labId];
-        uint256 originalLength = heap.length;
-        if (originalLength > _MAX_COMPACTION_SIZE) {
-            return;
-        }
-        uint256 writeIndex = 0;
-
-        for (uint256 readIndex = 0; readIndex < originalLength; readIndex++) {
-            bytes32 reservationId = heap[readIndex].key;
-            bytes32 key = LibReservationIdentity.reservationKeyForId(s, reservationId);
-            Reservation storage reservation = s.reservations[key];
-
-            if (_isCurrentPayoutCandidate(reservation, heap[readIndex], labId)) {
-                if (writeIndex != readIndex) {
-                    heap[writeIndex] = heap[readIndex];
-                }
-                s.payoutHeapContains[reservationId] = true;
-                s.payoutHeapIndexPlusOne[reservationId] = writeIndex + 1;
-                writeIndex++;
-            } else {
-                s.payoutHeapContains[reservationId] = false;
-                s.payoutHeapIndexPlusOne[reservationId] = 0;
-            }
-        }
-
-        while (heap.length > writeIndex) {
-            heap.pop();
-        }
-
-        if (writeIndex > 1) {
-            for (uint256 i = (writeIndex - 1) / 2 + 1; i > 0; i--) {
-                _heapifyDown(s, heap, i - 1);
-            }
-        }
-
-        s.payoutHeapInvalidCount[labId] = 0;
-    }
-
-    function _isCurrentPayoutCandidate(
-        Reservation storage reservation,
-        PayoutCandidate storage candidate,
-        uint256 labId
-    ) private view returns (bool) {
-        return reservation.labId == labId && (reservation.end == 0 || reservation.end == candidate.end)
-            && (reservation.status == _CONFIRMED || reservation.status == _ACCESS_AUTHORIZED);
+    ) internal returns (bytes32, bool, bool) {
+        return LibHeap.popEligiblePayoutCandidate(s, labId, currentTime);
     }
 
     /// @dev Delegates finalization to the shared institutional settlement path.

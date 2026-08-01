@@ -127,7 +127,9 @@ to the lab's accrued receivable. `requestProviderPayout` processes a bounded
 batch of eligible records and moves the entire accrued bucket into the
 settlement queue. This also queues receivables that a previous permissionless
 release, cap cleanup or reconciliation already accrued after removing the
-reservation from the payout heap.
+reservation from the payout heap. An access-authorized reservation still inside
+the attestation grace remains available for late `SessionStarted` evidence, but
+bounded payout-heap scans do not let it block later settleable reservations.
 
 All reservation finalization routes use the same economic transition: the
 permissionless release, the per-user cap cleanup and provider payout share the

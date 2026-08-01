@@ -152,14 +152,26 @@ stateDiagram-v2
 ```
 
 The receivable read exposes `ACCRUED`, `QUEUED`, `INVOICED`, `APPROVED`, `PAID`,
-`REVERSED` and `DISPUTED` buckets. A settlement claim has a unique non-zero
-`claimId`, a lab, amount, reservation-scope hash and invoice-reference hash.
-Submitting it atomically moves the claimed amount from `QUEUED` to `INVOICED`.
-Approval requires a non-zero, previously unused external reference. Invoice
-references are also unique at the contract boundary, so SQL uniqueness cannot
-create a second claim with the same financial identity. Payment requires a
-non-zero, previously unused payment reference plus an attestation hash, then
-moves the claim from `APPROVED` to `PAID`.
+`REVERSED` and `DISPUTED` buckets. Each `ACCRUED -> QUEUED` transition creates
+an immutable settlement batch. The batch ID commits to the lab, amount and a
+non-zero `scopeRoot`. That root is an on-chain hash chain of the validated
+accrual leaves `(labId, reservationId, amount)` in accrual order; the
+corresponding `ProviderReceivableAccrued` events make the scope reconstructible.
+Direct transitions out of `ACCRUED` are rejected so the aggregate amount and
+scope cannot diverge.
+
+A settlement claim has a unique non-zero `claimId`, a lab, the exact remaining
+amount of one queued batch, the batch ID and an invoice-reference hash.
+Submitting it atomically consumes that batch and moves the amount from
+`QUEUED` to `INVOICED`. The batch ID is retained by
+`getProviderSettlementClaim`; the scope root is available from
+`getProviderSettlementBatch` and repeated by the
+`ProviderSettlementScopeReferenced` event on each claim transition. Invoice
+references are unique at the contract boundary, so SQL uniqueness cannot
+create a second claim with the same financial identity.
+Approval requires a non-zero, previously unused external reference. Payment
+requires a non-zero, previously unused payment reference plus an attestation
+hash, then moves the claim from `APPROVED` to `PAID`.
 
 Use `getLabProviderReceivableLifecycle` for aggregate amounts and
 `getProviderSettlementClaim` for the audit record. Claim and financial
@@ -168,8 +180,9 @@ configured settlement operator, or the default admin as defined by the facet.
 The generic `transitionProviderReceivableState` selector is recovery-only for
 the claim lifecycle: it cannot create `INVOICED`, `APPROVED` or `PAID` balance
 states. Ordinary settlement must use the claim selectors; generic recovery may
-move an existing bucket to `DISPUTED` or `REVERSED` with its non-zero audit
-reference.
+move an existing non-accrued bucket to `DISPUTED` or `REVERSED` with its
+non-zero audit reference. Accrued value must first pass through
+`requestProviderPayout`, which creates its canonical batch.
 
 For the payout preview, `getLabProviderReceivable` returns four separate
 values: provider payout from attested sessions, the potential provider fee

@@ -234,6 +234,8 @@
         "getLabProviderReceivable(uint256)",
         "getLabProviderReceivableLifecycle(uint256)",
         "getLabProviderReceivablePaginated(uint256,uint256,uint256)",
+        "getLatestProviderSettlementBatch(uint256)",
+        "getProviderSettlementBatch(bytes32)",
         "getProviderSettlementClaim(bytes32)",
         "getProviderSettlementClaimApprovalReferenceHash(bytes32)",
         "submitProviderSettlementClaim(bytes32,uint256,uint256,bytes32,bytes32)",

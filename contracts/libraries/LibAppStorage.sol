@@ -114,12 +114,12 @@ struct PayoutCandidate {
     bytes32 key;
 }
 
-/// @notice Individual provider settlement claim with immutable reservation and
+/// @notice Individual provider settlement claim with immutable batch and
 ///      invoice scope plus an auditable payment proof.
 struct ProviderSettlementClaim {
     uint256 labId;
     uint256 amount;
-    bytes32 reservationsHash;
+    bytes32 batchId;
     bytes32 invoiceReferenceHash;
     bytes32 paymentReferenceHash;
     bytes32 paymentAttestationHash;
@@ -131,6 +131,18 @@ struct ProviderSettlementClaim {
     uint64 paidAt;
     uint8 status;
     bytes32 approvalReferenceHash;
+}
+
+/// @notice Canonical provider receivable batch created when accrued value is
+///      moved into the settlement queue.
+struct ProviderSettlementBatch {
+    uint256 labId;
+    uint256 totalAmount;
+    uint256 remainingAmount;
+    bytes32 scopeRoot;
+    uint64 createdAt;
+    uint64 claimedAt;
+    uint8 status;
 }
 
 struct RecentReservationBuffer {
@@ -345,6 +357,13 @@ struct AppStorage {
     // entries so later settleable candidates cannot be starved by a fixed scan
     // prefix.
     mapping(uint256 labId => uint256 heapScanIndex) payoutHeapScanCursor;
+
+    // Canonical settlement batches. The scope root is an on-chain hash chain
+    // over the actual accrual events, in their transaction/log order.
+    mapping(uint256 labId => bytes32 scopeRoot) providerReceivableAccruedScopeRoot;
+    uint256 providerSettlementBatchNextNonce;
+    mapping(bytes32 batchId => ProviderSettlementBatch batch) providerSettlementBatches;
+    mapping(uint256 labId => bytes32 batchId) providerSettlementLatestBatchId;
 }
 
 /// @notice Provider participation status within the limited service network

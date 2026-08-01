@@ -5,7 +5,7 @@ import {Test} from "forge-std/Test.sol";
 import {ERC721} from "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import {ProviderSettlementFacet} from "../contracts/facets/reservation/ProviderSettlementFacet.sol";
-import {AppStorage, LibAppStorage} from "../contracts/libraries/LibAppStorage.sol";
+import {AppStorage, LibAppStorage, Reservation} from "../contracts/libraries/LibAppStorage.sol";
 import {LibAccessControlEnumerable} from "../contracts/libraries/LibAccessControlEnumerable.sol";
 import {LibProviderReceivable, SETTLEMENT_OPERATOR_ROLE} from "../contracts/libraries/LibProviderReceivable.sol";
 import {LibERC721StorageTestHelper} from "./LibERC721StorageTestHelper.sol";
@@ -80,6 +80,13 @@ contract ReceivableHardeningHarness is ERC721, ProviderSettlementFacet {
         uint256 amount,
         bytes32 key
     ) external {
+        AppStorage storage s = LibAppStorage.diamondStorage();
+        Reservation storage reservation = s.reservations[key];
+        if (reservation.renter == address(0)) {
+            reservation.labId = labId;
+            reservation.renter = address(0xCAFE);
+            reservation.status = 3;
+        }
         LibProviderReceivable.accrueReceivable(labId, amount, key);
     }
 

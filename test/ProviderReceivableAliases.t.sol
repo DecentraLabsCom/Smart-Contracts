@@ -58,14 +58,21 @@ contract ProviderReceivableHarness is ERC721, ProviderSettlementFacet {
         if (state == 1) {
             s.providerReceivableAccrued[labId] = amount;
             s.providerReceivableAccruedScopeRoot[labId] = keccak256(abi.encode("test-pending-scope", labId, amount));
+        } else if (state == 2) {
+            s.providerSettlementQueue[labId] = amount;
+        } else if (state == 3) {
+            s.providerReceivableInvoiced[labId] = amount;
+        } else if (state == 4) {
+            s.providerReceivableApproved[labId] = amount;
+        } else if (state == 5) {
+            s.providerReceivablePaid[labId] = amount;
+        } else if (state == 6) {
+            s.providerReceivableReversed[labId] = amount;
+        } else if (state == 7) {
+            s.providerReceivableDisputed[labId] = amount;
+        } else {
+            revert("invalid state");
         }
-        else if (state == 2) s.providerSettlementQueue[labId] = amount;
-        else if (state == 3) s.providerReceivableInvoiced[labId] = amount;
-        else if (state == 4) s.providerReceivableApproved[labId] = amount;
-        else if (state == 5) s.providerReceivablePaid[labId] = amount;
-        else if (state == 6) s.providerReceivableReversed[labId] = amount;
-        else if (state == 7) s.providerReceivableDisputed[labId] = amount;
-        else revert("invalid state");
     }
 
     function setAuthorizedBackend(
@@ -143,7 +150,31 @@ contract ProviderReceivableHarness is ERC721, ProviderSettlementFacet {
         uint256 amount,
         bytes32 reservationId
     ) external {
+        Reservation storage reservation = LibAppStorage.diamondStorage().reservations[reservationId];
+        if (reservation.renter == address(0)) {
+            reservation.labId = labId;
+            reservation.renter = address(0xCAFE);
+            reservation.status = 3;
+        }
         LibProviderReceivable.accrueReceivable(labId, amount, reservationId);
+    }
+
+    function accrueProviderReceivableRawForTest(
+        uint256 labId,
+        uint256 amount,
+        bytes32 reservationId
+    ) external {
+        LibProviderReceivable.accrueReceivable(labId, amount, reservationId);
+    }
+
+    function setReceivableSourceForTest(
+        bytes32 reservationId,
+        uint256 labId
+    ) external {
+        Reservation storage reservation = LibAppStorage.diamondStorage().reservations[reservationId];
+        reservation.labId = labId;
+        reservation.renter = address(0xCAFE);
+        reservation.status = 3;
     }
 
     function getReservationStatus(
@@ -659,7 +690,7 @@ contract ProviderReceivableAliasesTest is Test {
         harness.transitionProviderReceivableState(LAB_ID, 2, 3, ONE_CREDIT, bytes32(0));
     }
 
-    function test_provider_claim_requires_reservation_scope_and_payment_attestation() public {
+    function test_provider_claim_requires_batch_scope_and_payment_attestation() public {
         bytes32 claimId = keccak256("claim-001");
         bytes32 batchId = _queueBatch(FIVE_CREDITS, keccak256("reservation-source-001"));
         bytes32 invoiceHash = keccak256("invoice-001");
@@ -707,6 +738,27 @@ contract ProviderReceivableAliasesTest is Test {
         assertGe(paidAt, approvedAt);
     }
 
+    function test_provider_receivable_scope_rejects_source_from_another_lab() public {
+        bytes32 reservationId = keccak256("reservation-source-wrong-lab");
+        harness.setReceivableSourceForTest(reservationId, LAB_ID + 1);
+
+        vm.expectRevert("Receivable source lab mismatch");
+        harness.accrueProviderReceivableForTest(LAB_ID, ONE_CREDIT, reservationId);
+    }
+
+    function test_provider_receivable_scope_rejects_unknown_source() public {
+        vm.expectRevert("Receivable source not found");
+        harness.accrueProviderReceivableRawForTest(LAB_ID, ONE_CREDIT, keccak256("reservation-source-unknown"));
+    }
+
+    function test_provider_receivable_cannot_be_queued_without_batch() public {
+        harness.setProviderReceivableBucket(LAB_ID, 1, ONE_CREDIT);
+
+        vm.prank(PROVIDER);
+        vm.expectRevert("Use requestProviderPayout");
+        harness.transitionProviderReceivableState(LAB_ID, 1, 2, ONE_CREDIT, bytes32("direct-queue"));
+    }
+
     function test_provider_claim_rejects_reused_invoice_and_approval_references() public {
         bytes32 firstClaim = keccak256("claim-reference-001");
         bytes32 secondClaim = keccak256("claim-reference-002");
@@ -716,22 +768,16 @@ contract ProviderReceivableAliasesTest is Test {
         bytes32 firstBatch = _queueBatch(FIVE_CREDITS, keccak256("reservation-source-002"));
 
         vm.prank(PROVIDER);
-        harness.submitProviderSettlementClaim(
-            firstClaim, LAB_ID, FIVE_CREDITS, firstBatch, firstInvoice
-        );
+        harness.submitProviderSettlementClaim(firstClaim, LAB_ID, FIVE_CREDITS, firstBatch, firstInvoice);
 
         bytes32 secondBatch = _queueBatch(ONE_CREDIT, keccak256("reservation-source-003"));
 
         vm.prank(PROVIDER);
         vm.expectRevert("Invoice reference already used");
-        harness.submitProviderSettlementClaim(
-            secondClaim, LAB_ID, ONE_CREDIT, secondBatch, firstInvoice
-        );
+        harness.submitProviderSettlementClaim(secondClaim, LAB_ID, ONE_CREDIT, secondBatch, firstInvoice);
 
         vm.prank(PROVIDER);
-        harness.submitProviderSettlementClaim(
-            secondClaim, LAB_ID, ONE_CREDIT, secondBatch, secondInvoice
-        );
+        harness.submitProviderSettlementClaim(secondClaim, LAB_ID, ONE_CREDIT, secondBatch, secondInvoice);
 
         vm.prank(address(this));
         harness.approveProviderSettlementClaim(firstClaim, approval);
@@ -760,28 +806,29 @@ contract ProviderReceivableAliasesTest is Test {
 
         vm.expectRevert("Settlement batch lab mismatch");
         harness.submitProviderSettlementClaim(
-            keccak256("claim-wrong-lab"),
-            LAB_ID + 1,
-            FIVE_CREDITS,
-            batchId,
-            keccak256("invoice-wrong-lab")
+            keccak256("claim-wrong-lab"), LAB_ID + 1, FIVE_CREDITS, batchId, keccak256("invoice-wrong-lab")
         );
 
         vm.prank(PROVIDER);
         vm.expectRevert("Claim amount must match batch remaining amount");
         harness.submitProviderSettlementClaim(
-            keccak256("claim-partial-batch"),
-            LAB_ID,
-            ONE_CREDIT,
-            batchId,
-            keccak256("invoice-partial-batch")
+            keccak256("claim-partial-batch"), LAB_ID, ONE_CREDIT, batchId, keccak256("invoice-partial-batch")
         );
     }
 
     function test_provider_claim_consumes_batch_scope_once() public {
         bytes32 batchId = _queueBatch(FIVE_CREDITS, keccak256("reservation-source-006"));
-        (uint256 labId, uint256 totalAmount, uint256 remainingAmount, bytes32 scopeRoot, uint8 status,,) =
-            harness.getProviderSettlementBatch(batchId);
+        (
+            uint256 labId,
+            uint256 totalAmount,
+            uint256 remainingAmount,
+            bytes32 scopeRoot,
+            uint64 createdAt,
+            uint64 claimedAt,
+            uint8 status
+        ) = harness.getProviderSettlementBatch(batchId);
+        createdAt;
+        claimedAt;
 
         assertEq(labId, LAB_ID);
         assertEq(totalAmount, FIVE_CREDITS);
@@ -791,25 +838,17 @@ contract ProviderReceivableAliasesTest is Test {
 
         vm.prank(PROVIDER);
         harness.submitProviderSettlementClaim(
-            keccak256("claim-batch-once"),
-            LAB_ID,
-            FIVE_CREDITS,
-            batchId,
-            keccak256("invoice-batch-once")
+            keccak256("claim-batch-once"), LAB_ID, FIVE_CREDITS, batchId, keccak256("invoice-batch-once")
         );
 
-        (,, remainingAmount,, status,,) = harness.getProviderSettlementBatch(batchId);
+        (,, remainingAmount,,,, status) = harness.getProviderSettlementBatch(batchId);
         assertEq(remainingAmount, 0);
         assertEq(status, 2);
 
         vm.prank(PROVIDER);
         vm.expectRevert("Settlement batch already claimed");
         harness.submitProviderSettlementClaim(
-            keccak256("claim-batch-twice"),
-            LAB_ID,
-            FIVE_CREDITS,
-            batchId,
-            keccak256("invoice-batch-twice")
+            keccak256("claim-batch-twice"), LAB_ID, FIVE_CREDITS, batchId, keccak256("invoice-batch-twice")
         );
     }
 

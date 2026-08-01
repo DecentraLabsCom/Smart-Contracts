@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 pragma solidity ^0.8.33;
 
-import {AppStorage, LibAppStorage} from "./LibAppStorage.sol";
+import {AppStorage, LibAppStorage, Reservation} from "./LibAppStorage.sol";
 import {LibReservationIdentity} from "./LibReservationIdentity.sol";
 
 /// @dev Constant representing the hash of the string "SETTLEMENT_OPERATOR_ROLE".
@@ -27,10 +27,25 @@ library LibProviderReceivable {
         uint256 amount,
         bytes32 reservationKey
     ) internal {
+        require(amount > 0, "Receivable amount required");
         AppStorage storage s = LibAppStorage.diamondStorage();
-        reservationKey = LibReservationIdentity.resolveReservationRef(s, reservationKey);
+        bytes32 reservationId = LibReservationIdentity.resolveReservationRef(s, reservationKey);
+        bytes32 reservationSlot = LibReservationIdentity.reservationKeyForId(s, reservationId);
+        if (s.reservationKeyById[reservationId] != bytes32(0)) {
+            Reservation storage historicalSource = s.reservationHistoryById[reservationId];
+            require(historicalSource.renter != address(0), "Receivable source not found");
+            require(historicalSource.labId == labId, "Receivable source lab mismatch");
+        } else {
+            Reservation storage currentSource = s.reservations[reservationSlot];
+            require(currentSource.renter != address(0), "Receivable source not found");
+            require(currentSource.labId == labId, "Receivable source lab mismatch");
+        }
+
         s.providerReceivableAccrued[labId] += amount;
-        emit ProviderReceivableAccrued(labId, amount, reservationKey);
+        bytes32 accrualLeaf = keccak256(abi.encode(labId, reservationId, amount));
+        s.providerReceivableAccruedScopeRoot[labId] =
+            keccak256(abi.encode(s.providerReceivableAccruedScopeRoot[labId], accrualLeaf));
+        emit ProviderReceivableAccrued(labId, amount, reservationId);
     }
 
     /// @notice Update the last-accrued timestamp for a lab

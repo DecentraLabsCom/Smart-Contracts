@@ -8,6 +8,7 @@ import {
     Reservation,
     PayoutCandidate,
     ProviderSettlementClaim,
+    ProviderSettlementBatch,
     LibAppStorage
 } from "../../libraries/LibAppStorage.sol";
 import {LibAccessControlEnumerable} from "../../libraries/LibAccessControlEnumerable.sol";
@@ -46,9 +47,17 @@ contract ProviderSettlementFacet is ReentrancyGuardTransient {
     uint8 internal constant _CLAIM_APPROVED = 2;
     uint8 internal constant _CLAIM_PAID = 3;
 
+    uint8 internal constant _BATCH_QUEUED = 1;
+    uint8 internal constant _BATCH_CLAIMED = 2;
+
     /// @notice Emitted when a provider payout request queues the lab's accrued provider receivable for settlement
     event ProviderPayoutRequested(
         address indexed provider, uint256 indexed labId, uint256 amount, uint256 reservationsProcessed
+    );
+
+    /// @notice Emitted when the accrued provider receivable becomes a canonical settlement batch.
+    event ProviderSettlementBatchCreated(
+        bytes32 indexed batchId, uint256 indexed labId, uint256 amount, bytes32 scopeRoot, address indexed actor
     );
 
     /// @notice Emitted when provider receivable moves between lifecycle buckets
@@ -65,9 +74,16 @@ contract ProviderSettlementFacet is ReentrancyGuardTransient {
         bytes32 indexed claimId,
         uint256 indexed labId,
         uint256 amount,
-        bytes32 reservationsHash,
+        bytes32 batchId,
         bytes32 invoiceReferenceHash,
         address indexed actor
+    );
+
+    /// @notice Repeats the immutable batch scope on every claim transition.
+    /// @dev Kept separate from the legacy-shaped lifecycle events so indexers
+    ///      can obtain the root without reconstructing the batch getter state.
+    event ProviderSettlementScopeReferenced(
+        bytes32 indexed batchId, uint256 indexed labId, uint256 amount, bytes32 scopeRoot, bytes32 indexed claimId
     );
 
     event ProviderSettlementClaimApproved(
@@ -235,22 +251,63 @@ contract ProviderSettlementFacet is ReentrancyGuardTransient {
         lastAccruedAt = s.providerReceivableLastAccruedAt[_labId];
     }
 
+    /// @notice Returns the most recently queued settlement batch for a lab.
+    function getLatestProviderSettlementBatch(
+        uint256 _labId
+    ) external view returns (bytes32 batchId) {
+        return _s().providerSettlementLatestBatchId[_labId];
+    }
+
+    /// @notice Returns the canonical scope and remaining amount of a settlement batch.
+    function getProviderSettlementBatch(
+        bytes32 batchId
+    )
+        external
+        view
+        returns (
+            uint256 labId,
+            uint256 totalAmount,
+            uint256 remainingAmount,
+            bytes32 scopeRoot,
+            uint64 createdAt,
+            uint64 claimedAt,
+            uint8 status
+        )
+    {
+        ProviderSettlementBatch storage batch = _s().providerSettlementBatches[batchId];
+        return (
+            batch.labId,
+            batch.totalAmount,
+            batch.remainingAmount,
+            batch.scopeRoot,
+            batch.createdAt,
+            batch.claimedAt,
+            batch.status
+        );
+    }
+
     /// @notice Creates a claim for a bounded amount already queued for settlement.
-    /// @dev The claim atomically moves the amount QUEUED -> INVOICED so a later
-    ///      batch cannot silently absorb unrelated receivables.
+    /// @dev The batch is the canonical reservation scope. Claims consume one
+    ///      complete batch so a partial amount cannot be paired with an
+    ///      unverified reservation subset.
     function submitProviderSettlementClaim(
         bytes32 claimId,
         uint256 labId,
         uint256 amount,
-        bytes32 reservationsHash,
+        bytes32 batchId,
         bytes32 invoiceReferenceHash
     ) external nonReentrant {
         require(claimId != bytes32(0), "Claim ID required");
         require(amount > 0, "Amount required");
-        require(reservationsHash != bytes32(0), "Reservations reference required");
+        require(batchId != bytes32(0), "Settlement batch required");
         require(invoiceReferenceHash != bytes32(0), "Invoice reference required");
 
         AppStorage storage s = _s();
+        ProviderSettlementBatch storage batch = s.providerSettlementBatches[batchId];
+        require(batch.createdAt != 0, "Settlement batch not found");
+        require(batch.labId == labId, "Settlement batch lab mismatch");
+        require(batch.status == _BATCH_QUEUED, "Settlement batch already claimed");
+        require(batch.remainingAmount == amount, "Claim amount must match batch remaining amount");
         require(s.providerSettlementClaims[claimId].submittedBy == address(0), "Claim already exists");
         require(!s.providerSettlementInvoiceReferenceUsed[invoiceReferenceHash], "Invoice reference already used");
         _requireSettlementOperator(s, labId);
@@ -259,21 +316,24 @@ contract ProviderSettlementFacet is ReentrancyGuardTransient {
         ProviderSettlementClaim storage claim = s.providerSettlementClaims[claimId];
         claim.labId = labId;
         claim.amount = amount;
-        claim.reservationsHash = reservationsHash;
+        claim.batchId = batchId;
         claim.invoiceReferenceHash = invoiceReferenceHash;
         claim.submittedBy = msg.sender;
         claim.submittedAt = uint64(block.timestamp);
         claim.status = _CLAIM_SUBMITTED;
         s.providerSettlementInvoiceReferenceUsed[invoiceReferenceHash] = true;
 
+        batch.remainingAmount = 0;
+        batch.claimedAt = uint64(block.timestamp);
+        batch.status = _BATCH_CLAIMED;
+
         _decreaseReceivableBucket(s, labId, _RECEIVABLE_QUEUED, amount);
         _increaseReceivableBucket(s, labId, _RECEIVABLE_INVOICED, amount);
         emit ProviderReceivableLifecycleTransition(
             msg.sender, labId, _RECEIVABLE_QUEUED, _RECEIVABLE_INVOICED, amount, claimId
         );
-        emit ProviderSettlementClaimSubmitted(
-            claimId, labId, amount, reservationsHash, invoiceReferenceHash, msg.sender
-        );
+        emit ProviderSettlementClaimSubmitted(claimId, labId, amount, batchId, invoiceReferenceHash, msg.sender);
+        emit ProviderSettlementScopeReferenced(batchId, labId, amount, batch.scopeRoot, claimId);
     }
 
     /// @notice Approves a submitted claim with a non-empty external approval reference hash.
@@ -299,6 +359,9 @@ contract ProviderSettlementFacet is ReentrancyGuardTransient {
             msg.sender, claim.labId, _RECEIVABLE_INVOICED, _RECEIVABLE_APPROVED, claim.amount, claimId
         );
         emit ProviderSettlementClaimApproved(claimId, approvalReferenceHash, msg.sender);
+        emit ProviderSettlementScopeReferenced(
+            claim.batchId, claim.labId, claim.amount, s.providerSettlementBatches[claim.batchId].scopeRoot, claimId
+        );
     }
 
     /// @notice Records a paid claim only with a unique payment reference and proof hash.
@@ -328,6 +391,9 @@ contract ProviderSettlementFacet is ReentrancyGuardTransient {
             msg.sender, claim.labId, _RECEIVABLE_APPROVED, _RECEIVABLE_PAID, claim.amount, claimId
         );
         emit ProviderSettlementClaimPaid(claimId, paymentReferenceHash, paymentAttestationHash, msg.sender);
+        emit ProviderSettlementScopeReferenced(
+            claim.batchId, claim.labId, claim.amount, s.providerSettlementBatches[claim.batchId].scopeRoot, claimId
+        );
     }
 
     /// @notice Returns the complete claim audit record.
@@ -340,7 +406,7 @@ contract ProviderSettlementFacet is ReentrancyGuardTransient {
             uint256 labId,
             uint256 amount,
             uint8 status,
-            bytes32 reservationsHash,
+            bytes32 batchId,
             bytes32 invoiceReferenceHash,
             bytes32 paymentReferenceHash,
             bytes32 paymentAttestationHash,
@@ -357,7 +423,7 @@ contract ProviderSettlementFacet is ReentrancyGuardTransient {
             claim.labId,
             claim.amount,
             claim.status,
-            claim.reservationsHash,
+            claim.batchId,
             claim.invoiceReferenceHash,
             claim.paymentReferenceHash,
             claim.paymentAttestationHash,
@@ -393,6 +459,10 @@ contract ProviderSettlementFacet is ReentrancyGuardTransient {
 
         AppStorage storage s = _s();
         require(_isSupportedReceivableState(fromState) && _isSupportedReceivableState(toState), "Invalid state");
+
+        // An accrued balance is only queueable through requestProviderPayout,
+        // which creates the immutable batch and captures its scope root.
+        require(fromState != _RECEIVABLE_ACCRUED, "Use requestProviderPayout");
 
         if (toState == _RECEIVABLE_INVOICED || toState == _RECEIVABLE_APPROVED || toState == _RECEIVABLE_PAID) {
             if (toState == _RECEIVABLE_APPROVED || toState == _RECEIVABLE_PAID) {
@@ -554,14 +624,41 @@ contract ProviderSettlementFacet is ReentrancyGuardTransient {
         }
 
         if (providerPayout > 0) {
+            bytes32 batchId = _createProviderSettlementBatch(s, _labId, providerPayout);
             _decreaseReceivableBucket(s, _labId, _RECEIVABLE_ACCRUED, providerPayout);
             _increaseReceivableBucket(s, _labId, _RECEIVABLE_QUEUED, providerPayout);
             emit ProviderReceivableLifecycleTransition(
-                msg.sender, _labId, _RECEIVABLE_ACCRUED, _RECEIVABLE_QUEUED, providerPayout, bytes32(0)
+                msg.sender, _labId, _RECEIVABLE_ACCRUED, _RECEIVABLE_QUEUED, providerPayout, batchId
             );
         }
 
         emit ProviderPayoutRequested(labOwner, _labId, providerPayout, processed);
+    }
+
+    function _createProviderSettlementBatch(
+        AppStorage storage s,
+        uint256 labId,
+        uint256 amount
+    ) internal returns (bytes32 batchId) {
+        bytes32 scopeRoot = s.providerReceivableAccruedScopeRoot[labId];
+        require(scopeRoot != bytes32(0), "Accrual scope required");
+
+        uint256 nonce = ++s.providerSettlementBatchNextNonce;
+        batchId = keccak256(
+            abi.encode("DECENTRALABS_PROVIDER_SETTLEMENT_BATCH_V1", address(this), nonce, labId, amount, scopeRoot)
+        );
+
+        ProviderSettlementBatch storage batch = s.providerSettlementBatches[batchId];
+        batch.labId = labId;
+        batch.totalAmount = amount;
+        batch.remainingAmount = amount;
+        batch.scopeRoot = scopeRoot;
+        batch.createdAt = uint64(block.timestamp);
+        batch.status = _BATCH_QUEUED;
+        s.providerSettlementLatestBatchId[labId] = batchId;
+        s.providerReceivableAccruedScopeRoot[labId] = bytes32(0);
+
+        emit ProviderSettlementBatchCreated(batchId, labId, amount, scopeRoot, msg.sender);
     }
 
     function _requireSettlementOperator(

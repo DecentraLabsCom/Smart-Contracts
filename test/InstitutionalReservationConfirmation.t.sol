@@ -26,7 +26,7 @@ contract InstitutionalReservationConfirmationTest is BaseTest {
 
     function setUp() public override {
         super.setUp();
-        harness = new ConfirmHarness();
+        harness = new ConfirmBoundaryHarness();
     }
 
     function test_confirm_with_puc_success() public {

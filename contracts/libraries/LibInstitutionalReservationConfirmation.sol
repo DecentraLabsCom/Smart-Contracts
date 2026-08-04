@@ -149,6 +149,9 @@ library LibInstitutionalReservationConfirmation {
         s.activeConcurrentReservationKeysByLab[r.labId].add(reservationId);
         r.status = _CONFIRMED;
         LibReservationIdentity.snapshotCurrentReservation(s, key);
+        if (s.labPendingReservationCount[r.labId] > 0) {
+            s.labPendingReservationCount[r.labId]--;
+        }
         _incrementActiveReservationCounters(s, r);
         s.activeReservationCountByTokenAndUser[r.labId][trackingKey]++;
         _enqueuePayoutCandidate(s, r.labId, key, r.end);

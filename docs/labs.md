@@ -52,9 +52,9 @@ selectors are intentionally forbidden from the production surface.
 
 The owner may update URI, price and access identifiers. Changing
 `resourceType` is blocked while active bookings exist. Deletion is blocked
-while the lab has active reservations or an unsettled receivable position; it
-unlists the lab, stops intake, burns the token and removes it from the active
-catalog only once those obligations are clear.
+while the lab has pending requests, active reservations or an unsettled
+receivable position; it unlists the lab, stops intake, burns the token and
+removes it from the active catalog only once those obligations are clear.
 
 An ERC-721 transfer unlists the lab. Any non-terminal reservation (`PENDING`,
 `CONFIRMED` or `ACCESS_AUTHORIZED`) prevents transfer. Reservations are never

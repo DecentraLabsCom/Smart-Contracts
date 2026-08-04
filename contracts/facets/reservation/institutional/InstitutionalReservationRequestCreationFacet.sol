@@ -107,6 +107,8 @@ contract InstitutionalReservationRequestCreationFacet {
         _addReservationIndex(s.renters[i.t], i.k);
         _addReservationIndex(s.reservationKeysByTokenAndUser[i.l][i.t], i.k);
 
+        s.labPendingReservationCount[i.l]++;
+
         emit ReservationRequested(i.p, i.l, i.s, i.e, i.k);
         emit ReservationGenerationCreated(reservationId, i.k, i.l);
     }

@@ -394,6 +394,9 @@ struct AppStorage {
     mapping(uint256 lotId => bool initialized) creditLotRemainingEurGrossAmountInitialized;
     mapping(address account => mapping(bytes32 reservationId => mapping(uint256 allocationIndex => bool)))
         creditReservationAllocationLotIdSet;
+
+    // Pending reservation count. Appended to preserve every deployed storage slot.
+    mapping(uint256 labId => uint256) labPendingReservationCount;
 }
 
 /// @notice Provider participation status within the limited service network

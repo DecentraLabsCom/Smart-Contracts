@@ -117,6 +117,9 @@ library LibReservationCancellation {
         if (wasActive) {
             _decrementActiveReservationCounters(s, reservation);
         }
+        if (reservation.status == _PENDING && s.labPendingReservationCount[reservation.labId] > 0) {
+            s.labPendingReservationCount[reservation.labId]--;
+        }
 
         reservation.status = _CANCELLED;
         LibReservationIdentity.snapshotCurrentReservation(s, reservationKey);

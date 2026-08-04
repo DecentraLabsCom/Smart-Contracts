@@ -61,6 +61,12 @@ remains the payer/provider identity. It is a separate payer-authorized flow
 implemented by `institutionalDirectBookingWithIntent`, not by a direct
 administrative selector.
 
+The effective decision deadline for a pending request is the earlier of its
+five-minute request TTL and `reservation.start`. Confirmation at `start`, after
+`start`, or after `end` cancels the pending request as expired and does not
+capture credits. The same deadline is used when a pending request is released
+or when its slot is reused after expiry.
+
 There is no direct institution/backend reservation selector in the production
 surface. External requests use `institutionalReservationRequestWithIntent` and
 own-lab bookings use `institutionalDirectBookingWithIntent`; both consume the

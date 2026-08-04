@@ -5,6 +5,27 @@ library LibReservationConfig {
     /// @notice Global TTL for pending reservation requests (5 minutes)
     uint256 internal constant PENDING_REQUEST_TTL = 5 minutes;
 
+    /// @notice Returns the effective deadline for deciding a pending request.
+    /// @dev A provider cannot confirm after the requested service window starts,
+    ///      even when the ordinary pending-request TTL has not elapsed.
+    function pendingRequestExpiry(
+        uint256 requestPeriodStart,
+        uint256 requestPeriodDuration,
+        uint256 reservationStart
+    ) internal pure returns (uint256) {
+        uint256 ttlExpiry = requestPeriodStart + requestPeriodDuration;
+        return ttlExpiry < reservationStart ? ttlExpiry : reservationStart;
+    }
+
+    function isPendingRequestExpired(
+        uint256 requestPeriodStart,
+        uint256 requestPeriodDuration,
+        uint256 reservationStart,
+        uint256 currentTime
+    ) internal pure returns (bool) {
+        return currentTime >= pendingRequestExpiry(requestPeriodStart, requestPeriodDuration, reservationStart);
+    }
+
     /// @notice Economic grace period for provider session attestations after a reservation ends.
     /// @dev This is the single deadline used by session submission and permissionless finalization.
     uint256 internal constant SESSION_ATTESTATION_GRACE = 1 days;

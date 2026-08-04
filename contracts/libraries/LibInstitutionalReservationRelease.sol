@@ -66,8 +66,10 @@ library LibInstitutionalReservationRelease {
             if (reservation.status == _PENDING) {
                 uint256 ttl = reservation.requestPeriodDuration;
                 if (ttl == 0) ttl = _PENDING_REQUEST_TTL;
-                bool expired =
-                    reservation.requestPeriodStart == 0 || currentTime >= reservation.requestPeriodStart + ttl;
+                bool expired = reservation.requestPeriodStart == 0
+                    || LibReservationConfig.isPendingRequestExpired(
+                        reservation.requestPeriodStart, ttl, reservation.start, currentTime
+                    );
                 if (expired) {
                     LibReservationCancellation.cancelReservation(key);
                     len = userReservations.length();

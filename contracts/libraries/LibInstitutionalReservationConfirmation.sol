@@ -16,6 +16,7 @@ import {LibTracking} from "./LibTracking.sol";
 import {LibRevenue} from "./LibRevenue.sol";
 import {LibHeap} from "./LibHeap.sol";
 import {LibReservationCancellation} from "./LibReservationCancellation.sol";
+import {LibReservationConfig} from "./LibReservationConfig.sol";
 import {LibReservationDenyReason} from "./LibReservationDenyReason.sol";
 import {LibReservationIdentity} from "./LibReservationIdentity.sol";
 
@@ -88,6 +89,21 @@ library LibInstitutionalReservationConfirmation {
         if (storedHash != pucHash) revert PucMismatch();
 
         address trackingKey = LibTracking.trackingKeyFromInstitutionHash(institution, storedHash);
+        uint256 d = r.requestPeriodDuration;
+        if (d == 0) d = s.institutionalSpendingPeriod[institution];
+        if (d == 0) d = LibAppStorage.DEFAULT_SPENDING_PERIOD;
+        if (
+            block.timestamp >= r.start || block.timestamp >= r.end
+                || LibReservationConfig.isPendingRequestExpired(r.requestPeriodStart, d, r.start, block.timestamp)
+        ) {
+            LibReservationCancellation.cancelReservation(key);
+            emit ReservationRequestDenied(key, r.labId, LibReservationDenyReason.REQUEST_EXPIRED);
+            emit ReservationRequestDeniedByGeneration(
+                reservationId, key, r.labId, LibReservationDenyReason.REQUEST_EXPIRED
+            );
+            return;
+        }
+
         address labProvider = LibERC721Storage.ownerOf(r.labId);
         r.labProvider = labProvider;
 
@@ -101,18 +117,6 @@ library LibInstitutionalReservationConfirmation {
         }
 
         r.collectorInstitution = s.institutionalBackends[labProvider] != address(0) ? labProvider : address(0);
-
-        uint256 d = r.requestPeriodDuration;
-        if (d == 0) d = s.institutionalSpendingPeriod[institution];
-        if (d == 0) d = LibAppStorage.DEFAULT_SPENDING_PERIOD;
-        if (block.timestamp >= r.requestPeriodStart + d) {
-            LibReservationCancellation.cancelReservation(key);
-            emit ReservationRequestDenied(key, r.labId, LibReservationDenyReason.REQUEST_EXPIRED);
-            emit ReservationRequestDeniedByGeneration(
-                reservationId, key, r.labId, LibReservationDenyReason.REQUEST_EXPIRED
-            );
-            return;
-        }
 
         if (r.price == 0) {
             _finalize(s, r, key, trackingKey);

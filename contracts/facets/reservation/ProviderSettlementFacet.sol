@@ -54,6 +54,10 @@ contract ProviderSettlementFacet is ReentrancyGuardTransient {
     uint8 internal constant _BATCH_DISPUTED = 3;
     uint8 internal constant _BATCH_REVERSED = 4;
 
+    /// @dev Hard bound for the deprecated aggregate preview getter. Production
+    ///      consumers must use getLabProviderReceivablePaginated instead.
+    uint256 internal constant _LEGACY_RECEIVABLE_PREVIEW_MAX_HEAP = 1000;
+
     /// @notice Emitted when a provider payout request queues the lab's accrued provider receivable for settlement
     event ProviderPayoutRequested(
         address indexed provider, uint256 indexed labId, uint256 amount, uint256 reservationsProcessed
@@ -137,10 +141,14 @@ contract ProviderSettlementFacet is ReentrancyGuardTransient {
         _requestProviderPayout(_labId, maxBatch);
     }
 
-    /// @notice Previews all provider receivables affected by the next payout request.
-    /// @dev The fourth value includes all currently outstanding receivable lifecycle
-    ///      buckets. Pending grace reservations are intentionally a count, not a
-    ///      receivable amount, because they cannot be finalized by payout yet.
+    /// @notice Deprecated bounded preview of provider receivables affected by the next payout request.
+    /// @dev Kept for compatibility with already deployed consumers. Production
+    ///      consumers must use getLabProviderReceivablePaginated. This selector
+    ///      reverts once the payout heap exceeds the legacy bound so an eth_call
+    ///      cannot scale with an unbounded reservation history. The fourth value
+    ///      includes all currently outstanding receivable lifecycle buckets.
+    ///      Pending grace reservations are intentionally a count, not a receivable
+    ///      amount, because they cannot be finalized by payout yet.
     function getLabProviderReceivable(
         uint256 _labId
     )
@@ -162,6 +170,7 @@ contract ProviderSettlementFacet is ReentrancyGuardTransient {
         uint256 heapLength = heap.length;
 
         if (heapLength > 0) {
+            require(heapLength <= _LEGACY_RECEIVABLE_PREVIEW_MAX_HEAP, "Use paginated receivable getter");
             (uint256 pendingAttestedSessionPayout, uint256 pendingNoShowFee, uint256 pendingGraceReservations) =
                 _accumulatePayoutPreviewFromHeap(s, heap, heapLength, 0, currentTime, _labId);
             attestedSessionPayout += pendingAttestedSessionPayout;

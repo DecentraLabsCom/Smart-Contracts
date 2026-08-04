@@ -173,9 +173,7 @@
       "name": "LabAdminFacet",
       "target": "contracts/facets/lab/LabAdminFacet.sol:LabAdminFacet",
       "functions": [
-        "addAndListLab(string,uint96,string,string,uint8)",
         "addAndListLabWithPucHash(string,uint96,string,string,uint8,bytes32)",
-        "addLab(string,uint96,string,string,uint8)",
         "addLabWithPucHash(string,uint96,string,string,uint8,bytes32)",
         "bindLabCreatorPucHash(uint256,bytes32)",
         "deleteLab(uint256)",
@@ -363,6 +361,10 @@
     "validateInstRequest(address,bytes32,uint256,uint32,uint32)",
     "createInstReservation((address,address,uint256,uint32,uint32,bytes32,bytes32,address))",
     "recordRecentInstReservation(uint256,address,bytes32,uint32)"
+  ],
+  "unroutedFunctions": [
+    "addAndListLab(string,uint96,string,string,uint8)",
+    "addLab(string,uint96,string,string,uint8)"
   ],
   "forbiddenFunctions": [
     "reservationRequest(uint256,uint32,uint32)",

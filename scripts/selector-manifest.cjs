@@ -37,7 +37,14 @@ function validateSelectorManifest(rootDir, manifest) {
   const errors = [];
   const allowedSelectors = new Map();
   const allowedFunctions = new Set();
+  const unroutedFunctions = new Set(manifest.unroutedFunctions || []);
   const forbiddenFunctions = new Set(manifest.forbiddenFunctions || []);
+
+  for (const signature of unroutedFunctions) {
+    if (forbiddenFunctions.has(signature)) {
+      errors.push(`${signature} is both unrouted and forbidden`);
+    }
+  }
 
   for (const facet of manifest.facets || []) {
     let artifact;
@@ -63,6 +70,7 @@ function validateSelectorManifest(rootDir, manifest) {
     }
   }
 
+  const compiledFunctions = new Set();
   for (const facet of manifest.facets || []) {
     let artifact;
     try {
@@ -72,11 +80,21 @@ function validateSelectorManifest(rootDir, manifest) {
     }
     for (const entry of (artifact.abi || []).filter((item) => item.type === "function")) {
       const signature = signatureFor(entry);
+      compiledFunctions.add(signature);
       if (forbiddenFunctions.has(signature)) {
         errors.push(`${facet.name} still compiles forbidden function ${signature}`);
-      } else if (!allowedFunctions.has(signature)) {
+      } else if (!allowedFunctions.has(signature) && !unroutedFunctions.has(signature)) {
         errors.push(`${facet.name} exposes unclassified function ${signature}`);
       }
+    }
+  }
+
+  for (const signature of unroutedFunctions) {
+    if (!compiledFunctions.has(signature)) {
+      errors.push(`Unrouted function is not exposed by any declared facet: ${signature}`);
+    }
+    if (allowedFunctions.has(signature)) {
+      errors.push(`${signature} is both unrouted and allowed`);
     }
   }
 

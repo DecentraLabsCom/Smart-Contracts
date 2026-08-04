@@ -203,10 +203,19 @@ selectors, which update the object, aggregate bucket and resolution audit
 fields atomically. Accrued value must first pass through
 `requestProviderPayout`, which creates its canonical batch.
 
-For the payout preview, `getLabProviderReceivable` returns four separate
-values: provider payout from attested sessions, the potential provider fee
-from finalizable physical-lab no-shows, the count of access-authorized
-reservations still inside the SessionStarted grace period, and the already
-outstanding receivable. The grace count is not included in the payout amount;
-the three monetary values are the actionable preview. The paginated variant
-returns the same categories per heap chunk.
+For production payout previews, use `getLabProviderReceivablePaginated` as the
+only supported route. Request at most 1,000 heap entries per call, starting at
+`offset=0`, then continue with `nextOffset` while `hasMore` is true. Sum the
+three preview categories across pages; `accruedReceivableChunk` is populated
+only on the first page. The grace count is not included in the payout amount;
+the three monetary values are the actionable preview.
+
+`getLabProviderReceivable` is a deprecated compatibility selector. It performs
+the same preview with a recursive heap walk and now reverts when the heap is
+larger than 1,000 entries, so it cannot turn a single `eth_call` into an
+unbounded historical scan. Existing Diamonds must retain the selector until
+their consumers migrate, but new integrations must not call it. RPC operators
+should alert on selector `0x10b6ba8f` (`getLabProviderReceivable(uint256)`) and
+track it separately from selector `0x9441acce`
+(`getLabProviderReceivablePaginated(uint256,uint256,uint256)`) to identify
+remaining legacy clients.

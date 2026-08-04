@@ -22,7 +22,7 @@ and availability off-chain before publishing a lab.
 
 ```mermaid
 stateDiagram-v2
-    [*] --> Created: addLab / addLabWithPucHash
+    [*] --> Created: addLabWithPucHash / addLabWithIntent
     Created --> Listed: listLab
     Created --> Deleted: deleteLab
     Listed --> Unlisted: unlistLab or transfer
@@ -31,17 +31,21 @@ stateDiagram-v2
     Deleted --> [*]
 ```
 
-`addAndListLab` combines creation and listing. The corresponding
-`*WithPucHash` functions atomically bind a non-zero creator PUC hash. For a
-legacy unbound lab, its current token owner can call `bindLabCreatorPucHash`
-once; the binding cannot later be replaced. `getPucHash` deliberately remains
-available after a burn so off-chain deletion cleanup can authenticate the
-record.
+`addAndListLabWithPucHash` combines creation and listing. The corresponding
+`*WithPucHash` functions atomically bind a non-zero creator PUC hash. The
+production selector manifest does not route the legacy `addLab` and
+`addAndListLab` variants without PUC; the compiled wrappers are retained only
+for explicit legacy/test fixtures. For an existing unbound lab, its current
+token owner can call `bindLabCreatorPucHash` once; the binding cannot later be
+replaced. `getPucHash` deliberately remains available after a burn so off-chain
+deletion cleanup can authenticate the record.
 
 Intent-based creation also requires a non-zero PUC hash. Subsequent
 `*WithIntent` lab changes check that hash in addition to consuming the signed
-intent. Direct owner calls use ERC-721 ownership checks; integrators that need
-creator-identity binding should select the PUC-aware or intent path.
+intent. New or reconciled Diamonds therefore expose only the PUC-aware and
+intent-based creation paths. A Diamond already deployed with the legacy
+selectors needs an owner-authorized `diamondCut` removal before it reaches the
+same surface; changing this manifest alone does not mutate deployed state.
 
 ## Listing, changes and deletion
 

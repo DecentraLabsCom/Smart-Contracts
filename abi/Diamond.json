@@ -4553,39 +4553,6 @@
   },
   {
     "type": "function",
-    "name": "addAndListLab",
-    "inputs": [
-      {
-        "name": "_uri",
-        "type": "string",
-        "internalType": "string"
-      },
-      {
-        "name": "_price",
-        "type": "uint96",
-        "internalType": "uint96"
-      },
-      {
-        "name": "_accessUri",
-        "type": "string",
-        "internalType": "string"
-      },
-      {
-        "name": "_accessKey",
-        "type": "string",
-        "internalType": "string"
-      },
-      {
-        "name": "_resourceType",
-        "type": "uint8",
-        "internalType": "uint8"
-      }
-    ],
-    "outputs": [],
-    "stateMutability": "nonpayable"
-  },
-  {
-    "type": "function",
     "name": "addAndListLabWithPucHash",
     "inputs": [
       {
@@ -4617,39 +4584,6 @@
         "name": "pucHash",
         "type": "bytes32",
         "internalType": "bytes32"
-      }
-    ],
-    "outputs": [],
-    "stateMutability": "nonpayable"
-  },
-  {
-    "type": "function",
-    "name": "addLab",
-    "inputs": [
-      {
-        "name": "_uri",
-        "type": "string",
-        "internalType": "string"
-      },
-      {
-        "name": "_price",
-        "type": "uint96",
-        "internalType": "uint96"
-      },
-      {
-        "name": "_accessUri",
-        "type": "string",
-        "internalType": "string"
-      },
-      {
-        "name": "_accessKey",
-        "type": "string",
-        "internalType": "string"
-      },
-      {
-        "name": "_resourceType",
-        "type": "uint8",
-        "internalType": "uint8"
       }
     ],
     "outputs": [],

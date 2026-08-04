@@ -33,8 +33,12 @@ async function main() {
   const loupe = new ethers.Contract(diamondAddress, LOUPE_ABI, provider);
   const liveFacets = await loupe.facets();
   const desiredSelectors = new Set(validation.allowedSelectors.keys());
-  const forbiddenBySelector = new Map(
-    manifest.forbiddenFunctions.map((signature) => [ethers.id(signature).slice(0, 10).toLowerCase(), signature]),
+  const removedFunctions = [
+    ...(manifest.unroutedFunctions || []),
+    ...(manifest.forbiddenFunctions || []),
+  ];
+  const removedBySelector = new Map(
+    removedFunctions.map((signature) => [ethers.id(signature).slice(0, 10).toLowerCase(), signature]),
   );
   const liveSelectors = Array.from(liveFacets).flatMap((facet) =>
     Array.from(facet.functionSelectors, (selector) => selector.toLowerCase()),
@@ -47,7 +51,7 @@ async function main() {
   console.log(`Manifest selectors: ${desiredSelectors.size}`);
   console.log(`Remove: ${removals.length}; missing: ${missing.length}`);
   for (const selector of removals) {
-    console.log(`  REMOVE ${selector} ${forbiddenBySelector.get(selector) || "<unclassified>"}`);
+    console.log(`  REMOVE ${selector} ${removedBySelector.get(selector) || "<unclassified>"}`);
   }
   for (const selector of missing) {
     console.log(`  MISSING ${selector} ${validation.allowedSelectors.get(selector)}`);

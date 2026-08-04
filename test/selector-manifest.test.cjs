@@ -53,6 +53,20 @@ test("unsupported wallet, credit, migration, and generic role functions are forb
   }
 });
 
+test("legacy no-PUC lab creation routes are explicitly unrouted", () => {
+  const manifest = loadSelectorManifest(rootDir);
+  const allowed = new Set(manifest.facets.flatMap((facet) => facet.functions));
+  const expectedUnrouted = [
+    "addLab(string,uint96,string,string,uint8)",
+    "addAndListLab(string,uint96,string,string,uint8)",
+  ];
+
+  for (const signature of expectedUnrouted) {
+    assert.ok(manifest.unroutedFunctions.includes(signature), `${signature} must be explicitly unrouted`);
+    assert.ok(!allowed.has(signature), `${signature} must not be routed`);
+  }
+});
+
 test("the generated public ABI contains only allowlisted functions", () => {
   const manifest = loadSelectorManifest(rootDir);
   const abi = buildPublicAbi(rootDir, manifest);

@@ -152,6 +152,18 @@ contract ProviderReceivableHarness is ERC721, ProviderSettlementFacet {
         s.providerActiveReservationCount[reservation.labProvider] += 1;
     }
 
+    function seedPayoutHeapEntries(
+        uint256 labId,
+        uint256 count
+    ) external {
+        AppStorage storage s = LibAppStorage.diamondStorage();
+        for (uint256 i; i < count; ++i) {
+            s.payoutHeaps[labId].push(
+                PayoutCandidate({end: 1, key: keccak256(abi.encode("legacy-preview-cap", labId, i))})
+            );
+        }
+    }
+
     function releaseInstitutionalReservation(
         bytes32 reservationKey,
         uint256 labId
@@ -483,6 +495,17 @@ contract ProviderReceivableAliasesTest is Test {
         assertEq(accruedReceivable, 0);
         assertEq(nextOffset, 2);
         assertFalse(hasMore);
+    }
+
+    function test_getLabProviderReceivable_reverts_above_legacy_heap_limit() public {
+        harness.seedPayoutHeapEntries(LAB_ID, 1001);
+
+        vm.expectRevert(bytes("Use paginated receivable getter"));
+        harness.getLabProviderReceivable(LAB_ID);
+
+        (,,,, uint256 nextOffset, bool hasMore) = harness.getLabProviderReceivablePaginated(LAB_ID, 0, 1000);
+        assertEq(nextOffset, 1000);
+        assertTrue(hasMore);
     }
 
     function test_requestProviderPayout_finalizes_confirmed_no_show_without_session_started() public {

@@ -11,10 +11,10 @@ accounting, access evidence and provider settlement.
 - The Diamond delegates each approved selector to a facet while all domain
   state remains in shared `AppStorage`.
 - The canonical booking write paths are institutional. The active Marketplace
-  flow uses one-time intents; the Diamond also retains a direct
-  institution/backend request selector that is not WebAuthn-aware. See
-  `docs/institutional-access.md` for the trust boundary and `DIRECT_BOOKING`
-  selector mapping.
+  flow uses one-time intents; the Diamond also retains direct institutional
+  cancellation selectors for the registered backend. These selectors are not
+  WebAuthn-aware. See `docs/institutional-access.md` for the trust boundary and
+  `DIRECT_BOOKING` selector mapping.
 - Service credits are internal, non-refundable accounting units; the protocol
   has no active external `$LAB` token settlement flow.
 - A provider receivable is earned only after the reservation lifecycle and the

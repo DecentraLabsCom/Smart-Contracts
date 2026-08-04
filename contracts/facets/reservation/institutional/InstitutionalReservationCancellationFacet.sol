@@ -11,6 +11,7 @@ import {
     Reservation
 } from "../../../libraries/LibAppStorage.sol";
 import {LibInstitutionalReservation} from "../../../libraries/LibInstitutionalReservation.sol";
+import {UnknownInstitution} from "../../../libraries/LibInstitutionalOrg.sol";
 import {LibRevenue} from "../../../libraries/LibRevenue.sol";
 import {LibReservationIdentity} from "../../../libraries/LibReservationIdentity.sol";
 
@@ -38,22 +39,21 @@ contract InstitutionalReservationCancellationFacet is ReentrancyGuardTransient {
         bytes32 indexed reservationId, bytes32 indexed reservationKey, uint256 indexed tokenId, uint8 reasonCode
     );
 
-    modifier onlyInstitution(
+    modifier onlyInstitutionalBackend(
         address institution
     ) {
-        _onlyInstitution(institution);
+        _onlyInstitutionalBackend(institution);
         _;
     }
 
-    function _onlyInstitution(
+    function _onlyInstitutionalBackend(
         address institution
     ) internal view {
         AppStorage storage s = _s();
-        if (!s.roleMembers[INSTITUTION_ROLE].contains(institution)) revert("Unknown institution");
+        if (!s.roleMembers[INSTITUTION_ROLE].contains(institution)) revert UnknownInstitution();
         address backend = s.institutionalBackends[institution];
-        if (!(msg.sender == institution || (backend != address(0) && msg.sender == backend))) {
-            revert("Unauthorized institution");
-        }
+        if (backend == address(0)) revert LibInstitutionalReservation.BackendMissing();
+        if (msg.sender != backend) revert LibInstitutionalReservation.UnauthorizedInstitution();
     }
 
     function _s() internal pure returns (AppStorage storage s) {
@@ -64,7 +64,7 @@ contract InstitutionalReservationCancellationFacet is ReentrancyGuardTransient {
         address institutionalProvider,
         bytes32 pucHash,
         bytes32 _reservationKey
-    ) external onlyInstitution(institutionalProvider) {
+    ) external onlyInstitutionalBackend(institutionalProvider) {
         _cancelInstitutionalReservationRequest(institutionalProvider, pucHash, _reservationKey);
     }
 
@@ -72,7 +72,7 @@ contract InstitutionalReservationCancellationFacet is ReentrancyGuardTransient {
         address institutionalProvider,
         bytes32 _reservationKey,
         bytes32 pucHash
-    ) external onlyInstitution(institutionalProvider) {
+    ) external onlyInstitutionalBackend(institutionalProvider) {
         _cancelInstitutionalBookingWithPucHash(institutionalProvider, _reservationKey, pucHash);
     }
 

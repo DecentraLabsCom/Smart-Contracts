@@ -63,9 +63,12 @@ The reservation selectors must not be conflated:
 | `institutionalReservationRequestWithIntent` | Active `REQUEST_BOOKING` path for an external lab | Requires a pending action-8 intent; WebAuthn remains an off-chain backend gate |
 
 The current Marketplace and canonical `Lab Gateway/blockchain-services` code
-call the two `*WithIntent` selectors. The former direct selector had no active
-caller and has been removed from the production selector manifest and ABI. A
-reviewed Diamond upgrade is still required for already deployed instances.
+call the two `*WithIntent` selectors. The direct institutional cancellation
+selectors remain available for administrative integrations, but both require
+the payer institution's currently registered backend; the institution wallet
+cannot execute them. They do not carry a WebAuthn assertion. A reviewed
+Diamond upgrade is still required for already deployed instances when the
+facet implementation changes.
 
 The Marketplace registers the intent and creates the backend authorization
 session before the user completes WebAuthn. That ordering is intentional for

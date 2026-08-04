@@ -118,8 +118,11 @@ or from off-chain calendar data.
 
 The normal institutional cancellation path is limited to a confirmed booking
 before its start time and requires the configured backend plus the matching PUC
-hash. Physical labs charge 10% (with the configured minimum); simulations
-refund 100%. A provider-side cancellation is separate: the current provider
+hash. The direct selectors `cancelInstitutionalReservationRequest` and
+`cancelInstitutionalBookingWithPucHash` are backend-only; the institution
+wallet is not an alternate executor. Physical labs charge 10% (with the
+configured minimum); simulations refund 100%. A provider-side cancellation is
+separate: the current provider
 or its authorized backend must provide a non-zero reason code; the payer
 receives the full price and provider reputation is adjusted. At least 24 hours'
 notice is scored -1, less than 24 hours' notice is scored -2, and the explicit

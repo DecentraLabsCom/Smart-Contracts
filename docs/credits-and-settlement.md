@@ -68,18 +68,24 @@ for reservation confirmation.
 The ledger bounds new state growth to 128 physical lots per account. Before an
 append at that bound, spent/zero lots are removed and compatible lots are
 merged when their funding order, expiry and remaining EUR-per-credit basis
-match. `compactCreditLots(account)` is available for explicit maintenance of
-legacy accounts. A capture can create at most 64 source allocations for one
-reservation; a larger legacy refund must use `cancelCreditsBatch`, which
-processes at most 32 allocations and returns a cursor for the next call.
+match. A lot with a refundable allocation is retained as a logical source lot,
+including after its remaining balance reaches zero, so compaction cannot destroy
+refund provenance. `compactCreditLots(account)` is available for explicit
+maintenance of legacy accounts. A capture can create at most 64 source
+allocations for one reservation; a larger legacy refund must use
+`cancelCreditsBatch`, which processes at most 32 allocations and returns a
+cursor for the next call.
 
 ## Reservation allocations and refunds
 
 When a reservation consumes credits, the contract persists a
-`CreditReservationAllocation` for every source lot. It retains the funding
-order, amount, proportional EUR basis, expiry and the separately tracked refund
-amounts. This lets reconciliation connect a reservation charge or refund to its
-original funding provenance.
+`CreditReservationAllocation` for every source lot, including its stable
+`lotId`. It retains the funding order, amount, proportional EUR basis, expiry
+and the separately tracked refund amounts. A refund restores the exact source
+lot and its remaining EUR basis, so integer proration does not require an exact
+EUR-per-credit ratio and cannot allocate a new physical lot at the limit. This
+lets reconciliation connect a reservation charge or refund to its original
+funding provenance.
 
 Use `getCreditReservationAllocations(account, reservationRef, offset, limit)`
 for that evidence. Credit lots, movements and allocations are paginated and the

@@ -160,11 +160,12 @@ contract InstitutionalSpendingPeriodTest is BaseTest {
         inst.spendFromInstitutionalTreasuryForReservation(INST, pucHash, reservationKey, 600);
         inst.exposed_refundForReservation(INST, pucHash, reservationKey, 600);
 
-        CreditLot memory refundLot = inst.exposed_getCreditLot(INST, 1);
-        // Refunds retain the original funding lot provenance; the reservation
-        // key remains the ledger movement reference, not the funding order.
-        assertEq(refundLot.fundingOrderId, keccak256(bytes("TEST-FUNDING-EXPIRING")));
-        assertEq(refundLot.expiresAt, expiry);
+        CreditLot memory sourceLot = inst.exposed_getCreditLot(INST, 0);
+        // Refunds restore the exact source lot; the reservation key remains the
+        // ledger movement reference, not the funding order.
+        assertEq(sourceLot.fundingOrderId, keccak256(bytes("TEST-FUNDING-EXPIRING")));
+        assertEq(sourceLot.expiresAt, expiry);
+        assertEq(sourceLot.remaining, 1000);
         assertEq(inst.getInstitutionalTreasuryBalance(INST), 1000);
         assertEq(inst.getInstitutionalUserSpent(INST, pucHash), 0);
     }

@@ -95,7 +95,8 @@ contract InstReservationHarness is InstitutionalReservationCancellationFacet {
                 refundedAmount: 0,
                 eurGrossAmount: allocatedAmount,
                 refundedEurGrossAmount: 0,
-                expiresAt: sourceCreditExpiry
+                expiresAt: sourceCreditExpiry,
+                lotId: 0
             })
         );
     }

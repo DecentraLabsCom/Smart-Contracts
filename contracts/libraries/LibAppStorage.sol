@@ -387,6 +387,13 @@ struct AppStorage {
     // Emergency check-ins require governance review before they can affect
     // provider settlement. Keyed by immutable reservation generation.
     mapping(bytes32 reservationId => EmergencyCheckInReview review) emergencyCheckInReviews;
+
+    // Credit-lot provenance sidecars. These mappings are appended to preserve
+    // the storage slots of the deployed AppStorage layout.
+    mapping(uint256 lotId => uint256 refundableAllocationCount) creditLotRefundReferences;
+    mapping(uint256 lotId => bool initialized) creditLotRemainingEurGrossAmountInitialized;
+    mapping(address account => mapping(bytes32 reservationId => mapping(uint256 allocationIndex => bool)))
+        creditReservationAllocationLotIdSet;
 }
 
 /// @notice Provider participation status within the limited service network
@@ -443,6 +450,7 @@ struct CreditReservationAllocation {
     uint256 eurGrossAmount;
     uint256 refundedEurGrossAmount;
     uint48 expiresAt;
+    uint256 lotId;
 }
 
 /// @title LibAppStorage

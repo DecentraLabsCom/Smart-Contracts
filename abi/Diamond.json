@@ -1586,6 +1586,11 @@
             "name": "expiresAt",
             "type": "uint48",
             "internalType": "uint48"
+          },
+          {
+            "name": "lotId",
+            "type": "uint256",
+            "internalType": "uint256"
           }
         ]
       },
@@ -1986,6 +1991,11 @@
   {
     "type": "error",
     "name": "ReservationAllocationLimitExceeded",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "SourceLotNotFound",
     "inputs": []
   },
   {
@@ -7537,6 +7547,11 @@
             "name": "expiresAt",
             "type": "uint48",
             "internalType": "uint48"
+          },
+          {
+            "name": "lotId",
+            "type": "uint256",
+            "internalType": "uint256"
           }
         ]
       },

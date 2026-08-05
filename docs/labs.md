@@ -31,6 +31,12 @@ stateDiagram-v2
     Deleted --> [*]
 ```
 
+This diagram describes only the on-chain lab lifecycle. `Unlisted` keeps the
+token and its obligations alive, while `Deleted` burns the token and removes
+the active lab record. Gateway content uses a separate local lifecycle
+(`PendingTombstone`, `PROCESSING`, `Tombstoned`, `PURGED`) and must not be
+described as an additional contract state.
+
 `addAndListLabWithPucHash` combines creation and listing. The corresponding
 `*WithPucHash` functions atomically bind a non-zero creator PUC hash. The
 production selector manifest does not route the legacy `addLab` and

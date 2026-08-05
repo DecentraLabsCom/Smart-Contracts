@@ -87,6 +87,16 @@ artifact is not a valid security upgrade. Verify the live routes for external
 request validation, confirmation, denial and `DIRECT_BOOKING` before enabling
 provider automation.
 
+The source external-request timing is a five-minute pending-request TTL and a
+ten-minute minimum creation lead. The canonical backend still requires 12
+confirmations and uses 15-second polling/retry defaults. If finality or provider
+processing misses the five-minute decision deadline, the request must expire
+without confirmation or credit capture. Changing `PENDING_REQUEST_TTL`, the
+confirmation depth or polling budget requires a reviewed upgrade/configuration
+change that preserves this fail-closed ordering on every provider deployment.
+These values are source/deployment targets; an already deployed Diamond keeps
+its previous embedded constants until the reviewed cut is mined and verified.
+
 Only the Diamond owner can cut selectors. A cut can execute an initializer via
 `delegatecall`, so treat it with the same key-management and review discipline
 as a privileged production migration.

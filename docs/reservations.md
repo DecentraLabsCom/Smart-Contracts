@@ -45,7 +45,8 @@ An institution wallet or its authorized backend creates a request with a
 non-zero PUC hash, an existing lab and a valid time range. The intent-bound
 organization must resolve on-chain to that institution; the backend is only
 the transaction executor and is never stored as the payer. Validation enforces
-the request TTL (currently five minutes), a ten-minute minimum lead time before
+the request TTL (five minutes in the current source configuration), a
+ten-minute minimum lead time before
 the reservation starts, the lab's booking rules and the institutional user's
 policy. The lead time is shared by Marketplace and the contract so direct
 institutional backends cannot create a request with only a few seconds for
@@ -64,14 +65,23 @@ implemented by `institutionalDirectBookingWithIntent`, not by a direct
 administrative selector.
 
 The effective decision deadline for a pending request is the earlier of its
-five-minute request TTL and `reservation.start`. Because creation requires a
-ten-minute lead, a normally created request retains the full five-minute TTL
-for provider checks, transaction propagation and one retry. Confirmation at
+five-minute request TTL and `reservation.start`. The ten-minute creation lead
+leaves a five-minute safety margin after the decision window. The canonical
+backend keeps 12-confirmation event finality, but shortens fallback polling and
+retry delays to 15 seconds; if finality or provider processing does not complete
+before the deadline, the request expires without confirmation or credit capture.
+Deployments that raise confirmation depth or polling latency must increase the
+TTL and lead time in a reviewed Diamond upgrade before rollout. Confirmation at
 `start`, after `start`, or after `end` cancels the pending request as expired and
 does not capture credits. The same deadline is used when a pending request is
 released or when its slot is reused after expiry. A pending request does not
 occupy the calendar, but it remains a lab obligation and therefore blocks lab
 deletion until it is confirmed or reaches a terminal state.
+
+These timing values are embedded in the deployed reservation facets. Updating
+the source constants alone does not change an existing Diamond; verify the
+reviewed upgrade and live selectors before enabling the corresponding provider
+configuration.
 
 There is no direct institution/backend reservation selector in the production
 surface. External requests use `institutionalReservationRequestWithIntent` and

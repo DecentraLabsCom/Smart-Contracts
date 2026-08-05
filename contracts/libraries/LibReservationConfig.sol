@@ -3,12 +3,14 @@ pragma solidity ^0.8.31;
 
 library LibReservationConfig {
     /// @notice Global TTL for pending reservation requests (5 minutes)
+    /// @dev Providers must observe the request at the configured confirmation
+    ///      depth before writing confirmation. If finality is not reached before
+    ///      this deadline, the request expires without capturing credits.
     uint256 internal constant PENDING_REQUEST_TTL = 5 minutes;
 
     /// @notice Minimum lead time between request creation and reservation start.
-    /// @dev This leaves the full pending-request TTL available for provider
-    ///      checks, transaction propagation and a retry before the service
-    ///      window begins. Marketplace validation mirrors this value.
+    /// @dev The ten-minute lead leaves a five-minute safety margin after the
+    ///      pending decision window. Marketplace validation mirrors this value.
     uint256 internal constant RESERVATION_CONFIRMATION_LEAD_TIME = 10 minutes;
 
     /// @notice Returns the effective deadline for deciding a pending request.

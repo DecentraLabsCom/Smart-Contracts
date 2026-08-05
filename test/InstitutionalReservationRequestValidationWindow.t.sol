@@ -50,6 +50,15 @@ contract InstitutionalReservationRequestValidationWindowTest is Test {
         harness.validateInstRequest(INSTITUTION, PUC_HASH, LAB_ID, start, start + 1 hours);
     }
 
+    function test_protocol_window_leaves_finality_budget() public pure {
+        assertEq(LibReservationConfig.PENDING_REQUEST_TTL, 5 minutes);
+        assertEq(LibReservationConfig.RESERVATION_CONFIRMATION_LEAD_TIME, 10 minutes);
+        assertGe(
+            LibReservationConfig.RESERVATION_CONFIRMATION_LEAD_TIME,
+            LibReservationConfig.PENDING_REQUEST_TTL + 5 minutes
+        );
+    }
+
     function test_accepts_start_at_confirmation_lead_time() public {
         vm.warp(1_000_000);
         uint32 start = uint32(block.timestamp + LibReservationConfig.RESERVATION_CONFIRMATION_LEAD_TIME);

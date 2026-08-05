@@ -114,6 +114,7 @@ contract InstitutionalReservationRequestCreationSecurityTest is Test {
 
         harness.createAsDiamondSelf(_input(reservationKey));
 
+        assertEq(uint256(LibReservationConfig.PENDING_REQUEST_TTL), 5 minutes);
         assertEq(
             harness.reservationRequestPeriodDuration(reservationKey), uint64(LibReservationConfig.PENDING_REQUEST_TTL)
         );

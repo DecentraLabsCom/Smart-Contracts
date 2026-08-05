@@ -79,12 +79,13 @@ pinned deployment manifest until the targeted cut is mined and the loupe
 confirms that the selector maps to the zero address.
 
 Reservation authorization is implemented in the linked
-`LibInstitutionalReservationConfirmation` and `LibReservationConfirmation`
-libraries as well as their facets. If either library or its facet changes,
-the upgrade must deploy the new linked bytecode and replace the live facet;
-reusing an old resume artifact is not a valid security upgrade. Verify the
-live routes for external confirmation, denial and `DIRECT_BOOKING` before
-enabling provider automation.
+`LibInstitutionalReservationConfirmation`, `LibReservationConfirmation` and
+`LibInstitutionalReservationRequestValidation` libraries as well as their
+facets. If any of these libraries or facets changes, the upgrade must deploy
+the new linked bytecode and replace the live facet; reusing an old resume
+artifact is not a valid security upgrade. Verify the live routes for external
+request validation, confirmation, denial and `DIRECT_BOOKING` before enabling
+provider automation.
 
 Only the Diamond owner can cut selectors. A cut can execute an initializer via
 `delegatecall`, so treat it with the same key-management and review discipline

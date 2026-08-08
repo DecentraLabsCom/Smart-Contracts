@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 pragma solidity ^0.8.31;
 
-import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
+import {SignatureChecker} from "@openzeppelin/contracts/utils/cryptography/SignatureChecker.sol";
 import {AppStorage, EmergencyCheckInReview, LibAppStorage, Reservation} from "../../libraries/LibAppStorage.sol";
 import {LibDiamond} from "../../libraries/LibDiamond.sol";
 import {LibReservationIdentity} from "../../libraries/LibReservationIdentity.sol";
@@ -157,8 +157,7 @@ contract ReservationCheckInFacet {
         if (pucHash != expectedPucHash) revert("Puc hash mismatch");
 
         bytes32 digest = _hashCheckIn(signer, reservationKey, pucHash, timestamp);
-        address recovered = ECDSA.recover(digest, signature);
-        if (recovered != signer) revert("Signature mismatch");
+        if (!SignatureChecker.isValidSignatureNow(signer, digest, signature)) revert("Signature mismatch");
 
         _validateSigner(s, reservation, signer, expectedPucHash);
 

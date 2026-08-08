@@ -10,6 +10,7 @@ import {LibRevenue} from "./LibRevenue.sol";
 import {LibReservationConfig} from "./LibReservationConfig.sol";
 import {LibReservationIndexCleanup} from "./LibReservationIndexCleanup.sol";
 import {LibReservationIdentity} from "./LibReservationIdentity.sol";
+import {LibCreditLedger} from "./LibCreditLedger.sol";
 
 interface IInstitutionalTreasuryFacetSettlement {
     function refundToInstitutionalTreasuryForReservation(
@@ -109,6 +110,8 @@ library LibInstitutionalReservationSettlement {
                     );
             }
         }
+
+        LibCreditLedger.finalizeReservationCreditAllocations(reservation.payerInstitution, reservationId);
 
         reservation.status = _SETTLED;
         LibReservationIdentity.snapshotCurrentReservation(s, key);

@@ -397,6 +397,13 @@ struct AppStorage {
 
     // Pending reservation count. Appended to preserve every deployed storage slot.
     mapping(uint256 labId => uint256) labPendingReservationCount;
+
+    // Credit-allocation terminalization. Once a reservation's economic outcome
+    // is closed, no further refund may be applied and source-lot references can
+    // be released without changing the immutable allocation evidence.
+    mapping(address account => mapping(bytes32 reservationId => bool)) creditReservationAllocationsFinalized;
+    mapping(address account => mapping(bytes32 reservationId => mapping(uint256 allocationIndex => bool)))
+        creditReservationAllocationReferenceReleased;
 }
 
 /// @notice Provider participation status within the limited service network

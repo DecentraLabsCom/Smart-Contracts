@@ -71,10 +71,11 @@ merged when their funding order, expiry and remaining EUR-per-credit basis
 match. A lot with a refundable allocation is retained as a logical source lot,
 including after its remaining balance reaches zero, so compaction cannot destroy
 refund provenance. `compactCreditLots(account)` is available for explicit
-maintenance of legacy accounts. A capture can create at most 64 source
-allocations for one reservation; a larger legacy refund must use
-`cancelCreditsBatch`, which processes at most 32 allocations and returns a
-cursor for the next call.
+maintenance of legacy accounts. A reservation can create at most 128 source
+allocations, matching the physical lot bound, so fragmentation across valid
+active lots does not reject an otherwise fundable capture. Refunds can still
+be paged with `cancelCreditsBatch`, which processes at most 32 allocations per
+transaction and returns a cursor for the next call.
 
 ## Reservation allocations and refunds
 
@@ -92,6 +93,15 @@ for that evidence. Credit lots, movements and allocations are paginated and the
 public facet caps each response at 50 records. Refunds cannot exceed the
 recorded allocations and keep the original expiry context, so a cancellation
 cannot create perpetual credits from an expiring lot.
+
+When a reservation reaches a terminal economic outcome, its allocation refund
+entitlement is finalized exactly once. The finalizer runs after any applicable
+refund, marks any retained allocation remainder as non-refundable, and releases
+the source-lot reference while preserving the allocation and lot provenance for
+audit. Repeated finalization is a no-op, and later refunds for that reservation
+generation are rejected. The reservation settlement and treasury cancellation
+paths invoke it automatically; `finalizeReservationCreditAllocations` is also
+available to the default admin for reconciling legacy terminal reservations.
 
 ## Institutional spending and cancellation
 
@@ -124,6 +134,11 @@ data and source expiry, rather than an off-chain estimate. The preview is a
 bounded summary and intentionally returns an empty `allocations` array; query
 the provenance with `getCreditReservationAllocations` in pages (use
 `offset=0, limit=0` when only the allocation count is needed).
+The earliest source-lot expiry is advisory for the confirmation UI and is not
+itself a cancellation authorization condition. A cancellation can therefore
+remain contract-eligible while some or all of its returned credits are already
+expired; use the allocation records when an exact refund-spendability breakdown
+is required.
 
 ## Provider receivable and claim lifecycle
 

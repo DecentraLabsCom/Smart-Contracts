@@ -1386,6 +1386,30 @@
   },
   {
     "type": "function",
+    "name": "finalizeReservationCreditAllocations",
+    "inputs": [
+      {
+        "name": "account",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "reservationRef",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "releasedReferences",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
     "name": "getCreditLots",
     "inputs": [
       {
@@ -1954,6 +1978,31 @@
     "anonymous": false
   },
   {
+    "type": "event",
+    "name": "ReservationCreditAllocationsFinalized",
+    "inputs": [
+      {
+        "name": "account",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "reservationRef",
+        "type": "bytes32",
+        "indexed": true,
+        "internalType": "bytes32"
+      },
+      {
+        "name": "releasedReferences",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      }
+    ],
+    "anonymous": false
+  },
+  {
     "type": "error",
     "name": "InsufficientAvailableCredits",
     "inputs": []
@@ -1991,6 +2040,11 @@
   {
     "type": "error",
     "name": "ReservationAllocationLimitExceeded",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "ReservationAllocationsFinalized",
     "inputs": []
   },
   {

@@ -19,6 +19,13 @@ contract ServiceCreditHarness is ServiceCreditFacet {
         }
         s.roleMembers[s.DEFAULT_ADMIN_ROLE].add(account);
     }
+
+    function reservationAllocationCount(
+        address account,
+        bytes32 reservationRef
+    ) external view returns (uint256) {
+        return LibAppStorage.diamondStorage().creditReservationAllocations[account][reservationRef].length;
+    }
 }
 
 contract ServiceCreditFacetTest is BaseTest {
@@ -107,20 +114,19 @@ contract ServiceCreditFacetTest is BaseTest {
         vm.stopPrank();
     }
 
-    function test_captureLockedCredits_reverts_before_creating_too_many_allocations() public {
+    function test_captureLockedCredits_accepts_all_physical_source_lots() public {
         vm.startPrank(owner);
-        for (uint256 i; i < 65; ++i) {
+        for (uint256 i; i < 128; ++i) {
             harness.mintCredits(user1, 1, bytes32(i + 1), 0, 0);
         }
         bytes32 reservationRef = keccak256("allocation-cap");
-        harness.lockCredits(user1, 65, reservationRef);
-
-        vm.expectRevert(LibCreditLedger.ReservationAllocationLimitExceeded.selector);
-        harness.captureLockedCredits(user1, 65, reservationRef);
+        harness.lockCredits(user1, 128, reservationRef);
+        harness.captureLockedCredits(user1, 128, reservationRef);
         vm.stopPrank();
 
-        assertEq(harness.lockedBalanceOf(user1), 65);
-        assertEq(harness.totalBalanceOf(user1), 65);
+        assertEq(harness.reservationAllocationCount(user1, reservationRef), 128);
+        assertEq(harness.lockedBalanceOf(user1), 0);
+        assertEq(harness.totalBalanceOf(user1), 0);
     }
 
     function test_cancelCreditsBatch_persists_cursor_for_large_legacy_refund() public {

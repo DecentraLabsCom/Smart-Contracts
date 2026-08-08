@@ -64,6 +64,12 @@ contract InstitutionalTreasuryFacetHarness is InstitutionalTreasuryFacet {
     ) external view returns (CreditLot memory) {
         return LibCreditLedger.getLot(account, index);
     }
+
+    function exposed_compactCreditLots(
+        address account
+    ) external {
+        LibCreditLedger.compactCreditLots(account);
+    }
 }
 
 contract InstitutionalSpendingPeriodTest is BaseTest {
@@ -199,5 +205,24 @@ contract InstitutionalSpendingPeriodTest is BaseTest {
         vm.prank(BACKEND);
         vm.expectRevert(bytes("User spending limit exceeded for period"));
         inst.checkInstitutionalTreasuryAvailability(INST, pucHash, 21);
+    }
+
+    function test_partial_reservation_refund_releases_source_reference() public {
+        inst.exposed_setInstitutionRole(INST);
+        inst.exposed_setBackend(INST, BACKEND);
+        inst.exposed_mintCredits(INST, 1000);
+
+        bytes32 pucHash = keccak256(bytes("partial-refund-user@inst"));
+        bytes32 reservationKey = keccak256(bytes("partial-refund-reservation"));
+
+        vm.prank(BACKEND);
+        inst.spendFromInstitutionalTreasuryForReservation(INST, pucHash, reservationKey, 600);
+        inst.exposed_refundForReservation(INST, pucHash, reservationKey, 500);
+        inst.exposed_mintCredits(INST, 1000);
+        inst.exposed_compactCreditLots(INST);
+
+        CreditLot memory compactedLot = inst.exposed_getCreditLot(INST, 0);
+        assertEq(compactedLot.remaining, 1900);
+        assertEq(inst.getInstitutionalTreasuryBalance(INST), 1900);
     }
 }

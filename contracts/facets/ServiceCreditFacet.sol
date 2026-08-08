@@ -29,6 +29,9 @@ contract ServiceCreditFacet {
     event CreditLotAdjusted(address indexed account, int256 delta, uint256 newBalance, bytes32 indexed adjustmentRef);
     event CreditsLocked(address indexed account, uint256 amount, bytes32 indexed reservationRef);
     event CreditsCancelled(address indexed account, uint256 amount, bytes32 indexed reservationRef);
+    event ReservationCreditAllocationsFinalized(
+        address indexed account, bytes32 indexed reservationRef, uint256 releasedReferences
+    );
 
     modifier onlyDefaultAdminRole() {
         AppStorage storage s = LibAppStorage.diamondStorage();
@@ -124,6 +127,19 @@ contract ServiceCreditFacet {
         (refundedAmount, nextCursor, complete) =
             LibCreditLedger.cancelCreditsBatch(account, amount, reservationRef, maxAllocations);
         if (refundedAmount > 0) emit CreditsCancelled(account, refundedAmount, reservationRef);
+    }
+
+    /// @notice Close a terminal reservation's refund entitlement while keeping
+    ///      its source-lot allocations available as historical evidence.
+    /// @dev Production reservation finalizers call the same library operation
+    ///      automatically. This admin selector supports explicit reconciliation
+    ///      of legacy terminal reservations.
+    function finalizeReservationCreditAllocations(
+        address account,
+        bytes32 reservationRef
+    ) external onlyDefaultAdminRole returns (uint256 releasedReferences) {
+        releasedReferences = LibCreditLedger.finalizeReservationCreditAllocations(account, reservationRef);
+        emit ReservationCreditAllocationsFinalized(account, reservationRef, releasedReferences);
     }
 
     /// @notice Compact an account's spent/expired lots and merge compatible lots.

@@ -75,7 +75,7 @@ contract CreditLedgerTest is BaseTest {
         });
 
         // ServiceCreditFacet (lot-backed credit ledger only)
-        bytes4[] memory creditSelectors = new bytes4[](14);
+        bytes4[] memory creditSelectors = new bytes4[](15);
         creditSelectors[0] = _selector("mintCredits(address,uint256,bytes32,uint256,uint48)");
         creditSelectors[1] = _selector("lockCredits(address,uint256,bytes32)");
         creditSelectors[2] = _selector("captureLockedCredits(address,uint256,bytes32)");
@@ -90,6 +90,7 @@ contract CreditLedgerTest is BaseTest {
         creditSelectors[11] = _selector("getCreditMovements(address,uint256,uint256)");
         creditSelectors[12] = _selector("getCreditReservationAllocations(address,bytes32,uint256,uint256)");
         creditSelectors[13] = _selector("compactCreditLots(address)");
+        creditSelectors[14] = _selector("finalizeReservationCreditAllocations(address,bytes32)");
         cut2[2] = IDiamond.FacetCut({
             facetAddress: address(creditFacetImpl),
             action: IDiamond.FacetCutAction.Add,
@@ -400,6 +401,74 @@ contract CreditLedgerTest is BaseTest {
         vm.prank(admin);
         vm.expectRevert(LibCreditLedger.NoReservationAllocation.selector);
         creditFacet.cancelCredits(alice, 1, keccak256("UNKNOWN-RESERVATION"));
+    }
+
+    function test_finalize_reservation_allocations_releases_reference_and_is_idempotent() public {
+        bytes32 reservationRef = keccak256("RES-FINALIZE");
+
+        vm.startPrank(admin);
+        creditFacet.mintCredits(alice, 100, bytes32("SOURCE"), 100, 0);
+        creditFacet.lockCredits(alice, 100, reservationRef);
+        creditFacet.captureLockedCredits(alice, 100, reservationRef);
+        creditFacet.finalizeReservationCreditAllocations(alice, reservationRef);
+        creditFacet.compactCreditLots(alice);
+        creditFacet.finalizeReservationCreditAllocations(alice, reservationRef);
+        vm.stopPrank();
+
+        (CreditLot[] memory lots, uint256 total) = creditFacet.getCreditLots(alice, 0, 10);
+        assertEq(total, 0);
+        assertEq(lots.length, 0);
+
+        vm.prank(admin);
+        vm.expectRevert(LibCreditLedger.ReservationAllocationsFinalized.selector);
+        creditFacet.cancelCredits(alice, 1, reservationRef);
+    }
+
+    function test_finalize_partial_refund_allows_compatible_lots_to_merge() public {
+        bytes32 reservationRef = keccak256("RES-PARTIAL-FINALIZE");
+        bytes32 fundingOrder = keccak256("SAME-FUNDING");
+
+        vm.startPrank(admin);
+        creditFacet.mintCredits(alice, 100, fundingOrder, 100, 0);
+        creditFacet.lockCredits(alice, 100, reservationRef);
+        creditFacet.captureLockedCredits(alice, 100, reservationRef);
+        creditFacet.cancelCredits(alice, 90, reservationRef);
+        creditFacet.mintCredits(alice, 100, fundingOrder, 100, 0);
+        creditFacet.compactCreditLots(alice);
+        vm.stopPrank();
+
+        (CreditLot[] memory lotsBeforeFinalize, uint256 totalBeforeFinalize) = creditFacet.getCreditLots(alice, 0, 10);
+        assertEq(totalBeforeFinalize, 2);
+        assertEq(lotsBeforeFinalize.length, 2);
+
+        vm.startPrank(admin);
+        creditFacet.finalizeReservationCreditAllocations(alice, reservationRef);
+        creditFacet.compactCreditLots(alice);
+        vm.stopPrank();
+
+        (CreditLot[] memory lots, uint256 total) = creditFacet.getCreditLots(alice, 0, 10);
+        assertEq(total, 1);
+        assertEq(lots.length, 1);
+        assertEq(lots[0].remaining, 190);
+    }
+
+    function test_128_finalized_consumed_lots_do_not_block_new_funding_lot() public {
+        vm.startPrank(admin);
+        for (uint256 i; i < 128; ++i) {
+            bytes32 reservationRef = bytes32(i + 1);
+            creditFacet.mintCredits(alice, 1, bytes32(i + 1), 0, 0);
+            creditFacet.lockCredits(alice, 1, reservationRef);
+            creditFacet.captureLockedCredits(alice, 1, reservationRef);
+            creditFacet.finalizeReservationCreditAllocations(alice, reservationRef);
+        }
+
+        creditFacet.mintCredits(alice, 1, bytes32(uint256(129)), 0, 0);
+        vm.stopPrank();
+
+        (CreditLot[] memory lots, uint256 total) = creditFacet.getCreditLots(alice, 0, 10);
+        assertEq(total, 1);
+        assertEq(lots.length, 1);
+        assertEq(lots[0].remaining, 1);
     }
 
     function test_cancel_refund_preserves_source_expiry() public {

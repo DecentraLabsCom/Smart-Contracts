@@ -59,6 +59,7 @@
         "captureLockedCredits(address,uint256,bytes32)",
         "compactCreditLots(address)",
         "expireCredits(address,uint256)",
+        "finalizeReservationCreditAllocations(address,bytes32)",
         "getCreditLots(address,uint256,uint256)",
         "getCreditMovements(address,uint256,uint256)",
         "getCreditReservationAllocations(address,bytes32,uint256,uint256)",

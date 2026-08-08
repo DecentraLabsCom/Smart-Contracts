@@ -425,8 +425,12 @@ contract InstitutionalTreasuryFacet is
         _requireInstitution(institution);
         bytes32 reservationId = LibReservationIdentity.currentReservationId(s, reservationKey);
 
-        // Allow zero-price refunds (free labs) - nothing to refund
-        if (amount == 0) return;
+        // Allow zero-price refunds (free labs) - there is no balance movement,
+        // but the reservation's source-lot refund entitlement still closes.
+        if (amount == 0) {
+            LibCreditLedger.finalizeReservationCreditAllocations(institution, reservationId);
+            return;
+        }
 
         InstitutionalUserSpending storage spending = s.institutionalUserSpending[institution][pucHash];
 
@@ -435,6 +439,7 @@ contract InstitutionalTreasuryFacet is
         require(spending.totalHistoricalSpent >= amount, "Refund exceeds total spent amount");
 
         LibCreditLedger.cancelCredits(institution, amount, reservationId);
+        LibCreditLedger.finalizeReservationCreditAllocations(institution, reservationId);
 
         // Always decrement totalHistoricalSpent (tracks all-time spending)
         spending.totalHistoricalSpent -= amount;

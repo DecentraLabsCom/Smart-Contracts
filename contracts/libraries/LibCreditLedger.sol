@@ -18,7 +18,10 @@ import {LibReservationIdentity} from "./LibReservationIdentity.sol";
 ///      Available balance is the unexpired lot-backed balance minus locked credits.
 library LibCreditLedger {
     uint256 internal constant MAX_ACTIVE_CREDIT_LOTS = 128;
-    uint256 internal constant MAX_RESERVATION_ALLOCATIONS = 64;
+    // A reservation may consume every physical lot in FIFO order. Keep the
+    // provenance allocation bound aligned with that physical storage bound so
+    // valid balances are not rejected solely because they are fragmented.
+    uint256 internal constant MAX_RESERVATION_ALLOCATIONS = MAX_ACTIVE_CREDIT_LOTS;
     uint256 internal constant MAX_REFUND_ALLOCATIONS_PER_BATCH = 32;
 
     error ZeroAccount();
@@ -36,6 +39,7 @@ library LibCreditLedger {
     error ReservationAllocationLimitExceeded();
     error InvalidRefundBatchSize();
     error SourceLotNotFound();
+    error ReservationAllocationsFinalized();
 
     /// @notice Available (unlocked) credits for an account
     function availableBalanceOf(
@@ -93,6 +97,7 @@ library LibCreditLedger {
 
         AppStorage storage s = LibAppStorage.diamondStorage();
         reservationRef = LibReservationIdentity.resolveReservationRef(s, reservationRef);
+        _requireReservationAllocationsOpen(s, account, reservationRef);
 
         uint256 available = availableBalanceOf(account);
         if (available < amount) revert InsufficientAvailableCredits();
@@ -119,6 +124,7 @@ library LibCreditLedger {
 
         AppStorage storage s = LibAppStorage.diamondStorage();
         reservationRef = LibReservationIdentity.resolveReservationRef(s, reservationRef);
+        _requireReservationAllocationsOpen(s, account, reservationRef);
 
         if (s.creditLockedBalance[account] < amount) revert InsufficientLockedCredits();
 
@@ -179,6 +185,9 @@ library LibCreditLedger {
 
         AppStorage storage s = LibAppStorage.diamondStorage();
         reservationRef = LibReservationIdentity.resolveReservationRef(s, reservationRef);
+        if (s.creditReservationAllocationsFinalized[account][reservationRef]) {
+            revert ReservationAllocationsFinalized();
+        }
 
         CreditReservationAllocation[] storage allocations = s.creditReservationAllocations[account][reservationRef];
         if (allocations.length == 0) revert NoReservationAllocation();
@@ -198,15 +207,11 @@ library LibCreditLedger {
                 allocation.refundedAmount += refundAmount;
                 allocation.refundedEurGrossAmount += refundEur;
                 if (s.creditReservationAllocationLotIdSet[account][reservationRef][i]) {
-                    if (!_restoreRefundToSourceLot(
-                            s,
-                            account,
-                            allocation.lotId,
-                            refundAmount,
-                            refundEur,
-                            allocation.refundedAmount == allocation.amount
-                        )) {
+                    if (!_restoreRefundToSourceLot(s, account, allocation.lotId, refundAmount, refundEur)) {
                         revert SourceLotNotFound();
+                    }
+                    if (allocation.refundedAmount == allocation.amount) {
+                        _releaseRefundReference(s, account, reservationRef, i, allocation.lotId);
                     }
                 } else {
                     // Allocations written before lot IDs were recorded retain
@@ -246,6 +251,51 @@ library LibCreditLedger {
 
         _recordMovement(s, account, CreditMovementKind.CANCEL, refundedAmount, reservationRef);
         return (refundedAmount, i, true);
+    }
+
+    /// @notice Close the refund entitlement of a terminal reservation.
+    /// @dev Allocation provenance remains readable forever. Only the
+    ///      refundable-reference sidecar is released, and each allocation is
+    ///      marked before the reservation-level flag makes this operation
+    ///      idempotent across repeated maintenance calls.
+    function finalizeReservationCreditAllocations(
+        address account,
+        bytes32 reservationRef
+    ) internal returns (uint256 releasedReferences) {
+        if (account == address(0)) revert ZeroAccount();
+
+        AppStorage storage s = LibAppStorage.diamondStorage();
+        reservationRef = LibReservationIdentity.resolveReservationRef(s, reservationRef);
+        if (s.creditReservationAllocationsFinalized[account][reservationRef]) return 0;
+
+        CreditReservationAllocation[] storage allocations = s.creditReservationAllocations[account][reservationRef];
+        if (allocations.length == 0) return 0;
+
+        for (uint256 i; i < allocations.length;) {
+            if (!s.creditReservationAllocationReferenceReleased[account][reservationRef][i]) {
+                CreditReservationAllocation storage allocation = allocations[i];
+                if (
+                    s.creditReservationAllocationLotIdSet[account][reservationRef][i]
+                        && allocation.refundedAmount < allocation.amount
+                ) {
+                    uint256 referenceCount = s.creditLotRefundReferences[allocation.lotId];
+                    if (referenceCount > 0) {
+                        unchecked {
+                            --s.creditLotRefundReferences[allocation.lotId];
+                        }
+                        ++releasedReferences;
+                    }
+                }
+                s.creditReservationAllocationReferenceReleased[account][reservationRef][i] = true;
+            }
+            unchecked {
+                ++i;
+            }
+        }
+
+        delete s.creditReservationRefundCursor[account][reservationRef];
+        delete s.creditReservationExpiry[account][reservationRef];
+        s.creditReservationAllocationsFinalized[account][reservationRef] = true;
     }
 
     /// @notice Debit available credits for an identified reservation.
@@ -424,6 +474,7 @@ library LibCreditLedger {
         CreditReservationAllocation[] storage allocations = s.creditReservationAllocations[account][reservationRef];
 
         if (recordAllocation) {
+            _requireReservationAllocationsOpen(s, account, reservationRef);
             uint256 requiredAllocations = _sourceLotCountForAmount(lots, cursor, amount);
             if (
                 allocations.length > MAX_RESERVATION_ALLOCATIONS
@@ -524,8 +575,7 @@ library LibCreditLedger {
         address account,
         uint256 sourceLotId,
         uint256 refundAmount,
-        uint256 refundEurGrossAmount,
-        bool allocationFullyRefunded
+        uint256 refundEurGrossAmount
     ) private returns (bool restored) {
         CreditLot[] storage lots = s.creditLots[account];
         for (uint256 i; i < lots.length;) {
@@ -536,9 +586,6 @@ library LibCreditLedger {
                 s.creditLotRemainingEurGrossAmount[sourceLotId] = eurRemaining + refundEurGrossAmount;
                 s.creditLotRemainingEurGrossAmountInitialized[sourceLotId] = true;
                 if (i < s.creditLotCursor[account]) s.creditLotCursor[account] = i;
-                if (allocationFullyRefunded) {
-                    --s.creditLotRefundReferences[sourceLotId];
-                }
                 return true;
             }
             unchecked {
@@ -599,6 +646,35 @@ library LibCreditLedger {
         uint256 gcdRefund = _gcd(refundEurGrossAmount, refundAmount);
         return lotEurGrossAmount / gcdLot == refundEurGrossAmount / gcdRefund
             && lot.remaining / gcdLot == refundAmount / gcdRefund;
+    }
+
+    function _releaseRefundReference(
+        AppStorage storage s,
+        address account,
+        bytes32 reservationRef,
+        uint256 allocationIndex,
+        uint256 lotId
+    ) private returns (bool released) {
+        if (s.creditReservationAllocationReferenceReleased[account][reservationRef][allocationIndex]) return false;
+
+        s.creditReservationAllocationReferenceReleased[account][reservationRef][allocationIndex] = true;
+        uint256 referenceCount = s.creditLotRefundReferences[lotId];
+        if (referenceCount == 0) return false;
+
+        unchecked {
+            --s.creditLotRefundReferences[lotId];
+        }
+        return true;
+    }
+
+    function _requireReservationAllocationsOpen(
+        AppStorage storage s,
+        address account,
+        bytes32 reservationRef
+    ) private view {
+        if (s.creditReservationAllocationsFinalized[account][reservationRef]) {
+            revert ReservationAllocationsFinalized();
+        }
     }
 
     function _appendLotUnchecked(

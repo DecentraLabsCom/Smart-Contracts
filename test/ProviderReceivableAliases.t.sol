@@ -116,6 +116,29 @@ contract ProviderReceivableHarness is ERC721, ProviderSettlementFacet {
         return LibCreditLedger.lotCount(account);
     }
 
+    function mintCreditLot(
+        address account,
+        uint256 amount,
+        bytes32 fundingOrderId,
+        uint256 eurGrossAmount
+    ) external {
+        LibCreditLedger.mintCredits(account, amount, fundingOrderId, eurGrossAmount, 0);
+    }
+
+    function debitCredit(
+        address account,
+        uint256 amount,
+        bytes32 reservationKey
+    ) external {
+        LibCreditLedger.debitCredits(account, amount, reservationKey);
+    }
+
+    function compactCreditLots(
+        address account
+    ) external {
+        LibCreditLedger.compactCreditLots(account);
+    }
+
     function setExpiredPayoutReservation(
         bytes32 reservationKey,
         uint256 labId,
@@ -527,6 +550,43 @@ contract ProviderReceivableAliasesTest is Test {
         (int32 score, uint32 totalEvents,) = harness.getLabReputation(LAB_ID);
         assertEq(score, int32(0));
         assertEq(totalEvents, uint32(0));
+    }
+
+    function test_settlement_finalizes_successful_allocation_before_compaction() public {
+        bytes32 reservationKey = keccak256("settled-allocation-finalization");
+        bytes32 fundingOrder = keccak256("settled-funding");
+        harness.setExpiredPayoutReservation(reservationKey, LAB_ID, ACCESS_AUTHORIZED, FIVE_CREDITS_U96, 999);
+        harness.markSessionStartedForTest(reservationKey);
+        harness.mintCreditLot(PROVIDER, FIVE_CREDITS, fundingOrder, FIVE_CREDITS);
+        harness.debitCredit(PROVIDER, FIVE_CREDITS, reservationKey);
+
+        vm.prank(PROVIDER);
+        harness.requestProviderPayout(LAB_ID, 10);
+
+        assertEq(harness.getReservationStatus(reservationKey), SETTLED);
+        assertEq(harness.creditLotCount(PROVIDER), 1);
+        harness.compactCreditLots(PROVIDER);
+        assertEq(harness.creditLotCount(PROVIDER), 0);
+
+        harness.mintCreditLot(PROVIDER, 1, keccak256("new-funding-after-settlement"), 0);
+        assertEq(harness.creditLotCount(PROVIDER), 1);
+    }
+
+    function test_settlement_finalizes_partial_no_show_reference_for_lot_merge() public {
+        bytes32 reservationKey = keccak256("no-show-allocation-finalization");
+        bytes32 fundingOrder = keccak256("no-show-funding");
+        harness.setExpiredPayoutReservation(reservationKey, LAB_ID, CONFIRMED, FIVE_CREDITS_U96, 999);
+        harness.enableLedgerRefund();
+        harness.mintCreditLot(PROVIDER, FIVE_CREDITS, fundingOrder, FIVE_CREDITS);
+        harness.mintCreditLot(PROVIDER, FIVE_CREDITS, fundingOrder, FIVE_CREDITS);
+        harness.debitCredit(PROVIDER, FIVE_CREDITS, reservationKey);
+
+        vm.prank(PROVIDER);
+        harness.requestProviderPayout(LAB_ID, 10);
+
+        assertEq(harness.creditLotCount(PROVIDER), 2);
+        harness.compactCreditLots(PROVIDER);
+        assertEq(harness.creditLotCount(PROVIDER), 1);
     }
 
     function test_requestProviderPayout_no_show_at_lot_limit_restores_refund() public {

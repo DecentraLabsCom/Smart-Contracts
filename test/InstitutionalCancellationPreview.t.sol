@@ -73,4 +73,32 @@ contract InstitutionalCancellationPreviewTest is Test {
         assertEq(refundAmount, price);
         assertEq(policyVersion, 2);
     }
+
+    function test_previewRemainsCancellableWhenSourceCreditHasExpired() public {
+        harness.setReservationAccounting(
+            reservationKey, 1_890_000_000, uint48(1), keccak256("funding-order"), 100_000_000
+        );
+
+        (
+            uint8 status,
+            bool cancellable,
+            address destination,
+            uint96 price,
+            uint96 totalFee,
+            uint96 providerFee,
+            uint96 refundAmount,
+            uint32 cutoff,
+            uint256 periodStart,
+            uint256 periodEnd,
+            uint48 sourceExpiry,
+            CreditReservationAllocation[] memory allocations,
+            uint8 policyVersion
+        ) = harness.previewInstitutionalBookingCancellation(reservationKey);
+
+        assertEq(status, 1);
+        assertTrue(cancellable);
+        assertLt(block.timestamp, cutoff);
+        assertEq(sourceExpiry, 1);
+        assertEq(policyVersion, 2);
+    }
 }

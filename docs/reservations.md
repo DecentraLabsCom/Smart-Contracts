@@ -158,4 +158,6 @@ cutoff, period data, source-credit expiry and policy version. Its allocations
 array is intentionally empty so the read remains bounded. Query source-lot
 provenance with `getCreditReservationAllocations` using pagination; use
 `offset=0, limit=0` for the count only. Use the preview for confirmation UI
-rather than duplicating fee logic.
+rather than duplicating fee logic. `sourceCreditExpiry` is informational and
+does not add a cancellation gate: eligibility is determined by the confirmed
+status and the current block timestamp being before the cancellation cutoff.

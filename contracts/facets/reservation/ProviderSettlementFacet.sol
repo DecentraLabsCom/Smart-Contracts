@@ -825,13 +825,15 @@ contract ProviderSettlementFacet is ReentrancyGuardTransient {
         uint256 processed = 0;
         uint256 currentTime = block.timestamp;
         bool pendingGraceEncountered;
+        bool scanLimitReached;
         while (processed < maxBatch) {
-            (bytes32 key, bool pendingGrace, bool scanLimitReached) =
+            (bytes32 key, bool pendingGrace, bool scanLimitReachedThisScan) =
                 _popExpiredReservationCandidate(s, _labId, currentTime);
             // bytes32(0) is the explicit no-candidate sentinel returned by the heap.
             // slither-disable-next-line incorrect-equality
             if (key == bytes32(0)) {
-                pendingGraceEncountered = pendingGraceEncountered || (pendingGrace && scanLimitReached);
+                pendingGraceEncountered = pendingGraceEncountered || (pendingGrace && scanLimitReachedThisScan);
+                scanLimitReached = scanLimitReached || scanLimitReachedThisScan;
                 break;
             }
             pendingGraceEncountered = pendingGraceEncountered || pendingGrace;
@@ -848,7 +850,7 @@ contract ProviderSettlementFacet is ReentrancyGuardTransient {
         // so provider collection does not depend on this call having finalized a row.
         uint256 providerPayout = s.providerReceivableAccrued[_labId];
         if (providerPayout == 0 && processed == 0) {
-            if (!pendingGraceEncountered) revert("No settleable reservations");
+            if (!scanLimitReached && !pendingGraceEncountered) revert("No settleable reservations");
             emit ProviderPayoutRequested(labOwner, _labId, 0, 0);
             return;
         }

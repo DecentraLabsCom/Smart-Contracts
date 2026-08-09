@@ -227,6 +227,13 @@ contract ProviderReceivableHarness is ERC721, ProviderSettlementFacet {
         s.reservationSessionStartedRecorded[reservationKey] = true;
     }
 
+    function setSettlementExcluded(
+        bytes32 reservationKey,
+        bool excluded
+    ) external {
+        LibAppStorage.diamondStorage().emergencyCheckInReviews[reservationKey].settlementExcluded = excluded;
+    }
+
     function accrueProviderReceivableForTest(
         uint256 labId,
         uint256 amount,
@@ -296,6 +303,12 @@ contract ProviderReceivableHarness is ERC721, ProviderSettlementFacet {
         uint256 labId
     ) external view returns (uint256) {
         return LibAppStorage.diamondStorage().payoutHeaps[labId].length;
+    }
+
+    function payoutHeapScanCursor(
+        uint256 labId
+    ) external view returns (uint256) {
+        return LibAppStorage.diamondStorage().payoutHeapScanCursor[labId];
     }
 
     function updateLastReservation(
@@ -780,6 +793,34 @@ contract ProviderReceivableAliasesTest is Test {
         assertEq(harness.getReservationStatus(unattestedKey), SETTLED);
         assertEq(harness.getReservationStatus(attestedKey), SETTLED);
         assertEq(harness.lastRefundAmount(), 37_500_000);
+    }
+
+    function test_requestProviderPayout_advances_past_settlementExcluded_scan_window() public {
+        for (uint256 i; i < 256; ++i) {
+            bytes32 excludedKey = keccak256(abi.encode("settlement-excluded", i));
+            harness.setExpiredPayoutReservation(excludedKey, LAB_ID, ACCESS_AUTHORIZED, FIVE_CREDITS_U96, 900);
+            harness.setSettlementExcluded(excludedKey, true);
+        }
+
+        bytes32 eligibleKey = keccak256("settleable-after-settlement-excluded-prefix");
+        harness.setExpiredPayoutReservation(eligibleKey, LAB_ID, ACCESS_AUTHORIZED, FIVE_CREDITS_U96, 999);
+        harness.markSessionStartedForTest(eligibleKey);
+
+        vm.warp(1000);
+        vm.prank(PROVIDER);
+        harness.requestProviderPayout(LAB_ID, 10);
+
+        assertEq(harness.payoutHeapLength(LAB_ID), 257);
+        assertEq(harness.payoutHeapScanCursor(LAB_ID), 256);
+
+        vm.prank(PROVIDER);
+        harness.requestProviderPayout(LAB_ID, 10);
+
+        (uint256 accruedReceivable, uint256 settlementQueued,,,,,) = _getLifecycleWithoutTimestamp();
+        assertEq(accruedReceivable, 0);
+        assertEq(settlementQueued, FIVE_CREDITS);
+        assertEq(harness.payoutHeapLength(LAB_ID), 256);
+        assertEq(harness.getReservationStatus(eligibleKey), SETTLED);
     }
 
     function test_requestProviderPayout_rejects_settled_reservation() public {

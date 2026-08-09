@@ -53,17 +53,24 @@ test("unsupported wallet, credit, migration, and generic role functions are forb
   }
 });
 
-test("legacy no-PUC lab creation routes are explicitly unrouted", () => {
+test("legacy no-PUC lab creation selectors are absent from the Diamond surface", () => {
   const manifest = loadSelectorManifest(rootDir);
   const allowed = new Set(manifest.facets.flatMap((facet) => facet.functions));
-  const expectedUnrouted = [
+  const legacySignatures = [
     "addLab(string,uint96,string,string,uint8)",
     "addAndListLab(string,uint96,string,string,uint8)",
   ];
+  const diamondAbi = JSON.parse(fs.readFileSync(path.join(rootDir, "abi", "Diamond.json"), "utf8"));
+  const diamondFunctions = new Set(
+    diamondAbi
+      .filter((entry) => entry.type === "function")
+      .map((entry) => `${entry.name}(${(entry.inputs || []).map(canonicalType).join(",")})`),
+  );
 
-  for (const signature of expectedUnrouted) {
-    assert.ok(manifest.unroutedFunctions.includes(signature), `${signature} must be explicitly unrouted`);
+  for (const signature of legacySignatures) {
+    assert.ok(manifest.forbiddenFunctions.includes(signature), `${signature} must be explicitly forbidden`);
     assert.ok(!allowed.has(signature), `${signature} must not be routed`);
+    assert.ok(!diamondFunctions.has(signature), `${signature} must not be present in Diamond ABI`);
   }
 });
 

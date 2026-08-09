@@ -89,7 +89,7 @@ contract ProviderTest is BaseTest {
         });
 
         bytes4[] memory labAdminSelectors = new bytes4[](1);
-        labAdminSelectors[0] = _selector("addLab(string,uint96,string,string,uint8)");
+        labAdminSelectors[0] = _selector("addLabWithPucHash(string,uint96,string,string,uint8,bytes32)");
         cut2[3] = IDiamond.FacetCut({
             facetAddress: address(labAdminFacetImpl),
             action: IDiamond.FacetCutAction.Add,
@@ -186,7 +186,9 @@ contract ProviderTest is BaseTest {
         providerFacet.addProvider("Provider1", provider1, "p1@x", "ES", "");
 
         vm.prank(provider1);
-        labAdminFacet.addLab("ipfs://lab-1", 100, "https://lab.example/access", "key-1", 0);
+        labAdminFacet.addLabWithPucHash(
+            "ipfs://lab-1", 100, "https://lab.example/access", "key-1", 0, keccak256("provider-test-lab")
+        );
 
         vm.prank(admin);
         vm.expectRevert(abi.encodeWithSelector(ProviderFacet.ProviderOwnsLabs.selector, provider1, 1));

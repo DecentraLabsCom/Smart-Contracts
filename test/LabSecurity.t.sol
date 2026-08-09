@@ -84,7 +84,7 @@ contract LabSecurityTest is BaseTest {
         });
 
         bytes4[] memory adminSels = new bytes4[](1);
-        adminSels[0] = _selector("addLab(string,uint96,string,string,uint8)");
+        adminSels[0] = _selector("addLabWithPucHash(string,uint96,string,string,uint8,bytes32)");
         cut2[3] = IDiamond.FacetCut({
             facetAddress: address(labAdminFacet), action: IDiamond.FacetCutAction.Add, functionSelectors: adminSels
         });
@@ -111,7 +111,10 @@ contract LabSecurityTest is BaseTest {
     /// @notice Security: External callers cannot burn directly via LabFacet helper
     function test_burnToken_reverts_for_external_caller() public {
         vm.prank(provider1);
-        LabAdminFacet(address(diamond)).addLab("ipfs://metadata", PRICE_100, "https://access.example.com", "key123", 0);
+        LabAdminFacet(address(diamond))
+            .addLabWithPucHash(
+                "ipfs://metadata", PRICE_100, "https://access.example.com", "key123", 0, keccak256("security-test-lab")
+            );
 
         uint256 labId = 1;
         vm.prank(attacker);
@@ -129,7 +132,10 @@ contract LabSecurityTest is BaseTest {
     /// @notice Security: helper burn must reject external callers with exact reason
     function test_burnToken_reverts_with_expected_reason() public {
         vm.prank(provider1);
-        LabAdminFacet(address(diamond)).addLab("ipfs://metadata", PRICE_100, "https://access.example.com", "key123", 0);
+        LabAdminFacet(address(diamond))
+            .addLabWithPucHash(
+                "ipfs://metadata", PRICE_100, "https://access.example.com", "key123", 0, keccak256("security-test-lab")
+            );
 
         vm.prank(attacker);
         vm.expectRevert("Only diamond can call");

@@ -176,7 +176,6 @@
       "functions": [
         "addAndListLabWithPucHash(string,uint96,string,string,uint8,bytes32)",
         "addLabWithPucHash(string,uint96,string,string,uint8,bytes32)",
-        "bindLabCreatorPucHash(uint256,bytes32)",
         "deleteLab(uint256)",
         "listLab(uint256)",
         "setTokenURI(uint256,string)",
@@ -363,10 +362,6 @@
     "createInstReservation((address,address,uint256,uint32,uint32,bytes32,bytes32,address))",
     "recordRecentInstReservation(uint256,address,bytes32,uint32)"
   ],
-  "unroutedFunctions": [
-    "addAndListLab(string,uint96,string,string,uint8)",
-    "addLab(string,uint96,string,string,uint8)"
-  ],
   "forbiddenFunctions": [
     "reservationRequest(uint256,uint32,uint32)",
     "confirmReservationRequest(bytes32)",
@@ -384,6 +379,8 @@
     "grantInstitutionRole(address,string)",
     "getLabProviders()",
     "setLabOwnerPucHash(uint256,bytes32)",
+    "addAndListLab(string,uint96,string,string,uint8)",
+    "addLab(string,uint96,string,string,uint8)",
     "institutionalReservationRequest(address,bytes32,uint256,uint32,uint32)",
     "checkInReservation(bytes32)"
   ]

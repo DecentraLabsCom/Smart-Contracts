@@ -26,31 +26,7 @@ contract LabAdminFacet {
     event LabURISet(uint256 indexed _labId, string _uri);
     event LabListed(uint256 indexed _labId, address indexed _provider);
     event LabUnlisted(uint256 indexed _labId, address indexed _provider);
-    event LabCreatorPucHashBound(uint256 indexed labId, bytes32 indexed pucHash, address indexed actor, bool migration);
-
-    /// @notice Adds a new Lab with the specified details
-    function addLab(
-        string calldata _uri,
-        uint96 _price,
-        string calldata _accessUri,
-        string calldata _accessKey,
-        uint8 _resourceType
-    ) external {
-        LibLabAdmin._requireLabProvider();
-        LibLabAdmin.addLab(_uri, _price, _accessUri, _accessKey, _resourceType);
-    }
-
-    /// @notice Adds a new Lab and immediately lists it for reservations
-    function addAndListLab(
-        string calldata _uri,
-        uint96 _price,
-        string calldata _accessUri,
-        string calldata _accessKey,
-        uint8 _resourceType
-    ) external {
-        LibLabAdmin._requireLabProvider();
-        LibLabAdmin.addAndListLab(_uri, _price, _accessUri, _accessKey, _resourceType);
-    }
+    event LabCreatorPucHashBound(uint256 indexed labId, bytes32 indexed pucHash, address indexed actor);
 
     /// @notice Adds a new Lab and binds its creator PUC hash atomically.
     function addLabWithPucHash(
@@ -76,14 +52,6 @@ contract LabAdminFacet {
     ) external {
         LibLabAdmin._requireLabProvider();
         LibLabAdmin.addAndListLabWithPucHash(_uri, _price, _accessUri, _accessKey, _resourceType, pucHash);
-    }
-
-    /// @notice Migrates an unbound legacy lab to the write-once creator PUC binding.
-    function bindLabCreatorPucHash(
-        uint256 labId,
-        bytes32 pucHash
-    ) external {
-        LibLabAdmin.bindLabCreatorPucHash(labId, pucHash);
     }
 
     /// @notice Updates the Lab with the given ID

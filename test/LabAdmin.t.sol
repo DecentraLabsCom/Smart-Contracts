@@ -15,7 +15,7 @@ import "../contracts/interfaces/IDiamond.sol";
 
 /// @title LabAdmin Test
 /// @notice Tests Lab CRUD operations per specification
-/// @dev Tests addLab, updateLab, deleteLab, listLab, unlistLab
+/// @dev Tests PUC-aware lab creation, updateLab, deleteLab, listLab, unlistLab
 contract LabAdminTest is BaseTest {
     Diamond diamond;
     LabAdminFacet labAdmin;
@@ -30,6 +30,7 @@ contract LabAdminTest is BaseTest {
 
     uint96 constant PRICE_100 = 10_000_000;
     uint96 constant PRICE_200 = 20_000_000;
+    bytes32 constant TEST_PUC_HASH = keccak256("test-lab-creator");
 
     function _selector(
         string memory sig
@@ -86,15 +87,13 @@ contract LabAdminTest is BaseTest {
             facetAddress: address(labFacetImpl), action: IDiamond.FacetCutAction.Add, functionSelectors: labSelectors
         });
 
-        bytes4[] memory labAdminSelectors = new bytes4[](8);
-        labAdminSelectors[0] = _selector("addLab(string,uint96,string,string,uint8)");
-        labAdminSelectors[1] = _selector("updateLab(uint256,string,uint96,string,string,uint8)");
-        labAdminSelectors[2] = _selector("deleteLab(uint256)");
-        labAdminSelectors[3] = _selector("listLab(uint256)");
-        labAdminSelectors[4] = _selector("unlistLab(uint256)");
-        labAdminSelectors[5] = _selector("addLabWithPucHash(string,uint96,string,string,uint8,bytes32)");
-        labAdminSelectors[6] = _selector("addAndListLabWithPucHash(string,uint96,string,string,uint8,bytes32)");
-        labAdminSelectors[7] = _selector("bindLabCreatorPucHash(uint256,bytes32)");
+        bytes4[] memory labAdminSelectors = new bytes4[](6);
+        labAdminSelectors[0] = _selector("updateLab(uint256,string,uint96,string,string,uint8)");
+        labAdminSelectors[1] = _selector("deleteLab(uint256)");
+        labAdminSelectors[2] = _selector("listLab(uint256)");
+        labAdminSelectors[3] = _selector("unlistLab(uint256)");
+        labAdminSelectors[4] = _selector("addLabWithPucHash(string,uint96,string,string,uint8,bytes32)");
+        labAdminSelectors[5] = _selector("addAndListLabWithPucHash(string,uint96,string,string,uint8,bytes32)");
         cut2[3] = IDiamond.FacetCut({
             facetAddress: address(labAdminImpl),
             action: IDiamond.FacetCutAction.Add,
@@ -130,9 +129,11 @@ contract LabAdminTest is BaseTest {
     }
 
     /// @notice SPEC: "ADD LAB" use case
-    function test_addLab_creates_nft_with_metadata() public {
+    function test_addLabWithPucHash_creates_nft_with_metadata() public {
         vm.prank(provider1);
-        labAdmin.addLab("ipfs://lab-metadata", PRICE_100, "https://access.example.com", "accessKey123", 0);
+        labAdmin.addLabWithPucHash(
+            "ipfs://lab-metadata", PRICE_100, "https://access.example.com", "accessKey123", 0, TEST_PUC_HASH
+        );
 
         // Verify NFT was minted
         assertEq(labFacet.ownerOf(1), provider1);
@@ -156,34 +157,18 @@ contract LabAdminTest is BaseTest {
         assertEq(labQuery.getPucHash(1), creatorHash);
     }
 
-    function test_bindLabCreatorPucHash_migrates_unbound_lab_once() public {
-        bytes32 creatorHash = keccak256("migrated-provider-puc");
-
-        vm.prank(provider1);
-        labAdmin.addLab("ipfs://legacy-lab", PRICE_100, "https://access.example.com", "accessKey123", 0);
-
-        vm.prank(provider1);
-        labAdmin.bindLabCreatorPucHash(1, creatorHash);
-
-        assertEq(labQuery.getPucHash(1), creatorHash);
-
-        vm.prank(provider1);
-        vm.expectRevert();
-        labAdmin.bindLabCreatorPucHash(1, keccak256("replacement-puc"));
-    }
-
     /// @notice SPEC: Precondition "Caller must be the lab provider"
     function test_addLab_requires_provider_role() public {
         vm.prank(nonProvider);
         vm.expectRevert();
-        labAdmin.addLab("ipfs://metadata", PRICE_100, "https://access.example.com", "key", 0);
+        labAdmin.addLabWithPucHash("ipfs://metadata", PRICE_100, "https://access.example.com", "key", 0, TEST_PUC_HASH);
     }
 
     /// @notice SPEC: "UPDATE LAB" use case
     function test_updateLab_modifies_metadata() public {
         // Setup: Create lab
         vm.prank(provider1);
-        labAdmin.addLab("uri1", PRICE_100, "access1", "key1", 0);
+        labAdmin.addLabWithPucHash("uri1", PRICE_100, "access1", "key1", 0, TEST_PUC_HASH);
 
         // Update lab
         vm.prank(provider1);
@@ -196,7 +181,7 @@ contract LabAdminTest is BaseTest {
     function test_updateLab_only_by_owner() public {
         // Setup: Provider1 creates lab
         vm.prank(provider1);
-        labAdmin.addLab("uri1", PRICE_100, "access1", "key1", 0);
+        labAdmin.addLabWithPucHash("uri1", PRICE_100, "access1", "key1", 0, TEST_PUC_HASH);
 
         // Provider2 cannot update Provider1's lab
         vm.prank(provider2);
@@ -208,7 +193,7 @@ contract LabAdminTest is BaseTest {
     function test_deleteLab_removes_nft() public {
         // Setup: Create lab
         vm.prank(provider1);
-        labAdmin.addLab("uri1", PRICE_100, "access1", "key1", 0);
+        labAdmin.addLabWithPucHash("uri1", PRICE_100, "access1", "key1", 0, TEST_PUC_HASH);
 
         // Delete lab
         vm.prank(provider1);
@@ -235,7 +220,7 @@ contract LabAdminTest is BaseTest {
     function test_listLab_makes_available() public {
         // Setup: Create lab
         vm.prank(provider1);
-        labAdmin.addLab("uri1", PRICE_100, "access1", "key1", 0);
+        labAdmin.addLabWithPucHash("uri1", PRICE_100, "access1", "key1", 0, TEST_PUC_HASH);
 
         // List lab
         vm.prank(provider1);
@@ -248,7 +233,7 @@ contract LabAdminTest is BaseTest {
     function test_unlistLab_makes_unavailable() public {
         // Setup: Create and list lab
         vm.prank(provider1);
-        labAdmin.addLab("uri1", PRICE_100, "access1", "key1", 0);
+        labAdmin.addLabWithPucHash("uri1", PRICE_100, "access1", "key1", 0, TEST_PUC_HASH);
         vm.prank(provider1);
         labAdmin.listLab(1);
 
@@ -261,9 +246,9 @@ contract LabAdminTest is BaseTest {
 
     function test_getLabsPaginated_excludes_deleted_ids() public {
         vm.startPrank(provider1);
-        labAdmin.addLab("uri1", PRICE_100, "access1", "key1", 0);
-        labAdmin.addLab("uri2", PRICE_100, "access2", "key2", 0);
-        labAdmin.addLab("uri3", PRICE_100, "access3", "key3", 0);
+        labAdmin.addLabWithPucHash("uri1", PRICE_100, "access1", "key1", 0, TEST_PUC_HASH);
+        labAdmin.addLabWithPucHash("uri2", PRICE_100, "access2", "key2", 0, TEST_PUC_HASH);
+        labAdmin.addLabWithPucHash("uri3", PRICE_100, "access3", "key3", 0, TEST_PUC_HASH);
         labAdmin.deleteLab(2);
         vm.stopPrank();
 

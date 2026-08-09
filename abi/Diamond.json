@@ -4683,24 +4683,6 @@
   },
   {
     "type": "function",
-    "name": "bindLabCreatorPucHash",
-    "inputs": [
-      {
-        "name": "labId",
-        "type": "uint256",
-        "internalType": "uint256"
-      },
-      {
-        "name": "pucHash",
-        "type": "bytes32",
-        "internalType": "bytes32"
-      }
-    ],
-    "outputs": [],
-    "stateMutability": "nonpayable"
-  },
-  {
-    "type": "function",
     "name": "deleteLab",
     "inputs": [
       {
@@ -4864,12 +4846,6 @@
         "type": "address",
         "indexed": true,
         "internalType": "address"
-      },
-      {
-        "name": "migration",
-        "type": "bool",
-        "indexed": false,
-        "internalType": "bool"
       }
     ],
     "anonymous": false
@@ -4954,17 +4930,6 @@
       }
     ],
     "anonymous": false
-  },
-  {
-    "type": "error",
-    "name": "LabCreatorHashAlreadyBound",
-    "inputs": [
-      {
-        "name": "labId",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ]
   },
   {
     "type": "error",
@@ -5565,25 +5530,6 @@
     ],
     "outputs": [],
     "stateMutability": "nonpayable"
-  },
-  {
-    "type": "event",
-    "name": "LabCreatorBound",
-    "inputs": [
-      {
-        "name": "labId",
-        "type": "uint256",
-        "indexed": true,
-        "internalType": "uint256"
-      },
-      {
-        "name": "pucHash",
-        "type": "bytes32",
-        "indexed": true,
-        "internalType": "bytes32"
-      }
-    ],
-    "anonymous": false
   },
   {
     "type": "error",

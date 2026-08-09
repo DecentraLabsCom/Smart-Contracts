@@ -39,19 +39,15 @@ described as an additional contract state.
 
 `addAndListLabWithPucHash` combines creation and listing. The corresponding
 `*WithPucHash` functions atomically bind a non-zero creator PUC hash. The
-production selector manifest does not route the legacy `addLab` and
-`addAndListLab` variants without PUC; the compiled wrappers are retained only
-for explicit legacy/test fixtures. For an existing unbound lab, its current
-token owner can call `bindLabCreatorPucHash` once; the binding cannot later be
-replaced. `getPucHash` deliberately remains available after a burn so off-chain
-deletion cleanup can authenticate the record.
+production facet does not compile or expose the legacy `addLab` and
+`addAndListLab` variants without PUC. Both direct and intent-based creation
+use the PUC-aware library paths. `getPucHash` deliberately remains available
+after a burn so off-chain deletion cleanup can authenticate the record.
 
 Intent-based creation also requires a non-zero PUC hash. Subsequent
 `*WithIntent` lab changes check that hash in addition to consuming the signed
 intent. New or reconciled Diamonds therefore expose only the PUC-aware and
-intent-based creation paths. A Diamond already deployed with the legacy
-selectors needs an owner-authorized `diamondCut` removal before it reaches the
-same surface; changing this manifest alone does not mutate deployed state.
+intent-based creation paths.
 
 ## Listing, changes and deletion
 

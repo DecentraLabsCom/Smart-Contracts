@@ -78,7 +78,7 @@ contract LabApprovalTest is BaseTest {
         });
 
         bytes4[] memory labAdminSelectors = new bytes4[](1);
-        labAdminSelectors[0] = _selector("addLab(string,uint96,string,string,uint8)");
+        labAdminSelectors[0] = _selector("addLabWithPucHash(string,uint96,string,string,uint8,bytes32)");
         cut2[3] = IDiamond.FacetCut({
             facetAddress: address(labAdminFacetImpl),
             action: IDiamond.FacetCutAction.Add,
@@ -101,7 +101,9 @@ contract LabApprovalTest is BaseTest {
         providerFacet.addProvider("Provider2", provider2, "p2@x", "ES", "");
 
         vm.prank(provider1);
-        labAdminFacet.addLab("ipfs://lab-1", 100, "https://lab.example/access", "key-1", 0);
+        labAdminFacet.addLabWithPucHash(
+            "ipfs://lab-1", 100, "https://lab.example/access", "key-1", 0, keccak256("approval-test-lab")
+        );
     }
 
     function test_approve_allows_clearing_existing_approval() public {

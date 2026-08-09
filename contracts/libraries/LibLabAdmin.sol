@@ -20,7 +20,6 @@ library LibLabAdmin {
 
     error LabCreatorMismatch(uint256 labId);
     error LabCreatorHashRequired();
-    error LabCreatorHashAlreadyBound(uint256 labId);
 
     event LabAdded(
         uint256 indexed _labId,
@@ -40,30 +39,7 @@ library LibLabAdmin {
     event LabURISet(uint256 indexed _labId, string _uri);
     event LabListed(uint256 indexed _labId, address indexed _provider);
     event LabUnlisted(uint256 indexed _labId, address indexed _provider);
-    event LabCreatorPucHashBound(uint256 indexed labId, bytes32 indexed pucHash, address indexed actor, bool migration);
-
-    function addLab(
-        string calldata _uri,
-        uint96 _price,
-        string calldata _accessUri,
-        string calldata _accessKey,
-        uint8 _resourceType
-    ) internal {
-        uint256 nextLabId = _createLab(_uri, _price, _accessUri, _accessKey, _resourceType, false);
-        emit LabAdded(nextLabId, msg.sender, _uri, _price, _accessUri, _accessKey, _resourceType);
-    }
-
-    function addAndListLab(
-        string calldata _uri,
-        uint96 _price,
-        string calldata _accessUri,
-        string calldata _accessKey,
-        uint8 _resourceType
-    ) internal {
-        uint256 nextLabId = _createLab(_uri, _price, _accessUri, _accessKey, _resourceType, true);
-        emit LabAdded(nextLabId, msg.sender, _uri, _price, _accessUri, _accessKey, _resourceType);
-        emit LabListed(nextLabId, msg.sender);
-    }
+    event LabCreatorPucHashBound(uint256 indexed labId, bytes32 indexed pucHash, address indexed actor);
 
     function addLabWithPucHash(
         string calldata _uri,
@@ -75,7 +51,7 @@ library LibLabAdmin {
     ) internal {
         _requirePucHash(pucHash);
         uint256 nextLabId = _createLab(_uri, _price, _accessUri, _accessKey, _resourceType, false);
-        _bindCreatorPucHash(nextLabId, pucHash, false);
+        _bindCreatorPucHash(nextLabId, pucHash);
         emit LabAdded(nextLabId, msg.sender, _uri, _price, _accessUri, _accessKey, _resourceType);
     }
 
@@ -89,24 +65,9 @@ library LibLabAdmin {
     ) internal {
         _requirePucHash(pucHash);
         uint256 nextLabId = _createLab(_uri, _price, _accessUri, _accessKey, _resourceType, true);
-        _bindCreatorPucHash(nextLabId, pucHash, false);
+        _bindCreatorPucHash(nextLabId, pucHash);
         emit LabAdded(nextLabId, msg.sender, _uri, _price, _accessUri, _accessKey, _resourceType);
         emit LabListed(nextLabId, msg.sender);
-    }
-
-    /// @notice Bind the creator PUC hash for an existing legacy lab.
-    /// @dev Only the current token owner may migrate an unbound lab. The
-    ///      binding is write-once so later Marketplace checks cannot be
-    ///      redirected to another identity.
-    function bindLabCreatorPucHash(
-        uint256 labId,
-        bytes32 pucHash
-    ) internal {
-        _requireExists(labId);
-        _requireOnlyTokenOwner(labId);
-        _requirePucHash(pucHash);
-        if (_s().pucHashByLab[labId] != bytes32(0)) revert LabCreatorHashAlreadyBound(labId);
-        _bindCreatorPucHash(labId, pucHash, true);
     }
 
     function updateLab(
@@ -235,11 +196,10 @@ library LibLabAdmin {
 
     function _bindCreatorPucHash(
         uint256 labId,
-        bytes32 pucHash,
-        bool migration
+        bytes32 pucHash
     ) private {
         _s().pucHashByLab[labId] = pucHash;
-        emit LabCreatorPucHashBound(labId, pucHash, msg.sender, migration);
+        emit LabCreatorPucHashBound(labId, pucHash, msg.sender);
     }
 
     function _validateLabParams(

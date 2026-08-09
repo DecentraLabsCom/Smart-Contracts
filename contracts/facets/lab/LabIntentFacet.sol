@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 pragma solidity ^0.8.31;
 
-import {AppStorage, LibAppStorage} from "../../libraries/LibAppStorage.sol";
+import {LibAppStorage} from "../../libraries/LibAppStorage.sol";
 import {LibIntent} from "../../libraries/LibIntent.sol";
 import {ActionIntentPayload} from "../../libraries/IntentTypes.sol";
 import {LibLabAdmin} from "../../libraries/LibLabAdmin.sol";
@@ -17,12 +17,6 @@ contract LabIntentFacet {
     event LabIntentProcessed(
         bytes32 indexed requestId, uint256 labId, string action, address provider, bool success, string reason
     );
-    event LabCreatorBound(uint256 indexed labId, bytes32 indexed pucHash);
-
-    /// @dev Returns the AppStorage struct from the diamond storage slot.
-    function _s() internal pure returns (AppStorage storage s) {
-        s = LibAppStorage.diamondStorage();
-    }
 
     /// @dev Consumes a pending intent ensuring the caller matches signer/executor
     function _consumeLabIntent(
@@ -44,16 +38,6 @@ contract LabIntentFacet {
         require(payload.pucHash != bytes32(0), missingPucHashReason);
     }
 
-    function _bindCreatorToLatestLab(
-        bytes32 pucHash
-    ) internal returns (uint256 labId) {
-        AppStorage storage s = _s();
-        labId = s.labId;
-        s.pucHashByLab[labId] = pucHash;
-
-        emit LabCreatorBound(labId, pucHash);
-    }
-
     // State is committed before the final audit event; the called libraries are internal Diamond routes.
     // slither-disable-next-line reentrancy-events
     function _createLabWithIntent(
@@ -70,14 +54,16 @@ contract LabIntentFacet {
         _consumeLabIntent(requestId, action, payload);
 
         if (listImmediately) {
-            LibLabAdmin.addAndListLab(
-                payload.uri, payload.price, payload.accessURI, payload.accessKey, payload.resourceType
+            LibLabAdmin.addAndListLabWithPucHash(
+                payload.uri, payload.price, payload.accessURI, payload.accessKey, payload.resourceType, payload.pucHash
             );
         } else {
-            LibLabAdmin.addLab(payload.uri, payload.price, payload.accessURI, payload.accessKey, payload.resourceType);
+            LibLabAdmin.addLabWithPucHash(
+                payload.uri, payload.price, payload.accessURI, payload.accessKey, payload.resourceType, payload.pucHash
+            );
         }
 
-        uint256 newLabId = _bindCreatorToLatestLab(payload.pucHash);
+        uint256 newLabId = LibAppStorage.diamondStorage().labId;
         emit LabIntentProcessed(requestId, newLabId, actionName, msg.sender, true, "");
     }
 

@@ -38,6 +38,12 @@ contract LabReputationTest is BaseTest {
         return bytes4(keccak256(bytes(sig)));
     }
 
+    function _addLab() internal {
+        labAdmin.addLabWithPucHash(
+            "ipfs://lab1", 50 ether, "https://access.lab1.com", "key-abc", 0, keccak256("lab-reputation-test")
+        );
+    }
+
     function setUp() public override {
         super.setUp();
 
@@ -88,7 +94,7 @@ contract LabReputationTest is BaseTest {
         });
 
         bytes4[] memory labAdminSelectors = new bytes4[](5);
-        labAdminSelectors[0] = _selector("addLab(string,uint96,string,string,uint8)");
+        labAdminSelectors[0] = _selector("addLabWithPucHash(string,uint96,string,string,uint8,bytes32)");
         labAdminSelectors[1] = _selector("updateLab(uint256,string,uint96,string,string,uint8)");
         labAdminSelectors[2] = _selector("deleteLab(uint256)");
         labAdminSelectors[3] = _selector("listLab(uint256)");
@@ -131,7 +137,7 @@ contract LabReputationTest is BaseTest {
 
     function _mintLab1() internal {
         vm.prank(provider1);
-        labAdmin.addLab("ipfs://lab1", 50 ether, "https://access.lab1.com", "key-abc", 0);
+        _addLab();
     }
 
     // ──────────────────────────────────────────────

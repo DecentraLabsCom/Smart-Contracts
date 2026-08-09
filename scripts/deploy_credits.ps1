@@ -227,7 +227,10 @@ function Deploy-Contract {
         return "0xDRY_RUN_ADDRESS"
     }
     
-    $forgeArgs = @("create", "--rpc-url", $Env:RPC_URL, "--private-key", $Env:PRIVATE_KEY, "--broadcast")
+    # Pin deployment bytecode to the EIP-170-safe build used by the
+    # ProviderSettlementFacet release. Keep this independent from the
+    # higher optimizer-runs value used by the default development profile.
+    $forgeArgs = @("create", "--optimizer-runs", "1", "--rpc-url", $Env:RPC_URL, "--private-key", $Env:PRIVATE_KEY, "--broadcast")
     
     # Add library links
     if ($Libraries -and $Libraries.Count -gt 0) {

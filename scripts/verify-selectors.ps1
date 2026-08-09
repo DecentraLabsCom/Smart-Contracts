@@ -35,12 +35,12 @@ if ($RpcUrl) { $Env:RPC_URL = $RpcUrl }
 if (-not $Env:RPC_URL) { throw "RPC_URL must be provided (or set in .env)" }
 
 if (-not $Diamond) {
-    $resumePath = Join-Path -Path $PSScriptRoot -ChildPath "..\deployments\sepolia-resume.json"
-    if (Test-Path $resumePath) {
-        $Diamond = (Get-Content $resumePath | ConvertFrom-Json).base.Diamond
+    $latestPath = Join-Path -Path $PSScriptRoot -ChildPath "..\deployments\sepolia-latest.json"
+    if (Test-Path $latestPath) {
+        $Diamond = (Get-Content $latestPath | ConvertFrom-Json).contracts.Diamond
     }
 }
-if (-not $Diamond) { throw "Diamond address missing (pass -Diamond or ensure resume file exists)" }
+if (-not $Diamond) { throw "Diamond address missing (pass -Diamond or ensure sepolia-latest.json exists)" }
 
 if ($Compile -or -not (Test-Path (Join-Path -Path $PSScriptRoot -ChildPath "..\hh-artifacts"))) {
     Write-Host "Running hardhat build..."

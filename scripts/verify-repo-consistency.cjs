@@ -9,8 +9,48 @@ const rootDir = path.resolve(__dirname, "..");
 const errors = [];
 const read = (relativePath) => fs.readFileSync(path.join(rootDir, relativePath), "utf8").replace(/^\uFEFF/, "");
 
+function validateDeploymentArtifactConsistency(latest, backend) {
+  const consistencyErrors = [];
+  const normalizeAddress = (value) => String(value || "").toLowerCase();
+  const latestDiamond = latest?.contracts?.Diamond;
+  const backendDiamond = backend?.diamondAddress;
+
+  if (latest?.network !== backend?.network) {
+    consistencyErrors.push(`Deployment network differs: latest=${latest?.network}, backend=${backend?.network}`);
+  }
+  if (Number(latest?.chainId) !== Number(backend?.chainId)) {
+    consistencyErrors.push(`Deployment chain ID differs: latest=${latest?.chainId}, backend=${backend?.chainId}`);
+  }
+  if (normalizeAddress(latestDiamond) !== normalizeAddress(backendDiamond)) {
+    consistencyErrors.push(`Diamond address differs: latest=${latestDiamond}, backend=${backendDiamond}`);
+  }
+
+  const latestInit = latest?.contracts?.DiamondInit;
+  const backendInit = backend?.criticalAddresses?.DiamondInit;
+  if (normalizeAddress(latestInit) !== normalizeAddress(backendInit)) {
+    consistencyErrors.push(`DiamondInit address differs: latest=${latestInit}, backend=${backendInit}`);
+  }
+
+  const latestFacetAddresses = {
+    ...(latest?.facets || {}),
+    ...(latest?.contracts || {}),
+  };
+  for (const facet of backend?.facets || []) {
+    const latestAddress = latestFacetAddresses[facet.name];
+    if (!latestAddress) {
+      consistencyErrors.push(`Backend deployment manifest facet is absent from sepolia-latest.json: ${facet.name}`);
+    } else if (normalizeAddress(latestAddress) !== normalizeAddress(facet.address)) {
+      consistencyErrors.push(`Facet address differs for ${facet.name}: latest=${latestAddress}, backend=${facet.address}`);
+    }
+  }
+
+  return consistencyErrors;
+}
+
 if (!fs.existsSync(path.join(rootDir, "scripts", "deploy_credits.ps1"))) {
   errors.push("README/deployment docs reference scripts/deploy_credits.ps1, but the file is missing");
+} else if (!read("scripts/deploy_credits.ps1").includes('"--optimizer-runs", "1"')) {
+  errors.push("scripts/deploy_credits.ps1 must pin optimizer-runs for reproducible EIP-170-safe deployments");
 }
 
 const storageSource = read("contracts/libraries/LibAppStorage.sol");
@@ -45,9 +85,28 @@ for (const target of Object.keys(resume.facets || {})) {
   if (!manifestTargets.has(target)) errors.push(`Deployment resume contains stale facet not in selector manifest: ${target}`);
 }
 
+const backendManifestPath = path.resolve(
+  rootDir,
+  "..",
+  "Lab Gateway",
+  "blockchain-services",
+  "src",
+  "main",
+  "resources",
+  "contract",
+  "deployment-manifest.json",
+);
+if (fs.existsSync(backendManifestPath)) {
+  const latest = JSON.parse(read("deployments/sepolia-latest.json"));
+  const backend = JSON.parse(fs.readFileSync(backendManifestPath, "utf8"));
+  errors.push(...validateDeploymentArtifactConsistency(latest, backend));
+}
+
 if (errors.length) {
   for (const error of [...new Set(errors)].sort()) console.error(`- ${error}`);
   process.exitCode = 1;
 } else {
   console.log("Repository consistency checks passed");
 }
+
+module.exports = {validateDeploymentArtifactConsistency};

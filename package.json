@@ -14,7 +14,7 @@
     "abi:check-consumers": "node scripts/sync-consumer-abis.cjs --check-consumers",
     "selectors:plan-live": "node scripts/reconcile-live-selectors.cjs",
     "migrate:consumer-backends": "node --env-file-if-exists=.env scripts/migrate-consumer-backends.mjs",
-    "selectors:check": "node --test test/selector-manifest.test.cjs test/remove-institutional-reservation-selector.test.cjs",
+    "selectors:check": "node --test test/selector-manifest.test.cjs test/remove-institutional-reservation-selector.test.cjs test/deployment-artifact-consistency.test.cjs test/verification-cli-options.test.cjs",
     "verify:contract-surface": "node scripts/selector-manifest.cjs && npm run abi:generate && npm run selectors:check",
     "verify:repo-consistency": "node scripts/verify-repo-consistency.cjs"
   },

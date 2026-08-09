@@ -21,14 +21,42 @@ function readJsonRobust(p) {
   return JSON.parse(raw);
 }
 
+function optionValue(args, name, fallback) {
+  const index = args.indexOf(name);
+  if (index === -1) return fallback;
+  const value = args[index + 1];
+  if (!value || value.startsWith('--')) throw new Error(`${name} requires a value`);
+  return value;
+}
+
+function buildFacetAddressMap(deployment, selectorFacets) {
+  const addressesByName = {
+    ...(deployment.facets || {}),
+    ...(deployment.contracts || {}),
+  };
+  const missing = [];
+  const facetMap = {};
+  for (const facet of selectorFacets) {
+    const address = addressesByName[facet.name];
+    if (!address) {
+      missing.push(facet.name);
+    } else {
+      facetMap[facet.target] = address;
+    }
+  }
+  if (missing.length > 0) {
+    throw new Error(`Current deployment snapshot is missing facet addresses: ${missing.join(', ')}`);
+  }
+  return facetMap;
+}
+
 async function main() {
   const args = process.argv.slice(2);
-  const rpc = args[args.indexOf('--rpc') + 1] || process.env.RPC_URL;
-  const diamond = args[args.indexOf('--diamond') + 1] || process.env.DIAMOND || '0x7189d48be3e0e3d86A783B50b4D9Cf5DaEb8815c';
-  const throttleMs = Number(args[args.indexOf('--throttle-ms') + 1] || process.env.VERIFY_THROTTLE_MS || 50);
-  const maxRetries = Number(args[args.indexOf('--retries') + 1] || process.env.VERIFY_RETRIES || 6);
-  const retryBaseMs = Number(args[args.indexOf('--retry-base-ms') + 1] || process.env.VERIFY_RETRY_BASE_MS || 250);
-  const resumePath = path.join(__dirname, '..', 'deployments', 'sepolia-resume.json');
+  const rpc = optionValue(args, '--rpc', process.env.RPC_URL);
+  const diamond = optionValue(args, '--diamond', process.env.DIAMOND || '0x7189d48be3e0e3d86A783B50b4D9Cf5DaEb8815c');
+  const throttleMs = Number(optionValue(args, '--throttle-ms', process.env.VERIFY_THROTTLE_MS || 50));
+  const maxRetries = Number(optionValue(args, '--retries', process.env.VERIFY_RETRIES || 6));
+  const retryBaseMs = Number(optionValue(args, '--retry-base-ms', process.env.VERIFY_RETRY_BASE_MS || 250));
   const includeUnmapped = args.includes('--include-unmapped');
   if (!rpc) {
     console.error('Usage: node scripts/verify-all-facets-selectors.js --rpc <RPC_URL> [--diamond <address>] [--broadcast --private-key <KEY>]');
@@ -50,8 +78,8 @@ async function main() {
       new Set(facet.functions || []),
     ]),
   );
-  const resume = readJsonRobust(resumePath);
-  const facetsMap = resume.facets || {};
+  const deployment = readJsonRobust(path.join(rootDir, 'deployments', 'sepolia-latest.json'));
+  const facetsMap = buildFacetAddressMap(deployment, selectorManifest.facets || []);
 
   // Walk hh-artifacts/contracts/facets recursively
   const facetsRoot = path.join(__dirname, '..', 'hh-artifacts', 'contracts', 'facets');
@@ -276,4 +304,8 @@ async function main() {
   }
 }
 
-main().catch(e => { console.error(e); process.exit(1); });
+if (require.main === module) {
+  main().catch(e => { console.error(e); process.exit(1); });
+}
+
+module.exports = {buildFacetAddressMap, optionValue};

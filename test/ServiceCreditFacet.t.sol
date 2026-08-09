@@ -26,6 +26,36 @@ contract ServiceCreditHarness is ServiceCreditFacet {
     ) external view returns (uint256) {
         return LibAppStorage.diamondStorage().creditReservationAllocations[account][reservationRef].length;
     }
+
+    function seedLegacyReservationAllocations(
+        address account,
+        bytes32 reservationRef,
+        uint256 allocationCount
+    ) external {
+        AppStorage storage s = LibAppStorage.diamondStorage();
+        for (uint256 i; i < allocationCount; ++i) {
+            s.creditReservationAllocations[account][reservationRef].push(
+                CreditReservationAllocation({
+                    fundingOrderId: bytes32(i + 1),
+                    amount: 1,
+                    refundedAmount: 0,
+                    eurGrossAmount: 0,
+                    refundedEurGrossAmount: 0,
+                    expiresAt: 0,
+                    lotId: 0
+                })
+            );
+        }
+    }
+
+    function refundAndFinalize(
+        address account,
+        uint256 amount,
+        bytes32 reservationRef
+    ) external {
+        LibCreditLedger.cancelCredits(account, amount, reservationRef);
+        LibCreditLedger.finalizeReservationCreditAllocations(account, reservationRef);
+    }
 }
 
 contract ServiceCreditFacetTest is BaseTest {
@@ -114,30 +144,45 @@ contract ServiceCreditFacetTest is BaseTest {
         vm.stopPrank();
     }
 
-    function test_captureLockedCredits_accepts_all_physical_source_lots() public {
+    function test_captureLockedCredits_rejects_more_than_terminal_gas_bound() public {
         vm.startPrank(owner);
-        for (uint256 i; i < 128; ++i) {
+        for (uint256 i; i < 5; ++i) {
             harness.mintCredits(user1, 1, bytes32(i + 1), 0, 0);
         }
         bytes32 reservationRef = keccak256("allocation-cap");
-        harness.lockCredits(user1, 128, reservationRef);
-        harness.captureLockedCredits(user1, 128, reservationRef);
+        harness.lockCredits(user1, 5, reservationRef);
+        vm.expectRevert(LibCreditLedger.ReservationAllocationLimitExceeded.selector);
+        harness.captureLockedCredits(user1, 5, reservationRef);
         vm.stopPrank();
 
-        assertEq(harness.reservationAllocationCount(user1, reservationRef), 128);
-        assertEq(harness.lockedBalanceOf(user1), 0);
-        assertEq(harness.totalBalanceOf(user1), 0);
+        assertEq(harness.reservationAllocationCount(user1, reservationRef), 0);
+        assertEq(harness.lockedBalanceOf(user1), 5);
+        assertEq(harness.totalBalanceOf(user1), 5);
+    }
+
+    function test_terminal_refund_and_finalize_is_safe_for_production_gas_limit() public {
+        bytes32 reservationRef = keccak256("terminal-gas-bound");
+
+        vm.startPrank(owner);
+        for (uint256 i; i < 4; ++i) {
+            harness.mintCredits(user1, 1, bytes32(i + 1), 0, 0);
+        }
+        harness.lockCredits(user1, 4, reservationRef);
+        harness.captureLockedCredits(user1, 4, reservationRef);
+
+        uint256 gasBefore = gasleft();
+        harness.refundAndFinalize(user1, 4, reservationRef);
+        uint256 gasUsed = gasBefore - gasleft();
+        vm.stopPrank();
+
+        assertLt(gasUsed, 1_000_000, "terminal refund/finalization exceeds backend gas limit");
     }
 
     function test_cancelCreditsBatch_persists_cursor_for_large_legacy_refund() public {
         bytes32 reservationRef = keccak256("batched-refund");
 
         vm.startPrank(owner);
-        for (uint256 i; i < 64; ++i) {
-            harness.mintCredits(user1, 1, bytes32(i + 1), 0, 0);
-        }
-        harness.lockCredits(user1, 64, reservationRef);
-        harness.captureLockedCredits(user1, 64, reservationRef);
+        harness.seedLegacyReservationAllocations(user1, reservationRef, 64);
 
         (uint256 firstRefund, uint256 cursor, bool complete) = harness.cancelCreditsBatch(user1, 64, reservationRef, 32);
         assertEq(firstRefund, 32);

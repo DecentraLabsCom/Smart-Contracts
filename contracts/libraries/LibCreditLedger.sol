@@ -18,10 +18,12 @@ import {LibReservationIdentity} from "./LibReservationIdentity.sol";
 ///      Available balance is the unexpired lot-backed balance minus locked credits.
 library LibCreditLedger {
     uint256 internal constant MAX_ACTIVE_CREDIT_LOTS = 128;
-    // A reservation may consume every physical lot in FIFO order. Keep the
-    // provenance allocation bound aligned with that physical storage bound so
-    // valid balances are not rejected solely because they are fragmented.
-    uint256 internal constant MAX_RESERVATION_ALLOCATIONS = MAX_ACTIVE_CREDIT_LOTS;
+    // Terminal reservation paths refund and release allocation provenance in
+    // the same transaction. Keep new reservations below the measured bound
+    // that fits the production contract gas limit with headroom for the
+    // surrounding reservation transition. The physical ledger may still hold
+    // 128 lots, and legacy allocations remain recoverable in batches.
+    uint256 internal constant MAX_RESERVATION_ALLOCATIONS = 4;
     uint256 internal constant MAX_REFUND_ALLOCATIONS_PER_BATCH = 32;
 
     error ZeroAccount();

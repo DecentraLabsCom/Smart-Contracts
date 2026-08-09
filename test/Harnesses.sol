@@ -214,6 +214,21 @@ contract InstReservationHarness is InstitutionalReservationCancellationFacet {
         LibCreditLedger.debitCredits(account, capturedAmount, reservationKey);
     }
 
+    function seedCreditReservationWithAllocations(
+        address account,
+        bytes32 reservationKey,
+        uint256 allocationCount
+    ) external {
+        for (uint256 i; i < allocationCount; ++i) {
+            LibCreditLedger.mintCredits(account, 1, bytes32(i + 1), 0, 0);
+        }
+        LibCreditLedger.debitCredits(account, allocationCount, reservationKey);
+        bytes32 pucHash = LibAppStorage.diamondStorage().reservationPucHash[reservationKey];
+        InstitutionalUserSpending storage spending =
+            LibAppStorage.diamondStorage().institutionalUserSpending[account][pucHash];
+        spending.totalHistoricalSpent = allocationCount;
+    }
+
     function creditLotCount(
         address account
     ) external view returns (uint256) {
@@ -241,6 +256,10 @@ contract InstReservationHarness is InstitutionalReservationCancellationFacet {
 
         if (ledgerRefundEnabled) {
             LibCreditLedger.cancelCredits(provider, amount, reservationKey);
+            LibCreditLedger.finalizeReservationCreditAllocations(provider, reservationKey);
+            InstitutionalUserSpending storage spending =
+                LibAppStorage.diamondStorage().institutionalUserSpending[provider][pucHash];
+            if (spending.totalHistoricalSpent >= amount) spending.totalHistoricalSpent -= amount;
         }
 
         if (reentrancyEnabled && !reentrancyTriggered) {

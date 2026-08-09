@@ -71,11 +71,13 @@ merged when their funding order, expiry and remaining EUR-per-credit basis
 match. A lot with a refundable allocation is retained as a logical source lot,
 including after its remaining balance reaches zero, so compaction cannot destroy
 refund provenance. `compactCreditLots(account)` is available for explicit
-maintenance of legacy accounts. A reservation can create at most 128 source
-allocations, matching the physical lot bound, so fragmentation across valid
-active lots does not reject an otherwise fundable capture. Refunds can still
-be paged with `cancelCreditsBatch`, which processes at most 32 allocations per
-transaction and returns a cursor for the next call.
+maintenance of legacy accounts. A reservation can create at most 4 source
+allocations. This measured bound keeps the complete terminal
+refund/finalization path below the production contract gas limit with headroom
+for the surrounding reservation transition. The account ledger may still
+contain 128 physical lots, and legacy reservations with larger allocation
+lists remain recoverable through `cancelCreditsBatch`, which processes at most
+32 allocations per transaction and returns a cursor for the next call.
 
 ## Reservation allocations and refunds
 

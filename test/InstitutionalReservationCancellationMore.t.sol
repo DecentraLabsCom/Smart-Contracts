@@ -196,4 +196,27 @@ contract InstitutionalReservationCancellationMoreTest is BaseTest {
         assertEq(harness.creditLotCount(inst), 128);
         assertEq(harness.lastRefundAmount(), price);
     }
+
+    function test_consumerCancellation_with_maximum_gas_safe_allocations() public {
+        address inst = address(0xC003);
+        address backend = address(0xB003);
+        uint256 labId = 19;
+        bytes32 key = keccak256("consumer-terminal-gas-bound");
+        string memory puc = "consumer-gas@inst";
+        uint96 price = 4;
+
+        harness.setBackend(inst, backend);
+        harness.setReservation(key, user1, inst, price, _CONFIRMED, labId, uint32(block.timestamp + 3600), puc);
+        harness.setLabResourceType(labId, 1);
+        harness.enableLedgerRefund();
+        harness.seedCreditReservationWithAllocations(inst, key, 4);
+
+        vm.prank(backend);
+        uint256 gasBefore = gasleft();
+        harness.cancelBookingWrapper(inst, keccak256(bytes(puc)), key);
+        uint256 gasUsed = gasBefore - gasleft();
+
+        assertLt(gasUsed, 1_000_000, "consumer cancellation exceeds backend gas limit");
+        assertEq(harness.getReservationStatus(key), _CANCELLED);
+    }
 }

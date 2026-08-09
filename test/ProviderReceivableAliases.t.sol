@@ -110,6 +110,17 @@ contract ProviderReceivableHarness is ERC721, ProviderSettlementFacet {
         LibCreditLedger.debitCredits(account, capturedAmount, reservationKey);
     }
 
+    function seedCreditReservationWithAllocations(
+        bytes32 reservationKey,
+        uint256 allocationCount
+    ) external {
+        address account = LibAppStorage.diamondStorage().reservations[reservationKey].payerInstitution;
+        for (uint256 i; i < allocationCount; ++i) {
+            LibCreditLedger.mintCredits(account, 1, bytes32(i + 1), 0, 0);
+        }
+        LibCreditLedger.debitCredits(account, allocationCount, reservationKey);
+    }
+
     function creditLotCount(
         address account
     ) external view returns (uint256) {
@@ -601,6 +612,21 @@ contract ProviderReceivableAliasesTest is Test {
         assertEq(harness.getReservationStatus(reservationKey), SETTLED);
         assertEq(harness.lastRefundAmount(), 37_500_000);
         assertEq(harness.creditLotCount(PROVIDER), 128);
+    }
+
+    function test_requestProviderPayout_with_maximum_gas_safe_allocations() public {
+        bytes32 reservationKey = keccak256("payout-terminal-gas-bound");
+        harness.setExpiredPayoutReservation(reservationKey, LAB_ID, CONFIRMED, 4, 999);
+        harness.enableLedgerRefund();
+        harness.seedCreditReservationWithAllocations(reservationKey, 4);
+
+        uint256 gasBefore = gasleft();
+        vm.prank(PROVIDER);
+        harness.requestProviderPayout(LAB_ID, 10);
+        uint256 gasUsed = gasBefore - gasleft();
+
+        assertLt(gasUsed, 1_000_000, "provider payout exceeds backend gas limit");
+        assertEq(harness.getReservationStatus(reservationKey), SETTLED);
     }
 
     function test_requestProviderPayout_fmu_at_lot_limit_restores_full_refund() public {

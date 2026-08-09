@@ -428,6 +428,8 @@ contract InstitutionalTreasuryFacet is
         // Allow zero-price refunds (free labs) - there is no balance movement,
         // but the reservation's source-lot refund entitlement still closes.
         if (amount == 0) {
+            // The released-reference count is diagnostic-only on this mutation path.
+            // slither-disable-next-line unused-return
             LibCreditLedger.finalizeReservationCreditAllocations(institution, reservationId);
             return;
         }
@@ -439,6 +441,8 @@ contract InstitutionalTreasuryFacet is
         require(spending.totalHistoricalSpent >= amount, "Refund exceeds total spent amount");
 
         LibCreditLedger.cancelCredits(institution, amount, reservationId);
+        // The released-reference count is diagnostic-only on this mutation path.
+        // slither-disable-next-line unused-return
         LibCreditLedger.finalizeReservationCreditAllocations(institution, reservationId);
 
         // Always decrement totalHistoricalSpent (tracks all-time spending)

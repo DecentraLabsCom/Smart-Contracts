@@ -15,7 +15,11 @@ import {
 import {LibAccessControlEnumerable} from "../contracts/libraries/LibAccessControlEnumerable.sol";
 import {LibERC721StorageTestHelper} from "./LibERC721StorageTestHelper.sol";
 import {LibInstitutionalReservationRelease} from "../contracts/libraries/LibInstitutionalReservationRelease.sol";
-import {LibProviderReceivable} from "../contracts/libraries/LibProviderReceivable.sol";
+import {
+    LibProviderReceivable,
+    SETTLEMENT_APPROVER_ROLE,
+    SETTLEMENT_PAYER_ROLE
+} from "../contracts/libraries/LibProviderReceivable.sol";
 import {LibTracking} from "../contracts/libraries/LibTracking.sol";
 import {LibCreditLedger} from "../contracts/libraries/LibCreditLedger.sol";
 
@@ -83,6 +87,18 @@ contract ProviderReceivableHarness is ERC721, ProviderSettlementFacet {
     ) external {
         AppStorage storage s = LibAppStorage.diamondStorage();
         s.institutionalBackends[institution] = backend;
+    }
+
+    function grantSettlementApproverRole(
+        address account
+    ) external {
+        LibAppStorage.diamondStorage().roleMembers[SETTLEMENT_APPROVER_ROLE].add(account);
+    }
+
+    function grantSettlementPayerRole(
+        address account
+    ) external {
+        LibAppStorage.diamondStorage().roleMembers[SETTLEMENT_PAYER_ROLE].add(account);
     }
 
     function setLabResourceType(
@@ -321,6 +337,8 @@ contract ProviderReceivableAliasesTest is Test {
 
     address internal constant PROVIDER = address(0xABCD);
     address internal constant BACKEND = address(0xBEEF);
+    address internal constant SETTLEMENT_APPROVER = address(0xA001);
+    address internal constant SETTLEMENT_PAYER = address(0xA002);
     uint256 internal constant LAB_ID = 7;
     uint256 internal constant ONE_CREDIT = 10_000_000;
     uint256 internal constant FIVE_CREDITS = 50_000_000;
@@ -341,6 +359,8 @@ contract ProviderReceivableAliasesTest is Test {
         vm.warp(1000);
         harness = new ProviderReceivableHarness();
         harness.initialize(address(this), PROVIDER, LAB_ID);
+        harness.grantSettlementApproverRole(SETTLEMENT_APPROVER);
+        harness.grantSettlementPayerRole(SETTLEMENT_PAYER);
     }
 
     function test_getLabProviderReceivable_exposes_pending_provider_bucket() public {
@@ -885,15 +905,14 @@ contract ProviderReceivableAliasesTest is Test {
         bytes32 invoiceHash = keccak256("invoice-001");
         bytes32 paymentRef = keccak256("payment-001");
         bytes32 attestation = keccak256("attestation-001");
-        address settler = address(this);
 
         vm.prank(PROVIDER);
         harness.submitProviderSettlementClaim(claimId, LAB_ID, FIVE_CREDITS, batchId, invoiceHash);
 
-        vm.prank(settler);
+        vm.prank(SETTLEMENT_APPROVER);
         harness.approveProviderSettlementClaim(claimId, keccak256("approval-001"));
 
-        vm.prank(settler);
+        vm.prank(SETTLEMENT_PAYER);
         harness.recordProviderSettlementClaimPayment(claimId, paymentRef, attestation);
 
         (
@@ -920,8 +939,8 @@ contract ProviderReceivableAliasesTest is Test {
         assertEq(storedPaymentRef, paymentRef);
         assertEq(storedAttestation, attestation);
         assertEq(submittedBy, PROVIDER);
-        assertEq(approvedBy, settler);
-        assertEq(paidBy, settler);
+        assertEq(approvedBy, SETTLEMENT_APPROVER);
+        assertEq(paidBy, SETTLEMENT_PAYER);
         assertGt(submittedAt, 0);
         assertGe(approvedAt, submittedAt);
         assertGe(paidAt, approvedAt);
@@ -968,10 +987,10 @@ contract ProviderReceivableAliasesTest is Test {
         vm.prank(PROVIDER);
         harness.submitProviderSettlementClaim(secondClaim, LAB_ID, ONE_CREDIT, secondBatch, secondInvoice);
 
-        vm.prank(address(this));
+        vm.prank(SETTLEMENT_APPROVER);
         harness.approveProviderSettlementClaim(firstClaim, approval);
 
-        vm.prank(address(this));
+        vm.prank(SETTLEMENT_APPROVER);
         vm.expectRevert("Approval reference already used");
         harness.approveProviderSettlementClaim(secondClaim, approval);
     }
@@ -1076,6 +1095,7 @@ contract ProviderReceivableAliasesTest is Test {
             keccak256("dispute-claim-b"), LAB_ID, FIVE_CREDITS, batchB, keccak256("dispute-claim-invoice-b")
         );
 
+        vm.prank(SETTLEMENT_APPROVER);
         vm.expectRevert("Claim is not submitted");
         harness.approveProviderSettlementClaim(claimA, keccak256("dispute-claim-approval-old"));
     }
@@ -1088,6 +1108,7 @@ contract ProviderReceivableAliasesTest is Test {
         harness.submitProviderSettlementClaim(
             claimA, LAB_ID, FIVE_CREDITS, batchA, keccak256("reverse-approved-invoice-a")
         );
+        vm.prank(SETTLEMENT_APPROVER);
         harness.approveProviderSettlementClaim(claimA, keccak256("reverse-approved-ref-a"));
         harness.reverseSettlementClaim(claimA, keccak256("reverse-approved-reversal-001"));
 
@@ -1097,8 +1118,10 @@ contract ProviderReceivableAliasesTest is Test {
         harness.submitProviderSettlementClaim(
             claimB, LAB_ID, FIVE_CREDITS, batchB, keccak256("reverse-approved-invoice-b")
         );
+        vm.prank(SETTLEMENT_APPROVER);
         harness.approveProviderSettlementClaim(claimB, keccak256("reverse-approved-ref-b"));
 
+        vm.prank(SETTLEMENT_PAYER);
         vm.expectRevert("Claim is not approved");
         harness.recordProviderSettlementClaimPayment(
             claimA, keccak256("reverse-approved-payment-old"), keccak256("reverse-approved-attestation-old")

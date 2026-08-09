@@ -14,7 +14,9 @@ backend key.
 | Institution | Owns its treasury, spending policy and institutional reservation context | An organization name alone does not authorize a transaction. |
 | Authorized backend | Executes the institution/provider paths explicitly delegated to its address | It is a delegate, not a new economic owner. |
 | External reservation authority | The current lab owner or that owner's authorized backend confirms or denies a pending request | The payer can request/cancel; it cannot confirm or deny an external request. `DIRECT_BOOKING` is only for an own-lab request. |
-| Settlement operator | Can perform the privileged financial claim transitions when configured | Claim references and lifecycle checks still apply. |
+| Settlement operator | Can request payout batches and perform settlement invalidations when configured | It cannot approve or pay a claim. Claim references and lifecycle checks still apply. |
+| Settlement approver | Can approve a submitted settlement claim when configured with `SETTLEMENT_APPROVER_ROLE` | It cannot pay the same claim; the payment actor must be a different address. |
+| Settlement payer | Can record payment for an approved settlement claim when configured with `SETTLEMENT_PAYER_ROLE` | It cannot be the address recorded in `approvedBy` for that claim. |
 | Institutional user | Is represented by the reservation's `pucHash` and tracking key | The raw identifier is not stored on-chain. |
 
 ## Provider lifecycle
@@ -87,3 +89,7 @@ organization-to-wallet result as an authenticated institution.
   expected by the relevant integration.
 - Verify roles, the authorized backend and provider network status before
   diagnosing a failed booking or settlement call.
+- Configure separate EVM accounts for `SETTLEMENT_APPROVER_ROLE` and
+  `SETTLEMENT_PAYER_ROLE`; granting both roles to one account defeats the
+  settlement control even though the claim-level same-actor guard still
+  rejects that payment.

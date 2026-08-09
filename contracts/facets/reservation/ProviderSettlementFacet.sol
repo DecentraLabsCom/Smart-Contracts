@@ -13,7 +13,12 @@ import {
 } from "../../libraries/LibAppStorage.sol";
 import {LibAccessControlEnumerable} from "../../libraries/LibAccessControlEnumerable.sol";
 import {LibERC721Storage} from "../../libraries/LibERC721Storage.sol";
-import {LibProviderReceivable, SETTLEMENT_OPERATOR_ROLE} from "../../libraries/LibProviderReceivable.sol";
+import {
+    LibProviderReceivable,
+    SETTLEMENT_APPROVER_ROLE,
+    SETTLEMENT_OPERATOR_ROLE,
+    SETTLEMENT_PAYER_ROLE
+} from "../../libraries/LibProviderReceivable.sol";
 import {LibInstitutionalReservationSettlement} from "../../libraries/LibInstitutionalReservationSettlement.sol";
 import {LibRevenue} from "../../libraries/LibRevenue.sol";
 import {LibHeap} from "../../libraries/LibHeap.sol";
@@ -384,6 +389,7 @@ contract ProviderSettlementFacet is ReentrancyGuardTransient {
     }
 
     /// @notice Approves a submitted claim with a non-empty external approval reference hash.
+    /// @dev Only an account with SETTLEMENT_APPROVER_ROLE may approve.
     function approveProviderSettlementClaim(
         bytes32 claimId,
         bytes32 approvalReferenceHash
@@ -396,7 +402,8 @@ contract ProviderSettlementFacet is ReentrancyGuardTransient {
         require(claim.status == _CLAIM_SUBMITTED, "Claim is not submitted");
         require(s.providerSettlementBatches[claim.batchId].status == _BATCH_CLAIMED, "Settlement batch invalidated");
         require(!s.providerSettlementApprovalReferenceUsed[approvalReferenceHash], "Approval reference already used");
-        _requireSettlementOperatorForFinancialTransition(s);
+        _requireSettlementApprover(s);
+        require(claim.approvedBy == address(0), "Claim already approved");
 
         s.providerSettlementApprovalReferenceUsed[approvalReferenceHash] = true;
         claim.approvalReferenceHash = approvalReferenceHash;
@@ -416,6 +423,7 @@ contract ProviderSettlementFacet is ReentrancyGuardTransient {
     }
 
     /// @notice Records a paid claim only with a unique payment reference and proof hash.
+    /// @dev Only an account with SETTLEMENT_PAYER_ROLE may pay, and it must differ from approvedBy.
     function recordProviderSettlementClaimPayment(
         bytes32 claimId,
         bytes32 paymentReferenceHash,
@@ -431,7 +439,8 @@ contract ProviderSettlementFacet is ReentrancyGuardTransient {
         require(claim.status == _CLAIM_APPROVED, "Claim is not approved");
         require(s.providerSettlementBatches[claim.batchId].status == _BATCH_CLAIMED, "Settlement batch invalidated");
         require(!s.providerSettlementPaymentReferenceUsed[paymentReferenceHash], "Payment reference already used");
-        _requireSettlementOperatorForFinancialTransition(s);
+        _requireSettlementPayer(s);
+        require(claim.approvedBy != msg.sender, "Approver cannot pay");
 
         s.providerSettlementPaymentReferenceUsed[paymentReferenceHash] = true;
         claim.paymentReferenceHash = paymentReferenceHash;
@@ -917,6 +926,18 @@ contract ProviderSettlementFacet is ReentrancyGuardTransient {
         bool isAdmin = s.roleMembers[s.DEFAULT_ADMIN_ROLE].contains(msg.sender);
         bool isSettlementOp = s.roleMembers[SETTLEMENT_OPERATOR_ROLE].contains(msg.sender);
         require(isAdmin || isSettlementOp, "Not authorized");
+    }
+
+    function _requireSettlementApprover(
+        AppStorage storage s
+    ) internal view {
+        require(s.roleMembers[SETTLEMENT_APPROVER_ROLE].contains(msg.sender), "Not authorized");
+    }
+
+    function _requireSettlementPayer(
+        AppStorage storage s
+    ) internal view {
+        require(s.roleMembers[SETTLEMENT_PAYER_ROLE].contains(msg.sender), "Not authorized");
     }
 
     function _outstandingProviderReceivable(

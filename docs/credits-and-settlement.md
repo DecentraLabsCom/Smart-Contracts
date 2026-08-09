@@ -210,9 +210,15 @@ actor and timestamp, and prevents later submit, approve or pay operations.
 Any dispute resolution must be an explicit, separately audited transition.
 
 Use `getLabProviderReceivableLifecycle` for aggregate amounts and
-`getProviderSettlementClaim` for the audit record. Claim and financial
-transitions are restricted to the current provider/authorized backend, a
-configured settlement operator, or the default admin as defined by the facet.
+`getProviderSettlementClaim` for the audit record. Claim submission remains
+available to the current provider/authorized backend, a configured settlement
+operator or the default admin as defined by the facet. Approval requires
+`SETTLEMENT_APPROVER_ROLE`; payment requires `SETTLEMENT_PAYER_ROLE` and
+rejects the address recorded in `approvedBy` for the same claim. Default admin
+and `SETTLEMENT_OPERATOR_ROLE` do not bypass these maker/checker guards.
+Configure the approval and payment roles on different EVM accounts; the
+contract enforces the distinct actor rule per claim even if role administration
+accidentally overlaps them.
 The generic `transitionProviderReceivableState` selector is fail-closed for
 settlement invalidation: it cannot move any bucket to `DISPUTED` or `REVERSED`.
 Object-bound dispute and reversal must use the four settlement batch/claim

@@ -5,8 +5,14 @@ import {AppStorage, LibAppStorage, Reservation} from "./LibAppStorage.sol";
 import {LibReservationIdentity} from "./LibReservationIdentity.sol";
 
 /// @dev Constant representing the hash of the string "SETTLEMENT_OPERATOR_ROLE".
-///      This role gates write access to provider receivable lifecycle transitions.
+///      This role gates provider payout requests and settlement invalidations.
 bytes32 constant SETTLEMENT_OPERATOR_ROLE = keccak256("SETTLEMENT_OPERATOR_ROLE");
+
+/// @dev Role required to approve a submitted provider settlement claim.
+bytes32 constant SETTLEMENT_APPROVER_ROLE = keccak256("SETTLEMENT_APPROVER_ROLE");
+
+/// @dev Role required to record payment for an approved provider settlement claim.
+bytes32 constant SETTLEMENT_PAYER_ROLE = keccak256("SETTLEMENT_PAYER_ROLE");
 
 /// @title LibProviderReceivable — centralised provider receivable helpers
 /// @notice Ensures every accrual is event-linked to its source reservation

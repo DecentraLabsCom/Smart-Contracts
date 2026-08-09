@@ -19,34 +19,23 @@ contract ReleaseGateReservationWindowTest is Test {
         assertEq(LibReservationConfig.RESERVATION_CONFIRMATION_LEAD_TIME, 10 minutes);
         assertEq(
             LibReservationConfig.pendingRequestExpiry(
-                requestStart,
-                LibReservationConfig.PENDING_REQUEST_TTL,
-                reservationStart
+                requestStart, LibReservationConfig.PENDING_REQUEST_TTL, reservationStart
             ),
             deadline
         );
         assertFalse(
             LibReservationConfig.isPendingRequestExpired(
-                requestStart,
-                LibReservationConfig.PENDING_REQUEST_TTL,
-                reservationStart,
-                deadline - 1
+                requestStart, LibReservationConfig.PENDING_REQUEST_TTL, reservationStart, deadline - 1
             )
         );
         assertTrue(
             LibReservationConfig.isPendingRequestExpired(
-                requestStart,
-                LibReservationConfig.PENDING_REQUEST_TTL,
-                reservationStart,
-                deadline
+                requestStart, LibReservationConfig.PENDING_REQUEST_TTL, reservationStart, deadline
             )
         );
         assertTrue(
             LibReservationConfig.isPendingRequestExpired(
-                requestStart,
-                LibReservationConfig.PENDING_REQUEST_TTL,
-                reservationStart,
-                deadline + 1
+                requestStart, LibReservationConfig.PENDING_REQUEST_TTL, reservationStart, deadline + 1
             )
         );
     }
@@ -55,25 +44,14 @@ contract ReleaseGateReservationWindowTest is Test {
         uint256 requestStart = 1_000_000;
         uint256 reservationStart = requestStart + 90 seconds;
 
-        assertEq(
-            LibReservationConfig.pendingRequestExpiry(requestStart, 5 minutes, reservationStart),
-            reservationStart
-        );
+        assertEq(LibReservationConfig.pendingRequestExpiry(requestStart, 5 minutes, reservationStart), reservationStart);
         assertFalse(
             LibReservationConfig.isPendingRequestExpired(
-                requestStart,
-                5 minutes,
-                reservationStart,
-                reservationStart - 1
+                requestStart, 5 minutes, reservationStart, reservationStart - 1
             )
         );
         assertTrue(
-            LibReservationConfig.isPendingRequestExpired(
-                requestStart,
-                5 minutes,
-                reservationStart,
-                reservationStart
-            )
+            LibReservationConfig.isPendingRequestExpired(requestStart, 5 minutes, reservationStart, reservationStart)
         );
     }
 }

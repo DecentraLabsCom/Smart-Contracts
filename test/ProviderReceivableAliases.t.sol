@@ -231,8 +231,13 @@ contract ProviderReceivableHarness is ERC721, ProviderSettlementFacet {
         uint256 amount
     ) external {
         lastRefundAmount = amount;
+        if (amount == 0) {
+            LibCreditLedger.finalizeReservationCreditAllocations(institution, reservationKey);
+            return;
+        }
         if (ledgerRefundEnabled) {
             LibCreditLedger.cancelCredits(institution, amount, reservationKey);
+            LibCreditLedger.finalizeReservationCreditAllocations(institution, reservationKey);
         }
     }
 

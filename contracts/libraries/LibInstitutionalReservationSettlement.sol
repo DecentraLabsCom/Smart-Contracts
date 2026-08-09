@@ -92,6 +92,16 @@ library LibInstitutionalReservationSettlement {
                 LibProviderReceivable.accrueReceivable(labId, reservation.providerShare, key);
                 LibProviderReceivable.updateAccruedTimestamp(labId, block.timestamp);
             }
+            // Close the source-lot refund entitlement without changing the
+            // treasury balance. Reservations without captured allocations
+            // have no provenance sidecar to release, so skip the self-call on
+            // that hot compaction path.
+            if (s.creditReservationAllocations[reservation.payerInstitution][reservationId].length > 0) {
+                IInstitutionalTreasuryFacetSettlement(address(this))
+                    .refundToInstitutionalTreasuryForReservation(
+                        reservation.payerInstitution, s.reservationPucHash[reservationId], key, 0
+                    );
+            }
         } else if (reservation.price > 0) {
             uint96 providerFee;
             uint96 refundAmount = reservation.price;

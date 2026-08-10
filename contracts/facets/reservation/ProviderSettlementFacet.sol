@@ -833,8 +833,8 @@ contract ProviderSettlementFacet is ReentrancyGuardTransient {
 
         uint256 processed = 0;
         uint256 currentTime = block.timestamp;
-        bool pendingGraceEncountered;
-        bool scanLimitReached;
+        bool pendingGraceEncountered = false;
+        bool scanLimitReached = false;
         while (processed < maxBatch) {
             (bytes32 key, bool pendingGrace, bool scanLimitReachedThisScan) =
                 _popExpiredReservationCandidate(s, _labId, currentTime);

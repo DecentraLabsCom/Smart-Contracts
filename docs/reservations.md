@@ -96,10 +96,22 @@ routing by itself.
 Confirmation inserts an exclusive (`resourceType = 0`) range into the interval
 calendar, queues the reservation for later settlement, and stores the provider
 share. A concurrent FMU resource (`resourceType = 1`) uses the same lifecycle
-without the exclusive-calendar conflict path, but counts active overlapping
-reservations against the lab's on-chain `maxConcurrentReservations` before the
-treasury call. The count and confirmation are one atomic contract transition;
-the read-only occupancy query is not an authorization primitive.
+without the exclusive-calendar conflict path and records active reservations in
+the concurrency index. The Diamond does not store or enforce a per-lab
+concurrent-user limit: overlapping FMU confirmations are valid on-chain, and
+`getConcurrentReservationCount` is a read-only occupancy query rather than an
+authorization primitive.
+
+The concurrent-user policy is provider-owned and off-chain. The provider's lab
+metadata declares `maxConcurrentUsers`; the canonical provider backend reads
+the overlapping on-chain count, validates that declaration and the effective
+station capacity, and serializes the decision with a shared MySQL advisory lock
+before submitting the provider confirmation. An invalid or missing
+`maxConcurrentUsers` declaration is a provider-policy rejection; unavailable
+metadata, station-capacity or lock infrastructure leaves provider processing
+retryable. A caller with on-chain
+provider confirmation authority that bypasses this backend can therefore create
+overlapping FMU reservations without the provider's metadata limit.
 
 ## Finalization and queries
 

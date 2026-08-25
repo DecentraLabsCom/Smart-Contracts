@@ -66,6 +66,42 @@ contract ReservationGenerationHarness {
 contract ReservationGenerationTest is Test {
     address private constant ACCOUNT = address(0xA11CE);
 
+    function testFuzz_repeatedSlotReuse_keeps_generation_allocations_isolated(
+        uint8 rawReuseCount,
+        uint96 rawCreditAmount
+    ) external {
+        uint256 reuseCount = uint256(rawReuseCount % 6) + 1;
+        uint256 creditAmount = uint256(rawCreditAmount % 1_000_000) + 1;
+        ReservationGenerationHarness harness = new ReservationGenerationHarness();
+        bytes32 slotKey = keccak256(abi.encode("reused-slot-invariant", rawReuseCount, rawCreditAmount));
+        bytes32[] memory reservationIds = new bytes32[](reuseCount);
+
+        vm.warp(1_000_000);
+
+        for (uint256 i; i < reuseCount; ++i) {
+            bytes32 reservationId = harness.createGeneration(slotKey);
+            reservationIds[i] = reservationId;
+            bytes32 fundingOrderId = keccak256(abi.encode("funding-order", i, rawReuseCount, rawCreditAmount));
+
+            harness.mintCredits(
+                ACCOUNT, creditAmount, fundingOrderId, creditAmount * 10, uint48(block.timestamp + 10_000 + i)
+            );
+            harness.debitForSlot(ACCOUNT, creditAmount, slotKey);
+            harness.cancelForSlot(ACCOUNT, creditAmount, slotKey);
+        }
+
+        assertEq(harness.currentReservationId(slotKey), reservationIds[reuseCount - 1]);
+        for (uint256 i; i < reuseCount; ++i) {
+            assertEq(harness.allocationCount(ACCOUNT, reservationIds[i]), 1);
+            CreditReservationAllocation memory allocation = harness.allocation(ACCOUNT, reservationIds[i], 0);
+            assertEq(allocation.amount, creditAmount);
+            assertEq(allocation.refundedAmount, creditAmount);
+            for (uint256 j; j < i; ++j) {
+                assertTrue(reservationIds[i] != reservationIds[j]);
+            }
+        }
+    }
+
     function test_reusedSlotCreatesIndependentCreditAllocationGenerations() external {
         ReservationGenerationHarness harness = new ReservationGenerationHarness();
         bytes32 slotKey = keccak256("same-lab-and-start");

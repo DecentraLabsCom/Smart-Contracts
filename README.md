@@ -51,6 +51,28 @@ npm run verify:contract-surface
 npm run verify:repo-consistency
 ```
 
+## Testing layers
+
+- `forge test` runs the Solidity unit, component and Diamond integration tests.
+- `forge test --match-path test/FullDiamondSurfaceIntegration.t.sol` runs the
+  production-cut proxy smoke tests. The fixture installs all 28 production
+  facets and checks all 201 selectors through the Diamond loupe.
+- `forge test --match-path test/FullDiamondPublicBehaviorIntegration.t.sol`
+  exercises the public Diamond surface with behavior, authorization/error,
+  ERC-721, institutional, reservation, settlement and fuzz tests.
+- `forge test --match-path test/EconomicStateInvariants.t.sol` runs stateful
+  Foundry invariants for the service-credit ledger and provider settlement
+  buckets; `test/ReservationGeneration.t.sol` also fuzzes repeated slot reuse
+  to verify that reservation generations keep their credit allocations isolated.
+- `npm run selectors:check` validates the ABI, selector manifest, deployment
+  artifacts and that the full-Diamond fixture has not drifted from the manifest.
+- `npm run selectors:coverage` reports which selectors have behavior-test
+  references and which have only proxy-routing smoke coverage. The report is
+  an inventory heuristic, not a replacement for semantic test review.
+
+The JavaScript checks use Node's built-in `node:test` runner. They are repository
+and ABI consistency checks; contract behavior remains tested with Foundry.
+
 Selector, storage and deployment-artifact changes require the private maintainer
 notes and the verification commands above; the public guides describe the
 deployed protocol surface.

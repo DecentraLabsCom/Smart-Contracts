@@ -9,7 +9,7 @@ on:
 
 
 env:
-  FOUNDRY_VERSION: "1.7.1"
+  FOUNDRY_VERSION: "1.8.1"
 
 permissions:
   contents: read

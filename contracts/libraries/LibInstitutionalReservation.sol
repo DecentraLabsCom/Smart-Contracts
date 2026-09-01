@@ -80,8 +80,8 @@ library LibInstitutionalReservation {
         IInstCreation(address(this))
             .createInstReservation(
                 InstInput({
-                p: institutionalProvider, o: owner, l: labId, s: start, e: end, u: pucHash, k: key, t: trackingKey
-            })
+                    p: institutionalProvider, o: owner, l: labId, s: start, e: end, u: pucHash, k: key, t: trackingKey
+                })
             );
         IInstCreation(address(this)).recordRecentInstReservation(labId, trackingKey, key, start);
     }

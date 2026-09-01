@@ -15,7 +15,9 @@ contract EmergencyAuthority {
         bytes calldata data
     ) external returns (bytes memory result) {
         (bool success, bytes memory returnData) = target.call(data);
-        if (!success) assembly { revert(add(returnData, 32), mload(returnData)) }
+        if (!success) {
+            assembly { revert(add(returnData, 32), mload(returnData)) }
+        }
         return returnData;
     }
 }

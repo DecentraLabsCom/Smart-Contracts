@@ -133,7 +133,9 @@ contract AccessControlTest is Test {
     ) internal {
         (bool ok, bytes memory res) =
             address(instFacet).delegatecall(abi.encodeWithSignature("authorizeBackend(address)", backend));
-        if (!ok) assembly { revert(add(res, 32), mload(res)) }
+        if (!ok) {
+            assembly { revert(add(res, 32), mload(res)) }
+        }
     }
 
     function _delegateSetProviderAuthURI(
@@ -141,7 +143,9 @@ contract AccessControlTest is Test {
     ) internal {
         (bool ok, bytes memory res) =
             address(provider).delegatecall(abi.encodeWithSignature("setProviderAuthURI(string)", uri));
-        if (!ok) assembly { revert(add(res, 32), mload(res)) }
+        if (!ok) {
+            assembly { revert(add(res, 32), mload(res)) }
+        }
     }
 
     function test_onlyInstitution_can_authorize_backend_and_provider_authuri_restricted() public {

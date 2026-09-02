@@ -46,3 +46,4 @@ scripts/*
 !scripts/remove-institutional-reservation-selector.cjs
 !scripts/verify-documentation.cjs
 !scripts/generate-facet-reference.cjs
+!scripts/verify_facets.ps1

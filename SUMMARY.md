@@ -19,3 +19,4 @@
 ## Reference
 
 - [Intent registry](docs/reference/intents.md)
+- [Facets and public API](docs/reference/facets.md)

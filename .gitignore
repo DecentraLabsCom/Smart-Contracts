@@ -44,4 +44,5 @@ scripts/*
 !scripts/prepare-align-sepolia.ps1
 !scripts/simulate-contract-surface-upgrade.cjs
 !scripts/remove-institutional-reservation-selector.cjs
-!scripts/migrate-consumer-backends.mjs
+!scripts/verify-documentation.cjs
+!scripts/generate-facet-reference.cjs

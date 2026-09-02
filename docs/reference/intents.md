@@ -51,6 +51,13 @@ executor, recompute the payload hash, check the expected action and mark the
 intent as executed. A replay, action change, executor change or payload change
 reverts.
 
+The signed EIP-712 primary type is `IntentMeta`; its `payloadHash` is the
+EIP-712 struct hash of either `ReservationIntentPayload` or
+`ActionIntentPayload`. The domain is `DecentraLabsIntent`, version `1`, with the
+current chain ID and Diamond address as `verifyingContract`. A complete
+TypeScript example, including field types and the current Sepolia address, is in
+the [facets and public API reference](facets.md).
+
 ## Action codes
 
 | Code | Action |

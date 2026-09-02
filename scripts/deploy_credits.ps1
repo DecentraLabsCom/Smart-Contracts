@@ -679,6 +679,7 @@ $deployment = [ordered]@{
         ReservationStatsFacet = $resumeState.facets["contracts/facets/reservation/ReservationStatsFacet.sol:ReservationStatsFacet"]
         ReservationDenialFacet = $resumeState.facets["contracts/facets/reservation/ReservationDenialFacet.sol:ReservationDenialFacet"]
         ReservationIntentFacet = $resumeState.facets["contracts/facets/reservation/ReservationIntentFacet.sol:ReservationIntentFacet"]
+        ReservationIntentCancellationFacet = $resumeState.facets["contracts/facets/reservation/ReservationIntentCancellationFacet.sol:ReservationIntentCancellationFacet"]
     }
     deployer = $Env:DIAMOND_OWNER
     configuration = [ordered]@{

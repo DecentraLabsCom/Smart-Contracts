@@ -69,12 +69,8 @@ requires explicit backend authorization and proof outside this primitive.
 Revoking the last registered organization also clears the transactional backend
 delegation and emits `BackendRevoked`; a later provisioning starts with a fresh
 institution-wallet backend unless an external backend is explicitly authorized.
-For deployments created before this invariant, run
-`npm run migrate:consumer-backends` for a read-only inventory and repeat with
-`-- --broadcast` after reviewing the candidates.
-The provisioning change itself requires deploying the updated
-`InstitutionFacet` and replacing its Diamond selector before issuing new
-pairings; the migration repairs already registered consumers independently.
+The provisioning change itself requires deploying the updated `InstitutionFacet`
+and replacing its Diamond selector before issuing new pairings.
 
 The registry is an ownership/routing claim, not an identity proof. Validate
 SAML/eduGAIN or equivalent federation evidence off-chain before treating an

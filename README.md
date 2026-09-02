@@ -32,6 +32,7 @@ Start with the [documentation guide](docs/README.md), or browse the complete
 - [Reservations](docs/reservations.md)
 - [Service credits and settlement](docs/credits-and-settlement.md)
 - [Deployment](docs/deployment.md)
+- [Facets and public API](docs/reference/facets.md)
 
 ## Source of truth
 
@@ -49,6 +50,7 @@ forge fmt --check
 forge test
 npm run verify:contract-surface
 npm run verify:repo-consistency
+npm run docs:check
 ```
 
 ## Testing layers

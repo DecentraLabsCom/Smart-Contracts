@@ -14,6 +14,7 @@ when a document and an implementation differ.
 | Integrate institutional booking | [Reservations](reservations.md) | [Institutional access](institutional-access.md) and [Intents](reference/intents.md) |
 | Reconcile credits or provider payouts | [Service credits and settlement](credits-and-settlement.md) | [Reservations](reservations.md) |
 | Deploy the Diamond | [Deployment](deployment.md) | `deployments/` and the generated deployment artifacts |
+| Integrate the complete ABI or inspect selectors | [Facets and public API](reference/facets.md) | [Intent registry](reference/intents.md) |
 
 ## Core vocabulary
 
@@ -40,6 +41,12 @@ Deployment JSON under `deployments/` is the source for a network's Diamond and
 implementation addresses. The `*-latest.json` artifact is a convenience
 snapshot, not a replacement for recording the exact artifact used by an
 integration.
+
+The generated [facets and public API reference](reference/facets.md) lists every
+currently routed function, event and custom error, the facet responsibility map,
+the current committed network snapshot and an EIP-712 signing example. Run
+`npm run docs:generate` after changing the selector manifest or ABI; CI checks
+that the committed reference is regenerated.
 
 ## Boundaries and non-goals
 

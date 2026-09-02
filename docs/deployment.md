@@ -21,6 +21,7 @@ forge fmt --check
 forge test
 npm run verify:contract-surface
 npm run verify:repo-consistency
+npm run docs:check
 ```
 
 ## Primary deployment flow
@@ -113,3 +114,7 @@ Deployment snapshots such as `deployments/sepolia-latest.json` identify network,
 chain ID, Diamond, facets, libraries, deployer and deployment configuration.
 Do not infer an address from source code or an old run: record the artifact
 actually supplied to each integration.
+
+The committed network matrix and current Sepolia Diamond address are maintained
+in [the generated public API reference](reference/facets.md). It intentionally
+shows no mainnet address until a reviewed mainnet artifact is committed.

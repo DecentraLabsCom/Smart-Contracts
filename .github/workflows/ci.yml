@@ -93,6 +93,9 @@ jobs:
       - name: validate repository consistency
         run: npm run verify:repo-consistency
 
+      - name: validate documentation and generated API reference
+        run: npm run docs:check
+
       - name: run fuzz/stress tests (LibHeapStress)
         run: forge test --match-contract LibHeapStress -vvvv --color never
 

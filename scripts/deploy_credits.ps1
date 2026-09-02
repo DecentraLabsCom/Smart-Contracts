@@ -9,7 +9,7 @@ param(
 )
 
 # Loads key/value pairs from .env into $Env:*
-function Load-Env {
+function Import-Env {
     $envPath = Join-Path -Path $PSScriptRoot -ChildPath "..\.env"
     if (Test-Path $envPath) {
         Get-Content $envPath | ForEach-Object {
@@ -57,9 +57,9 @@ function Get-FunctionSelector {
     $manifestScript = Join-Path -Path $PSScriptRoot -ChildPath "selector-manifest.cjs"
     $json = & node $manifestScript --target $Target
     if ($LASTEXITCODE -ne 0) { throw "Selector manifest lookup failed for $Target" }
-    $matches = @($json | ConvertFrom-Json) | Where-Object { $_.signature -like "$FunctionName(*" }
-    if ($matches.Count -ne 1) { throw "Expected one manifest function named $FunctionName for $Target" }
-    return $matches[0].selector
+    $functionMatches = @($json | ConvertFrom-Json) | Where-Object { $_.signature -like "$FunctionName(*" }
+    if ($functionMatches.Count -ne 1) { throw "Expected one manifest function named $FunctionName for $Target" }
+    return $functionMatches[0].selector
 }
 
 function DiamondCutBatch {
@@ -115,7 +115,7 @@ function DiamondCut {
     }
 }
 
-Load-Env
+Import-Env
 
 if (-not $Env:RPC_URL -or -not $Env:PRIVATE_KEY) {
     throw "RPC_URL y PRIVATE_KEY must be defined in .env"
@@ -127,12 +127,12 @@ if (-not $ResumeFile) {
     $ResumeFile = $defaultResumeFile
 }
 
-function Is-ValidAddress {
+function Test-ValidAddress {
     param([string]$Address)
     return $Address -match '^0x[a-fA-F0-9]{40}$'
 }
 
-function Load-ResumeState {
+function Import-ResumeState {
     param([string]$Path)
     $state = [ordered]@{
         base = @{}
@@ -179,12 +179,12 @@ function Get-ExistingBase {
         [string]$Key,
         [string]$EnvVar
     )
-    if ($Resume -and $State.base.ContainsKey($Key) -and (Is-ValidAddress $State.base[$Key])) {
+    if ($Resume -and $State.base.ContainsKey($Key) -and (Test-ValidAddress $State.base[$Key])) {
         return $State.base[$Key]
     }
     if ($EnvVar) {
         $val = [Environment]::GetEnvironmentVariable($EnvVar)
-        if (Is-ValidAddress $val) {
+        if (Test-ValidAddress $val) {
             return $val
         }
     }
@@ -196,16 +196,16 @@ function Get-ExistingFacet {
         [hashtable]$State,
         [string]$Target
     )
-    if ($Resume -and $State.facets.ContainsKey($Target) -and (Is-ValidAddress $State.facets[$Target])) {
+    if ($Resume -and $State.facets.ContainsKey($Target) -and (Test-ValidAddress $State.facets[$Target])) {
         return $State.facets[$Target]
     }
     return $null
 }
 
-$resumeState = Load-ResumeState -Path $ResumeFile
+$resumeState = Import-ResumeState -Path $ResumeFile
 
 # Deploy base facets and contracts
-function Deploy-Contract {
+function Invoke-ContractDeployment {
     param(
         [string]$Target,  # e.g. contracts/facets/DiamondCutFacet.sol:DiamondCutFacet
         [array]$ConstructorArgs = @(),
@@ -217,7 +217,7 @@ function Deploy-Contract {
     # particular, reservation authorization lives in linked libraries, so a
     # security fix must use a fresh deployment/upgrade cut rather than reuse an
     # old facet or library address from a prior resume.
-    if (Is-ValidAddress $ExistingAddress) {
+    if (Test-ValidAddress $ExistingAddress) {
         Write-Host "Using existing deployment for $Target -> $ExistingAddress"
         return $ExistingAddress
     }
@@ -236,7 +236,7 @@ function Deploy-Contract {
     if ($Libraries -and $Libraries.Count -gt 0) {
         foreach ($lib in $Libraries.Keys) {
             $addr = $Libraries[$lib]
-            if (-not (Is-ValidAddress $addr)) {
+            if (-not (Test-ValidAddress $addr)) {
                 throw "Invalid library address for $lib -> $addr"
             }
             $forgeArgs += "--libraries"
@@ -270,17 +270,17 @@ function Deploy-Contract {
 }
 
 Write-Host "Deploying DiamondCutFacet..."
-$diamondCutFacet = Deploy-Contract "contracts/facets/diamond/DiamondCutFacet.sol:DiamondCutFacet" -ExistingAddress (Get-ExistingBase -State $resumeState -Key "DiamondCutFacet" -EnvVar "DIAMOND_CUT_FACET")
+$diamondCutFacet = Invoke-ContractDeployment "contracts/facets/diamond/DiamondCutFacet.sol:DiamondCutFacet" -ExistingAddress (Get-ExistingBase -State $resumeState -Key "DiamondCutFacet" -EnvVar "DIAMOND_CUT_FACET")
 Write-Host "DiamondCutFacet deployed at: $diamondCutFacet"
-if (Is-ValidAddress $diamondCutFacet) {
+if (Test-ValidAddress $diamondCutFacet) {
     $resumeState.base["DiamondCutFacet"] = $diamondCutFacet
     Save-ResumeState -Path $ResumeFile -State $resumeState
 }
 
 Write-Host "Deploying DiamondInit..."
-$diamondInit = Deploy-Contract "contracts/upgradeInitializers/DiamondInit.sol:DiamondInit" -ExistingAddress (Get-ExistingBase -State $resumeState -Key "DiamondInit" -EnvVar "DIAMOND_INIT")
+$diamondInit = Invoke-ContractDeployment "contracts/upgradeInitializers/DiamondInit.sol:DiamondInit" -ExistingAddress (Get-ExistingBase -State $resumeState -Key "DiamondInit" -EnvVar "DIAMOND_INIT")
 Write-Host "DiamondInit deployed at: $diamondInit"
-if (Is-ValidAddress $diamondInit) {
+if (Test-ValidAddress $diamondInit) {
     $resumeState.base["DiamondInit"] = $diamondInit
     Save-ResumeState -Path $ResumeFile -State $resumeState
 }
@@ -307,9 +307,9 @@ $diamondArgsArg = "($Env:DIAMOND_OWNER,$diamondInit,$initCalldata)"
 Write-Host "FacetCut arg: $facetCutArg"
 Write-Host "DiamondArgs arg: $diamondArgsArg"
 
-$diamondAddress = Deploy-Contract "contracts/Diamond.sol:Diamond" @($facetCutArg, $diamondArgsArg) -ExistingAddress (Get-ExistingBase -State $resumeState -Key "Diamond" -EnvVar "DIAMOND_ADDRESS")
+$diamondAddress = Invoke-ContractDeployment "contracts/Diamond.sol:Diamond" @($facetCutArg, $diamondArgsArg) -ExistingAddress (Get-ExistingBase -State $resumeState -Key "Diamond" -EnvVar "DIAMOND_ADDRESS")
 Write-Host "Diamond deployed at: $diamondAddress"
-if (Is-ValidAddress $diamondAddress) {
+if (Test-ValidAddress $diamondAddress) {
     $resumeState.base["Diamond"] = $diamondAddress
     Save-ResumeState -Path $ResumeFile -State $resumeState
 }
@@ -321,17 +321,17 @@ if ($diamondAddress -eq "0xDRY_RUN_ADDRESS") {
 
 # Deploy RivalIntervalTreeLibrary first (required by LabFacet and reservation facets)
 Write-Host "Deploying RivalIntervalTreeLibrary..."
-$rivalLib = Deploy-Contract "contracts/libraries/RivalIntervalTreeLibrary.sol:RivalIntervalTreeLibrary" -ExistingAddress (Get-ExistingBase -State $resumeState -Key "RivalIntervalTreeLibrary" -EnvVar "RIVAL_INTERVAL_TREE_LIBRARY")
+$rivalLib = Invoke-ContractDeployment "contracts/libraries/RivalIntervalTreeLibrary.sol:RivalIntervalTreeLibrary" -ExistingAddress (Get-ExistingBase -State $resumeState -Key "RivalIntervalTreeLibrary" -EnvVar "RIVAL_INTERVAL_TREE_LIBRARY")
 Write-Host "RivalIntervalTreeLibrary deployed at: $rivalLib"
-if (Is-ValidAddress $rivalLib) {
+if (Test-ValidAddress $rivalLib) {
     $resumeState.base["RivalIntervalTreeLibrary"] = $rivalLib
     Save-ResumeState -Path $ResumeFile -State $resumeState
 }
 
 Write-Host "Deploying LibLabTransfer..."
-$labTransferLib = Deploy-Contract "contracts/libraries/LibLabTransfer.sol:LibLabTransfer" -ExistingAddress (Get-ExistingBase -State $resumeState -Key "LibLabTransfer" -EnvVar "LIB_LAB_TRANSFER")
+$labTransferLib = Invoke-ContractDeployment "contracts/libraries/LibLabTransfer.sol:LibLabTransfer" -ExistingAddress (Get-ExistingBase -State $resumeState -Key "LibLabTransfer" -EnvVar "LIB_LAB_TRANSFER")
 Write-Host "LibLabTransfer deployed at: $labTransferLib"
-if (Is-ValidAddress $labTransferLib) {
+if (Test-ValidAddress $labTransferLib) {
     $resumeState.base["LibLabTransfer"] = $labTransferLib
     Save-ResumeState -Path $ResumeFile -State $resumeState
 }
@@ -339,34 +339,34 @@ if (Is-ValidAddress $labTransferLib) {
 $libLinksReservation = @{ "contracts/libraries/RivalIntervalTreeLibrary.sol:RivalIntervalTreeLibrary" = $rivalLib }
 
 Write-Host "Deploying LibInstitutionalReservationConfirmation..."
-$instConfirmLib = Deploy-Contract "contracts/libraries/LibInstitutionalReservationConfirmation.sol:LibInstitutionalReservationConfirmation" -Libraries $libLinksReservation -ExistingAddress (Get-ExistingBase -State $resumeState -Key "LibInstitutionalReservationConfirmation" -EnvVar "LIB_INSTITUTIONAL_RESERVATION_CONFIRMATION")
+$instConfirmLib = Invoke-ContractDeployment "contracts/libraries/LibInstitutionalReservationConfirmation.sol:LibInstitutionalReservationConfirmation" -Libraries $libLinksReservation -ExistingAddress (Get-ExistingBase -State $resumeState -Key "LibInstitutionalReservationConfirmation" -EnvVar "LIB_INSTITUTIONAL_RESERVATION_CONFIRMATION")
 Write-Host "LibInstitutionalReservationConfirmation deployed at: $instConfirmLib"
-if (Is-ValidAddress $instConfirmLib) {
+if (Test-ValidAddress $instConfirmLib) {
     $resumeState.base["LibInstitutionalReservationConfirmation"] = $instConfirmLib
     Save-ResumeState -Path $ResumeFile -State $resumeState
 }
 
 Write-Host "Deploying LibReservationConfirmation..."
 $existingReservationConfirmLib = Get-ExistingBase -State $resumeState -Key "LibReservationConfirmation" -EnvVar "LIB_RESERVATION_CONFIRMATION"
-$reservationConfirmLib = Deploy-Contract "contracts/libraries/LibReservationConfirmation.sol:LibReservationConfirmation" -Libraries $libLinksReservation -ExistingAddress $existingReservationConfirmLib
+$reservationConfirmLib = Invoke-ContractDeployment "contracts/libraries/LibReservationConfirmation.sol:LibReservationConfirmation" -Libraries $libLinksReservation -ExistingAddress $existingReservationConfirmLib
 Write-Host "LibReservationConfirmation deployed at: $reservationConfirmLib"
-if (Is-ValidAddress $reservationConfirmLib) {
+if (Test-ValidAddress $reservationConfirmLib) {
     $resumeState.base["LibReservationConfirmation"] = $reservationConfirmLib
     Save-ResumeState -Path $ResumeFile -State $resumeState
 }
 
 Write-Host "Deploying LibInstitutionalReservationRequestValidation..."
-$instValidationLib = Deploy-Contract "contracts/libraries/LibInstitutionalReservationRequestValidation.sol:LibInstitutionalReservationRequestValidation" -ExistingAddress (Get-ExistingBase -State $resumeState -Key "LibInstitutionalReservationRequestValidation" -EnvVar "LIB_INSTITUTIONAL_RESERVATION_REQUEST_VALIDATION")
+$instValidationLib = Invoke-ContractDeployment "contracts/libraries/LibInstitutionalReservationRequestValidation.sol:LibInstitutionalReservationRequestValidation" -ExistingAddress (Get-ExistingBase -State $resumeState -Key "LibInstitutionalReservationRequestValidation" -EnvVar "LIB_INSTITUTIONAL_RESERVATION_REQUEST_VALIDATION")
 Write-Host "LibInstitutionalReservationRequestValidation deployed at: $instValidationLib"
-if (Is-ValidAddress $instValidationLib) {
+if (Test-ValidAddress $instValidationLib) {
     $resumeState.base["LibInstitutionalReservationRequestValidation"] = $instValidationLib
     Save-ResumeState -Path $ResumeFile -State $resumeState
 }
 
 Write-Host "Deploying LibInstitutionalReservationRelease..."
-$instReleaseLib = Deploy-Contract "contracts/libraries/LibInstitutionalReservationRelease.sol:LibInstitutionalReservationRelease" -ExistingAddress (Get-ExistingBase -State $resumeState -Key "LibInstitutionalReservationRelease" -EnvVar "LIB_INSTITUTIONAL_RESERVATION_RELEASE")
+$instReleaseLib = Invoke-ContractDeployment "contracts/libraries/LibInstitutionalReservationRelease.sol:LibInstitutionalReservationRelease" -ExistingAddress (Get-ExistingBase -State $resumeState -Key "LibInstitutionalReservationRelease" -EnvVar "LIB_INSTITUTIONAL_RESERVATION_RELEASE")
 Write-Host "LibInstitutionalReservationRelease deployed at: $instReleaseLib"
-if (Is-ValidAddress $instReleaseLib) {
+if (Test-ValidAddress $instReleaseLib) {
     $resumeState.base["LibInstitutionalReservationRelease"] = $instReleaseLib
     Save-ResumeState -Path $ResumeFile -State $resumeState
 }
@@ -438,13 +438,13 @@ foreach ($entry in $facetPlan) {
     }
     if ($libs -and $libs.Count -gt 0) {
         Write-Host "Deploying $ft (with library link)..."
-        $addr = Deploy-Contract $ft -Libraries $libs -ExistingAddress (Get-ExistingFacet -State $resumeState -Target $ft)
+        $addr = Invoke-ContractDeployment $ft -Libraries $libs -ExistingAddress (Get-ExistingFacet -State $resumeState -Target $ft)
     } else {
         Write-Host "Deploying $ft ..."
-        $addr = Deploy-Contract $ft -ExistingAddress (Get-ExistingFacet -State $resumeState -Target $ft)
+        $addr = Invoke-ContractDeployment $ft -ExistingAddress (Get-ExistingFacet -State $resumeState -Target $ft)
     }
     Write-Host "$ft deployed at: $addr"
-    if (Is-ValidAddress $addr) {
+    if (Test-ValidAddress $addr) {
         $resumeState.facets[$ft] = $addr
         Save-ResumeState -Path $ResumeFile -State $resumeState
     }

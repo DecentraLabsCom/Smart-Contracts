@@ -7,6 +7,7 @@ const {
   validateSelectorManifest,
   signatureFor,
 } = require('./selector-manifest.cjs');
+const {buildArtifactIndex, getArtifactIdentity} = require('./foundry-artifacts.cjs');
 
 function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
@@ -81,8 +82,7 @@ async function main() {
   const deployment = readJsonRobust(path.join(rootDir, 'deployments', 'sepolia-latest.json'));
   const facetsMap = buildFacetAddressMap(deployment, selectorManifest.facets || []);
 
-  // Walk hh-artifacts/contracts/facets recursively
-  const facetsRoot = path.join(__dirname, '..', 'hh-artifacts', 'contracts', 'facets');
+  const artifactIndex = buildArtifactIndex(rootDir);
 
   const iface = new ethers.Interface(["function facetAddress(bytes4) view returns (address)"]);
 
@@ -94,15 +94,6 @@ async function main() {
   function ensureTarget(t) {
     if (!cutsPerTarget[t]) cutsPerTarget[t] = { add: new Set(), replace: new Set() };
     return cutsPerTarget[t];
-  }
-
-  function collectArtifacts(dir, out) {
-    const entries = fs.readdirSync(dir, { withFileTypes: true });
-    for (const e of entries) {
-      const p = path.join(dir, e.name);
-      if (e.isDirectory()) collectArtifacts(p, out);
-      else if (e.isFile() && e.name.endsWith('.json')) out.push(p);
-    }
   }
 
   function isRetryable(err) {
@@ -170,8 +161,9 @@ async function main() {
 
   async function processArtifact(artifactPath, facetAddress) {
     const artifact = JSON.parse(fs.readFileSync(artifactPath, 'utf8'));
-    if (!artifact.abi || !artifact.contractName || !artifact.sourceName) return;
-    const resumeKey = `${artifact.sourceName}:${artifact.contractName}`;
+    const identity = getArtifactIdentity(artifact);
+    if (!identity) return;
+    const resumeKey = `${identity.sourceName}:${identity.contractName}`;
     const expectedAddressRaw = facetsMap[resumeKey];
     const expectedAddress = expectedAddressRaw ? ethers.getAddress(expectedAddressRaw) : null;
     if (!expectedAddress && !includeUnmapped) return;
@@ -194,20 +186,8 @@ async function main() {
     }
   }
 
-  console.log('Scanning facet artifacts under', facetsRoot);
-  const artifacts = [];
-  collectArtifacts(facetsRoot, artifacts);
-  const artifactByKey = {};
-  for (const artifactPath of artifacts) {
-    try {
-      const artifact = JSON.parse(fs.readFileSync(artifactPath, 'utf8'));
-      if (!artifact.abi || !artifact.contractName || !artifact.sourceName) continue;
-      const resumeKey = `${artifact.sourceName}:${artifact.contractName}`;
-      if (facetsMap[resumeKey]) artifactByKey[resumeKey] = artifactPath;
-    } catch {
-      // ignore
-    }
-  }
+  console.log('Scanning Foundry artifacts under', path.join(rootDir, 'out'));
+  const artifactByKey = Object.fromEntries(artifactIndex.entries());
 
   const resumeKeys = includeUnmapped ? Object.keys(artifactByKey) : Object.keys(facetsMap);
   for (const resumeKey of resumeKeys) {

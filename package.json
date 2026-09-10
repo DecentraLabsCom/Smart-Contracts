@@ -5,27 +5,21 @@
   "engines": {
     "node": ">=22.10.0"
   },
-  "overrides": {
-    "adm-zip": "0.6.0"
-  },
   "scripts": {
     "abi:generate": "node scripts/merge_abis.js",
     "abi:sync-consumers": "node scripts/sync-consumer-abis.cjs",
     "abi:check-consumers": "node scripts/sync-consumer-abis.cjs --check-consumers",
     "selectors:plan-live": "node scripts/reconcile-live-selectors.cjs",
     "selectors:coverage": "node test/selector-test-coverage-report.cjs",
-    "selectors:check": "node --test test/selector-manifest.test.cjs test/remove-institutional-reservation-selector.test.cjs test/deployment-artifact-consistency.test.cjs test/deployment-script.test.cjs test/documentation.test.cjs test/verification-cli-options.test.cjs test/full-diamond-fixture-consistency.test.cjs",
+    "selectors:check": "node --test test/selector-manifest.test.cjs test/remove-institutional-reservation-selector.test.cjs test/deployment-artifact-consistency.test.cjs test/deployment-script.test.cjs test/documentation.test.cjs test/verification-cli-options.test.cjs test/full-diamond-fixture-consistency.test.cjs test/foundry-artifacts.test.cjs",
     "verify:contract-surface": "node scripts/selector-manifest.cjs && npm run abi:generate && npm run selectors:check",
     "verify:repo-consistency": "node scripts/verify-repo-consistency.cjs",
     "docs:generate": "node scripts/generate-facet-reference.cjs",
     "docs:check": "node scripts/verify-documentation.cjs && node scripts/generate-facet-reference.cjs --check"
   },
   "devDependencies": {
-    "@nomicfoundation/hardhat-ethers": "4.0.15",
-    "@nomicfoundation/hardhat-foundry": "3.0.4",
     "dotenv": "17.4.2",
-    "ethers": "6.17.0",
-    "hardhat": "3.15.0"
+    "ethers": "6.17.0"
   },
   "dependencies": {
     "@openzeppelin/contracts": "5.6.1",

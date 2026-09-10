@@ -3,6 +3,7 @@ const fs = require('fs');
 const path = require('path');
 const { ethers } = require('ethers');
 const { loadSelectorManifest, validateSelectorManifest, signatureFor } = require('./selector-manifest.cjs');
+const {buildArtifactIndex} = require('./foundry-artifacts.cjs');
 
 async function main(){
   const RPC = process.env.RPC_URL;
@@ -15,6 +16,7 @@ async function main(){
   rawResume = rawResume.slice(f, l + 1);
   const resume = JSON.parse(rawResume);
   const rootDir = path.resolve(__dirname, '..');
+  const artifactIndex = buildArtifactIndex(rootDir);
   const manifest = loadSelectorManifest(rootDir);
   const manifestValidation = validateSelectorManifest(rootDir, manifest);
   if (manifestValidation.errors.length) throw new Error(manifestValidation.errors.join('\n'));
@@ -33,9 +35,8 @@ async function main(){
   const report = [];
 
   for(const t of targets){
-    const parts = t.split(':');
-    const artifactPath = path.join('hh-artifacts', parts[0], parts[1] + '.json');
-    if(!fs.existsSync(artifactPath)){
+    const artifactPath = artifactIndex.get(t);
+    if(!artifactPath || !fs.existsSync(artifactPath)){
       console.warn('Artifact not found', artifactPath, 'skipping');
       continue;
     }
@@ -65,8 +66,8 @@ async function main(){
     // If there are multiple addresses for a contract, show which functions map to which address (detailed check)
     if (r.uniqueFacetAddresses.length > 1 && r.contractId.includes('LabFacet')) {
       console.log('   Detailed mapping for LabFacet (functions -> facet address):');
-      const parts = r.contractId.split(':');
-      const artifactPath = path.join('hh-artifacts', parts[0], parts[1] + '.json');
+      const artifactPath = artifactIndex.get(r.contractId);
+      if (!artifactPath) continue;
       const artifact = JSON.parse(fs.readFileSync(artifactPath,'utf8'));
       const allFunctions = artifact.abi.filter(a => a.type === 'function');
       for(const fn of allFunctions){

@@ -42,12 +42,12 @@ if (-not $Diamond) {
 }
 if (-not $Diamond) { throw "Diamond address missing (pass -Diamond or ensure sepolia-latest.json exists)" }
 
-if ($Compile -or -not (Test-Path (Join-Path -Path $PSScriptRoot -ChildPath "..\hh-artifacts"))) {
-    Write-Host "Running hardhat build..."
-    $buildOutput = npx hardhat build 2>&1
+if ($Compile -or -not (Test-Path (Join-Path -Path $PSScriptRoot -ChildPath "..\out"))) {
+    Write-Host "Running forge build..."
+    $buildOutput = forge build 2>&1
     Write-Host $buildOutput
     if ($LASTEXITCODE -ne 0) {
-        throw "hardhat build failed (exit $LASTEXITCODE)"
+        throw "forge build failed (exit $LASTEXITCODE)"
     }
 }
 

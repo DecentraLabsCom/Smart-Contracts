@@ -64,6 +64,6 @@ jobs:
 
             - **Foundry**: `${{ steps.check.outputs.pinned }}` → `${{ steps.check.outputs.latest }}` ([release notes](https://github.com/foundry-rs/foundry/releases/tag/v${{ steps.check.outputs.latest }}))
 
-            Please review the changelog before merging — breaking changes may require updates to `foundry.toml`, `hardhat.config.js`, or test scripts.
+            Please review the changelog before merging — breaking changes may require updates to `foundry.toml` or verification scripts.
           labels: dependencies
           delete-branch: true

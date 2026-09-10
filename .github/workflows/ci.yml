@@ -75,7 +75,7 @@ jobs:
       - name: install dependencies
         run: forge install
 
-      - name: install node deps (hardhat)
+      - name: install node tooling
         run: npm ci
 
       - name: check formatting

@@ -18,7 +18,7 @@
     "docs:check": "node scripts/verify-documentation.cjs && node scripts/generate-facet-reference.cjs --check"
   },
   "devDependencies": {
-    "dotenv": "17.4.2",
+    "dotenv": "18.0.0",
     "ethers": "6.17.0"
   },
   "dependencies": {

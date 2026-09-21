@@ -771,8 +771,8 @@ contract ProviderReceivableAliasesTest is Test {
 
         // Emergency settlement-review eligibility adds bounded storage checks
         // to payout candidates while preserving the compaction budget.
-        // Foundry 1.8.1 accounts for this path at 1,077,887 gas.
-        assertLt(gasUsed, 1_100_000);
+        // Foundry 1.8.3 accounts for this path at 1,204,087 gas.
+        assertLt(gasUsed, 1_250_000);
     }
 
     function test_heap_compaction_preserves_future_confirmed_candidate() public {

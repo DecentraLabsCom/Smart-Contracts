@@ -3,6 +3,7 @@ const test = require("node:test");
 
 const {
   buildFacetAddressMap,
+  isRetryableRpcError,
   optionValue,
 } = require("../scripts/verify-all-facets-selectors.cjs");
 
@@ -13,6 +14,18 @@ test("optionValue does not consume the next option when an option is omitted", (
 
 test("optionValue rejects an option without a value", () => {
   assert.throws(() => optionValue(["--rpc", "--diamond", "0x1234"], "--rpc", "from-env"), /requires a value/);
+});
+
+test("selector verification retries transient internal RPC errors only", () => {
+  assert.equal(isRetryableRpcError({
+    code: "CALL_EXCEPTION",
+    message: "missing revert data",
+    info: {error: {code: -32603, message: "Internal error"}},
+  }), true);
+  assert.equal(isRetryableRpcError({
+    code: "CALL_EXCEPTION",
+    message: "execution reverted",
+  }), false);
 });
 
 test("selector verification resolves facet targets from the current deployment snapshot", () => {

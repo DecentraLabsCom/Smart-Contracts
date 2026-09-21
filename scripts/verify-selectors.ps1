@@ -44,10 +44,20 @@ if (-not $Diamond) { throw "Diamond address missing (pass -Diamond or ensure sep
 
 if ($Compile -or -not (Test-Path (Join-Path -Path $PSScriptRoot -ChildPath "..\out"))) {
     Write-Host "Running forge build..."
-    $buildOutput = forge build 2>&1
+    $previousErrorActionPreference = $ErrorActionPreference
+    try {
+        # Foundry writes compiler notes to stderr even when the build succeeds.
+        # Do not let PowerShell's Stop preference turn those diagnostics into an
+        # exception; the process exit code is the source of truth for the build.
+        $ErrorActionPreference = "Continue"
+        $buildOutput = forge build 2>&1
+        $buildExitCode = $LASTEXITCODE
+    } finally {
+        $ErrorActionPreference = $previousErrorActionPreference
+    }
     Write-Host $buildOutput
-    if ($LASTEXITCODE -ne 0) {
-        throw "forge build failed (exit $LASTEXITCODE)"
+    if ($buildExitCode -ne 0) {
+        throw "forge build failed (exit $buildExitCode)"
     }
 }
 

@@ -51,6 +51,41 @@ function buildFacetAddressMap(deployment, selectorFacets) {
   return facetMap;
 }
 
+function isRetryableRpcError(err) {
+  const msg = String(err && err.message ? err.message : '');
+  const code = err && err.code;
+  const nestedCode = err && err.info && err.info.error && err.info.error.code;
+  const nestedMessage = String(err && err.info && err.info.error && err.info.error.message
+    ? err.info.error.message
+    : '');
+  const normalizedMessages = `${msg} ${nestedMessage}`.toLowerCase();
+  const hasRateLimitInValueArray = Array.isArray(err && err.value)
+    && err.value.some(v => {
+      if (!v || typeof v !== 'object') return false;
+      const vCode = v.code;
+      const vMsg = String(v.message || '');
+      return vCode === -32005
+        || vCode === 429
+        || vMsg.toLowerCase().includes('too many requests')
+        || vMsg.toLowerCase().includes('rate limit');
+    });
+  if (code === 'UNKNOWN_ERROR' || code === 'CALL_EXCEPTION') {
+    if (normalizedMessages.includes('rate') || normalizedMessages.includes('limit')) return true;
+  }
+  if (code === 'BAD_DATA' && hasRateLimitInValueArray) return true;
+  if (normalizedMessages.includes('too many requests')) return true;
+  if (normalizedMessages.includes('missing response for request') && hasRateLimitInValueArray) return true;
+  // Some Sepolia RPC providers surface transient eth_call failures as a
+  // generic -32603 Internal error wrapped by ethers as CALL_EXCEPTION.
+  // Retry those responses, but keep other call exceptions fatal so a real
+  // contract/revert problem is still reported by CI.
+  if (nestedCode === -32603 && normalizedMessages.includes('internal error')) return true;
+  if (code === -32603) return true;
+  if (nestedCode === -32005 || nestedCode === 429) return true;
+  if (code === -32005 || code === 429) return true;
+  return false;
+}
+
 async function main() {
   const args = process.argv.slice(2);
   const rpc = optionValue(args, '--rpc', process.env.RPC_URL);
@@ -96,31 +131,6 @@ async function main() {
     return cutsPerTarget[t];
   }
 
-  function isRetryable(err) {
-    const msg = String(err && err.message ? err.message : '');
-    const code = err && err.code;
-    const nestedCode = err && err.info && err.info.error && err.info.error.code;
-    const hasRateLimitInValueArray = Array.isArray(err && err.value)
-      && err.value.some(v => {
-        if (!v || typeof v !== 'object') return false;
-        const vCode = v.code;
-        const vMsg = String(v.message || '');
-        return vCode === -32005
-          || vCode === 429
-          || vMsg.toLowerCase().includes('too many requests')
-          || vMsg.toLowerCase().includes('rate limit');
-      });
-    if (code === 'UNKNOWN_ERROR' || code === 'CALL_EXCEPTION') {
-      if (msg.toLowerCase().includes('rate') || msg.toLowerCase().includes('limit')) return true;
-    }
-    if (code === 'BAD_DATA' && hasRateLimitInValueArray) return true;
-    if (msg.toLowerCase().includes('too many requests')) return true;
-    if (msg.toLowerCase().includes('missing response for request') && hasRateLimitInValueArray) return true;
-    if (nestedCode === -32005 || nestedCode === 429) return true;
-    if (code === -32005 || code === 429) return true;
-    return false;
-  }
-
   async function withRetry(fn, label) {
     let attempt = 0;
     while (true) {
@@ -128,7 +138,7 @@ async function main() {
         return await fn();
       } catch (err) {
         attempt += 1;
-        if (!isRetryable(err) || attempt > maxRetries) {
+        if (!isRetryableRpcError(err) || attempt > maxRetries) {
           throw err;
         }
         const waitMs = Math.min(retryBaseMs * Math.pow(2, attempt - 1), 4000);
@@ -288,4 +298,4 @@ if (require.main === module) {
   main().catch(e => { console.error(e); process.exit(1); });
 }
 
-module.exports = {buildFacetAddressMap, optionValue};
+module.exports = {buildFacetAddressMap, isRetryableRpcError, optionValue};

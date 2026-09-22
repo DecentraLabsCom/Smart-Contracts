@@ -4,7 +4,7 @@ pragma solidity ^0.8.33;
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
 import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
-import {LibAppStorage, AppStorage, LabReputation} from "../../libraries/LibAppStorage.sol";
+import {LibAppStorage, AppStorage, LabReputation, PayoutCandidate} from "../../libraries/LibAppStorage.sol";
 import {LibReputation} from "../../libraries/LibReputation.sol";
 
 /// @title LabReputationFacet
@@ -29,6 +29,31 @@ contract LabReputationFacet {
     ) external view returns (int32 score, uint32 totalEvents, uint32 ownerCancellations, uint64 lastUpdated) {
         LabReputation storage rep = LibAppStorage.diamondStorage().labReputation[labId];
         return (rep.score, rep.totalEvents, rep.ownerCancellations, rep.lastUpdated);
+    }
+
+    /// @notice Returns bounded on-chain signals for reservation finalization freshness.
+    /// @dev The heap root is a candidate hint, not an unbounded eligibility scan.
+    function getLabFinalizationStatus(
+        uint256 labId
+    )
+        external
+        view
+        returns (
+            uint256 activeReservationCount,
+            uint256 payoutHeapLength,
+            uint256 payoutHeapInvalidCount,
+            uint256 oldestPayoutCandidateEnd,
+            uint64 lastFinalizationAt
+        )
+    {
+        AppStorage storage s = LibAppStorage.diamondStorage();
+        LabReputation storage rep = s.labReputation[labId];
+        PayoutCandidate[] storage heap = s.payoutHeaps[labId];
+        activeReservationCount = s.labActiveReservationCount[labId];
+        payoutHeapLength = heap.length;
+        payoutHeapInvalidCount = s.payoutHeapInvalidCount[labId];
+        oldestPayoutCandidateEnd = heap.length == 0 ? 0 : heap[0].end;
+        lastFinalizationAt = rep.lastFinalizationAt;
     }
 
     function getLabScore(

@@ -22,6 +22,7 @@ import {LabIntentFacet} from "../contracts/facets/lab/LabIntentFacet.sol";
 import {LabQueryFacet} from "../contracts/facets/lab/LabQueryFacet.sol";
 import {LabReputationFacet} from "../contracts/facets/lab/LabReputationFacet.sol";
 import {ProviderSettlementFacet} from "../contracts/facets/reservation/ProviderSettlementFacet.sol";
+import {ReservationFinalizationFacet} from "../contracts/facets/reservation/ReservationFinalizationFacet.sol";
 import {
     InstitutionalReservationRequestValidationFacet
 } from "../contracts/facets/reservation/institutional/InstitutionalReservationRequestValidationFacet.sol";
@@ -54,8 +55,8 @@ import {ReservationSessionFacet} from "../contracts/facets/reservation/Reservati
 /// intentionally excluded so proxy tests cannot accidentally use test storage
 /// helpers as part of the production surface.
 abstract contract FullDiamondFixture {
-    uint256 internal constant PRODUCTION_FACET_COUNT = 28;
-    uint256 internal constant PRODUCTION_SELECTOR_COUNT = 201;
+    uint256 internal constant PRODUCTION_FACET_COUNT = 29;
+    uint256 internal constant PRODUCTION_SELECTOR_COUNT = 202;
 
     function _deployFullDiamond() internal returns (Diamond diamond) {
         address[] memory implementations = _deployFacetImplementations();
@@ -98,6 +99,7 @@ abstract contract FullDiamondFixture {
         implementations[25] = address(new ReservationIntentFacet());
         implementations[26] = address(new ReservationIntentCancellationFacet());
         implementations[27] = address(new ReservationSessionFacet());
+        implementations[28] = address(new ReservationFinalizationFacet());
     }
 
     function _buildCuts(
@@ -131,6 +133,7 @@ abstract contract FullDiamondFixture {
         cuts[24] = _cut(implementations[25], _ReservationIntentSelectors());
         cuts[25] = _cut(implementations[26], _ReservationIntentCancellationSelectors());
         cuts[26] = _cut(implementations[27], _ReservationSessionSelectors());
+        cuts[27] = _cut(implementations[28], _ReservationFinalizationSelectors());
     }
 
     function _cut(
@@ -358,35 +361,40 @@ abstract contract FullDiamondFixture {
     }
 
     function _LabReputationSelectors() private pure returns (bytes4[] memory selectors) {
-        selectors = new bytes4[](6);
+        selectors = new bytes4[](7);
         selectors[0] = _selector("adjustLabReputation(uint256,int32,string)");
         selectors[1] = _selector("getLabRating(uint256)");
         selectors[2] = _selector("getLabReputation(uint256)");
         selectors[3] = _selector("getLabScore(uint256)");
         selectors[4] = _selector("setLabReputation(uint256,int32,string)");
         selectors[5] = _selector("tokenURIWithReputation(uint256)");
+        selectors[6] = _selector("getLabFinalizationStatus(uint256)");
     }
 
     function _ProviderSettlementSelectors() private pure returns (bytes4[] memory selectors) {
-        selectors = new bytes4[](18);
-        selectors[0] = _selector("getLabProviderReceivable(uint256)");
-        selectors[1] = _selector("getLabProviderReceivableLifecycle(uint256)");
-        selectors[2] = _selector("getLabProviderReceivablePaginated(uint256,uint256,uint256)");
-        selectors[3] = _selector("getLatestProviderSettlementBatch(uint256)");
-        selectors[4] = _selector("getProviderSettlementBatch(bytes32)");
-        selectors[5] = _selector("getProviderSettlementClaim(bytes32)");
-        selectors[6] = _selector("getProviderSettlementClaimApprovalReferenceHash(bytes32)");
-        selectors[7] = _selector("getProviderSettlementBatchResolution(bytes32)");
-        selectors[8] = _selector("getProviderSettlementClaimResolution(bytes32)");
-        selectors[9] = _selector("submitProviderSettlementClaim(bytes32,uint256,uint256,bytes32,bytes32)");
-        selectors[10] = _selector("approveProviderSettlementClaim(bytes32,bytes32)");
-        selectors[11] = _selector("recordProviderSettlementClaimPayment(bytes32,bytes32,bytes32)");
-        selectors[12] = _selector("disputeSettlementBatch(bytes32,bytes32)");
-        selectors[13] = _selector("reverseSettlementBatch(bytes32,bytes32)");
-        selectors[14] = _selector("disputeSettlementClaim(bytes32,bytes32)");
-        selectors[15] = _selector("reverseSettlementClaim(bytes32,bytes32)");
-        selectors[16] = _selector("requestProviderPayout(uint256,uint256)");
-        selectors[17] = _selector("transitionProviderReceivableState(uint256,uint8,uint8,uint256,bytes32)");
+        selectors = new bytes4[](17);
+        selectors[0] = _selector("getLabProviderReceivableLifecycle(uint256)");
+        selectors[1] = _selector("getLabProviderReceivablePaginated(uint256,uint256,uint256)");
+        selectors[2] = _selector("getLatestProviderSettlementBatch(uint256)");
+        selectors[3] = _selector("getProviderSettlementBatch(bytes32)");
+        selectors[4] = _selector("getProviderSettlementClaim(bytes32)");
+        selectors[5] = _selector("getProviderSettlementClaimApprovalReferenceHash(bytes32)");
+        selectors[6] = _selector("getProviderSettlementBatchResolution(bytes32)");
+        selectors[7] = _selector("getProviderSettlementClaimResolution(bytes32)");
+        selectors[8] = _selector("submitProviderSettlementClaim(bytes32,uint256,uint256,bytes32,bytes32)");
+        selectors[9] = _selector("approveProviderSettlementClaim(bytes32,bytes32)");
+        selectors[10] = _selector("recordProviderSettlementClaimPayment(bytes32,bytes32,bytes32)");
+        selectors[11] = _selector("disputeSettlementBatch(bytes32,bytes32)");
+        selectors[12] = _selector("reverseSettlementBatch(bytes32,bytes32)");
+        selectors[13] = _selector("disputeSettlementClaim(bytes32,bytes32)");
+        selectors[14] = _selector("reverseSettlementClaim(bytes32,bytes32)");
+        selectors[15] = _selector("requestProviderPayout(uint256,uint256)");
+        selectors[16] = _selector("transitionProviderReceivableState(uint256,uint8,uint8,uint256,bytes32)");
+    }
+
+    function _ReservationFinalizationSelectors() private pure returns (bytes4[] memory selectors) {
+        selectors = new bytes4[](1);
+        selectors[0] = _selector("finalizeEligibleReservations(uint256,uint256)");
     }
 
     function _InstitutionalReservationRequestValidationSelectors() private pure returns (bytes4[] memory selectors) {

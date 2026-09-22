@@ -53,3 +53,18 @@ test("indexes Foundry artifacts by Solidity target", () => {
     fs.rmSync(rootDir, {recursive: true, force: true});
   }
 });
+
+test("production facets fit the EIP-170 runtime bytecode limit", () => {
+  const rootDir = path.resolve(__dirname, "..");
+  const manifest = JSON.parse(fs.readFileSync(path.join(rootDir, "selectors", "diamond.json"), "utf8"));
+  const artifacts = buildArtifactIndex(rootDir);
+
+  for (const facet of manifest.facets) {
+    const artifactPath = artifacts.get(facet.target);
+    assert.ok(artifactPath, `Missing Foundry artifact for ${facet.target}`);
+    const artifact = JSON.parse(fs.readFileSync(artifactPath, "utf8"));
+    const runtimeBytecode = artifact.deployedBytecode?.object ?? "";
+    const runtimeSize = runtimeBytecode.replace(/^0x/, "").length / 2;
+    assert.ok(runtimeSize <= 24_576, `${facet.name} runtime is ${runtimeSize} bytes (EIP-170 max: 24576)`);
+  }
+});

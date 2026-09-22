@@ -221,6 +221,7 @@
         "getLabRating(uint256)",
         "getLabReputation(uint256)",
         "getLabScore(uint256)",
+        "getLabFinalizationStatus(uint256)",
         "setLabReputation(uint256,int32,string)",
         "tokenURIWithReputation(uint256)"
       ]
@@ -229,7 +230,6 @@
       "name": "ProviderSettlementFacet",
       "target": "contracts/facets/reservation/ProviderSettlementFacet.sol:ProviderSettlementFacet",
       "functions": [
-        "getLabProviderReceivable(uint256)",
         "getLabProviderReceivableLifecycle(uint256)",
         "getLabProviderReceivablePaginated(uint256,uint256,uint256)",
         "getLatestProviderSettlementBatch(uint256)",
@@ -248,6 +248,11 @@
         "requestProviderPayout(uint256,uint256)",
         "transitionProviderReceivableState(uint256,uint8,uint8,uint256,bytes32)"
       ]
+    },
+    {
+      "name": "ReservationFinalizationFacet",
+      "target": "contracts/facets/reservation/ReservationFinalizationFacet.sol:ReservationFinalizationFacet",
+      "functions": ["finalizeEligibleReservations(uint256,uint256)"]
     },
     {
       "name": "InstitutionalReservationRequestValidationFacet",

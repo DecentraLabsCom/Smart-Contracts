@@ -105,13 +105,14 @@ contract LabReputationTest is BaseTest {
             functionSelectors: labAdminSelectors
         });
 
-        bytes4[] memory repSelectors = new bytes4[](6);
+        bytes4[] memory repSelectors = new bytes4[](7);
         repSelectors[0] = _selector("getLabReputation(uint256)");
         repSelectors[1] = _selector("getLabScore(uint256)");
         repSelectors[2] = _selector("getLabRating(uint256)");
         repSelectors[3] = _selector("adjustLabReputation(uint256,int32,string)");
         repSelectors[4] = _selector("setLabReputation(uint256,int32,string)");
         repSelectors[5] = _selector("tokenURIWithReputation(uint256)");
+        repSelectors[6] = _selector("getLabFinalizationStatus(uint256)");
         cut2[4] = IDiamond.FacetCut({
             facetAddress: address(labReputationImpl),
             action: IDiamond.FacetCutAction.Add,
@@ -151,6 +152,24 @@ contract LabReputationTest is BaseTest {
         assertEq(totalEvents, 0);
         assertEq(ownerCan, 0);
         assertEq(lastUpdated, 0);
+    }
+
+    function test_getLabFinalizationStatus_returns_bounded_defaults() public {
+        _mintLab1();
+
+        (
+            uint256 activeReservationCount,
+            uint256 payoutHeapLength,
+            uint256 payoutHeapInvalidCount,
+            uint256 oldestPayoutCandidateEnd,
+            uint64 lastFinalizationAt
+        ) = labReputation.getLabFinalizationStatus(1);
+
+        assertEq(activeReservationCount, 0);
+        assertEq(payoutHeapLength, 0);
+        assertEq(payoutHeapInvalidCount, 0);
+        assertEq(oldestPayoutCandidateEnd, 0);
+        assertEq(lastFinalizationAt, 0);
     }
 
     function test_getLabScore_defaults_to_zero() public {

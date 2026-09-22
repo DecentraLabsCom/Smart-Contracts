@@ -219,6 +219,10 @@ struct LabReputation {
     uint32 totalEvents;
     uint32 ownerCancellations;
     uint64 lastUpdated;
+    // Timestamp of the last terminal reservation finalization for this lab.
+    // This is deliberately separate from lastUpdated: a finalization without
+    // reputational change still proves that active state was processed.
+    uint64 lastFinalizationAt;
 }
 
 /// @notice Struct representing institutional user spending in a period

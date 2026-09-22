@@ -5834,6 +5834,45 @@
   },
   {
     "type": "function",
+    "name": "getLabFinalizationStatus",
+    "inputs": [
+      {
+        "name": "labId",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "activeReservationCount",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "payoutHeapLength",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "payoutHeapInvalidCount",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "oldestPayoutCandidateEnd",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "lastFinalizationAt",
+        "type": "uint64",
+        "internalType": "uint64"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
     "name": "getLabRating",
     "inputs": [
       {
@@ -6061,40 +6100,6 @@
     ],
     "outputs": [],
     "stateMutability": "nonpayable"
-  },
-  {
-    "type": "function",
-    "name": "getLabProviderReceivable",
-    "inputs": [
-      {
-        "name": "_labId",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ],
-    "outputs": [
-      {
-        "name": "attestedSessionPayout",
-        "type": "uint256",
-        "internalType": "uint256"
-      },
-      {
-        "name": "potentialNoShowFee",
-        "type": "uint256",
-        "internalType": "uint256"
-      },
-      {
-        "name": "pendingGraceReservationCount",
-        "type": "uint256",
-        "internalType": "uint256"
-      },
-      {
-        "name": "accruedReceivable",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ],
-    "stateMutability": "view"
   },
   {
     "type": "function",
@@ -7060,6 +7065,85 @@
         "type": "uint256",
         "indexed": false,
         "internalType": "uint256"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "function",
+    "name": "finalizeEligibleReservations",
+    "inputs": [
+      {
+        "name": "labId",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "maxBatch",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "finalizedCount",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "event",
+    "name": "ReservationFinalizationBatchProcessed",
+    "inputs": [
+      {
+        "name": "caller",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "labId",
+        "type": "uint256",
+        "indexed": true,
+        "internalType": "uint256"
+      },
+      {
+        "name": "finalizedCount",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      },
+      {
+        "name": "maxBatch",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      },
+      {
+        "name": "oldestCandidateEnd",
+        "type": "uint64",
+        "indexed": false,
+        "internalType": "uint64"
+      },
+      {
+        "name": "processedAt",
+        "type": "uint64",
+        "indexed": false,
+        "internalType": "uint64"
+      },
+      {
+        "name": "pendingGraceEncountered",
+        "type": "bool",
+        "indexed": false,
+        "internalType": "bool"
+      },
+      {
+        "name": "scanLimitReached",
+        "type": "bool",
+        "indexed": false,
+        "internalType": "bool"
       }
     ],
     "anonymous": false

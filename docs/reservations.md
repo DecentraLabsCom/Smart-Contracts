@@ -136,6 +136,27 @@ cannot be invalidated by requesting another reservation. Permissionless release,
 cap cleanup and provider payout all delegate their terminal transition to the
 same `LibInstitutionalReservationSettlement` path.
 
+`finalizeEligibleReservations(labId, maxBatch)` is the permissionless maintenance
+entry point for confirmed/access-authorized reservations already present in the
+payout heap. It accepts at most 10 bounded attempts, returns the number finalized,
+and emits `ReservationFinalizationBatchProcessed`. A caller only pays gas: the
+function never queues provider receivable, approves a settlement or pays the
+caller. A call with no eligible candidate is a successful no-op. The existing
+`requestProviderPayout` authorization and its transition from accrued receivable
+to settlement queue are unchanged.
+
+The selector belongs to the dedicated `ReservationFinalizationFacet`, not to
+`ProviderSettlementFacet`. An upgrade must therefore add the new facet and
+replace the changed lab/settlement facets in the same coordinated `diamondCut`.
+
+`getLabFinalizationStatus(labId)` exposes bounded maintenance signals:
+`activeReservationCount`, payout-heap length, the number of invalid lazy heap
+entries, the heap-root candidate end timestamp and `lastFinalizationAt`. The
+heap root is only a candidate hint; it is not an unbounded eligibility scan.
+The active counters are stored on-chain and are decremented by finalization;
+they are not recalculated automatically when a reservation's `end` timestamp
+passes.
+
 Use `getReservation`, availability reads and the paginated institutional/query
 functions for state inspection. Do not infer availability from a pending request
 or from off-chain calendar data.

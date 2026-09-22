@@ -27,8 +27,9 @@ test("documentation validation catches an unknown command and link", () => {
 test("facet reference covers the deployed selector manifest", () => {
   const manifest = JSON.parse(fs.readFileSync(path.join(rootDir, "selectors", "diamond.json"), "utf8"));
   const reference = fs.readFileSync(path.join(rootDir, "docs", "reference", "facets.md"), "utf8");
+  const selectorCount = manifest.facets.reduce((total, facet) => total + facet.functions.length, 0);
 
   for (const {name} of manifest.facets) assert.match(reference, new RegExp(`\\b${name}\\b`));
-  assert.match(reference, /201/);
+  assert.match(reference, new RegExp(`\\b${selectorCount} public functions\\b`));
   assert.match(reference, /EIP-712/);
 });

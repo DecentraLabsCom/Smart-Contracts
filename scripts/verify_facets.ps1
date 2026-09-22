@@ -134,6 +134,7 @@ $facetLibMap = @{
         "contracts/libraries/LibLabTransfer.sol:LibLabTransfer" = $LabTransferLibrary
     }
     "contracts/facets/reservation/ProviderSettlementFacet.sol:ProviderSettlementFacet" = $libLinks
+    "contracts/facets/reservation/ReservationFinalizationFacet.sol:ReservationFinalizationFacet" = $libLinks
     "contracts/facets/reservation/ReservationDenialFacet.sol:ReservationDenialFacet" = @{
         "contracts/libraries/LibReservationConfirmation.sol:LibReservationConfirmation" = $reservationConfirmLib
     }

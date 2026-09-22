@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.33;
 
-import {Test} from "forge-std/Test.sol";
+import {Test, Vm} from "forge-std/Test.sol";
 import {ERC721} from "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import {ProviderSettlementFacet} from "../contracts/facets/reservation/ProviderSettlementFacet.sol";
+import {ReservationFinalizationFacet} from "../contracts/facets/reservation/ReservationFinalizationFacet.sol";
 import {
     AppStorage,
     INSTITUTION_ROLE,
@@ -23,7 +24,7 @@ import {
 import {LibTracking} from "../contracts/libraries/LibTracking.sol";
 import {LibCreditLedger} from "../contracts/libraries/LibCreditLedger.sol";
 
-contract ProviderReceivableHarness is ERC721, ProviderSettlementFacet {
+contract ProviderReceivableHarness is ERC721, ProviderSettlementFacet, ReservationFinalizationFacet {
     using LibAccessControlEnumerable for AppStorage;
     using EnumerableSet for EnumerableSet.AddressSet;
     using EnumerableSet for EnumerableSet.Bytes32Set;
@@ -166,6 +167,14 @@ contract ProviderReceivableHarness is ERC721, ProviderSettlementFacet {
         LibCreditLedger.compactCreditLots(account);
     }
 
+    /// @dev Test-only adapter for historical preview assertions. Production
+    ///      consumers use the bounded paginated getter directly.
+    function getLabProviderReceivable(
+        uint256 labId
+    ) external view returns (uint256 attested, uint256 noShow, uint256 grace, uint256 accrued) {
+        (attested, noShow, grace, accrued,,) = this.getLabProviderReceivablePaginated(labId, 0, 1000);
+    }
+
     function setExpiredPayoutReservation(
         bytes32 reservationKey,
         uint256 labId,
@@ -246,6 +255,13 @@ contract ProviderReceivableHarness is ERC721, ProviderSettlementFacet {
     ) external {
         AppStorage storage s = LibAppStorage.diamondStorage();
         s.reservationSessionStartedRecorded[reservationKey] = true;
+    }
+
+    function getFinalizationStateForTest(
+        uint256 labId
+    ) external view returns (uint256 activeReservations, uint64 lastFinalizationAt) {
+        AppStorage storage s = LibAppStorage.diamondStorage();
+        return (s.labActiveReservationCount[labId], s.labReputation[labId].lastFinalizationAt);
     }
 
     function setSettlementExcluded(
@@ -448,6 +464,80 @@ contract ProviderReceivableAliasesTest is Test {
         assertEq(disputedReceivable, 0);
     }
 
+    function test_finalizeEligibleReservations_is_permissionless_and_does_not_queue_receivable() public {
+        bytes32 reservationKey = keccak256("permissionless-finalization");
+        harness.setExpiredPayoutReservation(reservationKey, LAB_ID, ACCESS_AUTHORIZED, FIVE_CREDITS_U96, 999);
+        harness.markSessionStartedForTest(reservationKey);
+
+        vm.prank(address(0xC0FFEE));
+        vm.warp(1000);
+        uint256 processed = harness.finalizeEligibleReservations(LAB_ID, 10);
+
+        assertEq(processed, 1);
+        assertEq(harness.getReservationStatus(reservationKey), SETTLED);
+        (uint256 accruedReceivable, uint256 settlementQueued,,,,,) = _getLifecycleWithoutTimestamp();
+        assertEq(accruedReceivable, FIVE_CREDITS);
+        assertEq(settlementQueued, 0);
+        (uint256 activeReservations, uint64 lastFinalizationAt) = harness.getFinalizationStateForTest(LAB_ID);
+        assertEq(activeReservations, 0);
+        assertEq(lastFinalizationAt, 1000);
+    }
+
+    function test_finalizeEligibleReservations_is_noop_without_candidates() public {
+        vm.prank(address(0xC0FFEE));
+        uint256 processed = harness.finalizeEligibleReservations(LAB_ID, 10);
+
+        assertEq(processed, 0);
+    }
+
+    function test_finalizeEligibleReservations_rejects_batch_above_permissionless_limit() public {
+        vm.expectRevert("Invalid batch size");
+        harness.finalizeEligibleReservations(LAB_ID, 11);
+    }
+
+    function test_finalizeEligibleReservations_processes_bounded_batch() public {
+        vm.warp(1000);
+        for (uint256 i; i < 10; ++i) {
+            bytes32 reservationKey = keccak256(abi.encode("permissionless-batch", i));
+            harness.setExpiredPayoutReservation(
+                reservationKey, LAB_ID, ACCESS_AUTHORIZED, FIVE_CREDITS_U96, uint32(900 + i)
+            );
+            harness.markSessionStartedForTest(reservationKey);
+        }
+
+        uint256 gasBefore = gasleft();
+        uint256 processed = harness.finalizeEligibleReservations(LAB_ID, 10);
+        uint256 gasUsed = gasBefore - gasleft();
+
+        assertEq(processed, 10);
+        assertLt(gasUsed, 5_000_000, "permissionless finalization exceeds relayer gas limit");
+        (uint256 activeReservations,) = harness.getFinalizationStateForTest(LAB_ID);
+        assertEq(activeReservations, 0);
+    }
+
+    function test_finalizeEligibleReservations_reports_pending_grace() public {
+        bytes32 reservationKey = keccak256("permissionless-pending-grace");
+        harness.setExpiredPayoutReservation(reservationKey, LAB_ID, ACCESS_AUTHORIZED, FIVE_CREDITS_U96, 999);
+        vm.warp(1000);
+        vm.recordLogs();
+
+        uint256 processed = harness.finalizeEligibleReservations(LAB_ID, 1);
+
+        assertEq(processed, 0);
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+        bytes32 eventSignature =
+            keccak256("ReservationFinalizationBatchProcessed(address,uint256,uint256,uint256,uint64,uint64,bool,bool)");
+        bool found;
+        for (uint256 i; i < logs.length; ++i) {
+            if (logs[i].topics[0] != eventSignature) continue;
+            (,,,, bool pendingGraceEncountered,) =
+                abi.decode(logs[i].data, (uint256, uint256, uint64, uint64, bool, bool));
+            assertTrue(pendingGraceEncountered);
+            found = true;
+        }
+        assertTrue(found, "finalization batch event missing");
+    }
+
     function test_requestProviderPayout_queues_accrued_bucket_when_heap_is_empty() public {
         harness.setPendingProviderPayout(LAB_ID, TWELVE_CREDITS);
         assertEq(harness.payoutHeapLength(LAB_ID), 0);
@@ -567,17 +657,6 @@ contract ProviderReceivableAliasesTest is Test {
         assertEq(accruedReceivable, 0);
         assertEq(nextOffset, 2);
         assertFalse(hasMore);
-    }
-
-    function test_getLabProviderReceivable_reverts_above_legacy_heap_limit() public {
-        harness.seedPayoutHeapEntries(LAB_ID, 1001);
-
-        vm.expectRevert(bytes("Use paginated receivable getter"));
-        harness.getLabProviderReceivable(LAB_ID);
-
-        (,,,, uint256 nextOffset, bool hasMore) = harness.getLabProviderReceivablePaginated(LAB_ID, 0, 1000);
-        assertEq(nextOffset, 1000);
-        assertTrue(hasMore);
     }
 
     function test_requestProviderPayout_finalizes_confirmed_no_show_without_session_started() public {

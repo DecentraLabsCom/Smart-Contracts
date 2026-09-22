@@ -29,7 +29,8 @@ async function main(){
     'contracts/facets/lab/LabIntentFacet.sol:LabIntentFacet',
     'contracts/facets/lab/LabFacet.sol:LabFacet',
     'contracts/facets/ProviderFacet.sol:ProviderFacet',
-    'contracts/facets/reservation/ProviderSettlementFacet.sol:ProviderSettlementFacet'
+    'contracts/facets/reservation/ProviderSettlementFacet.sol:ProviderSettlementFacet',
+    'contracts/facets/reservation/ReservationFinalizationFacet.sol:ReservationFinalizationFacet'
   ];
 
   const report = [];

@@ -22,7 +22,7 @@ not claim a mainnet address until a reviewed artifact is committed.
 
 ## Facet map
 
-The manifest contains 28 facets and 201 public functions.
+The manifest contains 29 facets and 202 public functions.
 The selector manifest also lists internal routing functions and explicitly
 forbidden legacy selectors; those are not callable public API.
 
@@ -42,8 +42,9 @@ forbidden legacy selectors; those are not callable public API.
 | LabAdminFacet | 7 | Creates, updates and administers labs with creator identity checks. |
 | LabIntentFacet | 7 | Executes lab administration through registered intents. |
 | LabQueryFacet | 11 | Reads lab configuration, availability and paginated lab state. |
-| LabReputationFacet | 6 | Reads and updates provider/lab reputation state. |
-| ProviderSettlementFacet | 18 | Builds and settles provider receivable claims. |
+| LabReputationFacet | 7 | Reads reputation and bounded reservation-finalization freshness state. |
+| ProviderSettlementFacet | 17 | Builds and settles provider receivable claims. |
+| ReservationFinalizationFacet | 1 | Permissionlessly finalizes bounded batches of eligible reservations. |
 | InstitutionalReservationRequestValidationFacet | 1 | Validates institutional reservation request constraints. |
 | InstitutionalReservationRequestCreationFacet | 2 | Creates pending institutional reservation requests. |
 | InstitutionalReservationConfirmationFacet | 1 | Confirms a pending institutional reservation request. |
@@ -328,13 +329,14 @@ function isLabListed(uint256 _labId) view returns (bool)
 
 ### LabReputationFacet
 
-<details><summary>6 function signatures</summary>
+<details><summary>7 function signatures</summary>
 
 ```solidity
 function adjustLabReputation(uint256 labId, int32 delta, string reason)
 function getLabRating(uint256 labId) view returns (int32 rating)
 function getLabReputation(uint256 labId) view returns (int32 score, uint32 totalEvents, uint32 ownerCancellations, uint64 lastUpdated)
 function getLabScore(uint256 labId) view returns (int32 score)
+function getLabFinalizationStatus(uint256 labId) view returns (uint256 activeReservationCount, uint256 payoutHeapLength, uint256 payoutHeapInvalidCount, uint256 oldestPayoutCandidateEnd, uint64 lastFinalizationAt)
 function setLabReputation(uint256 labId, int32 newScore, string reason)
 function tokenURIWithReputation(uint256 labId) view returns (string)
 ```
@@ -343,10 +345,9 @@ function tokenURIWithReputation(uint256 labId) view returns (string)
 
 ### ProviderSettlementFacet
 
-<details><summary>18 function signatures</summary>
+<details><summary>17 function signatures</summary>
 
 ```solidity
-function getLabProviderReceivable(uint256 _labId) view returns (uint256 attestedSessionPayout, uint256 potentialNoShowFee, uint256 pendingGraceReservationCount, uint256 accruedReceivable)
 function getLabProviderReceivableLifecycle(uint256 _labId) view returns (uint256 accruedReceivable, uint256 settlementQueued, uint256 invoicedReceivable, uint256 approvedReceivable, uint256 paidReceivable, uint256 reversedReceivable, uint256 disputedReceivable, uint256 lastAccruedAt)
 function getLabProviderReceivablePaginated(uint256 _labId, uint256 offset, uint256 limit) view returns (uint256 attestedSessionPayoutChunk, uint256 potentialNoShowFeeChunk, uint256 pendingGraceReservationCountChunk, uint256 accruedReceivableChunk, uint256 nextOffset, bool hasMore)
 function getLatestProviderSettlementBatch(uint256 _labId) view returns (bytes32 batchId)
@@ -364,6 +365,16 @@ function disputeSettlementClaim(bytes32 claimId, bytes32 referenceHash)
 function reverseSettlementClaim(bytes32 claimId, bytes32 referenceHash)
 function requestProviderPayout(uint256 _labId, uint256 maxBatch)
 function transitionProviderReceivableState(uint256 _labId, uint8 fromState, uint8 toState, uint256 amount, bytes32 referenceHash)
+```
+
+</details>
+
+### ReservationFinalizationFacet
+
+<details><summary>1 function signatures</summary>
+
+```solidity
+function finalizeEligibleReservations(uint256 labId, uint256 maxBatch) returns (uint256 finalizedCount)
 ```
 
 </details>
@@ -519,7 +530,7 @@ function markSessionStarted((address signer, bytes32 reservationKey, string labI
 
 ## Events
 
-The merged ABI exposes 85 events. Indexers should decode events from the same ABI artifact as the Diamond address.
+The merged ABI exposes 86 events. Indexers should decode events from the same ABI artifact as the Diamond address.
 
 ```solidity
 event DiamondCut((address facetAddress, uint8 action, bytes4[] functionSelectors)[] _diamondCut, address _init, bytes _calldata)
@@ -586,6 +597,7 @@ event ProviderSettlementScopeReferenced(bytes32 indexed batchId, uint256 indexed
 event TraceBHCheck(uint256 node, uint256 hl, uint256 hr, string context)
 event TraceRotateState(uint256 root, uint256 key, uint256 cursor, uint256 cursor_parent, uint256 key_parent)
 event TraceRotation(string step, uint256 key, uint256 cursor, uint256 cursorChild, uint256 parent)
+event ReservationFinalizationBatchProcessed(address indexed caller, uint256 indexed labId, uint256 finalizedCount, uint256 maxBatch, uint64 oldestCandidateEnd, uint64 processedAt, bool pendingGraceEncountered, bool scanLimitReached)
 event ReservationGenerationCreated(bytes32 indexed reservationId, bytes32 indexed reservationKey, uint256 indexed tokenId)
 event ReservationRequested(address indexed renter, uint256 indexed tokenId, uint256 start, uint256 end, bytes32 indexed reservationKey)
 event BookingCanceled(bytes32 indexed reservationKey, uint256 indexed tokenId)

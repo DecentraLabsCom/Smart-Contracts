@@ -233,12 +233,8 @@ three preview categories across pages; `accruedReceivableChunk` is populated
 only on the first page. The grace count is not included in the payout amount;
 the three monetary values are the actionable preview.
 
-`getLabProviderReceivable` is a deprecated compatibility selector. It performs
-the same preview with a recursive heap walk and now reverts when the heap is
-larger than 1,000 entries, so it cannot turn a single `eth_call` into an
-unbounded historical scan. Existing Diamonds must retain the selector until
-their consumers migrate, but new integrations must not call it. RPC operators
-should alert on selector `0x10b6ba8f` (`getLabProviderReceivable(uint256)`) and
-track it separately from selector `0x9441acce`
-(`getLabProviderReceivablePaginated(uint256,uint256,uint256)`) to identify
-remaining legacy clients.
+The former unpaginated `getLabProviderReceivable(uint256)` selector is not part
+of the current contract surface. Consumers must use selector `0x9441acce`
+(`getLabProviderReceivablePaginated(uint256,uint256,uint256)`). The upgrade cut
+must remove the former selector so no public read can trigger an unbounded
+historical heap scan.

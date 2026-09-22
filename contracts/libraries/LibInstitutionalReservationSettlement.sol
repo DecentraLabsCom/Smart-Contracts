@@ -120,6 +120,7 @@ library LibInstitutionalReservationSettlement {
 
         reservation.status = _SETTLED;
         LibReservationIdentity.snapshotCurrentReservation(s, key);
+        s.labReputation[labId].lastFinalizationAt = uint64(block.timestamp);
         if (previousStatus == _ACCESS_AUTHORIZED && sessionStartedRecorded) {
             LibReputation.recordCompletion(labId);
         }

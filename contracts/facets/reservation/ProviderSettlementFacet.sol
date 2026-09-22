@@ -59,10 +59,6 @@ contract ProviderSettlementFacet is ReentrancyGuardTransient {
     uint8 internal constant _BATCH_DISPUTED = 3;
     uint8 internal constant _BATCH_REVERSED = 4;
 
-    /// @dev Hard bound for the deprecated aggregate preview getter. Production
-    ///      consumers must use getLabProviderReceivablePaginated instead.
-    uint256 internal constant _LEGACY_RECEIVABLE_PREVIEW_MAX_HEAP = 1000;
-
     /// @notice Emitted when a provider payout request queues the lab's accrued provider receivable for settlement
     event ProviderPayoutRequested(
         address indexed provider, uint256 indexed labId, uint256 amount, uint256 reservationsProcessed
@@ -146,45 +142,7 @@ contract ProviderSettlementFacet is ReentrancyGuardTransient {
         _requestProviderPayout(_labId, maxBatch);
     }
 
-    /// @notice Deprecated bounded preview of provider receivables affected by the next payout request.
-    /// @dev Kept for compatibility with already deployed consumers. Production
-    ///      consumers must use getLabProviderReceivablePaginated. This selector
-    ///      reverts once the payout heap exceeds the legacy bound so an eth_call
-    ///      cannot scale with an unbounded reservation history. The fourth value
-    ///      includes all currently outstanding receivable lifecycle buckets.
-    ///      Pending grace reservations are intentionally a count, not a receivable
-    ///      amount, because they cannot be finalized by payout yet.
-    function getLabProviderReceivable(
-        uint256 _labId
-    )
-        external
-        view
-        returns (
-            uint256 attestedSessionPayout,
-            uint256 potentialNoShowFee,
-            uint256 pendingGraceReservationCount,
-            uint256 accruedReceivable
-        )
-    {
-        AppStorage storage s = _s();
-
-        accruedReceivable = _outstandingProviderReceivable(s, _labId);
-
-        uint256 currentTime = block.timestamp;
-        PayoutCandidate[] storage heap = s.payoutHeaps[_labId];
-        uint256 heapLength = heap.length;
-
-        if (heapLength > 0) {
-            require(heapLength <= _LEGACY_RECEIVABLE_PREVIEW_MAX_HEAP, "Use paginated receivable getter");
-            (uint256 pendingAttestedSessionPayout, uint256 pendingNoShowFee, uint256 pendingGraceReservations) =
-                _accumulatePayoutPreviewFromHeap(s, heap, heapLength, 0, currentTime, _labId);
-            attestedSessionPayout += pendingAttestedSessionPayout;
-            potentialNoShowFee += pendingNoShowFee;
-            pendingGraceReservationCount = pendingGraceReservations;
-        }
-    }
-
-    /// @notice Bounded/paginated variant of getLabProviderReceivable to avoid large eth_call executions.
+    /// @notice Bounded/paginated provider receivable preview.
     /// @dev Scans payout heap entries in [offset, offset+limit). To aggregate full pending values,
     ///      callers should iterate until hasMore=false, summing chunk outputs.
     ///      The already-accrued + already-requested provider receivable buckets are included only when offset == 0.
@@ -717,59 +675,6 @@ contract ProviderSettlementFacet is ReentrancyGuardTransient {
         // slither-disable-end timestamp
     }
 
-    /// @dev Traverses payout heap with pruning under a strict invariant:
-    ///      `heap` must be a strict min-heap ordered by `end` for all active nodes.
-    ///      Under that invariant, if `node.end > currentTime`, all descendants are also ineligible.
-    ///      Any heap rebuild, compaction, or update path must preserve this ordering assumption.
-    function _accumulatePayoutPreviewFromHeap(
-        AppStorage storage s,
-        PayoutCandidate[] storage heap,
-        uint256 heapLength,
-        uint256 nodeIndex,
-        uint256 currentTime,
-        uint256 labId
-    )
-        internal
-        view
-        returns (uint256 attestedSessionPayout, uint256 potentialNoShowFee, uint256 pendingGraceReservationCount)
-    {
-        if (nodeIndex >= heapLength) {
-            return (0, 0, 0);
-        }
-
-        PayoutCandidate storage candidate = heap[nodeIndex];
-        // Settlement eligibility is intentionally evaluated against chain time.
-        // slither-disable-next-line timestamp
-        if (candidate.end >= currentTime) {
-            return (0, 0, 0);
-        }
-
-        Reservation storage reservation = s.reservations[LibReservationIdentity.reservationKeyForId(s, candidate.key)];
-        (attestedSessionPayout, potentialNoShowFee, pendingGraceReservationCount) =
-            _previewPayoutCandidate(s, candidate, reservation, labId, currentTime);
-
-        uint256 left = nodeIndex * 2 + 1;
-        if (left < heapLength) {
-            (uint256 leftAttestedSessionPayout, uint256 leftPotentialNoShowFee, uint256 leftPendingGraceReservations) =
-                _accumulatePayoutPreviewFromHeap(s, heap, heapLength, left, currentTime, labId);
-            attestedSessionPayout += leftAttestedSessionPayout;
-            potentialNoShowFee += leftPotentialNoShowFee;
-            pendingGraceReservationCount += leftPendingGraceReservations;
-        }
-
-        uint256 right = left + 1;
-        if (right < heapLength) {
-            (
-                uint256 rightAttestedSessionPayout,
-                uint256 rightPotentialNoShowFee,
-                uint256 rightPendingGraceReservations
-            ) = _accumulatePayoutPreviewFromHeap(s, heap, heapLength, right, currentTime, labId);
-            attestedSessionPayout += rightAttestedSessionPayout;
-            potentialNoShowFee += rightPotentialNoShowFee;
-            pendingGraceReservationCount += rightPendingGraceReservations;
-        }
-    }
-
     function _previewPayoutCandidate(
         AppStorage storage s,
         PayoutCandidate storage candidate,
@@ -831,28 +736,9 @@ contract ProviderSettlementFacet is ReentrancyGuardTransient {
             revert("Not authorized");
         }
 
-        uint256 processed = 0;
         uint256 currentTime = block.timestamp;
-        bool pendingGraceEncountered = false;
-        bool scanLimitReached = false;
-        while (processed < maxBatch) {
-            (bytes32 key, bool pendingGrace, bool scanLimitReachedThisScan) =
-                _popExpiredReservationCandidate(s, _labId, currentTime);
-            // bytes32(0) is the explicit no-candidate sentinel returned by the heap.
-            // slither-disable-next-line incorrect-equality
-            if (key == bytes32(0)) {
-                pendingGraceEncountered = pendingGraceEncountered || (pendingGrace && scanLimitReachedThisScan);
-                scanLimitReached = scanLimitReached || scanLimitReachedThisScan;
-                break;
-            }
-            pendingGraceEncountered = pendingGraceEncountered || pendingGrace;
-            Reservation storage reservation = s.reservations[key];
-            if (_finalizeReservationFromPayoutHeap(s, key, reservation, _labId)) {
-                unchecked {
-                    ++processed;
-                }
-            }
-        }
+        (uint256 processed, bool pendingGraceEncountered, bool scanLimitReached) =
+            _finalizeEligibleReservationBatch(s, _labId, maxBatch, currentTime);
 
         // A prior finalizer may have already removed the reservation from the heap while
         // leaving its legitimate provider receivable in ACCRUED. Queue the whole bucket
@@ -875,6 +761,60 @@ contract ProviderSettlementFacet is ReentrancyGuardTransient {
 
         emit ProviderPayoutRequested(labOwner, _labId, providerPayout, processed);
         // slither-disable-end timestamp
+    }
+
+    function _finalizeEligibleReservationBatch(
+        AppStorage storage s,
+        uint256 labId,
+        uint256 maxBatch,
+        uint256 currentTime
+    ) internal returns (uint256 processed, bool pendingGraceEncountered, bool scanLimitReached) {
+        while (processed < maxBatch) {
+            (bytes32 key, bool pendingGrace, bool scanLimitReachedThisScan) =
+                _popExpiredReservationCandidate(s, labId, currentTime);
+            // bytes32(0) is the explicit no-candidate sentinel returned by the heap.
+            // slither-disable-next-line incorrect-equality
+            if (key == bytes32(0)) {
+                pendingGraceEncountered = pendingGraceEncountered || (pendingGrace && scanLimitReachedThisScan);
+                scanLimitReached = scanLimitReached || scanLimitReachedThisScan;
+                break;
+            }
+            pendingGraceEncountered = pendingGraceEncountered || pendingGrace;
+            Reservation storage reservation = s.reservations[key];
+            if (_finalizeReservationFromPayoutHeap(s, key, reservation, labId)) {
+                unchecked {
+                    ++processed;
+                }
+            }
+        }
+    }
+
+    /// @dev Finds one economically expired reservation without allowing a
+    ///      grace-pending candidate to block later attested sessions.
+    function _popExpiredReservationCandidate(
+        AppStorage storage s,
+        uint256 labId,
+        uint256 currentTime
+    ) internal returns (bytes32, bool, bool) {
+        (bytes32 reservationKey, bool pendingGraceEncountered, bool scanLimitReached) =
+            LibHeap.popEligiblePayoutCandidate(s, labId, currentTime);
+        return (reservationKey, pendingGraceEncountered, scanLimitReached);
+    }
+
+    /// @dev Delegates finalization to the shared institutional settlement path.
+    function _finalizeReservationFromPayoutHeap(
+        AppStorage storage s,
+        bytes32 key,
+        Reservation storage reservation,
+        uint256 labId
+    ) internal returns (bool) {
+        uint256 currentTime = block.timestamp;
+        if (LibInstitutionalReservationSettlement.finalizeProviderPayoutReservation(
+                s, key, reservation, labId, currentTime
+            )) {
+            return true;
+        }
+        return LibInstitutionalReservationSettlement.finalizeExpiredReservation(s, key, reservation, labId, currentTime);
     }
 
     function _createProviderSettlementBatch(
@@ -1046,33 +986,5 @@ contract ProviderSettlementFacet is ReentrancyGuardTransient {
         }
 
         revert("Invalid state");
-    }
-
-    /// @dev Finds one economically expired reservation without allowing a
-    ///      grace-pending candidate to block later attested sessions.
-    function _popExpiredReservationCandidate(
-        AppStorage storage s,
-        uint256 labId,
-        uint256 currentTime
-    ) internal returns (bytes32, bool, bool) {
-        (bytes32 reservationKey, bool pendingGraceEncountered, bool scanLimitReached) =
-            LibHeap.popEligiblePayoutCandidate(s, labId, currentTime);
-        return (reservationKey, pendingGraceEncountered, scanLimitReached);
-    }
-
-    /// @dev Delegates finalization to the shared institutional settlement path.
-    function _finalizeReservationFromPayoutHeap(
-        AppStorage storage s,
-        bytes32 key,
-        Reservation storage reservation,
-        uint256 labId
-    ) internal returns (bool) {
-        uint256 currentTime = block.timestamp;
-        if (LibInstitutionalReservationSettlement.finalizeProviderPayoutReservation(
-                s, key, reservation, labId, currentTime
-            )) {
-            return true;
-        }
-        return LibInstitutionalReservationSettlement.finalizeExpiredReservation(s, key, reservation, labId, currentTime);
     }
 }

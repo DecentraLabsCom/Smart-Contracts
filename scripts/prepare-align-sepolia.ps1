@@ -117,6 +117,7 @@ $simpleFacets = @(
 $linkedFacets = @(
     "contracts/facets/lab/LabFacet.sol:LabFacet",
     "contracts/facets/reservation/ProviderSettlementFacet.sol:ProviderSettlementFacet",
+    "contracts/facets/reservation/ReservationFinalizationFacet.sol:ReservationFinalizationFacet",
     "contracts/facets/reservation/ReservationDenialFacet.sol:ReservationDenialFacet",
     "contracts/facets/reservation/institutional/InstitutionalReservationConfirmationFacet.sol:InstitutionalReservationConfirmationFacet",
     "contracts/facets/reservation/institutional/InstitutionalReservationRequestValidationFacet.sol:InstitutionalReservationRequestValidationFacet",

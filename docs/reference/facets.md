@@ -14,7 +14,7 @@ exact deployment artifact they use.
 
 | Network | Chain ID | Diamond | Artifact timestamp |
 | --- | ---: | --- | --- |
-| sepolia | 11155111 | [0x1170d2D322Ff2cCeb20e6E79D2b3D2dfABFe6372](../../deployments/sepolia-latest.json) | 2026-09-23T17:37:00.000Z |
+| sepolia | 11155111 | [0x1170d2D322Ff2cCeb20e6E79D2b3D2dfABFe6372](../../deployments/sepolia-latest.json) | 2026-09-23T18:05:00.000Z |
 | Mainnet | 1 | — | No committed mainnet snapshot |
 
 The deployment script recognizes `sepolia` and `mainnet`; the repository does

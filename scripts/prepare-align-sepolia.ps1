@@ -59,7 +59,7 @@ function Get-Selectors {
     param([string]$Target)
     $manifestOutput = node scripts/selector-manifest.cjs --target $Target 2>&1
     if ($LASTEXITCODE -ne 0) {
-        throw "Could not load selector manifest for $Target: $manifestOutput"
+        throw "Could not load selector manifest for ${Target}: $manifestOutput"
     }
     $manifestEntries = $manifestOutput | ConvertFrom-Json
     return @($manifestEntries | ForEach-Object { $_.selector })
@@ -138,6 +138,10 @@ foreach ($c in $facetMap.Keys) {
 
 $desiredSelectors = @{}
 $facetSelectors = @{}
+# DiamondCutFacet is stored under the deployment `base` object rather than the
+# production facet map above. Preserve its owner-only routing selector while
+# removing stale application selectors.
+$preservedSelectors = @((cast sig "diamondCut((address,uint8,bytes4[])[],address,bytes)").Trim().ToLowerInvariant())
 
 foreach ($contract in $orderedContracts) {
     $addr = $facetMap[$contract]
@@ -200,6 +204,7 @@ foreach ($addr in $facetAddresses) {
 
 $remove = @()
 foreach ($sel in ($onchainSelectors | Select-Object -Unique)) {
+    if ($preservedSelectors -contains $sel.ToLowerInvariant()) { continue }
     if (-not $desiredSelectors.ContainsKey($sel)) {
         $remove += $sel
     }

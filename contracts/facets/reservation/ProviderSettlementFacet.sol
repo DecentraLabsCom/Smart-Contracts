@@ -744,6 +744,8 @@ contract ProviderSettlementFacet is ReentrancyGuardTransient {
         // leaving its legitimate provider receivable in ACCRUED. Queue the whole bucket
         // so provider collection does not depend on this call having finalized a row.
         uint256 providerPayout = s.providerReceivableAccrued[_labId];
+        // Both values are counters; zero is the deliberate no-work sentinel.
+        // slither-disable-next-line incorrect-equality
         if (providerPayout == 0 && processed == 0) {
             if (!scanLimitReached && !pendingGraceEncountered) revert("No settleable reservations");
             emit ProviderPayoutRequested(labOwner, _labId, 0, 0);
@@ -763,6 +765,9 @@ contract ProviderSettlementFacet is ReentrancyGuardTransient {
         // slither-disable-end timestamp
     }
 
+    // The helper receives chain-time data from the caller and intentionally
+    // propagates it through the heap candidate comparisons.
+    // slither-disable-start timestamp
     function _finalizeEligibleReservationBatch(
         AppStorage storage s,
         uint256 labId,
@@ -788,6 +793,8 @@ contract ProviderSettlementFacet is ReentrancyGuardTransient {
             }
         }
     }
+
+    // slither-disable-end timestamp
 
     /// @dev Finds one economically expired reservation without allowing a
     ///      grace-pending candidate to block later attested sessions.

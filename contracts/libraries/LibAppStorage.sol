@@ -495,7 +495,8 @@ library LibAppStorage {
     uint256 internal constant RAW_PER_EUR_CENT = RAW_PER_EUR / 100; // 1_000_000
 
     /// @notice Default spending limit for institutional users
-    uint256 internal constant DEFAULT_INSTITUTIONAL_USER_LIMIT = 100_000_000; // 10 credits with 7 decimals
+    /// @dev 200 credits with 7 decimals (20 EUR at 10 credits per EUR).
+    uint256 internal constant DEFAULT_INSTITUTIONAL_USER_LIMIT = 2_000_000_000;
 
     /// @notice Default spending period duration (120 days in seconds)
     uint256 internal constant DEFAULT_SPENDING_PERIOD = 120 days;

@@ -11,7 +11,7 @@ Prices, reservations and provider receivables use raw credit units.
 | Credit decimals | `7` | Display precision for one service credit. |
 | Raw units per credit | `10,000,000` | Conversion from whole credits to stored amount. |
 | Accounting reference | `10` credits/EUR | Reference used for configured funding and reporting paths. |
-| Default user limit | `100,000,000` raw units | Ten credits per institutional spending period. |
+| Default user limit | `2,000,000,000` raw units | 200 credits per institutional spending period. |
 | Default spending period | `120 days` | Used when an institution has not configured another duration. |
 
 Keep conversion at the integration boundary. A `LabBase.price` is a raw amount
@@ -112,12 +112,22 @@ the PUC-scoped spending allowance. The successful charge records the spending
 period used by that reservation, allowing a later refund to reconcile the same
 period correctly.
 
+For a paid reservation, the provider share is 70% of the lab price and the
+remaining 30% is the implicit platform margin. A zero-priced institutional
+reservation has no lab-price allocation: confirmation separately charges two
+credits when payer and provider are the same institution, or one credit for a
+cross-institutional booking. These fixed booking charges use the normal
+institutional spending accounting, are non-refundable, and do not create a
+provider receivable. Demo access does not create a reservation and therefore
+does not incur this charge.
+
 For an eligible consumer cancellation before the start time on a physical lab,
-the current policy charges a total fee of 10% with a minimum of 0.1 credits (or
-the entire price when it is lower). Three fifths of that fee go to the provider,
-equivalent to 6% of the price when the percentage fee applies; the remaining 4%
-is the implicit platform margin. Simulations have no cancellation fee and refund
-the full price. A zero-price reservation creates no credit movement. A
+the current policy charges a total fee of exactly 10% of the reservation price.
+Three fifths of that fee go to the provider, equivalent to 6% of the price; the
+remaining 4% is the implicit platform margin.
+Simulations have no cancellation fee and refund the full price. The separate
+fixed charge for a zero-priced institutional booking is outside this
+reservation-price settlement and is not reversed by the existing cancellation or no-show paths. A
 provider-initiated cancellation refunds the full price and does not accrue a
 provider cancellation fee. It does, however, affect lab reputation: a
 cancellation with at least 24 hours' notice applies -1, one with less than 24
@@ -161,9 +171,9 @@ decrement and index/heap cleanup. An `ACCESS_AUTHORIZED` reservation without
 `SessionStarted` is not refunded before the one-day grace period expires.
 
 For a physical lab without `SessionStarted` after that deadline, the no-show
-settlement retains 25%: 15% becomes provider receivable and 10% remains the
-implicit platform margin; the remaining 75% is refunded. A simulation without
-evidence is refunded in full.
+settlement retains exactly 25% of the reservation price: 15% becomes provider
+receivable and 10% remains the implicit platform margin. The remaining 75% is
+refunded. A simulation without evidence is refunded in full.
 
 ```mermaid
 stateDiagram-v2

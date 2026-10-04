@@ -5,6 +5,7 @@ import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet
 import {AppStorage, LibAppStorage, RecentReservationBuffer, Reservation} from "../../../libraries/LibAppStorage.sol";
 import {LibReservationConfig} from "../../../libraries/LibReservationConfig.sol";
 import {LibReservationIdentity} from "../../../libraries/LibReservationIdentity.sol";
+import {LibRevenue} from "../../../libraries/LibRevenue.sol";
 
 interface IInstitutionalTreasuryFacetLight {
     function checkInstitutionalTreasuryAvailability(
@@ -69,8 +70,11 @@ contract InstitutionalReservationRequestCreationFacet {
             pr = uint96(totalPrice);
         }
 
-        if (pr > 0) {
-            IInstitutionalTreasuryFacetLight(address(this)).checkInstitutionalTreasuryAvailability(i.p, i.u, pr);
+        uint96 reservationFee = LibRevenue.calculateInstitutionalReservationFee(pr, i.p, i.o);
+        uint256 treasuryAmount = uint256(pr) + uint256(reservationFee);
+        if (treasuryAmount > 0) {
+            IInstitutionalTreasuryFacetLight(address(this))
+                .checkInstitutionalTreasuryAvailability(i.p, i.u, treasuryAmount);
         }
 
         // Preserve the terminal record of a pre-generation reservation before

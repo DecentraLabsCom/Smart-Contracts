@@ -83,6 +83,10 @@ contract InstitutionalSpendingPeriodTest is BaseTest {
         inst = new InstitutionalTreasuryFacetHarness();
     }
 
+    function test_unset_user_limit_defaults_to_200_credits() public view {
+        assertEq(inst.getInstitutionalUserLimit(INST), 2_000_000_000);
+    }
+
     function test_spending_limit_and_period_reset() public {
         AppStorage storage s = LibAppStorage.diamondStorage();
 

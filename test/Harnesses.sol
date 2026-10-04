@@ -429,6 +429,10 @@ contract ConfirmHarness is InstitutionalReservationConfirmationFacet {
     bytes32 public lastSpentReservationKey;
     uint256 public lastSpentAmount;
 
+    address public lastGenericSpentInstitution;
+    bytes32 public lastGenericSpentPucHash;
+    uint256 public lastGenericSpentAmount;
+
     function spendFromInstitutionalTreasuryForReservation(
         address provider,
         bytes32 pucHash,
@@ -439,6 +443,17 @@ contract ConfirmHarness is InstitutionalReservationConfirmationFacet {
         lastSpentPucHash = pucHash;
         lastSpentReservationKey = reservationKey;
         lastSpentAmount = amount;
+        // succeed silently
+    }
+
+    function spendFromInstitutionalTreasury(
+        address institution,
+        bytes32 pucHash,
+        uint256 amount
+    ) external {
+        lastGenericSpentInstitution = institution;
+        lastGenericSpentPucHash = pucHash;
+        lastGenericSpentAmount = amount;
         // succeed silently
     }
 
@@ -498,12 +513,39 @@ contract ConfirmHarness is InstitutionalReservationConfirmationFacet {
         return s.reservations[key].end;
     }
 
+    function getReservationEconomics(
+        bytes32 key
+    ) external view returns (uint96 price, uint96 providerShare) {
+        Reservation storage reservation = LibAppStorage.diamondStorage().reservations[key];
+        return (reservation.price, reservation.providerShare);
+    }
+
+    function setLabPrice(
+        uint256 labId,
+        uint96 price
+    ) external {
+        LibAppStorage.diamondStorage().labs[labId].price = price;
+    }
+
     function setLabResourceType(
         uint256 labId,
         uint8 resourceType
     ) external {
         AppStorage storage s = LibAppStorage.diamondStorage();
         s.labs[labId].resourceType = resourceType;
+    }
+}
+
+contract ReservationLifecycleHarness is ConfirmHarness, InstitutionalReservationCancellationFacet {
+    uint256 public lastRefundAmount;
+
+    function refundToInstitutionalTreasuryForReservation(
+        address,
+        bytes32,
+        bytes32,
+        uint256 amount
+    ) external {
+        lastRefundAmount = amount;
     }
 }
 

@@ -20,6 +20,7 @@ contract ReservationIntentHarness is ReservationIntentFacet {
     bytes32 public lastRefundPucHash;
     bytes32 public lastRefundReservationKey;
     uint256 public lastRefundAmount;
+    uint256 public lastGenericSpentAmount;
 
     function setInstitution(
         address institution
@@ -238,6 +239,14 @@ contract ReservationIntentHarness is ReservationIntentFacet {
         lastRefundPucHash = pucHash;
         lastRefundReservationKey = reservationKey;
         lastRefundAmount = amount;
+    }
+
+    function spendFromInstitutionalTreasury(
+        address,
+        bytes32,
+        uint256 amount
+    ) external {
+        lastGenericSpentAmount = amount;
     }
 }
 

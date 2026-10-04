@@ -51,6 +51,162 @@ contract InstitutionalReservationConfirmationTest is BaseTest {
 
         assertEq(harness.getReservationStatus(key), _CONFIRMED);
         assertEq(harness.lastSpentAmount(), uint256(price));
+        assertEq(harness.lastGenericSpentAmount(), 0);
+        (uint96 storedPrice, uint96 providerShare) = harness.getReservationEconomics(key);
+        assertEq(storedPrice, price);
+        assertEq(providerShare, 35);
+    }
+
+    function test_confirm_zero_price_same_institution_spends_two_credits() public {
+        address inst = address(0x2222);
+        uint256 labId = 107;
+        uint32 start = 1234;
+        bytes32 key = keccak256(abi.encodePacked(labId, start));
+        string memory puc = "same-institution@inst";
+
+        harness.setReservation(key, user1, inst, 0, _PENDING, labId, start, puc);
+        harness.setOwner(labId, inst);
+        harness.setInstitutionRole(inst);
+        harness.setTokenStatus(labId, true);
+        harness.setProviderActive(inst);
+
+        vm.prank(inst);
+        harness.confirmInstitutionalReservationRequestWithPucHash(inst, key, keccak256(bytes(puc)));
+
+        assertEq(harness.getReservationStatus(key), _CONFIRMED);
+        assertEq(harness.lastSpentAmount(), 0);
+        assertEq(harness.lastGenericSpentInstitution(), inst);
+        assertEq(harness.lastGenericSpentAmount(), 20_000_000);
+        (uint96 storedPrice, uint96 providerShare) = harness.getReservationEconomics(key);
+        assertEq(storedPrice, 0);
+        assertEq(providerShare, 0);
+    }
+
+    function test_confirm_zero_price_cross_institution_spends_one_credit() public {
+        address inst = address(0x2222);
+        uint256 labId = 108;
+        uint32 start = 1234;
+        bytes32 key = keccak256(abi.encodePacked(labId, start));
+        string memory puc = "cross-institution@inst";
+
+        harness.setReservation(key, user1, inst, 0, _PENDING, labId, start, puc);
+        harness.setOwner(labId, provider);
+        harness.setInstitutionRole(inst);
+        harness.setTokenStatus(labId, true);
+        harness.setProviderActive(provider);
+
+        vm.prank(provider);
+        harness.confirmInstitutionalReservationRequestWithPucHash(inst, key, keccak256(bytes(puc)));
+
+        assertEq(harness.getReservationStatus(key), _CONFIRMED);
+        assertEq(harness.lastSpentAmount(), 0);
+        assertEq(harness.lastGenericSpentInstitution(), inst);
+        assertEq(harness.lastGenericSpentAmount(), 10_000_000);
+        (uint96 storedPrice, uint96 providerShare) = harness.getReservationEconomics(key);
+        assertEq(storedPrice, 0);
+        assertEq(providerShare, 0);
+    }
+
+    function test_lab_price_change_after_creation_does_not_change_paid_reservation_economics() public {
+        address inst = address(0x2222);
+        uint256 labId = 109;
+        uint32 start = 1234;
+        bytes32 key = keccak256(abi.encodePacked(labId, start));
+        string memory puc = "price-change-paid@inst";
+        uint96 reservationPrice = 50;
+
+        harness.setReservation(key, user1, inst, reservationPrice, _PENDING, labId, start, puc);
+        harness.setOwner(labId, provider);
+        harness.setLabPrice(labId, 999);
+        harness.setInstitutionRole(inst);
+        harness.setTokenStatus(labId, true);
+        harness.setProviderActive(provider);
+
+        vm.prank(provider);
+        harness.confirmInstitutionalReservationRequestWithPucHash(inst, key, keccak256(bytes(puc)));
+
+        assertEq(harness.lastSpentAmount(), reservationPrice);
+        (uint96 storedPrice, uint96 providerShare) = harness.getReservationEconomics(key);
+        assertEq(storedPrice, reservationPrice);
+        assertEq(providerShare, 35);
+    }
+
+    function test_lab_price_change_after_creation_does_not_change_cross_free_reservation_economics() public {
+        address inst = address(0x2222);
+        uint256 labId = 110;
+        uint32 start = 1234;
+        bytes32 key = keccak256(abi.encodePacked(labId, start));
+        string memory puc = "price-change-free@inst";
+
+        harness.setReservation(key, user1, inst, 0, _PENDING, labId, start, puc);
+        harness.setOwner(labId, provider);
+        harness.setLabPrice(labId, 999);
+        harness.setInstitutionRole(inst);
+        harness.setTokenStatus(labId, true);
+        harness.setProviderActive(provider);
+
+        vm.prank(provider);
+        harness.confirmInstitutionalReservationRequestWithPucHash(inst, key, keccak256(bytes(puc)));
+
+        assertEq(harness.lastSpentAmount(), 0);
+        assertEq(harness.lastGenericSpentAmount(), 10_000_000);
+        (uint96 storedPrice, uint96 providerShare) = harness.getReservationEconomics(key);
+        assertEq(storedPrice, 0);
+        assertEq(providerShare, 0);
+    }
+
+    function test_institutional_fixed_fee_is_not_refunded_on_same_institution_cancellation() public {
+        ReservationLifecycleHarness lifecycle = new ReservationLifecycleHarness();
+        address inst = address(0x2222);
+        address backend = address(0xBEEF);
+        uint256 labId = 111;
+        uint32 start = 1_000_100;
+        bytes32 key = keccak256(abi.encodePacked(labId, start));
+        string memory puc = "cancel-fixed-same@inst";
+
+        lifecycle.setReservation(key, user1, inst, 0, _PENDING, labId, start, puc);
+        lifecycle.setOwner(labId, inst);
+        lifecycle.setBackend(inst, backend);
+        lifecycle.setInstitutionRole(inst);
+        lifecycle.setTokenStatus(labId, true);
+        lifecycle.setProviderActive(inst);
+
+        vm.warp(1_000_000);
+        vm.prank(inst);
+        lifecycle.confirmInstitutionalReservationRequestWithPucHash(inst, key, keccak256(bytes(puc)));
+        assertEq(lifecycle.lastGenericSpentAmount(), 20_000_000);
+
+        vm.prank(backend);
+        lifecycle.cancelInstitutionalBookingWithPucHash(inst, key, keccak256(bytes(puc)));
+
+        assertEq(lifecycle.lastRefundAmount(), 0);
+    }
+
+    function test_institutional_fixed_fee_is_not_refunded_on_cross_free_cancellation() public {
+        ReservationLifecycleHarness lifecycle = new ReservationLifecycleHarness();
+        address inst = address(0x2222);
+        address backend = address(0xBEEF);
+        uint256 labId = 112;
+        uint32 start = 1_000_100;
+        bytes32 key = keccak256(abi.encodePacked(labId, start));
+        string memory puc = "cancel-fixed-cross@inst";
+
+        lifecycle.setReservation(key, user1, inst, 0, _PENDING, labId, start, puc);
+        lifecycle.setOwner(labId, provider);
+        lifecycle.setBackend(inst, backend);
+        lifecycle.setInstitutionRole(inst);
+        lifecycle.setTokenStatus(labId, true);
+        lifecycle.setProviderActive(provider);
+
+        vm.warp(1_000_000);
+        vm.prank(provider);
+        lifecycle.confirmInstitutionalReservationRequestWithPucHash(inst, key, keccak256(bytes(puc)));
+        assertEq(lifecycle.lastGenericSpentAmount(), 10_000_000);
+
+        vm.prank(backend);
+        lifecycle.cancelInstitutionalBookingWithPucHash(inst, key, keccak256(bytes(puc)));
+
+        assertEq(lifecycle.lastRefundAmount(), 0);
     }
 
     function test_payer_cannot_confirm_external_reservation() public {

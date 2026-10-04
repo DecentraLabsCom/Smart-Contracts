@@ -21,6 +21,12 @@ import {LibReservationDenyReason} from "./LibReservationDenyReason.sol";
 import {LibReservationIdentity} from "./LibReservationIdentity.sol";
 
 interface IInstitutionalTreasuryFacetConfirmLib {
+    function spendFromInstitutionalTreasury(
+        address institution,
+        bytes32 pucHash,
+        uint256 amount
+    ) external;
+
     function spendFromInstitutionalTreasuryForReservation(
         address institution,
         bytes32 pucHash,
@@ -117,14 +123,30 @@ library LibInstitutionalReservationConfirmation {
         }
 
         r.collectorInstitution = s.institutionalBackends[labProvider] != address(0) ? labProvider : address(0);
+        uint96 reservationFee =
+            LibRevenue.calculateInstitutionalReservationFee(r.price, r.payerInstitution, labProvider);
 
-        if (r.price == 0) {
+        if (r.price == 0 && reservationFee == 0) {
             _finalize(s, r, key, trackingKey);
             return;
         }
 
+        if (r.price > 0) {
+            try IInstitutionalTreasuryFacetConfirmLib(address(this))
+                .spendFromInstitutionalTreasuryForReservation(r.payerInstitution, pucHash, key, r.price) {
+                _finalize(s, r, key, trackingKey);
+            } catch {
+                LibReservationCancellation.cancelReservation(key);
+                emit ReservationRequestDenied(key, r.labId, LibReservationDenyReason.TREASURY_SPEND_FAILED);
+                emit ReservationRequestDeniedByGeneration(
+                    reservationId, key, r.labId, LibReservationDenyReason.TREASURY_SPEND_FAILED
+                );
+            }
+            return;
+        }
+
         try IInstitutionalTreasuryFacetConfirmLib(address(this))
-            .spendFromInstitutionalTreasuryForReservation(r.payerInstitution, pucHash, key, r.price) {
+            .spendFromInstitutionalTreasury(r.payerInstitution, pucHash, reservationFee) {
             _finalize(s, r, key, trackingKey);
         } catch {
             LibReservationCancellation.cancelReservation(key);

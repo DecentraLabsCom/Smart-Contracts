@@ -7,6 +7,20 @@ import "./Harnesses.sol";
 import "../contracts/libraries/LibRevenue.sol";
 
 contract RevenueHarness {
+    function calculateRevenueSplitPublic(
+        uint96 price
+    ) external pure returns (uint96) {
+        return LibRevenue.calculateRevenueSplit(price);
+    }
+
+    function calculateInstitutionalReservationFeePublic(
+        uint96 price,
+        address payerInstitution,
+        address labProvider
+    ) external pure returns (uint96) {
+        return LibRevenue.calculateInstitutionalReservationFee(price, payerInstitution, labProvider);
+    }
+
     function computeCancellationFeePublic(
         uint96 price
     ) external pure returns (uint96, uint96) {
@@ -99,7 +113,51 @@ contract FuzzReservationPucTest is BaseTest {
         uint96 price
     ) public {
         (uint96 providerFee, uint96 refund) = rev.computeNoShowSettlementPublic(price);
-        assert(uint256(providerFee) + uint256(price - refund) <= uint256(price));
+        assert(uint256(providerFee) + uint256(refund) <= uint256(price));
         assert(refund <= price);
+    }
+
+    function test_no_show_uses_exact_25_percent_for_normal_price() public {
+        (uint96 providerFee, uint96 refund) = rev.computeNoShowSettlementPublic(10_000_000);
+
+        assertEq(providerFee, 1_500_000);
+        assertEq(refund, 7_500_000);
+    }
+
+    function test_no_show_uses_exact_25_percent_for_small_price() public {
+        (uint96 providerFee, uint96 refund) = rev.computeNoShowSettlementPublic(1_000_000);
+
+        assertEq(providerFee, 150_000);
+        assertEq(refund, 750_000);
+    }
+
+    function test_no_show_uses_exact_25_percent_below_one_tenth_credit() public {
+        (uint96 providerFee, uint96 refund) = rev.computeNoShowSettlementPublic(500_000);
+
+        assertEq(providerFee, 75_000);
+        assertEq(refund, 375_000);
+    }
+
+    function test_cancellation_uses_exact_10_percent_for_small_price() public {
+        (uint96 providerFee, uint96 refund) = rev.computeCancellationFeePublic(1_000_000);
+
+        assertEq(providerFee, 60_000);
+        assertEq(refund, 900_000);
+    }
+
+    function test_normal_paid_reservation_keeps_70_percent_for_provider() public {
+        assertEq(rev.calculateRevenueSplitPublic(100), 70);
+    }
+
+    function test_zero_price_same_institution_costs_two_credits() public {
+        assertEq(rev.calculateInstitutionalReservationFeePublic(0, address(0xBEEF), address(0xBEEF)), 20_000_000);
+    }
+
+    function test_zero_price_cross_institution_costs_one_credit() public {
+        assertEq(rev.calculateInstitutionalReservationFeePublic(0, address(0xBEEF), address(0xCAFE)), 10_000_000);
+    }
+
+    function test_paid_reservation_has_no_additional_fixed_fee() public {
+        assertEq(rev.calculateInstitutionalReservationFeePublic(1, address(0xBEEF), address(0xCAFE)), 0);
     }
 }

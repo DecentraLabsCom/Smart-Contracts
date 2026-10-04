@@ -13,6 +13,12 @@ import {LibReservationIdentity} from "../contracts/libraries/LibReservationIdent
 contract InstitutionalReservationRequestCreationSecurityHarness is InstitutionalReservationRequestCreationFacet {
     using EnumerableSet for EnumerableSet.Bytes32Set;
 
+    function checkInstitutionalTreasuryAvailability(
+        address,
+        bytes32,
+        uint256
+    ) external pure {}
+
     function seedBackend(
         address institution,
         address backend

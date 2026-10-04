@@ -314,7 +314,7 @@ contract InstitutionalTreasuryFacet is
         _requireInstitution(institution);
         _requireAuthorizedBackendOrInternal(s, institution);
 
-        // Allow zero-price reservations (free labs)
+        // Allow zero-amount checks; zero-priced booking fees are passed separately.
         if (amount == 0) return;
 
         require(_availableTreasuryBalance(institution) >= amount, "Insufficient treasury balance");
@@ -352,7 +352,7 @@ contract InstitutionalTreasuryFacet is
         AppStorage storage s = LibAppStorage.diamondStorage();
         _requireInstitution(institution);
 
-        // Allow zero-price reservations (free labs) - skip all accounting for free reservations
+        // Allow zero-amount spends; zero-priced booking fees use this path with a non-zero amount.
         if (amount == 0) return;
 
         require(_availableTreasuryBalance(institution) >= amount, "Insufficient treasury balance");

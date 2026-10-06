@@ -57,8 +57,8 @@ npm run docs:check
 
 - `forge test` runs the Solidity unit, component and Diamond integration tests.
 - `forge test --match-path test/FullDiamondSurfaceIntegration.t.sol` runs the
-  production-cut proxy smoke tests. The fixture installs all 28 production
-  facets and checks all 201 selectors through the Diamond loupe.
+  production-cut proxy smoke tests. The fixture installs all 29 production
+  facets and checks all 202 selectors through the Diamond loupe.
 - `forge test --match-path test/FullDiamondPublicBehaviorIntegration.t.sol`
   exercises the public Diamond surface with behavior, authorization/error,
   ERC-721, institutional, reservation, settlement and fuzz tests.

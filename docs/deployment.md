@@ -106,6 +106,9 @@ For the service-credit scale migration, update raw balances through the ledger
 adjustment path and update each active lab price from its intended display price.
 Do not reuse five-decimal raw prices unchanged: the same numeric raw value would
 be interpreted as one hundredth of its former credit value after the migration.
+Off-chain human-readable balances and prices are outside this repository; their
+owners must migrate them to the same seven-decimal boundary before publishing
+the corresponding on-chain values.
 
 ## Verification and artifacts
 

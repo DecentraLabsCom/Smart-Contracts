@@ -55,20 +55,17 @@ side, cancelled through the institutional path, or released after its TTL.
 
 External-request confirmation may be submitted only by the current lab owner or
 its authorized backend. It checks the PUC binding, provider network status,
-listing and stop-intake state. For a priced booking it spends the payer
-institution's treasury and captures the current spending-period context; a
-failed treasury spend cancels the request. For a zero-priced institutional
-booking it instead charges two credits for a same-institution reservation or
-one credit for a cross-institutional reservation through the same spending
-period accounting. A same-institution own-lab intent
-can atomically request and confirm through the direct-booking path. The current
-lab owner or its authorized backend may execute that path, while the owner
-remains the payer/provider identity. It is a separate payer-authorized flow
-implemented by `institutionalDirectBookingWithIntent`, not by a direct
-administrative selector.
+listing and stop-intake state. It then captures the payer institution's
+applicable treasury charge and spending-period context; the economic rules for
+priced and zero-priced bookings are summarized in
+[Service credits and settlement](credits-and-settlement.md).
 
-The fixed zero-price booking charge is separate from the stored lab price and
-is not reversed by the existing cancellation or no-show settlement paths.
+A same-institution own-lab intent can atomically request and confirm through
+the direct-booking path. The current lab owner or its authorized backend may
+execute that path, while the owner remains the payer/provider identity. It is a
+separate payer-authorized flow implemented by
+`institutionalDirectBookingWithIntent`, not by a direct administrative
+selector.
 
 The effective decision deadline for a pending request is the earlier of its
 five-minute request TTL and `reservation.start`. The ten-minute creation lead
@@ -101,9 +98,9 @@ routing by itself.
 
 Confirmation inserts an exclusive (`resourceType = 0`) range into the interval
 calendar, queues the reservation for later settlement, and stores the provider
-share. Paid reservations store a provider share of 70% of their price; the
-remaining 30% is the implicit platform margin. A concurrent FMU resource
-(`resourceType = 1`) uses the same lifecycle
+share. See [Service credits and settlement](credits-and-settlement.md) for the
+provider/platform split and the distinct fixed-charge rules. A concurrent FMU
+resource (`resourceType = 1`) uses the same lifecycle
 without the exclusive-calendar conflict path and records active reservations in
 the concurrency index. The Diamond does not store or enforce a per-lab
 concurrent-user limit: overlapping FMU confirmations are valid on-chain, and
@@ -176,16 +173,14 @@ The normal institutional cancellation path is limited to a confirmed booking
 before its start time and requires the configured backend plus the matching PUC
 hash. The direct selectors `cancelInstitutionalReservationRequest` and
 `cancelInstitutionalBookingWithPucHash` are backend-only; the institution
-wallet is not an alternate executor. Physical labs charge exactly 10%;
-simulations refund 100%. A provider-side cancellation is
-separate: the current provider
-or its authorized backend must provide a non-zero reason code; the payer
-receives the full price and provider reputation is adjusted. At least 24 hours'
-notice is scored -1, less than 24 hours' notice is scored -2, and the explicit
-`PROVIDER_SERVICE_FAILURE` reason is scored -3. The latter is permitted for a
-confirmed or access-authorized reservation only while the attestation grace
-period is open and only when `SessionStarted` has not been recorded. Therefore
-an ordinary payer no-show is not itself treated as provider misconduct.
+wallet is not an alternate executor. See [Service credits and
+settlement](credits-and-settlement.md) for the current fee, refund and
+provider-reputation outcomes. A provider-side cancellation is separate: the
+current provider or its authorized backend must provide a non-zero reason code.
+The service-failure reason is allowed only for a confirmed or
+access-authorized reservation while the attestation grace period is open and
+when `SessionStarted` has not been recorded; an ordinary payer no-show is not
+itself provider misconduct.
 
 For a pending external request, only the current ERC-721 lab owner or the
 backend currently authorized by that owner may deny. The payer institution and

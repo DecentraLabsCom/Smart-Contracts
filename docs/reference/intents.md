@@ -76,8 +76,8 @@ Action `11` is implemented by `institutionalDirectBookingWithIntent`.
 WebAuthn is verified by the institutional backend before intent execution; it
 is not verified by `LibIntent` or by the Diamond. The former direct
 institution/backend reservation selector is not part of the production
-surface.
-Action payloads bind the
+surface; see [Institutional access](../institutional-access.md) for the
+trust-boundary rationale. Action payloads bind the
 same identity context plus the lab administration or cancellation fields. The
 reservation intent facet independently recalculates the reservation key and
 price from live lab state before acting.

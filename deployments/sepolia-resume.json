@@ -7,7 +7,7 @@
     "Diamond": "0x1170d2D322Ff2cCeb20e6E79D2b3D2dfABFe6372",
     "RivalIntervalTreeLibrary": "0x7be46FFf0566EC750a437a9a167bc2A3f753A536",
     "LibLabTransfer": "0xa70282ACC4c128383d3Ad4edF4a8582E877ec892",
-    "LibInstitutionalReservationConfirmation": "0x03B8ffa248552610df46A6C2058eA0FbC70977d6",
+    "LibInstitutionalReservationConfirmation": "0xa2b9C157Bc069dC1E475082c535096e4faE71f7c",
     "LibReservationConfirmation": "0xD99Baca7baF0C82b5d858C1ED95aD5a46971e9C4",
     "LibInstitutionalReservationRequestValidation": "0x6931c7eAFf92365b5B981006eBb7AA06820F7746",
     "LibInstitutionalReservationRelease": "0x10688131820BFFAC9E486383980B8ab7cB6d729F"
@@ -23,15 +23,15 @@
     "contracts/facets/reservation/institutional/InstitutionalOrgRegistryFacet.sol:InstitutionalOrgRegistryFacet": "0x461Ee020C3007Dff92Cb05a75F10A06D13fc551A",
     "contracts/facets/reservation/institutional/InstitutionalTreasuryFacet.sol:InstitutionalTreasuryFacet": "0x2fDE6903396b006A28ADcc5EB58067986F42d7B8",
     "contracts/facets/lab/LabFacet.sol:LabFacet": "0xCC8648B4Cb2eE16A9967eFeBaEc0d9Bd3281e17E",
-    "contracts/facets/lab/LabAdminFacet.sol:LabAdminFacet": "0xc9cd9110BEB2238520377182ea4c3F922F2db729",
+    "contracts/facets/lab/LabAdminFacet.sol:LabAdminFacet": "0x5ee73EA020d5a52201E82F7A791676f5979Ea819",
     "contracts/facets/lab/LabIntentFacet.sol:LabIntentFacet": "0x34F038eb897b1495C4b2734e067249B2A6902368",
     "contracts/facets/lab/LabQueryFacet.sol:LabQueryFacet": "0x61311Be0496e82A3f330D0F527fb78a7A0D2aA5A",
     "contracts/facets/lab/LabReputationFacet.sol:LabReputationFacet": "0xc13ABE01660572e0695A7983B12E9A2509A1C572",
     "contracts/facets/reservation/ProviderSettlementFacet.sol:ProviderSettlementFacet": "0x29Eab450Af07FF0BF6b9727d78c1cE613AeAc8Af",
     "contracts/facets/reservation/ReservationFinalizationFacet.sol:ReservationFinalizationFacet": "0x4B3f9A7aF6854Ee8baa6c2Bc90AEc1fDd567CdCc",
     "contracts/facets/reservation/institutional/InstitutionalReservationRequestValidationFacet.sol:InstitutionalReservationRequestValidationFacet": "0x7B7c119549F47c5C303804909aC1Dad969f31829",
-    "contracts/facets/reservation/institutional/InstitutionalReservationRequestCreationFacet.sol:InstitutionalReservationRequestCreationFacet": "0x1e1A0242637CD1656ff7C20E52916A5457462dE8",
-    "contracts/facets/reservation/institutional/InstitutionalReservationConfirmationFacet.sol:InstitutionalReservationConfirmationFacet": "0x954FA4fce32325C6423D6e378ff481d9aDa99D48",
+    "contracts/facets/reservation/institutional/InstitutionalReservationRequestCreationFacet.sol:InstitutionalReservationRequestCreationFacet": "0x02d43a07CB22221A6c9c1c7a9D40336026A49Dc5",
+    "contracts/facets/reservation/institutional/InstitutionalReservationConfirmationFacet.sol:InstitutionalReservationConfirmationFacet": "0xd9AC4D40a114EC0982834D1F11Ff0Cb3B4Aad7Ca",
     "contracts/facets/reservation/institutional/InstitutionalReservationCancellationFacet.sol:InstitutionalReservationCancellationFacet": "0xb8B8459014572f0C2931FE4cc318531A52ba0e11",
     "contracts/facets/reservation/institutional/InstitutionalReservationQueryFacet.sol:InstitutionalReservationQueryFacet": "0xd15bDE7749Ace356e898cc1ac39bD582397E2CA2",
     "contracts/facets/reservation/institutional/InstitutionalReservationFacet.sol:InstitutionalReservationFacet": "0xd1b20AC94e1D75d9450Af957cfC9D10f4c77A966",
@@ -39,7 +39,7 @@
     "contracts/facets/reservation/ReservationSessionFacet.sol:ReservationSessionFacet": "0xE8db70d8bd5EEc44b9D903455CD2e5908014cd35",
     "contracts/facets/reservation/ReservationStatsFacet.sol:ReservationStatsFacet": "0x1EaC0c2898705685Fe90022A6A6b394831f66C19",
     "contracts/facets/reservation/ReservationDenialFacet.sol:ReservationDenialFacet": "0xeeeB98bB27fF9ccE9272abd9aFCD322e0348B844",
-    "contracts/facets/reservation/ReservationIntentFacet.sol:ReservationIntentFacet": "0x5ac2eB3387C14899faa978E3A4BbbDABFB34C317",
+    "contracts/facets/reservation/ReservationIntentFacet.sol:ReservationIntentFacet": "0xd124751fDC792fc373AA381D9A4a940eEfeFb375",
     "contracts/facets/reservation/ReservationIntentCancellationFacet.sol:ReservationIntentCancellationFacet": "0x79e88C2e6bD4f4c51d488422c57dFEA97cb61bFC"
   }
 }

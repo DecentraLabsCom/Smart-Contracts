@@ -115,9 +115,9 @@ contract ReservationIntentFacet {
         LibIntent.consumeIntent(requestId, action, payloadHash, msg.sender);
     }
 
-    /// @dev Own-institution reservations follow the same zero-price rule as
-    /// InstitutionalReservationRequestCreationFacet. Keep the intent
-    /// validation aligned with the reservation record that is created later.
+    /// @dev Own-institution reservations are always zero-priced, independent
+    /// of backend configuration. Keep intent validation aligned with the
+    /// reservation record that is created later.
     function _reservationPrice(
         AppStorage storage s,
         address institution,
@@ -125,7 +125,7 @@ contract ReservationIntentFacet {
         uint32 start,
         uint32 end
     ) internal view returns (uint96) {
-        if (s.institutionalBackends[institution] != address(0) && LibERC721Storage.ownerOf(labId) == institution) {
+        if (LibERC721Storage.ownerOf(labId) == institution) {
             return 0;
         }
 

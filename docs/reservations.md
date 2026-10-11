@@ -8,13 +8,17 @@ forbidden by `selectors/diamond.json`; consumers should not build new flows on
 them.
 
 A reservation stores lab, renter/tracking identity, payer and collector
-institutions, price, provider share, timestamps and lifecycle status. For
-institutional paths the public reservation key is derived from `labId`, `start`
-and the PUC hash. It identifies the currently occupied slot. Every accepted
-request also receives a unique immutable `reservationId`; credit allocations,
-expiry, spending-period markers, sessions, payout heaps and historical
-snapshots use that generation id so a cancelled slot can be reused safely.
-Use `getReservationId` and `getReservationById` for generation-aware reads.
+institutions, price, provider share, timestamps and lifecycle status. For a
+paid reservation, the platform commission is 40% by default and the provider
+share is 60%; an approved per-lab agreement can change that split. See
+[Service credits and settlement](credits-and-settlement.md) for the commission
+and fixed-fee rules. For institutional paths the public reservation key is
+derived from `labId`, `start` and the PUC hash. It identifies the currently
+occupied slot. Every accepted request also receives a unique immutable
+`reservationId`; credit allocations, expiry, spending-period markers, sessions,
+payout heaps and historical snapshots use that generation id so a cancelled
+slot can be reused safely. Use `getReservationId` and `getReservationById` for
+generation-aware reads.
 
 ## Lifecycle
 
@@ -65,7 +69,8 @@ the direct-booking path. The current lab owner or its authorized backend may
 execute that path, while the owner remains the payer/provider identity. It is a
 separate payer-authorized flow implemented by
 `institutionalDirectBookingWithIntent`, not by a direct administrative
-selector.
+selector. All same-institution own-lab reservations have zero lab price and
+incur the fixed four-credit booking fee on confirmation.
 
 The effective decision deadline for a pending request is the earlier of its
 five-minute request TTL and `reservation.start`. The ten-minute creation lead

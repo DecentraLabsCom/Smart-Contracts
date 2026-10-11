@@ -1,22 +1,24 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 pragma solidity ^0.8.31;
 
-import {LibAppStorage} from "./LibAppStorage.sol";
+import {AppStorage, LibAppStorage} from "./LibAppStorage.sol";
 
 /// @title LibRevenue - Revenue and fee calculations
-/// @dev Library for pure calculations to reduce facet bytecode.
+/// @dev Shared revenue calculations to reduce facet bytecode.
 ///      Only provider amounts are tracked on-chain; the platform margin is
 ///      implicit and computed off-chain.
 library LibRevenue {
     uint256 internal constant REVENUE_DENOMINATOR = 100;
-    uint256 internal constant REVENUE_PROVIDER = 70;
+    uint256 internal constant COMMISSION_DENOMINATOR_BPS = 10_000;
+    uint16 internal constant DEFAULT_LAB_COMMISSION_BPS = 4000;
+    uint16 internal constant MAX_LAB_COMMISSION_BPS = 10_000;
 
     /// @dev Fixed platform booking fee for zero-priced institutional reservations.
-    ///      Same-institution reservations cost two credits; cross-institutional
-    ///      reservations cost one credit. These fees are charged separately
-    ///      from the lab price and are therefore non-refundable booking charges.
-    uint256 internal constant SAME_INSTITUTION_RESERVATION_FEE = LibAppStorage.RAW_PER_CREDIT * 2;
-    uint256 internal constant CROSS_INSTITUTION_RESERVATION_FEE = LibAppStorage.RAW_PER_CREDIT;
+    ///      Own-lab internal reservations are always zero-priced and cost four
+    ///      credits; free cross-institutional reservations cost two credits.
+    ///      These fees are separate from lab price and are non-refundable.
+    uint256 internal constant SAME_INSTITUTION_RESERVATION_FEE = LibAppStorage.RAW_PER_CREDIT * 4;
+    uint256 internal constant CROSS_INSTITUTION_RESERVATION_FEE = LibAppStorage.RAW_PER_CREDIT * 2;
 
     // Physical-lab pre-start cancellation: 10% total, split 6% provider / 4% platform.
     uint256 internal constant CANCEL_FEE_TOTAL = 10;
@@ -38,21 +40,34 @@ library LibRevenue {
         return uint96(raw);
     }
 
+    function getLabReservationCommissionBps(
+        uint256 labId
+    ) internal view returns (uint16) {
+        AppStorage storage s = LibAppStorage.diamondStorage();
+        if (s.labReservationCommissionOverride[labId]) {
+            return s.labReservationCommissionBps[labId];
+        }
+        return DEFAULT_LAB_COMMISSION_BPS;
+    }
+
     function calculateRevenueSplit(
+        uint256 labId,
         uint96 price
-    ) internal pure returns (uint96 providerShare) {
+    ) internal view returns (uint96 providerShare) {
         if (price == 0) {
             return 0;
         }
 
-        providerShare = _safeScaledShare(price, REVENUE_PROVIDER, REVENUE_DENOMINATOR);
+        uint256 commissionBps = getLabReservationCommissionBps(labId);
+        uint256 providerShareBps = COMMISSION_DENOMINATOR_BPS - commissionBps;
+        providerShare = _safeScaledShare(price, providerShareBps, COMMISSION_DENOMINATOR_BPS);
     }
 
     /// @notice Calculates the platform charge for an institutional reservation.
-    /// @dev Priced reservations pay the lab price only. A zero-priced reservation
-    ///      pays a fixed fee based on whether payer and provider are the same
-    ///      institution. Demo labs do not create institutional reservations and
-    ///      consequently never reach this calculation.
+    /// @dev Priced reservations pay the lab price only. Own-lab internal
+    ///      reservations are zero-priced and pay four credits; a zero-priced
+    ///      cross-institutional reservation pays two credits. Demo labs do not
+    ///      create institutional reservations and never reach this calculation.
     function calculateInstitutionalReservationFee(
         uint96 price,
         address payerInstitution,

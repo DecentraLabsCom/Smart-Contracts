@@ -8,9 +8,10 @@ import "../contracts/libraries/LibRevenue.sol";
 
 contract RevenueHarness {
     function calculateRevenueSplitPublic(
+        uint256 labId,
         uint96 price
-    ) external pure returns (uint96) {
-        return LibRevenue.calculateRevenueSplit(price);
+    ) external view returns (uint96) {
+        return LibRevenue.calculateRevenueSplit(labId, price);
     }
 
     function calculateInstitutionalReservationFeePublic(
@@ -145,16 +146,16 @@ contract FuzzReservationPucTest is BaseTest {
         assertEq(refund, 900_000);
     }
 
-    function test_normal_paid_reservation_keeps_70_percent_for_provider() public {
-        assertEq(rev.calculateRevenueSplitPublic(100), 70);
+    function test_normal_paid_reservation_keeps_60_percent_for_provider_by_default() public {
+        assertEq(rev.calculateRevenueSplitPublic(1, 100), 60);
     }
 
-    function test_zero_price_same_institution_costs_two_credits() public {
-        assertEq(rev.calculateInstitutionalReservationFeePublic(0, address(0xBEEF), address(0xBEEF)), 20_000_000);
+    function test_zero_price_same_institution_costs_four_credits() public {
+        assertEq(rev.calculateInstitutionalReservationFeePublic(0, address(0xBEEF), address(0xBEEF)), 40_000_000);
     }
 
-    function test_zero_price_cross_institution_costs_one_credit() public {
-        assertEq(rev.calculateInstitutionalReservationFeePublic(0, address(0xBEEF), address(0xCAFE)), 10_000_000);
+    function test_zero_price_cross_institution_costs_two_credits() public {
+        assertEq(rev.calculateInstitutionalReservationFeePublic(0, address(0xBEEF), address(0xCAFE)), 20_000_000);
     }
 
     function test_paid_reservation_has_no_additional_fixed_fee() public {

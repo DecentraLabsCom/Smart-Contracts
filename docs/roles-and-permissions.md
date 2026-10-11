@@ -9,7 +9,7 @@ backend key.
 | Actor or role | Authority | Important limit |
 | --- | --- | --- |
 | Diamond owner | Executes `diamondCut` and privileged initialization | Does not replace application-role checks inside facets. |
-| Default admin | Onboards/removes providers and institutions; administers credits and other protected operations | Must not be used as a general backend wallet. |
+| Default admin | Onboards/removes providers and institutions; administers credits, lab reservation commissions and other protected operations | Records approved per-lab commission agreements; must not be used as a general backend wallet. |
 | Provider | Creates labs and maintains its provider profile | A lab's ERC-721 owner controls owner-sensitive lab operations. |
 | Institution | Owns its treasury, spending policy and institutional reservation context | An organization name alone does not authorize a transaction. |
 | Authorized backend | Executes the institution/provider paths explicitly delegated to its address | It is a delegate, not a new economic owner. |

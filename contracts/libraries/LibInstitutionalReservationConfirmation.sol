@@ -200,7 +200,7 @@ library LibInstitutionalReservationConfirmation {
     function _setReservationSplit(
         Reservation storage reservation
     ) private {
-        reservation.providerShare = LibRevenue.calculateRevenueSplit(reservation.price);
+        reservation.providerShare = LibRevenue.calculateRevenueSplit(reservation.labId, reservation.price);
     }
 
     function _incrementActiveReservationCounters(

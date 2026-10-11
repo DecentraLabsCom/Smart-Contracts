@@ -56,7 +56,7 @@ import {ReservationSessionFacet} from "../contracts/facets/reservation/Reservati
 /// helpers as part of the production surface.
 abstract contract FullDiamondFixture {
     uint256 internal constant PRODUCTION_FACET_COUNT = 29;
-    uint256 internal constant PRODUCTION_SELECTOR_COUNT = 202;
+    uint256 internal constant PRODUCTION_SELECTOR_COUNT = 205;
 
     function _deployFullDiamond() internal returns (Diamond diamond) {
         address[] memory implementations = _deployFacetImplementations();
@@ -310,14 +310,17 @@ abstract contract FullDiamondFixture {
     }
 
     function _LabAdminSelectors() private pure returns (bytes4[] memory selectors) {
-        selectors = new bytes4[](7);
+        selectors = new bytes4[](10);
         selectors[0] = _selector("addAndListLabWithPucHash(string,uint96,string,string,uint8,bytes32)");
         selectors[1] = _selector("addLabWithPucHash(string,uint96,string,string,uint8,bytes32)");
-        selectors[2] = _selector("deleteLab(uint256)");
-        selectors[3] = _selector("listLab(uint256)");
-        selectors[4] = _selector("setTokenURI(uint256,string)");
-        selectors[5] = _selector("unlistLab(uint256)");
-        selectors[6] = _selector("updateLab(uint256,string,uint96,string,string,uint8)");
+        selectors[2] = _selector("clearLabReservationCommission(uint256)");
+        selectors[3] = _selector("deleteLab(uint256)");
+        selectors[4] = _selector("getLabReservationCommission(uint256)");
+        selectors[5] = _selector("listLab(uint256)");
+        selectors[6] = _selector("setLabReservationCommission(uint256,uint16)");
+        selectors[7] = _selector("setTokenURI(uint256,string)");
+        selectors[8] = _selector("unlistLab(uint256)");
+        selectors[9] = _selector("updateLab(uint256,string,uint96,string,string,uint8)");
     }
 
     function _LabIntentSelectors() private pure returns (bytes4[] memory selectors) {

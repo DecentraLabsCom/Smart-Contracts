@@ -60,7 +60,9 @@ contract InstitutionalReservationRequestCreationFacet {
         }
         address hc = s.institutionalBackends[i.o];
         uint96 pr;
-        if (hc != address(0) && i.p == i.o) {
+        // An institution's own-lab reservation is always free of lab price.
+        // The fixed same-institution booking charge is applied separately.
+        if (i.p == i.o) {
             pr = 0;
         } else {
             uint96 pricePerSecond = s.labs[i.l].price;

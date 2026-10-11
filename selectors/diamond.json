@@ -176,8 +176,11 @@
       "functions": [
         "addAndListLabWithPucHash(string,uint96,string,string,uint8,bytes32)",
         "addLabWithPucHash(string,uint96,string,string,uint8,bytes32)",
+        "clearLabReservationCommission(uint256)",
         "deleteLab(uint256)",
+        "getLabReservationCommission(uint256)",
         "listLab(uint256)",
+        "setLabReservationCommission(uint256,uint16)",
         "setTokenURI(uint256,string)",
         "unlistLab(uint256)",
         "updateLab(uint256,string,uint96,string,string,uint8)"

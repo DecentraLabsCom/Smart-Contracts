@@ -78,6 +78,26 @@ operational handover only after all reservation obligations are terminal.
 The numeric on-chain value is authoritative. Metadata can describe capacity,
 but cannot turn an exclusive lab into a concurrent resource.
 
+## Reservation commission
+
+The platform commission on a paid reservation is 40% by default, leaving 60%
+of the lab price as the provider share. A particular lab may negotiate a lower
+rate based on its commercial circumstances, such as high equipment value,
+purchase or operating cost, size, capacity or specialized maintenance. The
+contract does not determine eligibility from metadata or lab attributes; after
+the platform and provider agree on a rate, a default admin records it with
+`setLabReservationCommission(labId, commissionBps)`. For example, `2,500` sets
+a 25% platform commission and a 75% provider share. Use
+`getLabReservationCommission` to read the effective rate and whether it is an
+override.
+
+An override takes effect for reservations confirmed after the update. It has no
+automatic expiration; use `clearLabReservationCommission(labId)` to restore the
+40% default when the negotiated term ends. Existing confirmed reservations
+retain the provider share stored at their confirmation. Fixed booking charges
+are separate from this commission: an internal own-lab booking always incurs
+four credits, while a free booking at an external lab incurs two credits.
+
 ## Reputation
 
 `LabReputationFacet` exposes score, rating and event counters. A completed

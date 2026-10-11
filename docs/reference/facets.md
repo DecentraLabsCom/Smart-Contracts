@@ -22,7 +22,7 @@ not claim a mainnet address until a reviewed artifact is committed.
 
 ## Facet map
 
-The manifest contains 29 facets and 202 public functions.
+The manifest contains 29 facets and 205 public functions.
 The selector manifest also lists internal routing functions and explicitly
 forbidden legacy selectors; those are not callable public API.
 
@@ -39,7 +39,7 @@ forbidden legacy selectors; those are not callable public API.
 | InstitutionalOrgRegistryFacet | 14 | Maps normalized organization identifiers to institutions and backend URLs. |
 | InstitutionalTreasuryFacet | 18 | Manages institutional backend delegation, limits and treasury spending. |
 | LabFacet | 27 | Provides ERC-721 lab ownership, listing and core lab operations. |
-| LabAdminFacet | 7 | Creates, updates and administers labs with creator identity checks. |
+| LabAdminFacet | 10 | Creates, updates and administers labs with creator identity checks. |
 | LabIntentFacet | 7 | Executes lab administration through registered intents. |
 | LabQueryFacet | 11 | Reads lab configuration, availability and paginated lab state. |
 | LabReputationFacet | 7 | Reads reputation and bounded reservation-finalization freshness state. |
@@ -277,13 +277,16 @@ function userOfReservation(bytes32 _reservationKey) view returns (address)
 
 ### LabAdminFacet
 
-<details><summary>7 function signatures</summary>
+<details><summary>10 function signatures</summary>
 
 ```solidity
 function addAndListLabWithPucHash(string _uri, uint96 _price, string _accessUri, string _accessKey, uint8 _resourceType, bytes32 pucHash)
 function addLabWithPucHash(string _uri, uint96 _price, string _accessUri, string _accessKey, uint8 _resourceType, bytes32 pucHash)
+function clearLabReservationCommission(uint256 labId)
 function deleteLab(uint256 _labId)
+function getLabReservationCommission(uint256 labId) view returns (uint16 commissionBps, bool hasOverride)
 function listLab(uint256 _labId)
+function setLabReservationCommission(uint256 labId, uint16 commissionBps)
 function setTokenURI(uint256 _labId, string _tokenUri)
 function unlistLab(uint256 _labId)
 function updateLab(uint256 _labId, string _uri, uint96 _price, string _accessUri, string _accessKey, uint8 _resourceType)
@@ -530,7 +533,7 @@ function markSessionStarted((address signer, bytes32 reservationKey, string labI
 
 ## Events
 
-The merged ABI exposes 86 events. Indexers should decode events from the same ABI artifact as the Diamond address.
+The merged ABI exposes 88 events. Indexers should decode events from the same ABI artifact as the Diamond address.
 
 ```solidity
 event DiamondCut((address facetAddress, uint8 action, bytes4[] functionSelectors)[] _diamondCut, address _init, bytes _calldata)
@@ -580,6 +583,8 @@ event Transfer(address indexed from, address indexed to, uint256 indexed tokenId
 event LabAdded(uint256 indexed _labId, address indexed _provider, string _uri, uint96 _price, string _accessUri, string _accessKey, uint8 _resourceType)
 event LabCreatorPucHashBound(uint256 indexed labId, bytes32 indexed pucHash, address indexed actor)
 event LabListed(uint256 indexed _labId, address indexed _provider)
+event LabReservationCommissionReset(uint256 indexed labId, uint16 previousCommissionBps)
+event LabReservationCommissionUpdated(uint256 indexed labId, uint16 previousCommissionBps, uint16 newCommissionBps)
 event LabUnlisted(uint256 indexed _labId, address indexed _provider)
 event LabUpdated(uint256 indexed _labId, string _uri, uint96 _price, string _accessUri, string _accessKey, uint8 _resourceType)
 event LabReputationAdjusted(uint256 indexed labId, int32 delta, int32 newScore, uint32 totalEvents, string reason)
@@ -623,7 +628,7 @@ event ReservationSessionStartedByGeneration(bytes32 indexed reservationId, bytes
 
 ## Custom errors
 
-The merged ABI exposes 100 custom errors. A reverted call may still use a string reason; clients should support both ABI error decoding and ordinary revert strings.
+The merged ABI exposes 103 custom errors. A reverted call may still use a string reason; clients should support both ABI error decoding and ordinary revert strings.
 
 ```solidity
 error CannotAddFunctionToDiamondThatAlreadyExists(bytes4 _selector)
@@ -700,7 +705,10 @@ error ERC721NonexistentToken(uint256 tokenId)
 error InvalidAvailabilityPage()
 error ReservationNotFound()
 error TokenNotFound()
+error CommissionBpsOutOfRange(uint16 commissionBps)
+error CommissionLabDoesNotExist(uint256 labId)
 error LabCreatorHashRequired()
+error UnauthorizedCommissionAdmin()
 error ActionMismatch()
 error ExecutorMismatch()
 error LabCreatorMismatch(uint256 labId)

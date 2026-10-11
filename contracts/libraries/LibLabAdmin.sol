@@ -129,6 +129,8 @@ library LibLabAdmin {
         ILabFacetMint(address(this)).burnToken(_labId);
         _removeActiveLabFromIndex(s, _labId);
         delete s.labs[_labId];
+        delete s.labReservationCommissionBps[_labId];
+        delete s.labReservationCommissionOverride[_labId];
         emit LabDeleted(_labId);
     }
 

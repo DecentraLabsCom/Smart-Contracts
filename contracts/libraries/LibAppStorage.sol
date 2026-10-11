@@ -408,6 +408,10 @@ struct AppStorage {
     mapping(address account => mapping(bytes32 reservationId => bool)) creditReservationAllocationsFinalized;
     mapping(address account => mapping(bytes32 reservationId => mapping(uint256 allocationIndex => bool)))
         creditReservationAllocationReferenceReleased;
+
+    // Per-lab override for the platform commission on future paid reservations.
+    mapping(uint256 labId => uint16 commissionBps) labReservationCommissionBps;
+    mapping(uint256 labId => bool hasOverride) labReservationCommissionOverride;
 }
 
 /// @notice Provider participation status within the limited service network

@@ -112,24 +112,56 @@ the PUC-scoped spending allowance. The successful charge records the spending
 period used by that reservation, allowing a later refund to reconcile the same
 period correctly.
 
-For a paid reservation, the provider share is 70% of the lab price and the
-remaining 30% is the implicit platform margin. A zero-priced institutional
-reservation has no lab-price allocation: confirmation separately charges two
-credits when payer and provider are the same institution, or one credit for a
-cross-institutional booking. These fixed booking charges use the normal
-institutional spending accounting, are non-refundable, and do not create a
-provider receivable. Demo access does not create a reservation and therefore
-does not incur this charge.
+### Reservation economics at a glance
 
-For an eligible consumer cancellation before the start time on a physical lab,
-the current policy charges a total fee of exactly 10% of the reservation price.
-Three fifths of that fee go to the provider, equivalent to 6% of the price; the
-remaining 4% is the implicit platform margin.
-Simulations have no cancellation fee and refund the full price. The separate
-fixed charge for a zero-priced institutional booking is outside this
-reservation-price settlement and is not reversed by the existing cancellation or no-show paths. A
-provider-initiated cancellation refunds the full price and does not accrue a
-provider cancellation fee. It does, however, affect lab reputation: a
+| Reservation outcome | Charge or amount retained | Platform | Provider | Credit returned to payer |
+| --- | --- | --- | --- | --- |
+| Paid lab booking completed with valid `SessionStarted` evidence | Lab price | 40% by default (implicit); a per-lab override may change the rate | 60% by default; the share is cached at confirmation | None after completed use |
+| Internal own-lab booking | 0 lab price + fixed 4-credit booking fee | 4 credits | None | The fixed fee is not refundable |
+| Free booking at a different institution's lab | 0 lab price + fixed 2-credit booking fee | 2 credits | None | The fixed fee is not refundable |
+| Eligible payer cancellation of a physical-lab booking before its start | 10% of lab price retained | 4% of lab price | 6% of lab price | 90% of lab price; any fixed booking fee remains charged |
+| Physical-lab no-show without `SessionStarted` after the one-day attestation grace period | 25% of lab price retained | 10% of lab price | 15% of lab price | 75% of lab price; any fixed booking fee remains charged |
+| Eligible simulation cancellation | No fee | None | None | 100% of lab price; any fixed booking fee remains charged |
+| Simulation no-show without `SessionStarted` after the one-day attestation grace period | No fee | None | None | 100% of lab price; any fixed booking fee remains charged |
+| Provider-initiated cancellation | No cancellation fee | None | None | 100% of lab price; any fixed booking fee remains charged |
+| Pending request expires or is denied before confirmation | No credits captured | None | None | No return is needed |
+
+The default paid-booking split is 40% platform commission and 60% provider
+share. The default admin can set a per-lab override from 0% to 100% with
+`setLabReservationCommission(labId, commissionBps)`; `4,000` basis points means
+40%. The effective rate is cached when the reservation is confirmed. Approved
+commercial agreements may set a lower platform rate for particular labs, for
+example due to high equipment value or operating cost, size, capacity or
+specialized maintenance. Cancellation and no-show percentages in the table are
+fixed policy rates and are not changed by per-lab commission overrides.
+
+Fixed booking fees are separate from the lab price, use institutional spending
+accounting, are non-refundable and do not create a provider receivable. Credit
+returns are accounting adjustments to the institution, not cash refunds; source
+credit expiry may affect whether returned value can still be spent. Demo access
+does not create a reservation and incurs no booking fee.
+
+The default admin can set a per-lab override from 0% to 100% with
+`setLabReservationCommission(labId, commissionBps)`; the value uses basis
+points (`4,000` = 40%). `getLabReservationCommission` returns the effective rate
+and whether it is overridden, and `clearLabReservationCommission` restores the
+40% default. The rate is cached when the reservation is confirmed, so later
+configuration changes apply only to future confirmations. Overrides have no
+automatic expiry; the admin must clear them when an agreement ends.
+
+Specific labs may negotiate a lower platform commission when their commercial
+profile warrants it, for example because the equipment has a high acquisition
+or operating cost, substantial size or capacity, or specialized maintenance
+needs. These factors are grounds for an individual commercial agreement; the
+contract does not assess them or apply a discount automatically. After an
+agreement is approved, a default admin records its rate for that lab. Lowering
+the platform rate increases the provider share by the same amount.
+
+Fixed booking charges use normal institutional spending accounting and are
+separate from the reservation-price settlement. Existing cancellation and
+no-show paths do not reverse them. A provider-initiated cancellation refunds
+the full lab price and does not accrue a provider cancellation fee. It does,
+however, affect lab reputation: a
 cancellation with at least 24 hours' notice applies -1, one with less than 24
 hours' notice applies -2, and an explicit provider service-failure report
 applies -3.
@@ -171,9 +203,7 @@ decrement and index/heap cleanup. An `ACCESS_AUTHORIZED` reservation without
 `SessionStarted` is not refunded before the one-day grace period expires.
 
 For a physical lab without `SessionStarted` after that deadline, the no-show
-settlement retains exactly 25% of the reservation price: 15% becomes provider
-receivable and 10% remains the implicit platform margin. The remaining 75% is
-refunded. A simulation without evidence is refunded in full.
+outcome in the table applies. A simulation without evidence is refunded in full.
 
 ```mermaid
 stateDiagram-v2

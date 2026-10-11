@@ -4683,6 +4683,19 @@
   },
   {
     "type": "function",
+    "name": "clearLabReservationCommission",
+    "inputs": [
+      {
+        "name": "labId",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
     "name": "deleteLab",
     "inputs": [
       {
@@ -4696,12 +4709,54 @@
   },
   {
     "type": "function",
+    "name": "getLabReservationCommission",
+    "inputs": [
+      {
+        "name": "labId",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "commissionBps",
+        "type": "uint16",
+        "internalType": "uint16"
+      },
+      {
+        "name": "hasOverride",
+        "type": "bool",
+        "internalType": "bool"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
     "name": "listLab",
     "inputs": [
       {
         "name": "_labId",
         "type": "uint256",
         "internalType": "uint256"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "setLabReservationCommission",
+    "inputs": [
+      {
+        "name": "labId",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "commissionBps",
+        "type": "uint16",
+        "internalType": "uint16"
       }
     ],
     "outputs": [],
@@ -4871,6 +4926,50 @@
   },
   {
     "type": "event",
+    "name": "LabReservationCommissionReset",
+    "inputs": [
+      {
+        "name": "labId",
+        "type": "uint256",
+        "indexed": true,
+        "internalType": "uint256"
+      },
+      {
+        "name": "previousCommissionBps",
+        "type": "uint16",
+        "indexed": false,
+        "internalType": "uint16"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "LabReservationCommissionUpdated",
+    "inputs": [
+      {
+        "name": "labId",
+        "type": "uint256",
+        "indexed": true,
+        "internalType": "uint256"
+      },
+      {
+        "name": "previousCommissionBps",
+        "type": "uint16",
+        "indexed": false,
+        "internalType": "uint16"
+      },
+      {
+        "name": "newCommissionBps",
+        "type": "uint16",
+        "indexed": false,
+        "internalType": "uint16"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
     "name": "LabUnlisted",
     "inputs": [
       {
@@ -4933,7 +5032,34 @@
   },
   {
     "type": "error",
+    "name": "CommissionBpsOutOfRange",
+    "inputs": [
+      {
+        "name": "commissionBps",
+        "type": "uint16",
+        "internalType": "uint16"
+      }
+    ]
+  },
+  {
+    "type": "error",
+    "name": "CommissionLabDoesNotExist",
+    "inputs": [
+      {
+        "name": "labId",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ]
+  },
+  {
+    "type": "error",
     "name": "LabCreatorHashRequired",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "UnauthorizedCommissionAdmin",
     "inputs": []
   },
   {

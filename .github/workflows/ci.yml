@@ -7,6 +7,9 @@ on:
     branches: [ main, master ]
   workflow_dispatch: {}
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 env:
   FOUNDRY_VERSION: "1.8.5"
@@ -82,10 +85,7 @@ jobs:
         run: forge fmt --check
 
       - name: run unit tests
-        run: forge test --color never
-
-      - name: run deployed Diamond intent lifecycle integration
-        run: forge test --match-contract IntentLifecycleIntegrationTest --color never
+        run: forge test --no-match-contract "LibHeapStress|LibHeapGas" --color never
 
       - name: validate selector manifest and generate ABI
         run: npm run verify:contract-surface

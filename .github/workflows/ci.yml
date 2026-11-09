@@ -12,7 +12,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  FOUNDRY_VERSION: "1.8.7"
+  FOUNDRY_VERSION: "1.9.0"
 
 permissions:
   contents: read

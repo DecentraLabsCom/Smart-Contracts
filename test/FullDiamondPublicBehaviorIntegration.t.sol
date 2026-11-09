@@ -6,7 +6,6 @@ import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet
 import {Diamond} from "../contracts/Diamond.sol";
 import {IDiamond} from "../contracts/interfaces/IDiamond.sol";
 import {IDiamondCut} from "../contracts/interfaces/IDiamondCut.sol";
-import {IERC165} from "../contracts/interfaces/IERC165.sol";
 import {DiamondLoupeFacet} from "../contracts/facets/diamond/DiamondLoupeFacet.sol";
 import {OwnershipFacet} from "../contracts/facets/diamond/OwnershipFacet.sol";
 import {ProviderFacet} from "../contracts/facets/ProviderFacet.sol";

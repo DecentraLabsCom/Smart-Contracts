@@ -44,7 +44,8 @@ for (const {source, targets} of synchronizedFiles) {
         errors.push(`Missing consumer contract artifact: ${target}`);
         continue;
       }
-      if (fs.readFileSync(target, "utf8") !== canonical) {
+      // Git checkouts can use CRLF without changing the contract artifact.
+      if (fs.readFileSync(target, "utf8").replace(/\r\n/g, "\n") !== canonical.replace(/\r\n/g, "\n")) {
         errors.push(`Consumer contract artifact is stale: ${target}`);
       }
       continue;

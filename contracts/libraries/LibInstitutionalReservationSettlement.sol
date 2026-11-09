@@ -86,6 +86,8 @@ library LibInstitutionalReservationSettlement {
         bool sessionStartedRecorded = s.reservationSessionStartedRecorded[reservationId];
 
         LibHeap.removePayoutCandidates(s, labId, key);
+        // Index cleanup is idempotent; a missing entry is already absent.
+        // slither-disable-next-line unused-return
         s.activeConcurrentReservationKeysByLab[labId].remove(reservationId);
         if (sessionStartedRecorded) {
             if (reservation.providerShare > 0) {

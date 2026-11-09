@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 pragma solidity ^0.8.33;
 
-import {LibAppStorage, AppStorage, Reservation, PayoutCandidate} from "../libraries/LibAppStorage.sol";
+import {LibAppStorage, AppStorage, PayoutCandidate} from "../libraries/LibAppStorage.sol";
 import {LibHeap} from "../libraries/LibHeap.sol";
 
 contract LibHeapHarness {

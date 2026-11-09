@@ -2,6 +2,7 @@
 const fs = require('fs');
 const path = require('path');
 const { ethers } = require('ethers');
+const { buildArtifactIndex } = require('./foundry-artifacts.cjs');
 require('dotenv').config();
 
 function readJsonFile(filePath) {
@@ -91,23 +92,9 @@ async function main() {
   let initCalldata = '0x';
 
   if (needsInterfaceInit) {
-    const outArtifactPath = path.join(
-      __dirname,
-      '..',
-      'out',
-      'DiamondInit.sol',
-      'DiamondInit.json'
-    );
-    const hhArtifactPath = path.join(
-      __dirname,
-      '..',
-      'hh-artifacts',
-      'contracts',
-      'upgradeInitializers',
-      'DiamondInit.sol',
-      'DiamondInit.json'
-    );
-    const artifactPath = fs.existsSync(outArtifactPath) ? outArtifactPath : hhArtifactPath;
+    const target = 'contracts/upgradeInitializers/DiamondInit.sol:DiamondInit';
+    const artifactPath = buildArtifactIndex(path.resolve(__dirname, '..')).get(target);
+    if (!artifactPath) throw new Error(`Missing Foundry artifact for ${target}; run forge build first.`);
     const artifact = readJsonFile(artifactPath);
     const bytecode = artifact.bytecode && artifact.bytecode.object ? artifact.bytecode.object : artifact.bytecode;
     if (!bytecode) {

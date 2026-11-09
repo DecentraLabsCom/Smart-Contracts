@@ -41,20 +41,6 @@ function Read-JsonFile {
     return $raw | ConvertFrom-Json
 }
 
-function Get-CanonicalType {
-    param($node)
-    $type = $node.type
-    if ($type -like "tuple*") {
-        $suffix = $type.Substring(5)
-        $components = @()
-        foreach ($component in $node.components) {
-            $components += (Get-CanonicalType $component)
-        }
-        return "(" + ($components -join ",") + ")" + $suffix
-    }
-    return $type
-}
-
 function Get-Selectors {
     param([string]$Target)
     $manifestOutput = node scripts/selector-manifest.cjs --target $Target 2>&1

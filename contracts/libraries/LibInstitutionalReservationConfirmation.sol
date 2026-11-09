@@ -48,7 +48,6 @@ library LibInstitutionalReservationConfirmation {
 
     uint8 internal constant _PENDING = 0;
     uint8 internal constant _CONFIRMED = 1;
-    uint8 internal constant _ACCESS_AUTHORIZED = 2;
 
     event ReservationConfirmed(bytes32 indexed reservationKey, uint256 indexed tokenId);
     event ReservationRequestDenied(bytes32 indexed reservationKey, uint256 indexed tokenId, uint8 reason);
@@ -168,6 +167,8 @@ library LibInstitutionalReservationConfirmation {
         if (s.labs[r.labId].resourceType == 0) {
             s.calendars[r.labId].insert(r.start, r.end);
         }
+        // Membership is idempotent; an existing reservation ID is already indexed.
+        // slither-disable-next-line unused-return
         s.activeConcurrentReservationKeysByLab[r.labId].add(reservationId);
         r.status = _CONFIRMED;
         LibReservationIdentity.snapshotCurrentReservation(s, key);

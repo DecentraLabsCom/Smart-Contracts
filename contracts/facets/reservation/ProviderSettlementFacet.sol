@@ -14,7 +14,6 @@ import {
 import {LibAccessControlEnumerable} from "../../libraries/LibAccessControlEnumerable.sol";
 import {LibERC721Storage} from "../../libraries/LibERC721Storage.sol";
 import {
-    LibProviderReceivable,
     SETTLEMENT_APPROVER_ROLE,
     SETTLEMENT_OPERATOR_ROLE,
     SETTLEMENT_PAYER_ROLE

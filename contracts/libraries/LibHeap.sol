@@ -177,27 +177,6 @@ library LibHeap {
         }
     }
 
-    function _removeHeapRoot(
-        AppStorage storage s,
-        PayoutCandidate[] storage heap
-    ) private {
-        uint256 lastIndex = heap.length - 1;
-        bytes32 removedKey = heap[0].key;
-        s.payoutHeapIndexPlusOne[removedKey] = 0;
-        s.payoutHeapContains[removedKey] = false;
-
-        if (lastIndex == 0) {
-            heap.pop();
-            return;
-        }
-
-        bytes32 movedKey = heap[lastIndex].key;
-        heap[0] = heap[lastIndex];
-        heap.pop();
-        s.payoutHeapIndexPlusOne[movedKey] = 1;
-        _heapifyDown(s, heap, 0);
-    }
-
     function _heapifyDown(
         AppStorage storage s,
         PayoutCandidate[] storage heap,
@@ -258,6 +237,8 @@ library LibHeap {
         uint256 originalLength = heap.length;
         if (originalLength > MAX_COMPACTION_SIZE) return;
 
+        // Value-type locals start at zero, the first compaction index.
+        // slither-disable-next-line uninitialized-local
         uint256 writeIndex;
         for (uint256 readIndex; readIndex < originalLength; readIndex++) {
             bytes32 reservationId = heap[readIndex].key;

@@ -219,6 +219,8 @@ library LibCreditLedger {
                     // Allocations written before lot IDs were recorded retain
                     // the former provenance-based fallback for storage upgrade
                     // compatibility. New allocations never use this branch.
+                    // Value-type booleans start false when the optional restoration branch is skipped.
+                    // slither-disable-next-line uninitialized-local
                     bool restored;
                     if (s.creditLots[account].length >= MAX_ACTIVE_CREDIT_LOTS) {
                         restored = _restoreLegacyRefundToExistingLot(
@@ -711,6 +713,8 @@ library LibCreditLedger {
         address account
     ) private {
         CreditLot[] storage lots = s.creditLots[account];
+        // Value-type locals start at zero, the first compaction index.
+        // slither-disable-next-line uninitialized-local
         uint256 writeIndex;
         uint256 totalBalance = s.serviceCreditBalance[account];
         uint256 lockedBalance = s.creditLockedBalance[account];

@@ -483,9 +483,6 @@ struct CreditReservationAllocation {
 ///
 ///     This library is essential for maintaining consistency and efficiency in Diamond contracts.
 library LibAppStorage {
-    /// @notice Number of decimal places used by service credits
-    uint8 internal constant CREDIT_DECIMALS = 7;
-
     /// @notice Number of raw units that make up one full service credit
     uint256 internal constant RAW_PER_CREDIT = 10_000_000;
 
@@ -494,9 +491,6 @@ library LibAppStorage {
 
     /// @notice Number of raw credit units equivalent to one full EUR
     uint256 internal constant RAW_PER_EUR = RAW_PER_CREDIT * CREDITS_PER_EUR; // 100_000_000
-
-    /// @notice Number of raw credit units equivalent to one euro cent
-    uint256 internal constant RAW_PER_EUR_CENT = RAW_PER_EUR / 100; // 1_000_000
 
     /// @notice Default spending limit for institutional users
     /// @dev 200 credits with 7 decimals (20 EUR at 10 credits per EUR).

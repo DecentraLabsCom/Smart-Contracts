@@ -83,23 +83,11 @@ library RivalIntervalTreeLibrary {
         }
     }
 
-    // Removed commented out functions size() and getAllKeys()
-
     function exists(
         Tree storage self,
         uint256 key
     ) internal view returns (bool) {
         return (key != EMPTY) && ((key == self.root) || (self.nodes[key].parent != EMPTY));
-    }
-
-    function isEmpty(
-        uint256 key
-    ) internal pure returns (bool) {
-        return key == EMPTY;
-    }
-
-    function getEmpty() internal pure returns (uint256) {
-        return EMPTY;
     }
 
     function getNode(
@@ -171,33 +159,6 @@ library RivalIntervalTreeLibrary {
             // reservation starts after
         } else {
             uint256 nextCursor = next(self, cursor);
-            return (key < referencedNode.end) || ((nextCursor != EMPTY) && (end > nextCursor));
-        }
-    }
-
-    function overlaps(
-        Tree storage self,
-        uint256 key,
-        uint256 end
-    ) internal view returns (bool) {
-        require(key != EMPTY);
-        require(!exists(self, key));
-        uint256 cursor = findParent(self, key);
-
-        // special case for first insert
-        if (cursor == EMPTY) {
-            return false;
-        }
-
-        Node memory referencedNode = self.nodes[cursor];
-        // reservation starts before
-        if (key < cursor) {
-            uint256 prevCursor = prev(self, cursor);
-            uint256 prevEnd = self.nodes[prevCursor].end;
-            return (end > cursor) || (key < prevEnd);
-            // reservation starts after
-        } else {
-            uint256 nextCursor = next(self, cursor); // FIX: Changed from prev() to next()
             return (key < referencedNode.end) || ((nextCursor != EMPTY) && (end > nextCursor));
         }
     }

@@ -95,7 +95,7 @@ async function main() {
   const retryBaseMs = Number(optionValue(args, '--retry-base-ms', process.env.VERIFY_RETRY_BASE_MS || 250));
   const includeUnmapped = args.includes('--include-unmapped');
   if (!rpc) {
-    console.error('Usage: node scripts/verify-all-facets-selectors.js --rpc <RPC_URL> [--diamond <address>] [--broadcast --private-key <KEY>]');
+    console.error('Usage: node scripts/verify-all-facets-selectors.cjs --rpc <RPC_URL> [--diamond <address>] [--broadcast --private-key <KEY>]');
     process.exit(1);
   }
 
@@ -151,16 +151,6 @@ async function main() {
   // Warm up provider network resolution with retries so first calls don't fail
   // the whole run under provider throttling.
   await withRetry(() => provider.getNetwork(), 'getNetwork');
-
-  function getCanonicalType(node) {
-    if (!node || !node.type) return '';
-    if (node.type.startsWith('tuple')) {
-      const suffix = node.type.slice(5);
-      const components = (node.components || []).map(getCanonicalType);
-      return `(${components.join(',')})${suffix}`;
-    }
-    return node.type;
-  }
 
   function addSelector(facetAddress, selector) {
     if (!selectorsByFacet[facetAddress]) selectorsByFacet[facetAddress] = new Set();

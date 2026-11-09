@@ -22,7 +22,6 @@ library LibReservationCancellation {
     uint8 internal constant _PENDING = 0;
     uint8 internal constant _CONFIRMED = 1;
     uint8 internal constant _ACCESS_AUTHORIZED = 2;
-    uint8 internal constant _SETTLED = 3;
     uint8 internal constant _CANCELLED = 4;
 
     uint8 internal constant _TOKEN_BUFFER_CAP = 40;
@@ -111,6 +110,8 @@ library LibReservationCancellation {
         bool wasActive = _isActiveReservationStatus(reservation.status);
         if (reservation.status == _CONFIRMED || reservation.status == _ACCESS_AUTHORIZED) {
             _removeReservationFromCalendar(s, reservation.labId, reservation.start);
+            // Index cleanup is idempotent; a missing entry is already absent.
+            // slither-disable-next-line unused-return
             s.activeConcurrentReservationKeysByLab[reservation.labId].remove(reservationId);
         }
 

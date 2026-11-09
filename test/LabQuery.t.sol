@@ -12,7 +12,7 @@ import "../contracts/facets/lab/LabAdminFacet.sol";
 import "../contracts/facets/lab/LabQueryFacet.sol";
 import {IDiamondCut} from "../contracts/interfaces/IDiamondCut.sol";
 import "../contracts/interfaces/IDiamond.sol";
-import {Lab, LabBase} from "../contracts/libraries/LibAppStorage.sol";
+import {Lab} from "../contracts/libraries/LibAppStorage.sol";
 
 /// @title LabQuery Test
 /// @notice Dedicated tests for LabQueryFacet read-only functions

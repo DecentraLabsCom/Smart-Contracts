@@ -45,6 +45,8 @@ library LibReservationIndexCleanup {
         EnumerableSet.Bytes32Set storage set,
         bytes32 key
     ) private {
+        // Index cleanup is idempotent; a missing entry is already absent.
+        // slither-disable-next-line unused-return
         set.remove(key);
     }
 

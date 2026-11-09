@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 pragma solidity ^0.8.33;
 
-import {AppStorage, LibAppStorage} from "./LibAppStorage.sol";
+import {AppStorage} from "./LibAppStorage.sol";
 
 /// @title LibReservationIdentity
 /// @notice Separates a reusable public slot key from an immutable reservation
@@ -60,12 +60,5 @@ library LibReservationIdentity {
     ) internal {
         bytes32 reservationId = currentReservationId(s, slotKey);
         s.reservationHistoryById[reservationId] = s.reservations[slotKey];
-    }
-
-    /// @notice Convenience resolver for callers that already use Diamond storage.
-    function currentReservationId(
-        bytes32 slotKey
-    ) internal view returns (bytes32) {
-        return currentReservationId(LibAppStorage.diamondStorage(), slotKey);
     }
 }

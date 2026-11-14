@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 pragma solidity ^0.8.31;
 
-import {LibAppStorage} from "../../libraries/LibAppStorage.sol";
 import {LibIntent} from "../../libraries/LibIntent.sol";
 import {ActionIntentPayload} from "../../libraries/IntentTypes.sol";
 import {LibLabAdmin} from "../../libraries/LibLabAdmin.sol";
@@ -38,7 +37,7 @@ contract LabIntentFacet {
         require(payload.pucHash != bytes32(0), missingPucHashReason);
     }
 
-    // State is committed before the final audit event; the called libraries are internal Diamond routes.
+    // The receiver may reenter after the lab is created; the audit event uses the returned lab ID.
     // slither-disable-next-line reentrancy-events
     function _createLabWithIntent(
         bytes32 requestId,
@@ -53,17 +52,17 @@ contract LabIntentFacet {
         _requireNewLabIntent(payload, invalidLabIdReason, missingPucHashReason);
         _consumeLabIntent(requestId, action, payload);
 
+        uint256 newLabId;
         if (listImmediately) {
-            LibLabAdmin.addAndListLabWithPucHash(
+            newLabId = LibLabAdmin.addAndListLabWithPucHash(
                 payload.uri, payload.price, payload.accessURI, payload.accessKey, payload.resourceType, payload.pucHash
             );
         } else {
-            LibLabAdmin.addLabWithPucHash(
+            newLabId = LibLabAdmin.addLabWithPucHash(
                 payload.uri, payload.price, payload.accessURI, payload.accessKey, payload.resourceType, payload.pucHash
             );
         }
 
-        uint256 newLabId = LibAppStorage.diamondStorage().labId;
         emit LabIntentProcessed(requestId, newLabId, actionName, msg.sender, true, "");
     }
 

@@ -92,7 +92,7 @@ contract LabFacet is ERC721Upgradeable, ReservableToken, ILabFacetMint {
     /// @notice Adds a new Lab with the specified details.
     /// @dev This function increments the Lab ID, mints a new token for the Lab,
     ///      and stores the Lab's details in the contract's state.
-    ///      labId is incremented AFTER successful mint to avoid ID gaps on mint failures.
+    ///      Lab state is prepared before the receiver callback; a failed mint reverts the entire transaction.
     /// @param _uri The URI of the Lab, providing metadata or additional information.
     /// @param _price The price of the Lab in the smallest unit of the currency.
 

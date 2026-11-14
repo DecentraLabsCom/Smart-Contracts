@@ -200,38 +200,7 @@ library LibCreditLedger {
             CreditReservationAllocation storage allocation = allocations[i];
             uint256 refundableAmount = allocation.amount - allocation.refundedAmount;
             if (refundableAmount > 0) {
-                uint256 refundAmount = refundableAmount < remainingToRefund ? refundableAmount : remainingToRefund;
-                uint256 refundableEur = allocation.eurGrossAmount - allocation.refundedEurGrossAmount;
-                uint256 refundEur = refundAmount == refundableAmount
-                    ? refundableEur
-                    : (refundableEur * refundAmount) / refundableAmount;
-
-                allocation.refundedAmount += refundAmount;
-                allocation.refundedEurGrossAmount += refundEur;
-                if (s.creditReservationAllocationLotIdSet[account][reservationRef][i]) {
-                    if (!_restoreRefundToSourceLot(s, account, allocation.lotId, refundAmount, refundEur)) {
-                        revert SourceLotNotFound();
-                    }
-                    if (allocation.refundedAmount == allocation.amount) {
-                        _releaseRefundReference(s, account, reservationRef, i, allocation.lotId);
-                    }
-                } else {
-                    // Allocations written before lot IDs were recorded retain
-                    // the former provenance-based fallback for storage upgrade
-                    // compatibility. New allocations never use this branch.
-                    // Value-type booleans start false when the optional restoration branch is skipped.
-                    // slither-disable-next-line uninitialized-local
-                    bool restored;
-                    if (s.creditLots[account].length >= MAX_ACTIVE_CREDIT_LOTS) {
-                        restored = _restoreLegacyRefundToExistingLot(
-                            s, account, refundAmount, allocation.fundingOrderId, refundEur, allocation.expiresAt
-                        );
-                    }
-                    if (!restored) {
-                        _appendLot(s, account, refundAmount, allocation.fundingOrderId, refundEur, allocation.expiresAt);
-                    }
-                }
-                s.serviceCreditBalance[account] += refundAmount;
+                uint256 refundAmount = _refundAllocation(s, account, reservationRef, i, remainingToRefund);
                 remainingToRefund -= refundAmount;
                 refundedAmount += refundAmount;
             }
@@ -255,6 +224,46 @@ library LibCreditLedger {
 
         _recordMovement(s, account, CreditMovementKind.CANCEL, refundedAmount, reservationRef);
         return (refundedAmount, i, true);
+    }
+
+    function _refundAllocation(
+        AppStorage storage s,
+        address account,
+        bytes32 reservationRef,
+        uint256 index,
+        uint256 remainingToRefund
+    ) private returns (uint256 refundAmount) {
+        CreditReservationAllocation storage allocation = s.creditReservationAllocations[account][reservationRef][index];
+        uint256 refundableAmount = allocation.amount - allocation.refundedAmount;
+        refundAmount = refundableAmount < remainingToRefund ? refundableAmount : remainingToRefund;
+        uint256 refundableEur = allocation.eurGrossAmount - allocation.refundedEurGrossAmount;
+        uint256 refundEur =
+            refundAmount == refundableAmount ? refundableEur : (refundableEur * refundAmount) / refundableAmount;
+
+        allocation.refundedAmount += refundAmount;
+        allocation.refundedEurGrossAmount += refundEur;
+        if (s.creditReservationAllocationLotIdSet[account][reservationRef][index]) {
+            if (!_restoreRefundToSourceLot(s, account, allocation.lotId, refundAmount, refundEur)) {
+                revert SourceLotNotFound();
+            }
+            if (allocation.refundedAmount == allocation.amount) {
+                _releaseRefundReference(s, account, reservationRef, index, allocation.lotId);
+            }
+        } else {
+            // Allocations without lot IDs retain their provenance-based recovery path.
+            // Value-type booleans start false when the optional restoration branch is skipped.
+            // slither-disable-next-line uninitialized-local
+            bool restored;
+            if (s.creditLots[account].length >= MAX_ACTIVE_CREDIT_LOTS) {
+                restored = _restoreLegacyRefundToExistingLot(
+                    s, account, refundAmount, allocation.fundingOrderId, refundEur, allocation.expiresAt
+                );
+            }
+            if (!restored) {
+                _appendLot(s, account, refundAmount, allocation.fundingOrderId, refundEur, allocation.expiresAt);
+            }
+        }
+        s.serviceCreditBalance[account] += refundAmount;
     }
 
     /// @notice Close the refund entitlement of a terminal reservation.
@@ -728,7 +737,7 @@ library LibCreditLedger {
 
             if (remaining == 0) {
                 if (hasPendingRefund) {
-                    if (writeIndex != i) lots[writeIndex] = lots[i];
+                    _copyLotIfMoved(lots, i, writeIndex);
                     uint256 preservedEur = _remainingEurGrossAmount(s, lots[writeIndex]);
                     s.creditLotRemainingEurGrossAmount[lots[writeIndex].lotId] = preservedEur;
                     s.creditLotRemainingEurGrossAmountInitialized[lots[writeIndex].lotId] = true;
@@ -752,7 +761,7 @@ library LibCreditLedger {
                 s.creditLotRemainingEurGrossAmountInitialized[lot.lotId] = true;
                 _recordMovement(s, account, CreditMovementKind.EXPIRE, remaining, lot.fundingOrderId);
                 if (hasPendingRefund) {
-                    if (writeIndex != i) lots[writeIndex] = lots[i];
+                    _copyLotIfMoved(lots, i, writeIndex);
                     unchecked {
                         ++writeIndex;
                     }
@@ -763,7 +772,7 @@ library LibCreditLedger {
                 continue;
             }
 
-            if (writeIndex != i) lots[writeIndex] = lots[i];
+            _copyLotIfMoved(lots, i, writeIndex);
             uint256 eurRemaining = s.creditLotRemainingEurGrossAmount[lots[writeIndex].lotId];
             if (!s.creditLotRemainingEurGrossAmountInitialized[lots[writeIndex].lotId] && eurRemaining == 0) {
                 eurRemaining = lots[writeIndex].eurGrossAmount;
@@ -778,6 +787,24 @@ library LibCreditLedger {
 
         while (lots.length > writeIndex) lots.pop();
         s.serviceCreditBalance[account] = totalBalance;
+
+        _mergeCompatibleLots(s, account);
+        s.creditLotCursor[account] = 0;
+    }
+
+    function _copyLotIfMoved(
+        CreditLot[] storage lots,
+        uint256 sourceIndex,
+        uint256 destinationIndex
+    ) private {
+        if (destinationIndex != sourceIndex) lots[destinationIndex] = lots[sourceIndex];
+    }
+
+    function _mergeCompatibleLots(
+        AppStorage storage s,
+        address account
+    ) private {
+        CreditLot[] storage lots = s.creditLots[account];
 
         for (uint256 i; i < lots.length;) {
             CreditLot storage baseLot = lots[i];
@@ -804,8 +831,6 @@ library LibCreditLedger {
                 ++i;
             }
         }
-
-        s.creditLotCursor[account] = 0;
     }
 
     function _removeLotAt(

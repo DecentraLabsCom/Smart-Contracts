@@ -91,6 +91,8 @@ contract LabAdminFacet {
         bytes32 pucHash
     ) external {
         LibLabAdmin._requireLabProvider();
+        // The external API reports the new ID through the creation and mint events.
+        // slither-disable-next-line unused-return
         LibLabAdmin.addLabWithPucHash(_uri, _price, _accessUri, _accessKey, _resourceType, pucHash);
     }
 
@@ -104,6 +106,8 @@ contract LabAdminFacet {
         bytes32 pucHash
     ) external {
         LibLabAdmin._requireLabProvider();
+        // The external API reports the new ID through the creation and mint events.
+        // slither-disable-next-line unused-return
         LibLabAdmin.addAndListLabWithPucHash(_uri, _price, _accessUri, _accessKey, _resourceType, pucHash);
     }
 

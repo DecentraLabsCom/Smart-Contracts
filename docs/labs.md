@@ -49,6 +49,13 @@ Intent-based creation also requires a non-zero PUC hash. Subsequent
 intent. New or reconciled Diamonds therefore expose only the PUC-aware and
 intent-based creation paths.
 
+Creation records the lab, creator hash and initial listing before invoking an
+ERC-721 receiver. A receiver can therefore inspect a complete record or transfer
+the token during its callback; a transfer still unlists the lab. The creation
+events precede the mint `Transfer` event so that any callback events follow the
+creation they modify. If the receiver rejects the mint, the entire transaction,
+including the allocated ID and events, is reverted.
+
 ## Listing, changes and deletion
 
 `listLab` makes a lab eligible for new reservations and clears its

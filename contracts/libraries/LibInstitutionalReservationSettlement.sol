@@ -89,6 +89,32 @@ library LibInstitutionalReservationSettlement {
         // Index cleanup is idempotent; a missing entry is already absent.
         // slither-disable-next-line unused-return
         s.activeConcurrentReservationKeysByLab[labId].remove(reservationId);
+        _settleFinancialOutcome(s, key, reservation, labId, reservationId, sessionStartedRecorded);
+
+        reservation.status = _SETTLED;
+        LibReservationIdentity.snapshotCurrentReservation(s, key);
+        s.labReputation[labId].lastFinalizationAt = uint64(block.timestamp);
+        if (previousStatus == _ACCESS_AUTHORIZED && sessionStartedRecorded) {
+            LibReputation.recordCompletion(labId);
+        }
+        if (previousStatus == _CONFIRMED || previousStatus == _ACCESS_AUTHORIZED) {
+            if (s.labActiveReservationCount[labId] > 0) s.labActiveReservationCount[labId]--;
+            if (s.providerActiveReservationCount[reservation.labProvider] > 0) {
+                s.providerActiveReservationCount[reservation.labProvider]--;
+            }
+        }
+        LibReservationIndexCleanup.removeFinalizedReservationIndexes(s, key, reservation);
+        if (s.totalReservationsCount > 0) s.totalReservationsCount--;
+    }
+
+    function _settleFinancialOutcome(
+        AppStorage storage s,
+        bytes32 key,
+        Reservation storage reservation,
+        uint256 labId,
+        bytes32 reservationId,
+        bool sessionStartedRecorded
+    ) private {
         if (sessionStartedRecorded) {
             if (reservation.providerShare > 0) {
                 LibProviderReceivable.accrueReceivable(labId, reservation.providerShare, key);
@@ -119,21 +145,6 @@ library LibInstitutionalReservationSettlement {
                     reservation.payerInstitution, s.reservationPucHash[reservationId], key, refundAmount
                 );
         }
-
-        reservation.status = _SETTLED;
-        LibReservationIdentity.snapshotCurrentReservation(s, key);
-        s.labReputation[labId].lastFinalizationAt = uint64(block.timestamp);
-        if (previousStatus == _ACCESS_AUTHORIZED && sessionStartedRecorded) {
-            LibReputation.recordCompletion(labId);
-        }
-        if (previousStatus == _CONFIRMED || previousStatus == _ACCESS_AUTHORIZED) {
-            if (s.labActiveReservationCount[labId] > 0) s.labActiveReservationCount[labId]--;
-            if (s.providerActiveReservationCount[reservation.labProvider] > 0) {
-                s.providerActiveReservationCount[reservation.labProvider]--;
-            }
-        }
-        LibReservationIndexCleanup.removeFinalizedReservationIndexes(s, key, reservation);
-        if (s.totalReservationsCount > 0) s.totalReservationsCount--;
     }
 
     /// @notice Finalizes a reservation only when the full economic deadline passed.

@@ -200,7 +200,8 @@ library LibCreditLedger {
             CreditReservationAllocation storage allocation = allocations[i];
             uint256 refundableAmount = allocation.amount - allocation.refundedAmount;
             if (refundableAmount > 0) {
-                uint256 refundAmount = _refundAllocation(s, account, reservationRef, i, remainingToRefund);
+                uint256 refundAmount =
+                    _refundAllocation(s, account, reservationRef, i, allocation, refundableAmount, remainingToRefund);
                 remainingToRefund -= refundAmount;
                 refundedAmount += refundAmount;
             }
@@ -231,10 +232,10 @@ library LibCreditLedger {
         address account,
         bytes32 reservationRef,
         uint256 index,
+        CreditReservationAllocation storage allocation,
+        uint256 refundableAmount,
         uint256 remainingToRefund
     ) private returns (uint256 refundAmount) {
-        CreditReservationAllocation storage allocation = s.creditReservationAllocations[account][reservationRef][index];
-        uint256 refundableAmount = allocation.amount - allocation.refundedAmount;
         refundAmount = refundableAmount < remainingToRefund ? refundableAmount : remainingToRefund;
         uint256 refundableEur = allocation.eurGrossAmount - allocation.refundedEurGrossAmount;
         uint256 refundEur =

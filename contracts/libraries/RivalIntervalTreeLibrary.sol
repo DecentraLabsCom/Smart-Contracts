@@ -178,13 +178,7 @@ library RivalIntervalTreeLibrary {
 
         // special case for first insert
         if (cursor == EMPTY) {
-            self.root = key;
-            self.nodes[key] = node;
-            if (RIT_TEST_TRACE && self.debug) {
-                emit TraceInsertStep(
-                    "first_insert", key, cursor, node.parent, node.left, node.right, node.end, node.red
-                );
-            }
+            _insertRoot(self, key, node);
             insertFixup(self, key);
             return;
         }
@@ -250,6 +244,18 @@ library RivalIntervalTreeLibrary {
         }
 
         insertFixup(self, key);
+    }
+
+    function _insertRoot(
+        Tree storage self,
+        uint32 key,
+        Node memory node
+    ) private {
+        self.root = key;
+        self.nodes[key] = node;
+        if (RIT_TEST_TRACE && self.debug) {
+            emit TraceInsertStep("first_insert", key, EMPTY, node.parent, node.left, node.right, node.end, node.red);
+        }
     }
 
     /// @notice Test-only insert that emits trace events but does not revert on overlap
@@ -464,18 +470,7 @@ library RivalIntervalTreeLibrary {
                 emit TraceRotation("rotate_new_root", key, cursor, cursorChild, keyParent);
             }
         } else {
-            // Link the rotated subtree to the correct side of keyParent based on where `key` was
-            if (key == self.nodes[keyParent].left) {
-                self.nodes[keyParent].left = cursor;
-                if (RIT_TEST_TRACE && self.debug) {
-                    emit TraceRotation("rotate_linked_left", key, cursor, cursorChild, keyParent);
-                }
-            } else {
-                self.nodes[keyParent].right = cursor;
-                if (RIT_TEST_TRACE && self.debug) {
-                    emit TraceRotation("rotate_linked_right", key, cursor, cursorChild, keyParent);
-                }
-            }
+            _linkRotatedSubtree(self, key, cursor, cursorChild, keyParent);
         }
 
         self.nodes[key].parent = cursor;
@@ -483,35 +478,58 @@ library RivalIntervalTreeLibrary {
 
         // Test-only consistency checks to catch root/parent pointer inconsistencies early
         if (RIT_TEST_TRACE && self.debug) {
-            // cursor.parent should equal keyParent
-            require(self.nodes[cursor].parent == keyParent, "rotate:cursor_parent_mismatch");
-            // key.parent should equal cursor
-            require(self.nodes[key].parent == cursor, "rotate:key_parent_mismatch");
-            // If cursor is root, its parent must be EMPTY
-            if (self.root == cursor) {
-                require(self.nodes[cursor].parent == EMPTY, "rotate:root_has_parent");
-            }
-            // The root's parent must always be EMPTY
-            if (self.root != EMPTY) {
-                require(self.nodes[self.root].parent == EMPTY, "rotate:root_parent_nonzero");
-            }
-            emit TraceRotateState(self.root, key, cursor, self.nodes[cursor].parent, self.nodes[key].parent);
+            _checkRotation(self, key, cursor, keyParent);
+        }
+    }
 
-            // Test-only: check black-height equality for the rotated subtree root (cursor)
-            {
-                (uint256 hl, bool okl) = _blackHeight(self, self.nodes[cursor].left);
-                (uint256 hr, bool okr) = _blackHeight(self, self.nodes[cursor].right);
-                emit TraceBHCheck(cursor, hl, hr, "post_rotate");
-                require(okl && okr && hl == hr, "rotate:bh_mismatch");
+    function _linkRotatedSubtree(
+        Tree storage self,
+        uint256 key,
+        uint256 cursor,
+        uint256 cursorChild,
+        uint256 keyParent
+    ) private {
+        if (key == self.nodes[keyParent].left) {
+            self.nodes[keyParent].left = cursor;
+            if (RIT_TEST_TRACE && self.debug) {
+                emit TraceRotation("rotate_linked_left", key, cursor, cursorChild, keyParent);
             }
+        } else {
+            self.nodes[keyParent].right = cursor;
+            if (RIT_TEST_TRACE && self.debug) {
+                emit TraceRotation("rotate_linked_right", key, cursor, cursorChild, keyParent);
+            }
+        }
+    }
 
-            // Also check the parent of the rotated subtree (if any) to catch propagated BH mismatches
-            if (keyParent != EMPTY) {
-                (uint256 phl, bool pokl) = _blackHeight(self, self.nodes[keyParent].left);
-                (uint256 phr, bool pokr) = _blackHeight(self, self.nodes[keyParent].right);
-                emit TraceBHCheck(keyParent, phl, phr, "parent_post_rotate");
-                require(pokl && pokr && phl == phr, "rotate:parent_bh_mismatch");
-            }
+    function _checkRotation(
+        Tree storage self,
+        uint256 key,
+        uint256 cursor,
+        uint256 keyParent
+    ) private {
+        require(self.nodes[cursor].parent == keyParent, "rotate:cursor_parent_mismatch");
+        require(self.nodes[key].parent == cursor, "rotate:key_parent_mismatch");
+        if (self.root == cursor) {
+            require(self.nodes[cursor].parent == EMPTY, "rotate:root_has_parent");
+        }
+        if (self.root != EMPTY) {
+            require(self.nodes[self.root].parent == EMPTY, "rotate:root_parent_nonzero");
+        }
+        emit TraceRotateState(self.root, key, cursor, self.nodes[cursor].parent, self.nodes[key].parent);
+
+        {
+            (uint256 hl, bool okl) = _blackHeight(self, self.nodes[cursor].left);
+            (uint256 hr, bool okr) = _blackHeight(self, self.nodes[cursor].right);
+            emit TraceBHCheck(cursor, hl, hr, "post_rotate");
+            require(okl && okr && hl == hr, "rotate:bh_mismatch");
+        }
+
+        if (keyParent != EMPTY) {
+            (uint256 phl, bool pokl) = _blackHeight(self, self.nodes[keyParent].left);
+            (uint256 phr, bool pokr) = _blackHeight(self, self.nodes[keyParent].right);
+            emit TraceBHCheck(keyParent, phl, phr, "parent_post_rotate");
+            require(pokl && pokr && phl == phr, "rotate:parent_bh_mismatch");
         }
     }
 
@@ -561,28 +579,12 @@ library RivalIntervalTreeLibrary {
             cursor = isLeft ? self.nodes[keyGrandparent].right : self.nodes[keyGrandparent].left;
 
             if (RIT_TEST_TRACE && self.debug) {
-                emit TraceInsertFixup(
-                    "loop_start",
-                    key,
-                    keyParent,
-                    keyGrandparent,
-                    cursor,
-                    self.root,
-                    (self.root != EMPTY ? self.nodes[self.root].red : false)
-                );
+                _traceInsertFixup(self, "loop_start", key, keyParent, keyGrandparent, cursor);
             }
 
             if (self.nodes[cursor].red) {
                 if (RIT_TEST_TRACE && self.debug) {
-                    emit TraceInsertFixup(
-                        "case_both_red",
-                        key,
-                        keyParent,
-                        keyGrandparent,
-                        cursor,
-                        self.root,
-                        (self.root != EMPTY ? self.nodes[self.root].red : false)
-                    );
+                    _traceInsertFixup(self, "case_both_red", key, keyParent, keyGrandparent, cursor);
                 }
                 self.nodes[keyParent].red = false;
                 self.nodes[cursor].red = false;
@@ -590,77 +592,80 @@ library RivalIntervalTreeLibrary {
                 key = keyGrandparent;
             } else {
                 if ((isLeft && key == self.nodes[keyParent].right) || (!isLeft && key == self.nodes[keyParent].left)) {
-                    if (RIT_TEST_TRACE && self.debug) {
-                        emit TraceInsertFixup(
-                            "pre_rotate_key",
-                            key,
-                            keyParent,
-                            keyGrandparent,
-                            cursor,
-                            self.root,
-                            (self.root != EMPTY ? self.nodes[self.root].red : false)
-                        );
-                    }
-                    key = keyParent;
-                    isLeft ? rotateLeft(self, key) : rotateRight(self, key);
-                    if (RIT_TEST_TRACE && self.debug) {
-                        emit TraceInsertFixup(
-                            "post_rotate_key",
-                            key,
-                            keyParent,
-                            keyGrandparent,
-                            cursor,
-                            self.root,
-                            (self.root != EMPTY ? self.nodes[self.root].red : false)
-                        );
-                    }
+                    key = _rotateInnerChild(self, key, keyParent, keyGrandparent, cursor, isLeft);
                 }
 
                 keyParent = self.nodes[key].parent;
                 keyGrandparent = self.nodes[keyParent].parent;
-
-                self.nodes[keyParent].red = false;
-                self.nodes[keyGrandparent].red = true;
-                if (RIT_TEST_TRACE && self.debug) {
-                    emit TraceInsertFixup(
-                        "pre_rotate_grandparent",
-                        key,
-                        keyParent,
-                        keyGrandparent,
-                        cursor,
-                        self.root,
-                        (self.root != EMPTY ? self.nodes[self.root].red : false)
-                    );
-                }
-                isLeft ? rotateRight(self, keyGrandparent) : rotateLeft(self, keyGrandparent);
-                if (RIT_TEST_TRACE && self.debug) {
-                    emit TraceInsertFixup(
-                        "post_rotate_grandparent",
-                        key,
-                        keyParent,
-                        keyGrandparent,
-                        cursor,
-                        self.root,
-                        (self.root != EMPTY ? self.nodes[self.root].red : false)
-                    );
-                }
-
-                // Test-only: ensure black heights of grandparent's children are equal after rotation
-                if (RIT_TEST_TRACE && self.debug) {
-                    (uint256 hl, bool okl) = _blackHeight(self, self.nodes[keyGrandparent].left);
-                    (uint256 hr, bool okr) = _blackHeight(self, self.nodes[keyGrandparent].right);
-                    emit TraceBHCheck(keyGrandparent, hl, hr, "post_rotate_grandparent");
-                    require(okl && okr && hl == hr, "insertFixup:bh_mismatch");
-                }
+                _rotateGrandparent(self, key, keyParent, keyGrandparent, cursor, isLeft);
             }
         }
 
         if (RIT_TEST_TRACE && self.debug) {
-            emit TraceInsertFixup(
-                "final_root", 0, 0, 0, 0, self.root, (self.root != EMPTY ? self.nodes[self.root].red : false)
-            );
+            _traceInsertFixup(self, "final_root", 0, 0, 0, 0);
         }
         self.nodes[self.root].red = false;
+    }
+
+    function _rotateInnerChild(
+        Tree storage self,
+        uint256 key,
+        uint256 keyParent,
+        uint256 keyGrandparent,
+        uint256 cursor,
+        bool isLeft
+    ) private returns (uint256) {
+        if (RIT_TEST_TRACE && self.debug) {
+            _traceInsertFixup(self, "pre_rotate_key", key, keyParent, keyGrandparent, cursor);
+        }
+        key = keyParent;
+        isLeft ? rotateLeft(self, key) : rotateRight(self, key);
+        if (RIT_TEST_TRACE && self.debug) {
+            _traceInsertFixup(self, "post_rotate_key", key, keyParent, keyGrandparent, cursor);
+        }
+        return key;
+    }
+
+    function _rotateGrandparent(
+        Tree storage self,
+        uint256 key,
+        uint256 keyParent,
+        uint256 keyGrandparent,
+        uint256 cursor,
+        bool isLeft
+    ) private {
+        self.nodes[keyParent].red = false;
+        self.nodes[keyGrandparent].red = true;
+        if (RIT_TEST_TRACE && self.debug) {
+            _traceInsertFixup(self, "pre_rotate_grandparent", key, keyParent, keyGrandparent, cursor);
+        }
+        isLeft ? rotateRight(self, keyGrandparent) : rotateLeft(self, keyGrandparent);
+        if (RIT_TEST_TRACE && self.debug) {
+            _traceInsertFixup(self, "post_rotate_grandparent", key, keyParent, keyGrandparent, cursor);
+            (uint256 hl, bool okl) = _blackHeight(self, self.nodes[keyGrandparent].left);
+            (uint256 hr, bool okr) = _blackHeight(self, self.nodes[keyGrandparent].right);
+            emit TraceBHCheck(keyGrandparent, hl, hr, "post_rotate_grandparent");
+            require(okl && okr && hl == hr, "insertFixup:bh_mismatch");
+        }
+    }
+
+    function _traceInsertFixup(
+        Tree storage self,
+        string memory step,
+        uint256 key,
+        uint256 keyParent,
+        uint256 keyGrandparent,
+        uint256 cursor
+    ) private {
+        emit TraceInsertFixup(
+            step,
+            key,
+            keyParent,
+            keyGrandparent,
+            cursor,
+            self.root,
+            (self.root != EMPTY ? self.nodes[self.root].red : false)
+        );
     }
 
     function replaceParent(
@@ -694,20 +699,12 @@ library RivalIntervalTreeLibrary {
 
             cursor = isLeft ? self.nodes[keyParent].right : self.nodes[keyParent].left;
 
-            if (self.nodes[cursor].red) {
-                self.nodes[cursor].red = false;
-                self.nodes[keyParent].red = true;
-                isLeft ? rotateLeft(self, keyParent) : rotateRight(self, keyParent);
-                cursor = isLeft ? self.nodes[keyParent].right : self.nodes[keyParent].left;
-            }
+            cursor = _normalizeRedSibling(self, keyParent, cursor, isLeft);
 
             uint256 cursorLeft = self.nodes[cursor].left;
             uint256 cursorRight = self.nodes[cursor].right;
 
-            if (
-                (!isLeft && !self.nodes[cursorRight].red && !self.nodes[cursorLeft].red)
-                    || (isLeft && !self.nodes[cursorLeft].red && !self.nodes[cursorRight].red)
-            ) {
+            if (!self.nodes[cursorLeft].red && !self.nodes[cursorRight].red) {
                 self.nodes[cursor].red = true;
                 key = keyParent;
             } else {
@@ -739,5 +736,20 @@ library RivalIntervalTreeLibrary {
         }
 
         self.nodes[key].red = false;
+    }
+
+    function _normalizeRedSibling(
+        Tree storage self,
+        uint256 keyParent,
+        uint256 cursor,
+        bool isLeft
+    ) private returns (uint256) {
+        if (self.nodes[cursor].red) {
+            self.nodes[cursor].red = false;
+            self.nodes[keyParent].red = true;
+            isLeft ? rotateLeft(self, keyParent) : rotateRight(self, keyParent);
+            cursor = isLeft ? self.nodes[keyParent].right : self.nodes[keyParent].left;
+        }
+        return cursor;
     }
 }

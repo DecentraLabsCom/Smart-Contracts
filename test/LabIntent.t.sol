@@ -17,6 +17,7 @@ import "../contracts/interfaces/IDiamond.sol";
 import {ActionIntentPayload} from "../contracts/libraries/IntentTypes.sol";
 import {LibIntent} from "../contracts/libraries/LibIntent.sol";
 import {LibLabAdmin} from "../contracts/libraries/LibLabAdmin.sol";
+import {LabReceiver} from "./LabReceiver.sol";
 
 /// @title LabIntent Test
 /// @notice Tests LabIntentFacet intent-based lab operations
@@ -233,6 +234,37 @@ contract LabIntentTest is BaseTest {
         assertEq(labFacet.tokenURI(1), "ipfs://intent-lab");
         assertEq(labQuery.getLab(1).base.price, PRICE_100);
         assertEq(labQuery.getPucHash(1), payload.pucHash);
+    }
+
+    function test_addLabWithIntent_reports_outer_id_when_receiver_creates_another_lab() public {
+        LabReceiver receiver = new LabReceiver(address(diamond), address(0), true, false);
+        vm.prank(admin);
+        providerFacet.addProvider("Receiver", address(receiver), "receiver@x", "ES", "");
+        bytes32 requestId = keccak256("nested-create");
+        ActionIntentPayload memory payload = _makePayload(address(receiver), 0, "outer", PRICE_100, "a", "k", "");
+        _setPendingIntent(requestId, address(receiver), ACTION_LAB_ADD, payload);
+
+        vm.recordLogs();
+        receiver.createWithIntent(requestId, payload);
+        Vm.Log[] memory entries = vm.getRecordedLogs();
+
+        bool found;
+        bytes32 eventSignature = keccak256("LabIntentProcessed(bytes32,uint256,string,address,bool,string)");
+        for (uint256 i = 0; i < entries.length; i++) {
+            if (
+                entries[i].topics.length == 2 && entries[i].topics[0] == eventSignature
+                    && entries[i].topics[1] == requestId
+            ) {
+                (uint256 labId,,,,) = abi.decode(entries[i].data, (uint256, string, address, bool, string));
+                assertEq(labId, 1);
+                found = true;
+            }
+        }
+        assertTrue(found);
+        assertEq(labFacet.ownerOf(1), address(receiver));
+        assertEq(labFacet.ownerOf(2), address(receiver));
+        assertEq(labFacet.tokenURI(1), "outer");
+        assertEq(labFacet.tokenURI(2), "nested");
     }
 
     function test_addLabWithIntent_requires_provider_role() public {

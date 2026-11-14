@@ -52,11 +52,20 @@ JWT, host metadata, move fiat, or open a remote session.
 An off-chain document or identifier may be hashed into a transaction for audit,
 but it cannot override the values already stored by the Diamond.
 
+Reservation, intent and credit deadlines use the timestamp of the block that
+includes the transaction. Outcomes near a boundary depend on transaction
+inclusion and the network's timestamp rules, so clients and operators must
+allow time for submission and confirmation rather than relying on a local
+clock at the exact deadline.
+
 ## Upgrade boundary
 
 Only the Diamond owner may execute `diamondCut`. A cut can add, replace or
 remove selectors and may run initialization code via `delegatecall`, so it is a
 privileged production operation.
+The initializer marker identifies an intended initializer; it does not make
+its code trustworthy. The owner must review the target and calldata because a
+delegatecall can change Diamond storage.
 
 1. Change a facet and its focused tests.
 2. Keep `AppStorage` append-only; never reorder or remove deployed members.

@@ -28,6 +28,8 @@ library LibInstitutionalReservationRequestValidation {
 
     uint256 internal constant _MAX_RESERVATIONS_PER_LAB_USER = 10;
 
+    // Expired settlement uses the Diamond's treasury route, which only updates its internal ledger.
+    // slither-disable-next-line reentrancy-events
     function validateInstRequest(
         address provider,
         bytes32 pucHash,
@@ -60,6 +62,13 @@ library LibInstitutionalReservationRequestValidation {
         }
         if (count >= _MAX_RESERVATIONS_PER_LAB_USER) revert MaxReservationsReached();
 
+        _clearExpiredRequestForKey(s, key);
+    }
+
+    function _clearExpiredRequestForKey(
+        AppStorage storage s,
+        bytes32 key
+    ) private {
         Reservation storage existing = s.reservations[key];
         if (existing.renter != address(0) && existing.status != _CANCELLED && existing.status != _SETTLED) {
             if (existing.status == _PENDING) {
@@ -71,7 +80,7 @@ library LibInstitutionalReservationRequestValidation {
                     );
                 if (expired) {
                     LibReservationCancellation.cancelReservation(key);
-                    return (owner, key, trackingKey);
+                    return;
                 }
             }
             revert();

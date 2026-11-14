@@ -48,11 +48,12 @@ library LibLabAdmin {
         string calldata _accessKey,
         uint8 _resourceType,
         bytes32 pucHash
-    ) internal {
+    ) internal returns (uint256 nextLabId) {
         _requirePucHash(pucHash);
-        uint256 nextLabId = _createLab(_uri, _price, _accessUri, _accessKey, _resourceType, false);
+        nextLabId = _createLab(_uri, _price, _accessUri, _accessKey, _resourceType, false);
         _bindCreatorPucHash(nextLabId, pucHash);
         emit LabAdded(nextLabId, msg.sender, _uri, _price, _accessUri, _accessKey, _resourceType);
+        ILabFacetMint(address(this)).safeMintTo(msg.sender, nextLabId);
     }
 
     function addAndListLabWithPucHash(
@@ -62,12 +63,13 @@ library LibLabAdmin {
         string calldata _accessKey,
         uint8 _resourceType,
         bytes32 pucHash
-    ) internal {
+    ) internal returns (uint256 nextLabId) {
         _requirePucHash(pucHash);
-        uint256 nextLabId = _createLab(_uri, _price, _accessUri, _accessKey, _resourceType, true);
+        nextLabId = _createLab(_uri, _price, _accessUri, _accessKey, _resourceType, true);
         _bindCreatorPucHash(nextLabId, pucHash);
         emit LabAdded(nextLabId, msg.sender, _uri, _price, _accessUri, _accessKey, _resourceType);
         emit LabListed(nextLabId, msg.sender);
+        ILabFacetMint(address(this)).safeMintTo(msg.sender, nextLabId);
     }
 
     function updateLab(
@@ -237,8 +239,8 @@ library LibLabAdmin {
 
         AppStorage storage s = _s();
         nextLabId = s.labId + 1;
-
-        ILabFacetMint(address(this)).safeMintTo(msg.sender, nextLabId);
+        // The ERC-721 receiver may call back into the Diamond during the mint.
+        // A failed mint rolls back this allocation and all associated state.
         s.labId = nextLabId;
 
         s.labs[nextLabId] = LabBase({

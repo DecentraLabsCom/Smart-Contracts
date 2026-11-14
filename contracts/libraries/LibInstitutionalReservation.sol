@@ -164,18 +164,7 @@ library LibInstitutionalReservation {
         Reservation storage reservation = s.reservations[reservationKey];
         if (reservation.renter == address(0)) revert InvalidStatus();
         bool serviceFailure = reasonCode == LibReservationDenyReason.PROVIDER_SERVICE_FAILURE;
-        if (serviceFailure) {
-            if (reservation.status != _CONFIRMED && reservation.status != _ACCESS_AUTHORIZED) revert InvalidStatus();
-            if (s.reservationSessionStartedRecorded[LibReservationIdentity.currentReservationId(s, reservationKey)]) {
-                revert InvalidStatus();
-            }
-            if (!LibReservationConfig.isWithinSessionAttestationGrace(reservation.end, block.timestamp)) {
-                revert InvalidStatus();
-            }
-        } else {
-            if (reservation.status != _CONFIRMED) revert InvalidStatus();
-            if (block.timestamp >= reservation.start) revert InvalidStatus();
-        }
+        _validateProviderCancellationWindow(s, reservation, reservationKey, serviceFailure);
         if (reasonCode == 0) revert InvalidProviderCancellationReason();
 
         provider = LibERC721Storage.ownerOf(reservation.labId);
@@ -199,6 +188,26 @@ library LibInstitutionalReservation {
 
         IInstitutionalTreasuryFacet(address(this))
             .refundToInstitutionalTreasuryForReservation(payerInstitution, pucHash, reservationKey, refundAmount);
+    }
+
+    function _validateProviderCancellationWindow(
+        AppStorage storage s,
+        Reservation storage reservation,
+        bytes32 reservationKey,
+        bool serviceFailure
+    ) private view {
+        if (serviceFailure) {
+            if (reservation.status != _CONFIRMED && reservation.status != _ACCESS_AUTHORIZED) revert InvalidStatus();
+            if (s.reservationSessionStartedRecorded[LibReservationIdentity.currentReservationId(s, reservationKey)]) {
+                revert InvalidStatus();
+            }
+            if (!LibReservationConfig.isWithinSessionAttestationGrace(reservation.end, block.timestamp)) {
+                revert InvalidStatus();
+            }
+        } else {
+            if (reservation.status != _CONFIRMED) revert InvalidStatus();
+            if (block.timestamp >= reservation.start) revert InvalidStatus();
+        }
     }
 
     function _pucHashMatches(

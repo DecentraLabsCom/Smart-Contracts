@@ -10,6 +10,7 @@ import "../contracts/facets/ProviderFacet.sol";
 import "../contracts/facets/lab/LabFacet.sol";
 import "../contracts/facets/lab/LabAdminFacet.sol";
 import "../contracts/facets/lab/LabQueryFacet.sol";
+import {LabReceiver} from "./LabReceiver.sol";
 import {IDiamondCut} from "../contracts/interfaces/IDiamondCut.sol";
 import "../contracts/interfaces/IDiamond.sol";
 
@@ -77,12 +78,13 @@ contract LabAdminTest is BaseTest {
             functionSelectors: providerSelectors
         });
 
-        bytes4[] memory labSelectors = new bytes4[](5);
+        bytes4[] memory labSelectors = new bytes4[](6);
         labSelectors[0] = _selector("initialize(string,string)");
         labSelectors[1] = _selector("safeMintTo(address,uint256)");
         labSelectors[2] = _selector("burnToken(uint256)");
         labSelectors[3] = _selector("ownerOf(uint256)");
         labSelectors[4] = _selector("tokenURI(uint256)");
+        labSelectors[5] = _selector("transferFrom(address,address,uint256)");
         cut2[2] = IDiamond.FacetCut({
             facetAddress: address(labFacetImpl), action: IDiamond.FacetCutAction.Add, functionSelectors: labSelectors
         });
@@ -155,6 +157,57 @@ contract LabAdminTest is BaseTest {
 
         assertEq(labFacet.ownerOf(1), provider1);
         assertEq(labQuery.getPucHash(1), creatorHash);
+    }
+
+    function test_mint_callback_sees_complete_lab_and_transfer_unlists_it() public {
+        LabReceiver receiver = new LabReceiver(address(diamond), provider2, false, false);
+        vm.prank(admin);
+        providerFacet.addProvider("Receiver", address(receiver), "receiver@x", "ES", "");
+
+        vm.recordLogs();
+        receiver.createListed(TEST_PUC_HASH);
+        Vm.Log[] memory entries = vm.getRecordedLogs();
+
+        assertTrue(receiver.listedDuringCallback());
+        assertEq(receiver.creatorDuringCallback(), TEST_PUC_HASH);
+        assertEq(receiver.uriDuringCallback(), "outer");
+        assertEq(labFacet.ownerOf(1), provider2);
+        assertFalse(labQuery.isLabListed(1));
+
+        uint256 addedIndex = type(uint256).max;
+        uint256 mintedIndex = type(uint256).max;
+        uint256 unlistedIndex = type(uint256).max;
+        for (uint256 i = 0; i < entries.length; i++) {
+            if (entries[i].topics[0] == keccak256("LabAdded(uint256,address,string,uint96,string,string,uint8)")) {
+                addedIndex = i;
+            } else if (
+                entries[i].topics[0] == keccak256("Transfer(address,address,uint256)")
+                    && mintedIndex == type(uint256).max
+            ) {
+                mintedIndex = i;
+            } else if (entries[i].topics[0] == keccak256("LabUnlisted(uint256,address)")) {
+                unlistedIndex = i;
+            }
+        }
+        assertLt(addedIndex, mintedIndex);
+        assertLt(mintedIndex, unlistedIndex);
+    }
+
+    function test_rejected_mint_rolls_back_lab_state_and_id() public {
+        LabReceiver receiver = new LabReceiver(address(diamond), address(0), false, true);
+        vm.prank(admin);
+        providerFacet.addProvider("Receiver", address(receiver), "receiver@x", "ES", "");
+
+        vm.expectRevert("receiver rejects mint");
+        receiver.createListed(TEST_PUC_HASH);
+
+        (uint256[] memory ids, uint256 total) = labQuery.getLabsPaginated(0, 5);
+        assertEq(total, 0);
+        assertEq(ids.length, 0);
+        assertEq(labQuery.getPucHash(1), bytes32(0));
+        vm.prank(provider1);
+        labAdmin.addLabWithPucHash("next", PRICE_100, "access", "key", 0, TEST_PUC_HASH);
+        assertEq(labFacet.ownerOf(1), provider1);
     }
 
     /// @notice SPEC: Precondition "Caller must be the lab provider"

@@ -301,7 +301,8 @@ library LibDiamond {
     ///        2) `_init` implements the `isInitializer()` marker which must return true on a staticcall.
     /// @custom:security delegatecall is safe here because:
     ///      - Only contract owner can call this (via DiamondCutFacet)
-    ///      - Target address is validated (has code + is whitelisted facet OR implements isInitializer())
+    ///      - The owner must trust the target bytecode: the facet/initializer marker is not a trust whitelist
+    ///      - Target address has code and is in the cut or reports the initializer marker
     ///      - Calldata is validated (minimum 4 bytes for selector)
     ///      - This is the EIP-2535 Diamond Standard pattern for initialization
     function initializeDiamondCut(

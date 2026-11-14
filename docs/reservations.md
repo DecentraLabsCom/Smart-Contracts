@@ -182,6 +182,11 @@ wallet is not an alternate executor. See [Service credits and
 settlement](credits-and-settlement.md) for the current fee, refund and
 provider-reputation outcomes. A provider-side cancellation is separate: the
 current provider or its authorized backend must provide a non-zero reason code.
+For an ordinary provider cancellation, the reservation must be confirmed and
+the transaction must be included in a block whose timestamp is strictly before
+the reservation start. Inclusion at or after the start, or after access is
+authorized, is rejected. Submitting a transaction before the start does not
+guarantee inclusion before that cutoff.
 The service-failure reason is allowed only for a confirmed or
 access-authorized reservation while the attestation grace period is open and
 when `SessionStarted` has not been recorded; an ordinary payer no-show is not

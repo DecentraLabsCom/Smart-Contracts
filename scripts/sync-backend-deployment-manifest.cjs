@@ -92,6 +92,7 @@ async function main() {
     throw new Error("Canonical Lab Gateway/blockchain-services checkout is missing; refusing to create a backend path");
   }
   const deployment = readJson(LATEST_FILE);
+  const existingManifest = fs.existsSync(BACKEND_MANIFEST) ? readJson(BACKEND_MANIFEST) : {};
   assertConsumerInSync(path.join(ROOT, "abi", "Diamond.json"), BACKEND_ABI, "Diamond ABI");
   assertConsumerInSync(path.join(ROOT, "selectors", "diamond.json"), BACKEND_SELECTOR_MANIFEST, "selector manifest");
   const selectorManifest = loadSelectorManifest(ROOT);
@@ -119,11 +120,16 @@ async function main() {
     throw new Error(`Live Diamond owner ${owner} does not hold DEFAULT_ADMIN_ROLE`);
   }
 
+  const existingFacetOrder = new Map((existingManifest.facets || []).map((facet, index) => [facet.name, index]));
   const expectedFacets = selectorManifest.facets.map((facet) => ({
     name: facet.name,
     address: addressForFacet(deployment, facet.name),
     selectors: facet.functions.map((signature) => ethers.id(signature).slice(0, 10).toLowerCase()),
-  }));
+  })).sort((left, right) => {
+    const leftIndex = existingFacetOrder.get(left.name) ?? Number.MAX_SAFE_INTEGER;
+    const rightIndex = existingFacetOrder.get(right.name) ?? Number.MAX_SAFE_INTEGER;
+    return leftIndex - rightIndex || left.name.localeCompare(right.name);
+  });
   const actualFacetAddresses = await diamond.facetAddresses();
   if (!compareSets(actualFacetAddresses, expectedFacets.map(({address}) => address))) {
     throw new Error("Live Diamond facet address set does not match the deployment snapshot");
@@ -142,17 +148,16 @@ async function main() {
     });
   }
 
-  const existing = fs.existsSync(BACKEND_MANIFEST) ? readJson(BACKEND_MANIFEST) : {};
   const manifest = {
-    schemaVersion: existing.schemaVersion || 1,
+    schemaVersion: existingManifest.schemaVersion || 1,
     deploymentState: "active",
     network: deployment.network,
     chainId: Number(network.chainId),
-    abiVersion: process.env.CONTRACT_ABI_VERSION || existing.abiVersion || "credit-ledger-v1",
+    abiVersion: process.env.CONTRACT_ABI_VERSION || existingManifest.abiVersion || "credit-ledger-v1",
     abiSha256: sha256(BACKEND_ABI),
     selectorManifestSha256: sha256(BACKEND_SELECTOR_MANIFEST),
     diamondAddress: ethers.getAddress(diamondAddress),
-    expectedOwner: owner.toLowerCase(),
+    expectedOwner: ethers.getAddress(owner),
     expectedDefaultAdminRole: defaultAdminRole,
     criticalAddresses: {DiamondInit: ethers.getAddress(diamondInitAddress)},
     criticalCodeHashes: {
@@ -179,11 +184,7 @@ async function main() {
   }
 
   fs.mkdirSync(path.dirname(BACKEND_MANIFEST), {recursive: true});
-  const output = JSON.stringify(manifest, null, 2).replace(
-    /    \{\n      "name": "([^"]+)",\n      "address": "([^"]+)",\n      "codeHash": "([^"]+)"\n    \}/g,
-    '    { "name": "$1", "address": "$2", "codeHash": "$3" }',
-  );
-  fs.writeFileSync(BACKEND_MANIFEST, `${output}\n`);
+  fs.writeFileSync(BACKEND_MANIFEST, `${JSON.stringify(manifest, null, 2)}\n`);
   console.log(`Synchronized live deployment manifest: ${path.relative(ROOT, BACKEND_MANIFEST)}`);
   console.log(`Diamond: ${manifest.diamondAddress}; facets verified: ${manifest.facets.length}`);
 }

@@ -20,6 +20,10 @@ contract ReservationIntentHarness is ReservationIntentFacet {
     bytes32 public lastRefundPucHash;
     bytes32 public lastRefundReservationKey;
     uint256 public lastRefundAmount;
+    address public lastReservationSpentInstitution;
+    bytes32 public lastReservationSpentPucHash;
+    bytes32 public lastReservationSpentKey;
+    uint256 public lastReservationSpentAmount;
     uint256 public lastGenericSpentAmount;
 
     function setInstitution(
@@ -247,6 +251,18 @@ contract ReservationIntentHarness is ReservationIntentFacet {
         uint256 amount
     ) external {
         lastGenericSpentAmount = amount;
+    }
+
+    function spendFromInstitutionalTreasuryForReservation(
+        address institution,
+        bytes32 pucHash,
+        bytes32 reservationKey,
+        uint256 amount
+    ) external {
+        lastReservationSpentInstitution = institution;
+        lastReservationSpentPucHash = pucHash;
+        lastReservationSpentKey = reservationKey;
+        lastReservationSpentAmount = amount;
     }
 }
 
@@ -534,6 +550,44 @@ contract ReservationIntentFacetTest is Test {
 
         assertEq(uint8(harness.intentState(requestId)), uint8(IntentState.Executed));
         assertEq(harness.reservationStatus(reservationKey), 1);
+        assertEq(harness.lastReservationSpentInstitution(), institution);
+        assertEq(harness.lastReservationSpentPucHash(), payload.pucHash);
+        assertEq(harness.lastReservationSpentKey(), reservationKey);
+        assertEq(harness.lastReservationSpentAmount(), 40_000_000);
+        assertEq(harness.lastGenericSpentAmount(), 0);
+    }
+
+    function test_directBookingWithIntent_reusesPucWithReservationScopedFeeReferences() public {
+        uint256 labId = 44;
+        bytes32 pucHash = keccak256(bytes(PUC));
+        harness.setLabOwnerAndPrice(labId, institution, 23);
+
+        for (uint32 index = 1; index <= 2; index++) {
+            uint32 start = uint32(block.timestamp + 1 hours + (index * 2 hours));
+            uint32 end = start + 1800;
+            bytes32 reservationKey = keccak256(abi.encodePacked(labId, start, pucHash));
+            bytes32 requestId = keccak256(abi.encode("direct-booking-same-puc", index));
+            ReservationIntentPayload memory payload = ReservationIntentPayload({
+                executor: institution,
+                schacHomeOrganization: "institution.example",
+                pucHash: pucHash,
+                assertionHash: bytes32(0),
+                labId: labId,
+                start: start,
+                end: end,
+                price: 0,
+                reservationKey: reservationKey
+            });
+
+            harness.setPendingDirectBookingIntent(requestId, payload);
+            vm.prank(institution);
+            harness.institutionalDirectBookingWithIntent(requestId, payload);
+
+            assertEq(harness.lastReservationSpentPucHash(), pucHash);
+            assertEq(harness.lastReservationSpentKey(), reservationKey);
+            assertEq(harness.lastReservationSpentAmount(), 40_000_000);
+            assertEq(harness.lastGenericSpentAmount(), 0);
+        }
     }
 
     function test_directBookingWithIntent_allowsOwnerBackendAndKeepsOwnerAsPayer() public {

@@ -12,6 +12,7 @@
     "selectors:plan-live": "node scripts/reconcile-live-selectors.cjs",
     "selectors:coverage": "node test/selector-test-coverage-report.cjs",
     "selectors:check": "node --test test/selector-manifest.test.cjs test/remove-institutional-reservation-selector.test.cjs test/deployment-artifact-consistency.test.cjs test/deployment-script.test.cjs test/documentation.test.cjs test/verification-cli-options.test.cjs test/full-diamond-fixture-consistency.test.cjs test/foundry-artifacts.test.cjs test/intent-facet-split.test.cjs",
+    "deployment:sync-backend-manifest": "node scripts/sync-backend-deployment-manifest.cjs",
     "verify:contract-surface": "node scripts/selector-manifest.cjs && npm run abi:generate && npm run selectors:check",
     "verify:repo-consistency": "node scripts/verify-repo-consistency.cjs",
     "docs:generate": "node scripts/generate-facet-reference.cjs",

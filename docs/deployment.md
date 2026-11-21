@@ -58,6 +58,44 @@ network's `*-latest.json` snapshot after a successful deployment.
    preserve the exact output artifact.
 6. Update Marketplace and backend ABI/address configuration together.
 
+After any broadcast deployment or facet upgrade, synchronize the canonical
+`Lab Gateway/blockchain-services` runtime manifest from the live Diamond. The
+backend checks every facet address and runtime bytecode hash at startup, along
+with the Diamond owner, ABI hash and selector routing. A stale packaged
+manifest causes `Diamond startup verification failed` and keeps the backend
+unready. Run this from the Smart-Contracts checkout after the latest deployment
+artifact has been written:
+
+```powershell
+npm run deployment:sync-backend-manifest
+npm run deployment:sync-backend-manifest -- --check
+```
+
+The command reads `RPC_URL` from the environment or `.env`, checks that the
+deployment snapshot and complete live loupe match, then writes only
+`Lab Gateway/blockchain-services/src/main/resources/contract/deployment-manifest.json`.
+It never reads or writes the external `Blockchain-Services` mirror. Commit the
+updated manifest with the backend change, rebuild the backend image and
+redeploy the backend service so the new manifest is packaged.
+If the ABI or selector manifest changed, run `npm run abi:sync-consumers` first;
+the manifest sync refuses to proceed while those backend consumer files differ
+from the canonical Smart-Contracts files.
+
+For the reservation-fee reference fix, use the targeted upgrade helper instead
+of the broad full-deployment script. It validates that only the current
+`ReservationIntentFacet` and `InstitutionalReservationConfirmationFacet`
+selectors are routed as expected, deploys a fresh linked library and facets,
+simulates the cut, then replaces both facets in one transaction:
+
+```powershell
+node scripts/upgrade-reservation-fee-reference.cjs
+node scripts/upgrade-reservation-fee-reference.cjs --broadcast
+```
+
+The first command performs a live read-only preflight. The broadcast command
+requires the Diamond owner key in `.env`; after loupe verification it refreshes
+the timestamped/latest deployment snapshots and the backend manifest.
+
 For the retired direct institutional reservation route, the intended cut is a
 single removal of selector `0xc2cfb850`, the selector for
 `institutionalReservationRequest(address,bytes32,uint256,uint32,uint32)`.

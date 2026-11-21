@@ -74,9 +74,11 @@ contract InstitutionalReservationConfirmationTest is BaseTest {
         harness.confirmInstitutionalReservationRequestWithPucHash(inst, key, keccak256(bytes(puc)));
 
         assertEq(harness.getReservationStatus(key), _CONFIRMED);
-        assertEq(harness.lastSpentAmount(), 0);
-        assertEq(harness.lastGenericSpentInstitution(), inst);
-        assertEq(harness.lastGenericSpentAmount(), 40_000_000);
+        assertEq(harness.lastSpentProvider(), inst);
+        assertEq(harness.lastSpentPucHash(), keccak256(bytes(puc)));
+        assertEq(harness.lastSpentReservationKey(), key);
+        assertEq(harness.lastSpentAmount(), 40_000_000);
+        assertEq(harness.lastGenericSpentAmount(), 0);
         (uint96 storedPrice, uint96 providerShare) = harness.getReservationEconomics(key);
         assertEq(storedPrice, 0);
         assertEq(providerShare, 0);
@@ -99,12 +101,40 @@ contract InstitutionalReservationConfirmationTest is BaseTest {
         harness.confirmInstitutionalReservationRequestWithPucHash(inst, key, keccak256(bytes(puc)));
 
         assertEq(harness.getReservationStatus(key), _CONFIRMED);
-        assertEq(harness.lastSpentAmount(), 0);
-        assertEq(harness.lastGenericSpentInstitution(), inst);
-        assertEq(harness.lastGenericSpentAmount(), 20_000_000);
+        assertEq(harness.lastSpentProvider(), inst);
+        assertEq(harness.lastSpentPucHash(), keccak256(bytes(puc)));
+        assertEq(harness.lastSpentReservationKey(), key);
+        assertEq(harness.lastSpentAmount(), 20_000_000);
+        assertEq(harness.lastGenericSpentAmount(), 0);
         (uint96 storedPrice, uint96 providerShare) = harness.getReservationEconomics(key);
         assertEq(storedPrice, 0);
         assertEq(providerShare, 0);
+    }
+
+    function test_confirm_zero_price_same_puc_uses_distinct_reservation_references() public {
+        address inst = address(0x2222);
+        uint256 labId = 111;
+        string memory puc = "repeated-user@inst";
+        bytes32 firstKey = keccak256("first-reservation");
+        bytes32 secondKey = keccak256("second-reservation");
+
+        harness.setOwner(labId, inst);
+        harness.setInstitutionRole(inst);
+        harness.setTokenStatus(labId, true);
+        harness.setProviderActive(inst);
+
+        harness.setReservation(firstKey, user1, inst, 0, _PENDING, labId, 1234, puc);
+        vm.prank(inst);
+        harness.confirmInstitutionalReservationRequestWithPucHash(inst, firstKey, keccak256(bytes(puc)));
+        assertEq(harness.lastSpentPucHash(), keccak256(bytes(puc)));
+        assertEq(harness.lastSpentReservationKey(), firstKey);
+
+        harness.setReservation(secondKey, user1, inst, 0, _PENDING, labId, 5678, puc);
+        vm.prank(inst);
+        harness.confirmInstitutionalReservationRequestWithPucHash(inst, secondKey, keccak256(bytes(puc)));
+        assertEq(harness.lastSpentPucHash(), keccak256(bytes(puc)));
+        assertEq(harness.lastSpentReservationKey(), secondKey);
+        assertEq(harness.lastGenericSpentAmount(), 0);
     }
 
     function test_lab_price_change_after_creation_does_not_change_paid_reservation_economics() public {
@@ -148,8 +178,11 @@ contract InstitutionalReservationConfirmationTest is BaseTest {
         vm.prank(provider);
         harness.confirmInstitutionalReservationRequestWithPucHash(inst, key, keccak256(bytes(puc)));
 
-        assertEq(harness.lastSpentAmount(), 0);
-        assertEq(harness.lastGenericSpentAmount(), 20_000_000);
+        assertEq(harness.lastSpentProvider(), inst);
+        assertEq(harness.lastSpentPucHash(), keccak256(bytes(puc)));
+        assertEq(harness.lastSpentReservationKey(), key);
+        assertEq(harness.lastSpentAmount(), 20_000_000);
+        assertEq(harness.lastGenericSpentAmount(), 0);
         (uint96 storedPrice, uint96 providerShare) = harness.getReservationEconomics(key);
         assertEq(storedPrice, 0);
         assertEq(providerShare, 0);
@@ -174,7 +207,9 @@ contract InstitutionalReservationConfirmationTest is BaseTest {
         vm.warp(1_000_000);
         vm.prank(inst);
         lifecycle.confirmInstitutionalReservationRequestWithPucHash(inst, key, keccak256(bytes(puc)));
-        assertEq(lifecycle.lastGenericSpentAmount(), 40_000_000);
+        assertEq(lifecycle.lastSpentReservationKey(), key);
+        assertEq(lifecycle.lastSpentAmount(), 40_000_000);
+        assertEq(lifecycle.lastGenericSpentAmount(), 0);
 
         vm.prank(backend);
         lifecycle.cancelInstitutionalBookingWithPucHash(inst, key, keccak256(bytes(puc)));
@@ -201,7 +236,9 @@ contract InstitutionalReservationConfirmationTest is BaseTest {
         vm.warp(1_000_000);
         vm.prank(provider);
         lifecycle.confirmInstitutionalReservationRequestWithPucHash(inst, key, keccak256(bytes(puc)));
-        assertEq(lifecycle.lastGenericSpentAmount(), 20_000_000);
+        assertEq(lifecycle.lastSpentReservationKey(), key);
+        assertEq(lifecycle.lastSpentAmount(), 20_000_000);
+        assertEq(lifecycle.lastGenericSpentAmount(), 0);
 
         vm.prank(backend);
         lifecycle.cancelInstitutionalBookingWithPucHash(inst, key, keccak256(bytes(puc)));

@@ -145,7 +145,7 @@ library LibInstitutionalReservationConfirmation {
         }
 
         try IInstitutionalTreasuryFacetConfirmLib(address(this))
-            .spendFromInstitutionalTreasury(r.payerInstitution, pucHash, reservationFee) {
+            .spendFromInstitutionalTreasuryForReservation(r.payerInstitution, pucHash, key, reservationFee) {
             _finalize(s, r, key, trackingKey);
         } catch {
             LibReservationCancellation.cancelReservation(key);

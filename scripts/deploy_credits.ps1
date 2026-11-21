@@ -705,3 +705,17 @@ Write-Host "Deployment info saved to: $outputFile" -ForegroundColor Cyan
 $latestFile = Join-Path -Path $outputDir -ChildPath "$network-latest.json"
 $deployment | ConvertTo-Json -Depth 4 | Set-Content -Path $latestFile -Encoding UTF8
 Write-Host "Latest deployment: $latestFile" -ForegroundColor Cyan
+
+if ($Broadcast) {
+    Write-Host "Synchronizing the canonical blockchain-services deployment manifest..."
+    Push-Location (Join-Path -Path $PSScriptRoot -ChildPath "..")
+    try {
+        & node "scripts/sync-backend-deployment-manifest.cjs"
+        $manifestSyncExitCode = $LASTEXITCODE
+    } finally {
+        Pop-Location
+    }
+    if ($manifestSyncExitCode -ne 0) {
+        throw "On-chain deployment completed, but backend deployment-manifest synchronization failed. Run npm run deployment:sync-backend-manifest after fixing the reported issue."
+    }
+}

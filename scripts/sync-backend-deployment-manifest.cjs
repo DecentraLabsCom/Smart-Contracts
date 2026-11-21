@@ -152,7 +152,7 @@ async function main() {
     abiSha256: sha256(BACKEND_ABI),
     selectorManifestSha256: sha256(BACKEND_SELECTOR_MANIFEST),
     diamondAddress: ethers.getAddress(diamondAddress),
-    expectedOwner: ethers.getAddress(owner),
+    expectedOwner: owner.toLowerCase(),
     expectedDefaultAdminRole: defaultAdminRole,
     criticalAddresses: {DiamondInit: ethers.getAddress(diamondInitAddress)},
     criticalCodeHashes: {
@@ -179,7 +179,11 @@ async function main() {
   }
 
   fs.mkdirSync(path.dirname(BACKEND_MANIFEST), {recursive: true});
-  fs.writeFileSync(BACKEND_MANIFEST, `${JSON.stringify(manifest, null, 2)}\n`);
+  const output = JSON.stringify(manifest, null, 2).replace(
+    /    \{\n      "name": "([^"]+)",\n      "address": "([^"]+)",\n      "codeHash": "([^"]+)"\n    \}/g,
+    '    { "name": "$1", "address": "$2", "codeHash": "$3" }',
+  );
+  fs.writeFileSync(BACKEND_MANIFEST, `${output}\n`);
   console.log(`Synchronized live deployment manifest: ${path.relative(ROOT, BACKEND_MANIFEST)}`);
   console.log(`Diamond: ${manifest.diamondAddress}; facets verified: ${manifest.facets.length}`);
 }
